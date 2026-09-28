@@ -34,7 +34,7 @@ export const NAV = [
     { route: 'aliados', label: 'Aliados referidores', roles: ['super_admin', 'admin', 'auditor'], ready: true }
   ]},
   { group: 'Facturación', items: [
-    { route: 'radicaciones', label: 'Radicaciones', roles: ALL, ready: true },
+    { route: 'radicaciones', label: 'Radicaciones', roles: ALL, iteration: 5, about: 'Desglose de servicios del período por prestador y ARS, validación prefacturación, checklist documental y expediente digital.' },
     { route: 'codificacion', label: 'Codificación y tarifas', roles: ALL, ready: true },
     { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], iteration: 6, about: 'Glosas por servicio, apelaciones, plazos de respuesta y recuperación.' },
     { route: 'pagos', label: 'Pagos y conciliación', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], iteration: 6, about: 'Pagos de ARS distribuidos entre radicaciones, conciliación y honorarios automáticos.' },
@@ -45,7 +45,7 @@ export const NAV = [
   ]},
   { group: 'Gestión', items: [
     { route: 'tareas', label: 'Tareas', roles: [...OPS, 'auditor'], ready: true },
-    { route: 'documentos', label: 'Documentos', roles: ALL, ready: true },
+    { route: 'documentos', label: 'Documentos', roles: ALL, iteration: 5, about: 'Expedientes en Storage privado con URLs firmadas.' },
     { route: 'reportes', label: 'Reportes', roles: [...STAFF, 'client'], iteration: 8, about: 'Reportes por PSS, ARS, servicio, estado, período y aging con exportación.' }
   ]},
   { group: 'Configuración', items: [
@@ -76,11 +76,6 @@ const ACTIONS = {
   'codes.edit': ['super_admin', 'admin', 'billing'],
   'tasks.edit': ['super_admin', 'admin', 'billing', 'glosas', 'assistant'],
   'contacts.delete': ['super_admin', 'admin'],
-  'partners.edit': ['super_admin', 'admin'],
-  'subs.create': ['super_admin', 'admin', 'billing', 'assistant', 'client'],
-  'subs.edit': ['super_admin', 'admin', 'billing', 'assistant', 'client'],
-  'subs.delete': ['super_admin', 'admin'],
-  'docs.upload': ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'client'],
-  'docs.delete': ['super_admin', 'admin']
+  'partners.edit': ['super_admin', 'admin']
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

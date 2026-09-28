@@ -5,9 +5,8 @@ import { getClient, updateClient, listProviders, saveProvider, listCodes, saveCo
 import { listArs } from '../services/catalog.js';
 import { listContacts, listActivities, addActivity, listOpportunities, createOpportunityForClient } from '../services/crm.js';
 import { listTasks } from '../services/tasks.js';
-import { listSubmissions } from '../services/submissions.js';
-import { ORG_TYPES, ORG_STATUS, PROVIDER_TYPES, CODE_STATUS, SERVICES, ACTIVITY_TYPES, stageLabel, serviceName, subStatus } from '../utils/constants.js';
-import { money, date, dateTime, num, todayISO, period as periodLabel } from '../utils/formatters.js';
+import { ORG_TYPES, ORG_STATUS, PROVIDER_TYPES, CODE_STATUS, SERVICES, ACTIVITY_TYPES, stageLabel, serviceName } from '../utils/constants.js';
+import { money, date, dateTime, num, todayISO } from '../utils/formatters.js';
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { isTaxId, isEmail, isPhone } from '../utils/validation.js';
@@ -44,7 +43,6 @@ export async function render(main, ctx) {
       <div class="card"><h2>Prestadores</h2><p class="sub">Médicos o centros que facturan a las ARS bajo este cliente.</p>${editOrg ? html`<button class="btn sm" id="addProv">+ Prestador</button>` : ''}<div id="provs"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Códigos de prestador por ARS</h2><p class="sub">Sin código asignado, la ARS no paga. Lleva aquí las solicitudes pendientes.</p>${editCodes ? html`<button class="btn sm" id="addCode">+ Código ARS</button>` : ''}<div id="codes"></div></div>
       <div class="card"><h2>Contactos</h2>${crm ? html`<button class="btn sm" id="addContact">+ Contacto</button>` : ''}<div id="contacts"></div></div>
-      <div class="card" style="grid-column:1/-1"><h2>Radicaciones</h2><p class="sub">Las más recientes de este cliente.</p>${can('subs.create', ctx.role) ? html`<button class="btn sm" id="addSub">+ Nueva radicación</button> ` : ''}<a class="btn sm" href="#/radicaciones">Ver todas</a><div id="subs" style="margin-top:8px"></div></div>
       ${staff ? html`<div class="card"><h2>Oportunidades con este cliente</h2><p class="sub">Venta cruzada: codificación, glosas, habilitación…</p>${crm ? html`<button class="btn sm" id="addOpp">+ Oportunidad</button>` : ''}<div id="opps"></div></div>
       <div class="card"><h2>Tareas</h2>${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea</button>` : ''}<div id="tasks"></div></div>
       <div class="card"><h2>Historial</h2>${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
@@ -170,12 +168,5 @@ export async function render(main, ctx) {
     try { await addActivity(ctx.operatorId, { entityType: 'organization', entityId: org.id, organizationId: org.id }, f.type.value, body); f.body.value = ''; toast('Registrado', 'ok'); loadActs(); }
     catch (err) { toast(friendlyError(err), 'bad'); }
   });
-  const loadSubs = () => loadInto($('#subs', main), async () => (await listSubmissions({ orgId: org.id, size: 8 })).data,
-    (rows) => html`<div class="list">${rows.map((x) => { const [l, c] = subStatus(x.display_status); return html`<div class="li"><div class="b"><div class="t1"><a href="#/radicaciones/${x.id}" class="mono">${x.folio}</a> · ${x.ars_name} · ${periodLabel(x.period)}</div><div class="t2">${x.provider_name} · ${num(x.lines)} servicios · ${money(x.claimed)}</div></div><span class="pill ${c}">${l}</span></div>`; })}</div>`,
-    { empty: () => html`<p class="small muted">Sin radicaciones todavía.</p>` });
-  $('#addSub', main)?.addEventListener('click', async () => {
-    const { newSubmissionDialog } = await import('./submission-dialogs.js');
-    try { const sid = await newSubmissionDialog(org.id); if (sid) location.hash = `#/radicaciones/${sid}`; } catch (err) { toast(friendlyError(err), 'bad'); }
-  });
-  loadSubs(); loadOpps(); loadTasks(); loadActs();
+  loadOpps(); loadTasks(); loadActs();
 }
