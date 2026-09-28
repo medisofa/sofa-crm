@@ -3,6 +3,7 @@
  * La librería se sirve desde el propio repositorio: no depende de un CDN
  * externo y la versión queda fija.
  */
+import { APP_VERSION } from './version.js';
 import { CONFIG } from './config.js';
 
 /**
@@ -49,7 +50,7 @@ export function sb() {
   }
   client = window.supabase.createClient(projectUrl(), publishableKey(), {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'sofa-auth' },
-    global: { headers: { 'x-sofa-client': `web/${CONFIG.APP_VERSION}` } }
+    global: { headers: { 'x-sofa-client': `web/${APP_VERSION}` } }
   });
   return client;
 }

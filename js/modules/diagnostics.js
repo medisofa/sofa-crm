@@ -3,6 +3,7 @@
  * Muestra lo que TU rol puede ver: las cifras cambian según RLS. También
  * intenta una escritura prohibida para confirmar que la base la bloquea.
  */
+import { APP_VERSION } from '../version.js';
 import { html, render as paint, $ } from '../utils/dom.js';
 import { friendlyError } from '../utils/ui.js';
 import { headCount } from '../services/stats.js';
@@ -26,7 +27,7 @@ export async function render(main, ctx) {
         <div class="li"><div class="b"><div class="t1">Usuario</div><div class="t2">${s.user.email} · ${ctx.membership.role_name}</div></div></div>
         <div class="li"><div class="b"><div class="t1">La sesión se renueva sola antes de</div><div class="t2">${dateTime(s.expires_at * 1000)}</div></div></div>
         <div class="li"><div class="b"><div class="t1">Cierre por inactividad</div><div class="t2">${CONFIG.INACTIVITY_MINUTES} minutos</div></div></div>
-        <div class="li"><div class="b"><div class="t1">Versión</div><div class="t2">SOFA ${CONFIG.APP_VERSION} · supabase-js 2.117.2</div></div></div>
+        <div class="li"><div class="b"><div class="t1">Versión</div><div class="t2">SOFA ${APP_VERSION} · supabase-js 2.117.2</div></div></div>
         <div class="li"><div class="b"><div class="t1">Latencia</div><div class="t2" id="lat">Midiendo…</div></div></div>
       </div></div>
       <div class="card"><h2>Prueba de seguridad</h2><p class="sub">Intenta escribir en el audit log, algo que ningún usuario puede hacer.</p><div id="sec">Probando…</div></div>

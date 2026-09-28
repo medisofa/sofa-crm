@@ -5,6 +5,9 @@ import { visibleNav, isStaff, can } from '../utils/permissions.js';
 import { headCount } from '../services/stats.js';
 import { listMilestones, setMilestoneDone } from '../services/admin.js';
 import { num, date } from '../utils/formatters.js';
+import { listTasks } from '../services/tasks.js';
+import { listOpportunities } from '../services/crm.js';
+import { canSee } from '../utils/permissions.js';
 
 export async function render(main, ctx) {
   const first = String(ctx.profile.full_name || '').split(' ')[0] || 'bienvenido';
@@ -14,6 +17,7 @@ export async function render(main, ctx) {
     <div class="page-head"><div class="t"><h2>Hola, ${first}</h2><p>${ctx.membership.role_name} · ${ctx.membership.organization}</p></div></div>
     <div class="grid kpis" id="kpis"></div>
     <div class="grid two" style="margin-top:14px">
+      ${staff ? html`<div class="card"><h2>Seguimiento de hoy</h2><p class="sub">Tus tareas vencidas y de hoy, y oportunidades con la próxima acción atrasada.</p><div id="today"></div></div>` : ''}
       ${staff ? html`<div class="card"><h2>Plan de 90 días</h2><p class="sub">Hitos comerciales y técnicos. ${can('milestones.edit', ctx.role) ? 'Márcalos al cumplirlos.' : 'Solo lectura para tu rol.'}</p><div id="plan"></div></div>` : ''}
       <div class="card"><h2>Tus módulos</h2><p class="sub">Lo que tu rol puede usar hoy y lo que llega en las próximas iteraciones.</p>
         <div class="list">${nav.map((i) => html`<div class="li"><div class="b"><div class="t1"><a href="#/${i.route}">${i.label}</a></div></div>${i.ready ? html`<span class="pill ok">Disponible</span>` : html`<span class="pill">Iteración ${i.iteration}</span>`}</div>`)}</div>
@@ -32,6 +36,16 @@ export async function render(main, ctx) {
   paint(kp, html`${defs.map(([l], i) => html`<div class="kpi"><div class="l">${l}</div><div class="v">${vals[i].status === 'fulfilled' ? num(vals[i].value) : '—'}</div>${vals[i].status === 'rejected' ? html`<div class="h">${friendlyError(vals[i].reason)}</div>` : ''}</div>`)}`);
 
   if (staff) {
+    const tb = $('#today', main);
+    loadInto(tb, async () => {
+      const me = ctx.session.user.id;
+      const [late, today, opps] = await Promise.all([listTasks({ bucket: 'vencidas', assignee: me }), listTasks({ bucket: 'hoy', assignee: me }),
+        canSee('oportunidades', ctx.role) ? listOpportunities({}).then((r) => r.filter((o) => o.overdue)) : Promise.resolve([])]);
+      return { tasks: [...late, ...today], opps };
+    }, ({ tasks, opps }) => html`<div class="list">
+      ${tasks.map((t) => html`<div class="li"><div class="b"><div class="t1">${t.title}</div><div class="t2">${t.entity_label || 'Tarea'} · vence ${date(t.due_date)}${t.bucket === 'vencidas' ? html` · <b style="color:var(--bad)">vencida</b>` : ''}</div></div><a class="btn sm" href="#/tareas">Ver</a></div>`)}
+      ${opps.slice(0, 6).map((o) => html`<div class="li"><div class="b"><div class="t1">${o.company}</div><div class="t2">${o.next_action || 'Sin próxima acción'} · <b style="color:var(--bad)">${date(o.next_action_date)}</b></div></div><a class="btn sm" href="#/oportunidades/${o.id}">Abrir</a></div>`)}
+    </div>`, { isEmpty: (d) => !d.tasks.length && !d.opps.length, empty: () => emptyView('Todo al día', 'No tienes tareas vencidas ni seguimientos atrasados.') });
     const box = $('#plan', main);
     const editable = can('milestones.edit', ctx.role);
     const draw = (rows) => {

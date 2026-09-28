@@ -27,24 +27,26 @@ export const NAV = [
     { route: 'dashboard', label: 'Dashboard', roles: [...STAFF, 'client'], iteration: 8, about: 'KPIs de operación, cobranza, glosas, honorarios y CRM con filtros por período, PSS, ARS y estado.' }
   ]},
   { group: 'CRM', items: [
-    { route: 'prospectos', label: 'Prospectos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], iteration: 4, about: 'Registro de prospectos con canal de origen y aliado referidor.' },
-    { route: 'oportunidades', label: 'Oportunidades', roles: ['super_admin', 'admin', 'assistant', 'auditor'], iteration: 4, about: 'Pipeline de 8 etapas, diagnóstico de fugas y conversión a cliente.' },
+    { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
+    { route: 'prospectos', label: 'Prospectos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
     { route: 'clientes', label: 'Clientes PSS', roles: ALL, ready: true },
-    { route: 'contactos', label: 'Contactos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], iteration: 4, about: 'Contactos de clientes y prospectos con WhatsApp y correo.' }
+    { route: 'contactos', label: 'Contactos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
+    { route: 'aliados', label: 'Aliados referidores', roles: ['super_admin', 'admin', 'auditor'], ready: true }
   ]},
   { group: 'Facturación', items: [
-    { route: 'radicaciones', label: 'Radicaciones', roles: ALL, iteration: 5, about: 'Desglose de servicios del período por prestador y ARS, validación prefacturación, checklist documental y expediente digital.' },
+    { route: 'radicaciones', label: 'Radicaciones', roles: ALL, ready: true },
     { route: 'codificacion', label: 'Codificación y tarifas', roles: ALL, ready: true },
-    { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], iteration: 6, about: 'Glosas por servicio, apelaciones, plazos de respuesta y recuperación.' },
-    { route: 'pagos', label: 'Pagos y conciliación', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], iteration: 6, about: 'Pagos de ARS distribuidos entre radicaciones, conciliación y honorarios automáticos.' },
+    { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], ready: true },
+    { route: 'pagos', label: 'Pagos y conciliación', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
+    { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
     { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], iteration: 8, about: 'Antigüedad de saldos en 5 tramos con detalle por ARS y PSS.' }
   ]},
   { group: 'Catálogos', items: [
     { route: 'ars', label: 'ARS', roles: ALL, ready: true }
   ]},
   { group: 'Gestión', items: [
-    { route: 'tareas', label: 'Tareas', roles: [...OPS, 'auditor'], iteration: 4, about: 'Tareas ligadas a clientes, radicaciones, glosas y oportunidades.' },
-    { route: 'documentos', label: 'Documentos', roles: ALL, iteration: 5, about: 'Expedientes en Storage privado con URLs firmadas.' },
+    { route: 'tareas', label: 'Tareas', roles: [...OPS, 'auditor'], ready: true },
+    { route: 'documentos', label: 'Documentos', roles: ALL, ready: true },
     { route: 'reportes', label: 'Reportes', roles: [...STAFF, 'client'], iteration: 8, about: 'Reportes por PSS, ARS, servicio, estado, período y aging con exportación.' }
   ]},
   { group: 'Configuración', items: [
@@ -67,6 +69,23 @@ const ACTIONS = {
   'settings.edit': ['super_admin'],
   'users.toggle': ['super_admin'],
   'milestones.edit': ['super_admin', 'admin'],
-  'fees.view': ['super_admin', 'admin', 'auditor', 'client']
+  'fees.view': ['super_admin', 'admin', 'auditor', 'client'],
+  'crm.edit': ['super_admin', 'admin', 'assistant'],
+  'crm.convert': ['super_admin', 'admin'],
+  'clients.create': ['super_admin', 'admin'],
+  'clients.edit': ['super_admin', 'admin'],
+  'codes.edit': ['super_admin', 'admin', 'billing'],
+  'tasks.edit': ['super_admin', 'admin', 'billing', 'glosas', 'assistant'],
+  'contacts.delete': ['super_admin', 'admin'],
+  'partners.edit': ['super_admin', 'admin'],
+  'subs.create': ['super_admin', 'admin', 'billing', 'assistant', 'client'],
+  'subs.edit': ['super_admin', 'admin', 'billing', 'assistant', 'client'],
+  'subs.delete': ['super_admin', 'admin'],
+  'docs.upload': ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'client'],
+  'docs.delete': ['super_admin', 'admin'],
+  'glosas.edit': ['super_admin', 'admin', 'glosas'],
+  'payments.create': ['super_admin', 'admin', 'billing'],
+  'payments.void': ['super_admin'],
+  'fees.manage': ['super_admin', 'admin']
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

@@ -83,3 +83,45 @@ export function fieldError(input, message) {
   if (!e) { e = document.createElement('div'); e.className = 'err'; e.id = `${input.id}-err`; field.appendChild(e); }
   e.textContent = message; input.setAttribute('aria-invalid', 'true'); input.setAttribute('aria-describedby', e.id);
 }
+
+/** Opción de <select> segura */
+export const opt = (value, label, selected) => html`<option value="${value}" ${String(value) === String(selected ?? '') ? raw('selected') : ''}>${label ?? value}</option>`;
+
+/**
+ * Formulario en un <dialog> accesible. onSubmit(datos, form) puede lanzar un error:
+ * se muestra dentro del diálogo sin cerrarlo. Devuelve el valor de onSubmit o null si se cancela.
+ */
+export function formDialog({ title, body, submitLabel = 'Guardar', wide = false, onSubmit, onOpen }) {
+  return new Promise((resolve) => {
+    const d = document.createElement('dialog');
+    d.className = 'dlg'; if (wide) d.style.width = 'min(720px, 96vw)';
+    d.setAttribute('aria-labelledby', 'fdT');
+    render(d, html`<form novalidate><div class="dh" id="fdT">${title}</div><div class="db form-body">${body}<div class="fd-msg" aria-live="assertive"></div></div>
+      <div class="df"><button type="button" class="btn" data-cancel>Cancelar</button><button type="submit" class="btn primary">${submitLabel}</button></div></form>`);
+    document.body.appendChild(d);
+    const form = d.querySelector('form');
+    let result = null;
+    d.querySelector('[data-cancel]').addEventListener('click', () => d.close());
+    d.addEventListener('close', () => { d.remove(); resolve(result); });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form).entries());
+      form.querySelectorAll('input[type=checkbox][name]').forEach((c) => { data[c.name] = c.checked; });
+      const msg = d.querySelector('.fd-msg');
+      await busy(e.submitter || form.querySelector('[type=submit]'), async () => {
+        try { result = await onSubmit(data, form); if (result !== undefined && result !== false) d.close(); }
+        catch (err) { console.warn(err); render(msg, html`<div class="note bad" role="alert">${friendlyError(err)}</div>`); }
+      });
+    });
+    d.showModal();
+    onOpen?.(form, d);
+    form.querySelector('input:not([type=hidden]),select,textarea')?.focus();
+  });
+}
+
+/** Valida campos obligatorios de un formulario de diálogo; devuelve true si todo está bien */
+export function requireFields(form, names) {
+  let ok = true;
+  names.forEach((n) => { const i = form.elements[n]; if (!i) return; const bad = !String(i.value || '').trim(); fieldError(i, bad ? 'Campo obligatorio.' : null); if (bad) ok = false; });
+  return ok;
+}

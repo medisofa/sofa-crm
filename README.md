@@ -2,7 +2,7 @@
 
 Aplicación web estática (HTML + CSS + JavaScript con ES Modules) que se publica en **GitHub Pages** y usa **Supabase** como backend (Auth, PostgreSQL con RLS y Storage).
 
-- Versión: **0.3.0** (Iteración 3 · shell de la aplicación)
+- Versión: **0.6.0** (Iteración 6 · Glosas, pagos y honorarios)
 - Librería: `@supabase/supabase-js` **2.117.2**, copia local en `vendor/` (sin CDN externo)
 - Sin frameworks ni proceso de compilación: los archivos se suben tal cual.
 
@@ -33,7 +33,7 @@ sofa-crm/
 └── vendor/               supabase-js 2.117.2 (licencia MIT incluida)
 ```
 
-Los scripts SQL (`001`–`009`) se entregan aparte, en la carpeta `sofa-supabase/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
+Los scripts SQL (`001`–`015`) se entregan aparte, en la carpeta `sofa-supabase/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
 
 ## Instalación (resumen)
 
@@ -51,18 +51,21 @@ La guía paso a paso con capturas de verificación está en `GUIA_Iteracion3.htm
 2. Cambia `VERSION` en `sw.js` (por ejemplo `sofa-shell-0.3.1`) y `APP_VERSION` en `js/config.js`.
 3. Los usuarios verán el aviso "Hay una versión nueva de SOFA. Recarga la página".
 
-## Módulos disponibles en 0.3.0
+## Módulos disponibles en 0.6.0
 
 | Módulo | Estado |
 |---|---|
 | Login, recuperación de contraseña, cierre por inactividad (30 min) | Listo |
-| Inicio con cifras visibles por rol y plan de 90 días | Listo |
-| Clientes PSS (consulta) | Listo |
-| Codificación y tarifas vigentes (consulta y búsqueda por código) | Listo |
-| ARS | Listo |
+| Inicio: cifras por rol, seguimientos de hoy y plan de 90 días | Listo |
+| Pipeline (8 etapas), prospectos con aviso de duplicados, diagnóstico de fugas, conversión a cliente | Listo |
+| Clientes PSS: alta directa, ficha con prestadores, códigos por ARS, contactos, oportunidades, tareas e historial | Listo |
+| Contactos · Aliados referidores · Tareas | Listo |
+| Codificación y tarifas vigentes · ARS | Listo |
 | Usuarios y roles · Parámetros · Mi perfil · Diagnóstico | Listo |
-| CRM, tareas | Iteración 4 |
-| Radicaciones, documentos | Iteración 5 |
-| Glosas, pagos | Iteración 6 |
+| Radicaciones: desglose del período, validación de 10 reglas, carga masiva, checklist, expediente digital, estados hasta Radicada | Listo |
+| Documentos | Listo |
+| Glosas: registro por servicio, apelación, resultado parcial, Pareto y tasa por ARS | Listo |
+| Pagos: reparto entre radicaciones, conciliación por ARS, por cobrar, anulación | Listo |
+| Honorarios SOFA: cuotas, % cobrado, facturas, cobros y NCF | Listo |
 | Edición de tarifarios | Iteración 7 |
 | Dashboard, trabajo de hoy, aging, reportes | Iteración 8 |

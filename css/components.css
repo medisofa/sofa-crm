@@ -96,3 +96,31 @@ dialog.dlg .df { display: flex; gap: 8px; justify-content: flex-end; padding: 12
 .check { display: flex; gap: 10px; align-items: flex-start; }
 .check input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
 .muted { color: var(--ink-2); } .small { font-size: 13px; }
+
+/* Diálogos de formulario */
+dialog.dlg .form-body { color: var(--ink); max-height: 70vh; overflow-y: auto; padding-top: 6px; }
+dialog.dlg .form-body .field { margin-bottom: 12px; }
+dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
+/* Tablero kanban */
+.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+.kcol { background: var(--surface-2); border-radius: var(--r-lg); padding: 10px; min-height: 140px; scroll-snap-align: start; }
+.kcol h3 { font-size: 13px; margin: 2px 4px 10px; display: flex; justify-content: space-between; gap: 6px; }
+.kcol h3 span { color: var(--ink-2); font-weight: 600; }
+.kcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; margin-bottom: 8px; font-size: 13px; }
+.kcard a.t { font-weight: 700; font-size: 14px; color: var(--ink); text-decoration: none; display: block; }
+.kcard a.t:hover { text-decoration: underline; }
+.kcard .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.kcard .row .sp { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 7px 12px; font-size: 13px; cursor: pointer; min-height: 36px; }
+.seg button[aria-pressed="true"] { background: var(--navy); color: var(--on-navy); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 13.5px; cursor: pointer; min-height: 36px; }
+.tabs button[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: var(--on-navy); }
+.tabs button .c { margin-left: 6px; font-weight: 700; }
+.kv { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: 6px 12px; font-size: 14px; }
+.kv dt { color: var(--ink-2); } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.timeline .li .t2 { white-space: pre-wrap; }
+.dup-box { border: 1px solid var(--warn); background: var(--warn-bg); border-radius: var(--r); padding: 8px 12px; font-size: 13.5px; margin-bottom: 12px; }
+.inline-form { display: grid; gap: 8px; grid-template-columns: 1fr; margin-top: 10px; }
+@media (min-width: 560px) { .inline-form.row3 { grid-template-columns: 140px 1fr auto; align-items: start; } }

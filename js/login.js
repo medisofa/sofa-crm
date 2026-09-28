@@ -2,6 +2,7 @@
  * SOFA · Pantalla de acceso (login.html)
  * Modos: iniciar sesión · recuperar contraseña · definir nueva contraseña.
  */
+import { APP_VERSION } from './version.js';
 import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { html, render, $ } from './utils/dom.js';
@@ -21,7 +22,7 @@ const REASONS = {
 };
 
 const card = document.getElementById('card');
-const shell = (body) => html`<div class="logo"><img src="assets/icons/icon-192.png" alt=""><div><b>SOFA</b><span>Soluciones de Facturación Médica</span></div></div>${body}<p class="auth-foot">v${CONFIG.APP_VERSION} · Acceso exclusivo para personal y clientes autorizados</p>`;
+const shell = (body) => html`<div class="logo"><img src="assets/icons/icon-192.png" alt=""><div><b>SOFA</b><span>Soluciones de Facturación Médica</span></div></div>${body}<p class="auth-foot">v${APP_VERSION} · Acceso exclusivo para personal y clientes autorizados</p>`;
 const note = (kind, text) => html`<div class="note ${kind}" role="status">${text}</div>`;
 const pwField = (id, label, auto) => html`<div class="field"><label for="${id}">${label}</label><div class="pw-wrap"><input id="${id}" type="password" autocomplete="${auto}" required minlength="10"><button type="button" data-toggle="${id}" aria-label="Mostrar contraseña">Ver</button></div></div>`;
 

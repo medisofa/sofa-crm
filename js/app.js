@@ -2,6 +2,7 @@
  * SOFA · Arranque de la aplicación (index.html)
  * Login → Supabase Auth → perfil → organización → permisos → aplicación.
  */
+import { APP_VERSION } from './version.js';
 import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
@@ -12,7 +13,7 @@ import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
 
 const app = document.getElementById('app');
-const state = { session: null, profile: null, memberships: [], membership: null, role: null };
+const state = { session: null, profile: null, memberships: [], membership: null, role: null, operatorId: null };
 
 function fatal(title, text, actions = '') {
   render(app, html`<div class="auth-wrap"><div class="auth-card" role="alert">
@@ -46,6 +47,8 @@ async function boot() {
     $('#out').onclick = () => signOut('sin-acceso'); return;
   }
   state.role = state.membership.role;
+  // Organización operadora (SOFA) para crear registros del CRM; null para usuarios de clientes
+  state.operatorId = (state.memberships.find((m) => m.kind === 'operator') || {}).organization_id || null;
   layout();
   watchAuth();
   startInactivityTimer();
@@ -64,7 +67,7 @@ function layout() {
     <aside class="sidebar" id="sidebar" aria-label="Menú principal">
       <div class="brand"><img src="assets/icons/icon-192.png" alt=""><div><b>SOFA</b><small>Soluciones de Facturación Médica</small></div></div>
       <nav class="nav" id="nav"></nav>
-      <div class="side-foot">v${CONFIG.APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
+      <div class="side-foot">v${APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
     </aside>
     <div class="scrim" id="scrim"></div>
     <div style="min-width:0;display:flex;flex-direction:column">
