@@ -7,6 +7,7 @@ import { html, render as paint, $ } from '../utils/dom.js';
 import { friendlyError } from '../utils/ui.js';
 import { headCount } from '../services/stats.js';
 import { CONFIG } from '../config.js';
+import { projectUrl } from '../supabase.js';
 import { num, dateTime } from '../utils/formatters.js';
 
 const TABLES = [
@@ -21,7 +22,7 @@ export async function render(main, ctx) {
     <div class="page-head"><div class="t"><h2>Diagnóstico</h2><p>Conexión, sesión y lo que tu rol puede ver según las reglas de seguridad de la base de datos.</p></div><button class="btn" id="again">Volver a probar</button></div>
     <div class="grid two">
       <div class="card"><h2>Conexión y sesión</h2><div class="list">
-        <div class="li"><div class="b"><div class="t1">Proyecto Supabase</div><div class="t2 mono">${new URL(CONFIG.SUPABASE_URL).host}</div></div></div>
+        <div class="li"><div class="b"><div class="t1">Proyecto Supabase</div><div class="t2 mono">${new URL(projectUrl()).host}</div></div></div>
         <div class="li"><div class="b"><div class="t1">Usuario</div><div class="t2">${s.user.email} · ${ctx.membership.role_name}</div></div></div>
         <div class="li"><div class="b"><div class="t1">La sesión se renueva sola antes de</div><div class="t2">${dateTime(s.expires_at * 1000)}</div></div></div>
         <div class="li"><div class="b"><div class="t1">Cierre por inactividad</div><div class="t2">${CONFIG.INACTIVITY_MINUTES} minutos</div></div></div>
