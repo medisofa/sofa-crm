@@ -27,3 +27,18 @@ export const ACTIVITY_TYPES = { llamada: 'Llamada', whatsapp: 'WhatsApp', correo
 export const PRIORITIES = { alta: ['Alta', 'bad'], media: ['Media', 'warn'], baja: ['Baja', ''] };
 export const PARTNER_TYPES = ['Contador', 'Administrador de centro', 'Médico', 'Otro'];
 export const LOST_REASONS = ['Precio', 'Eligió otro gestor', 'No es el momento', 'Lo hace su personal interno', 'Sin respuesta', 'Otro'];
+
+/** Radicaciones: nombre y color de cada estado (espejo de submission_statuses) */
+export const SUB_STATUS = {
+  borrador: ['Borrador', ''], recibida: ['Recibida', 'info'], pendiente_documentos: ['Pendiente de documentos', 'warn'],
+  en_depuracion: ['En depuración', 'info'], lista_para_radicar: ['Lista para radicar', 'ok'], radicada: ['Radicada', 'info'],
+  en_auditoria_ars: ['En auditoría ARS', 'info'], glosada: ['Glosada', 'warn'], pagada_parcial: ['Pagada parcial', 'warn'],
+  pagada: ['Pagada', 'ok'], rechazada: ['Rechazada', 'bad'], cerrada: ['Cerrada', '']
+};
+export const subStatus = (c) => SUB_STATUS[c] || [c, ''];
+/** Texto del botón para cada transición */
+export const TRANSITION_LABELS = {
+  recibida: 'Marcar recibida', pendiente_documentos: 'Pendiente de documentos', en_depuracion: 'Pasar a depuración',
+  lista_para_radicar: 'Lista para radicar', radicada: 'Radicar ante la ARS', en_auditoria_ars: 'En auditoría ARS',
+  rechazada: 'Rechazada por la ARS', cerrada: 'Cerrar'
+};

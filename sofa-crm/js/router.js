@@ -7,7 +7,8 @@ import { findRoute, canSee } from './utils/permissions.js';
 const MODULES = {
   inicio: 'home.js', clientes: 'clients.js', codificacion: 'coding.js', ars: 'ars.js',
   usuarios: 'users.js', parametros: 'settings.js', perfil: 'profile.js', diagnostico: 'diagnostics.js',
-  oportunidades: 'pipeline.js', prospectos: 'leads.js', contactos: 'contacts.js', aliados: 'partners.js', tareas: 'tasks.js'
+  oportunidades: 'pipeline.js', prospectos: 'leads.js', contactos: 'contacts.js', aliados: 'partners.js', tareas: 'tasks.js',
+  radicaciones: 'submissions.js', documentos: 'documents.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
