@@ -10,7 +10,7 @@
  * detecta una de esas claves.
  */
 export const CONFIG = Object.freeze({
-  SUPABASE_URL: 'https://bpwjhgpzhzhiocoxrvzq.supabase.co/rest/v1/',
+  SUPABASE_URL: 'https://bpwjhgpzhzhiocoxrvzq.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_AVyjtcY8xkF-m0JJ7EmgGQ_nB7eM4R-',
   APP_NAME: 'SOFA',
   APP_VERSION: '0.3.0',
