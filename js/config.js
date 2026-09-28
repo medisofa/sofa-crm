@@ -10,8 +10,8 @@
  * detecta una de esas claves.
  */
 export const CONFIG = Object.freeze({
-  SUPABASE_URL: 'https://TU-PROYECTO.supabase.co',
-  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_REEMPLAZAR',
+  SUPABASE_URL: 'https://bpwjhgpzhzhiocoxrvzq.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_AVyjtcY8xkF-m0JJ7EmgGQ_nB7eM4R-',
   APP_NAME: 'SOFA',
   APP_VERSION: '0.3.0',
   // Cierre automático de sesión por inactividad (datos de salud y financieros)
