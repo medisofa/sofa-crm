@@ -6,6 +6,7 @@ import { listArs } from '../services/catalog.js';
 import { listContacts, listActivities, addActivity, listOpportunities, createOpportunityForClient } from '../services/crm.js';
 import { listTasks } from '../services/tasks.js';
 import { listSubmissions } from '../services/submissions.js';
+import { listCurrentTariffs } from '../services/tariffs.js';
 import { ORG_TYPES, ORG_STATUS, PROVIDER_TYPES, CODE_STATUS, SERVICES, ACTIVITY_TYPES, stageLabel, serviceName, subStatus } from '../utils/constants.js';
 import { money, date, dateTime, num, todayISO, period as periodLabel } from '../utils/formatters.js';
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
@@ -45,6 +46,7 @@ export async function render(main, ctx) {
       <div class="card" style="grid-column:1/-1"><h2>Códigos de prestador por ARS</h2><p class="sub">Sin código asignado, la ARS no paga. Lleva aquí las solicitudes pendientes.</p>${editCodes ? html`<button class="btn sm" id="addCode">+ Código ARS</button>` : ''}<div id="codes"></div></div>
       <div class="card"><h2>Contactos</h2>${crm ? html`<button class="btn sm" id="addContact">+ Contacto</button>` : ''}<div id="contacts"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Radicaciones</h2><p class="sub">Las más recientes de este cliente.</p>${can('subs.create', ctx.role) ? html`<button class="btn sm" id="addSub">+ Nueva radicación</button> ` : ''}<a class="btn sm" href="#/radicaciones">Ver todas</a><div id="subs" style="margin-top:8px"></div></div>
+      <div class="card" style="grid-column:1/-1"><h2>Tarifas negociadas</h2><p class="sub">Tarifas pactadas por sus prestadores con cada ARS. Tienen prioridad sobre la tarifa general.</p>${can('tariffs.edit', ctx.role) ? html`<button class="btn sm" id="addNeg">+ Tarifa negociada</button>` : ''}<div id="neg" style="margin-top:8px"></div></div>
       ${staff ? html`<div class="card"><h2>Oportunidades con este cliente</h2><p class="sub">Venta cruzada: codificación, glosas, habilitación…</p>${crm ? html`<button class="btn sm" id="addOpp">+ Oportunidad</button>` : ''}<div id="opps"></div></div>
       <div class="card"><h2>Tareas</h2>${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea</button>` : ''}<div id="tasks"></div></div>
       <div class="card"><h2>Historial</h2>${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
@@ -177,5 +179,12 @@ export async function render(main, ctx) {
     const { newSubmissionDialog } = await import('./submission-dialogs.js');
     try { const sid = await newSubmissionDialog(org.id); if (sid) location.hash = `#/radicaciones/${sid}`; } catch (err) { toast(friendlyError(err), 'bad'); }
   });
-  loadSubs(); loadOpps(); loadTasks(); loadActs();
+  const loadNeg = () => loadInto($('#neg', main), async () => (await listCurrentTariffs({ orgId: org.id, scope: 'prestador', size: 100 })).data,
+    (rows) => html`<div class="list">${rows.map((x) => html`<div class="li"><div class="b"><div class="t1"><a href="#/codificacion/${x.procedure_id}">${x.description}</a> · <b>${money(x.amount)}</b></div><div class="t2">${x.ars_name} · ${x.provider_name} · desde ${date(x.valid_from)}</div></div></div>`)}</div>`,
+    { empty: () => html`<p class="small muted">Sin tarifas negociadas: se aplica la tarifa general de cada ARS.</p>` });
+  $('#addNeg', main)?.addEventListener('click', async () => {
+    const { tariffDialog } = await import('./tariff-dialogs.js');
+    try { if (await tariffDialog({ orgId: org.id })) { toast('Tarifa negociada registrada', 'ok'); loadNeg(); } } catch (err) { toast(friendlyError(err), 'bad'); }
+  });
+  loadNeg(); loadSubs(); loadOpps(); loadTasks(); loadActs();
 }

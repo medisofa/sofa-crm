@@ -5,7 +5,7 @@
  * los datos de pacientes y cobros no quedan en caché.
  * Al publicar una versión nueva, cambia VERSION para renovar la caché.
  */
-const VERSION = 'sofa-shell-0.6.0';
+const VERSION = 'sofa-shell-0.7.0';
 const SHELL = [
   './', './index.html', './login.html', './manifest.json',
   './css/variables.css', './css/components.css', './css/app.css',
@@ -18,6 +18,7 @@ const SHELL = [
   './js/modules/client.js', './js/modules/contacts.js', './js/modules/crm-dialogs.js', './js/modules/leads.js', './js/modules/opportunity.js', './js/modules/partners.js', './js/modules/pipeline.js', './js/modules/tasks.js', './js/services/crm.js', './js/services/tasks.js', './js/utils/constants.js', './js/utils/whatsapp.js',
   './js/services/submissions.js', './js/services/documents.js', './js/modules/submissions.js', './js/modules/submission.js', './js/modules/submission-dialogs.js', './js/modules/documents.js',
   './js/services/finance.js', './js/modules/glosas.js', './js/modules/payments.js', './js/modules/fees.js', './js/modules/finance-dialogs.js',
+  './js/services/tariffs.js', './js/modules/tariff-dialogs.js', './js/modules/coding-concept.js',
   './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/favicon-32.png'
 ];
 

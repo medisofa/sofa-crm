@@ -86,6 +86,7 @@ const ACTIONS = {
   'glosas.edit': ['super_admin', 'admin', 'glosas'],
   'payments.create': ['super_admin', 'admin', 'billing'],
   'payments.void': ['super_admin'],
-  'fees.manage': ['super_admin', 'admin']
+  'fees.manage': ['super_admin', 'admin'],
+  'tariffs.edit': ['super_admin', 'admin', 'billing']
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);
