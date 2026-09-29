@@ -23,8 +23,8 @@ const OPS = ['super_admin', 'admin', 'billing', 'glosas', 'assistant'];
 export const NAV = [
   { group: 'Operación', items: [
     { route: 'inicio', label: 'Inicio', roles: ALL, ready: true },
-    { route: 'hoy', label: 'Trabajo de hoy', roles: OPS, iteration: 8, about: 'Bandeja diaria: radicaciones por depurar, listas para radicar, glosas por vencer, cobros atrasados y seguimientos comerciales.' },
-    { route: 'dashboard', label: 'Dashboard', roles: [...STAFF, 'client'], iteration: 8, about: 'KPIs de operación, cobranza, glosas, honorarios y CRM con filtros por período, PSS, ARS y estado.' }
+    { route: 'hoy', label: 'Trabajo de hoy', roles: ALL, ready: true },
+    { route: 'dashboard', label: 'Dashboard', roles: [...STAFF, 'client'], ready: true }
   ]},
   { group: 'CRM', items: [
     { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
@@ -39,7 +39,10 @@ export const NAV = [
     { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], ready: true },
     { route: 'pagos', label: 'Pagos y conciliación', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
-    { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], iteration: 8, about: 'Antigüedad de saldos en 5 tramos con detalle por ARS y PSS.' }
+    { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true }
+  ]},
+  { group: 'Habilitación', items: [
+    { route: 'habilitacion', label: 'Habilitación MISPAS', roles: ['super_admin', 'admin', 'assistant', 'billing', 'auditor', 'client'], ready: true }
   ]},
   { group: 'Catálogos', items: [
     { route: 'ars', label: 'ARS', roles: ALL, ready: true }
@@ -47,7 +50,7 @@ export const NAV = [
   { group: 'Gestión', items: [
     { route: 'tareas', label: 'Tareas', roles: [...OPS, 'auditor'], ready: true },
     { route: 'documentos', label: 'Documentos', roles: ALL, ready: true },
-    { route: 'reportes', label: 'Reportes', roles: [...STAFF, 'client'], iteration: 8, about: 'Reportes por PSS, ARS, servicio, estado, período y aging con exportación.' }
+    { route: 'reportes', label: 'Reportes', roles: [...STAFF, 'client'], ready: true }
   ]},
   { group: 'Configuración', items: [
     { route: 'usuarios', label: 'Usuarios y roles', roles: ['super_admin', 'admin', 'auditor'], ready: true },
@@ -87,6 +90,8 @@ const ACTIONS = {
   'payments.create': ['super_admin', 'admin', 'billing'],
   'payments.void': ['super_admin'],
   'fees.manage': ['super_admin', 'admin'],
-  'tariffs.edit': ['super_admin', 'admin', 'billing']
+  'tariffs.edit': ['super_admin', 'admin', 'billing'],
+  'hab.edit': ['super_admin', 'admin', 'assistant'],
+  'hab.catalog': ['super_admin', 'admin']
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

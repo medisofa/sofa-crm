@@ -37,23 +37,25 @@ export function fileProblem(file) {
   return null;
 }
 
-export async function uploadDocument({ orgId, submissionId, lineId = null, docType = null, file }) {
+export async function uploadDocument({ orgId, submissionId, lineId = null, docType = null, file, entityType = 'submission', entityId = null }) {
   const ready = await compressImage(file);
   const prob = fileProblem(ready); if (prob) throw new Error(prob);
-  const path = `${orgId}/${submissionId}/${crypto.randomUUID()}-${safeName(ready.name)}`;
+  const eid = entityId || submissionId;
+  const path = `${orgId}/${eid}/${crypto.randomUUID()}-${safeName(ready.name)}`;
   const up = await sb().storage.from(BUCKET).upload(path, ready, { contentType: ready.type, upsert: false, cacheControl: '3600' });
   if (up.error) throw up.error;
   const { data, error } = await sb().from('documents').insert({
-    organization_id: orgId, entity_type: 'submission', entity_id: submissionId, service_line_id: lineId || null,
+    organization_id: orgId, entity_type: entityType, entity_id: eid, service_line_id: lineId || null,
     document_type_code: docType || null, bucket: BUCKET, storage_path: path, file_name: ready.name, mime_type: ready.type, size_bytes: ready.size
   }).select('id').single();
   if (error) { await sb().storage.from(BUCKET).remove([path]).catch(() => {}); throw error; }
   return data;
 }
 
-export async function listDocuments({ submissionId = null, type = '', limit = 200 } = {}) {
+export async function listDocuments({ submissionId = null, entityType = null, entityId = null, type = '', limit = 200 } = {}) {
   let q = sb().from('documents').select('id, organization_id, entity_type, entity_id, service_line_id, document_type_code, storage_path, file_name, mime_type, size_bytes, uploaded_at, uploaded_by, document_types(name)');
   if (submissionId) q = q.eq('entity_type', 'submission').eq('entity_id', submissionId);
+  if (entityType && entityId) q = q.eq('entity_type', entityType).eq('entity_id', entityId);
   if (type) q = q.eq('document_type_code', type);
   return must(await q.order('uploaded_at', { ascending: false }).limit(limit));
 }

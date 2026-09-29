@@ -9,7 +9,9 @@ const MODULES = {
   usuarios: 'users.js', parametros: 'settings.js', perfil: 'profile.js', diagnostico: 'diagnostics.js',
   oportunidades: 'pipeline.js', prospectos: 'leads.js', contactos: 'contacts.js', aliados: 'partners.js', tareas: 'tasks.js',
   radicaciones: 'submissions.js', documentos: 'documents.js',
-  glosas: 'glosas.js', pagos: 'payments.js', honorarios: 'fees.js'
+  glosas: 'glosas.js', pagos: 'payments.js', honorarios: 'fees.js',
+  hoy: 'today.js', dashboard: 'dashboard.js', aging: 'aging.js', reportes: 'reports.js',
+  habilitacion: 'habilitation.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 

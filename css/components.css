@@ -124,3 +124,16 @@ dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
 .dup-box { border: 1px solid var(--warn); background: var(--warn-bg); border-radius: var(--r); padding: 8px 12px; font-size: 13.5px; margin-bottom: 12px; }
 .inline-form { display: grid; gap: 8px; grid-template-columns: 1fr; margin-top: 10px; }
 @media (min-width: 560px) { .inline-form.row3 { grid-template-columns: 140px 1fr auto; align-items: start; } }
+
+/* Habilitación: etapas y semáforo */
+.stepper { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 14px; padding: 0; list-style: none; }
+.stepper li { flex: 1 1 120px; font-size: 12.5px; padding: 8px 10px; border-radius: var(--r); background: var(--surface-2); color: var(--ink-3); border: 1px solid var(--line); }
+.stepper li.done { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.stepper li.now { background: var(--navy); color: var(--on-navy); font-weight: 700; border-color: var(--navy); }
+.sem { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: none; margin-top: 4px; }
+.sem.verde { background: #23703B; } .sem.amarillo { background: #D39B00; } .sem.rojo { background: #B22222; } .sem.no_aplica { background: transparent; border: 2px dashed var(--ink-3); }
+.hab-item { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.hab-item:last-child { border-bottom: 0; }
+.hab-item .ctl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.hab-item .ctl select, .hab-item .ctl input { min-height: 34px; padding: 4px 8px; font-size: 13px; }
+@media (max-width: 680px) { .hab-item { grid-template-columns: 14px minmax(0, 1fr); } .hab-item .ctl { grid-column: 2; justify-content: flex-start; } }

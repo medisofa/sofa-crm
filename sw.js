@@ -5,7 +5,7 @@
  * los datos de pacientes y cobros no quedan en caché.
  * Al publicar una versión nueva, cambia VERSION para renovar la caché.
  */
-const VERSION = 'sofa-shell-0.7.0';
+const VERSION = 'sofa-shell-0.9.0';
 const SHELL = [
   './', './index.html', './login.html', './manifest.json',
   './css/variables.css', './css/components.css', './css/app.css',
@@ -19,6 +19,8 @@ const SHELL = [
   './js/services/submissions.js', './js/services/documents.js', './js/modules/submissions.js', './js/modules/submission.js', './js/modules/submission-dialogs.js', './js/modules/documents.js',
   './js/services/finance.js', './js/modules/glosas.js', './js/modules/payments.js', './js/modules/fees.js', './js/modules/finance-dialogs.js',
   './js/services/tariffs.js', './js/modules/tariff-dialogs.js', './js/modules/coding-concept.js',
+  './js/utils/charts.js', './js/utils/filters.js', './js/services/bi.js', './js/modules/dashboard.js', './js/modules/today.js', './js/modules/aging.js', './js/modules/reports.js',
+  './js/services/habilitation.js', './js/modules/habilitation.js', './js/modules/habilitation-case.js', './js/modules/habilitation-dialogs.js',
   './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/favicon-32.png'
 ];
 

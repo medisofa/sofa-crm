@@ -7,6 +7,7 @@ import { listContacts, listActivities, addActivity, listOpportunities, createOpp
 import { listTasks } from '../services/tasks.js';
 import { listSubmissions } from '../services/submissions.js';
 import { listCurrentTariffs } from '../services/tariffs.js';
+import { listCases, STAGE_LABEL } from '../services/habilitation.js';
 import { ORG_TYPES, ORG_STATUS, PROVIDER_TYPES, CODE_STATUS, SERVICES, ACTIVITY_TYPES, stageLabel, serviceName, subStatus } from '../utils/constants.js';
 import { money, date, dateTime, num, todayISO, period as periodLabel } from '../utils/formatters.js';
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
@@ -47,6 +48,7 @@ export async function render(main, ctx) {
       <div class="card"><h2>Contactos</h2>${crm ? html`<button class="btn sm" id="addContact">+ Contacto</button>` : ''}<div id="contacts"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Radicaciones</h2><p class="sub">Las más recientes de este cliente.</p>${can('subs.create', ctx.role) ? html`<button class="btn sm" id="addSub">+ Nueva radicación</button> ` : ''}<a class="btn sm" href="#/radicaciones">Ver todas</a><div id="subs" style="margin-top:8px"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Tarifas negociadas</h2><p class="sub">Tarifas pactadas por sus prestadores con cada ARS. Tienen prioridad sobre la tarifa general.</p>${can('tariffs.edit', ctx.role) ? html`<button class="btn sm" id="addNeg">+ Tarifa negociada</button>` : ''}<div id="neg" style="margin-top:8px"></div></div>
+      <div class="card" style="grid-column:1/-1"><h2>Habilitación MISPAS</h2>${can('hab.edit', ctx.role) ? html`<button class="btn sm" id="addHab">+ Caso de habilitación</button>` : ''}<div id="habs" style="margin-top:8px"></div></div>
       ${staff ? html`<div class="card"><h2>Oportunidades con este cliente</h2><p class="sub">Venta cruzada: codificación, glosas, habilitación…</p>${crm ? html`<button class="btn sm" id="addOpp">+ Oportunidad</button>` : ''}<div id="opps"></div></div>
       <div class="card"><h2>Tareas</h2>${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea</button>` : ''}<div id="tasks"></div></div>
       <div class="card"><h2>Historial</h2>${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
@@ -186,5 +188,12 @@ export async function render(main, ctx) {
     const { tariffDialog } = await import('./tariff-dialogs.js');
     try { if (await tariffDialog({ orgId: org.id })) { toast('Tarifa negociada registrada', 'ok'); loadNeg(); } } catch (err) { toast(friendlyError(err), 'bad'); }
   });
-  loadNeg(); loadSubs(); loadOpps(); loadTasks(); loadActs();
+  const loadHabs = () => loadInto($('#habs', main), async () => (await listCases({ group: 'todos', orgId: org.id, size: 20 })).data,
+    (rows) => html`<div class="list">${rows.map((h) => html`<div class="li"><div class="b"><div class="t1"><a href="#/habilitacion/${h.id}">${h.establishment_name}</a> · ${h.ready_pct}% listo</div><div class="t2">${h.folio} · ${h.establishment_type}${h.license_valid_until ? ` · licencia hasta ${date(h.license_valid_until)}` : ''}</div></div><span class="pill ${h.stage === 'habilitado' ? 'ok' : 'info'}">${STAGE_LABEL[h.stage]}</span></div>`)}</div>`,
+    { empty: () => html`<p class="small muted">Sin casos de habilitación.</p>` });
+  $('#addHab', main)?.addEventListener('click', async () => {
+    const { caseDialog } = await import('./habilitation-dialogs.js');
+    try { const hid = await caseDialog({ orgId: org.id, name: org.legal_name }); if (hid) location.hash = `#/habilitacion/${hid}`; } catch (err) { toast(friendlyError(err), 'bad'); }
+  });
+  loadHabs(); loadNeg(); loadSubs(); loadOpps(); loadTasks(); loadActs();
 }
