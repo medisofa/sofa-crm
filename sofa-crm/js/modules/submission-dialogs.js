@@ -1,7 +1,7 @@
 /** SOFA · Diálogos de radicaciones */
 import { html, render as paint, raw } from '../utils/dom.js';
 import { formDialog, opt, requireFields, fieldError, toast, friendlyError } from '../utils/ui.js';
-import { money, todayISO, period as periodLabel, rangeContains } from '../utils/formatters.js';
+import { money, todayISO, period as periodLabel, rangeContains, addMonths } from '../utils/formatters.js';
 import { isTaxId } from '../utils/validation.js';
 import { CODE_STATUS } from '../utils/constants.js';
 import { listArs } from '../services/catalog.js';
@@ -12,7 +12,7 @@ import {
 
 const f = (name, label, input, hint = '') => html`<div class="field"><label for="f_${name}">${label}</label>${input}${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
 const text = (name, value = '', attrs = '') => html`<input id="f_${name}" name="${name}" value="${value ?? ''}" ${raw(attrs)}>`;
-const monthISO = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+const monthISO = () => todayISO().slice(0, 7);
 const lastDay = (periodDate) => { const [y, m] = periodDate.split('-').map(Number); return `${y}-${String(m).padStart(2, '0')}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; };
 
 /** Nueva radicación: cliente → prestador → ARS → período. Devuelve el id creado. */
@@ -24,14 +24,13 @@ export async function newSubmissionDialog(presetOrg = '') {
   }
   const byOrg = {};
   providers.forEach((p) => { const k = p.organizations?.legal_name || 'Cliente'; (byOrg[k] = byOrg[k] || []).push(p); });
-  const prev = new Date(); prev.setMonth(prev.getMonth() - 1);
   return formDialog({
     title: 'Nueva radicación', submitLabel: 'Crear radicación', wide: true,
     body: html`<p class="small muted" style="margin-top:0">Una radicación es el desglose de los servicios que un prestador dio en un mes a los afiliados de una ARS.</p>
       <div class="form-grid">
       ${f('provider', 'Prestador *', html`<select id="f_provider" name="provider" required>${Object.entries(byOrg).map(([org, ps]) => html`<optgroup label="${org}">${ps.map((p) => opt(p.id, p.full_name))}</optgroup>`)}</select>`)}
       ${f('ars', 'ARS *', html`<select id="f_ars" name="ars" required>${ars.filter((a) => a.is_active).map((a) => opt(a.id, a.name))}</select>`)}
-      ${f('period', 'Período (mes de los servicios) *', text('period', monthISO(prev), `type="month" required max="${monthISO()}"`))}
+      ${f('period', 'Período (mes de los servicios) *', text('period', addMonths(monthISO(), -1), `type="month" required max="${monthISO()}"`))}
       ${f('notes', 'Notas', text('notes', '', 'maxlength="300"'))}
       </div><div id="codeWarn"></div>`,
     onOpen: (form) => {

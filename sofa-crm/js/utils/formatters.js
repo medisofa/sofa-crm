@@ -15,7 +15,11 @@ export function dateTime(ts) {
 }
 const MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 export const period = (p) => { if (!p) return '—'; const [y, m] = String(p).split('-'); return `${MES[Number(m) - 1]} ${y}`; };
-export const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+/** Fecha de hoy en República Dominicana (igual que la base de datos), sin importar la zona del dispositivo */
+const RD_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo', year: 'numeric', month: '2-digit', day: '2-digit' });
+export const todayISO = () => RD_DATE.format(new Date());
+/** Suma meses a un 'AAAA-MM' */
+export const addMonths = (ym, n) => { let [y, m] = ym.split('-').map(Number); m += n; while (m > 12) { m -= 12; y += 1; } while (m < 1) { m += 12; y -= 1; } return `${y}-${String(m).padStart(2, '0')}`; };
 /** ¿El rango de PostgreSQL "[2026-01-01,)" contiene la fecha ISO dada? */
 export function rangeContains(range, iso) {
   const m = /^([\[(])([^,]*),([^\])]*)([\])])$/.exec(String(range || '').trim());

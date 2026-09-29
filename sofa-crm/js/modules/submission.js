@@ -12,6 +12,8 @@ import { can, isStaff } from '../utils/permissions.js';
 import { isNCF } from '../utils/validation.js';
 import { waLink } from '../utils/whatsapp.js';
 import { lineDialog, importDialog, checklistDialog, radicarDialog, overrideDialog, commentDialog } from './submission-dialogs.js';
+import { listGlosas, submissionPayments } from '../services/finance.js';
+import { glosaStatus } from '../utils/constants.js';
 
 const EDITABLE = ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'];
 const daysTo = (iso) => (iso ? Math.round((new Date(`${iso}T00:00:00`) - new Date(`${todayISO()}T00:00:00`)) / 86400000) : null);
@@ -32,8 +34,11 @@ export async function render(main, ctx) {
       isStaff(ctx.role) ? organizationContact(sub.organization_id).catch(() => null) : Promise.resolve(null)
     ]);
     const checks = await lineChecks(lines.map((l) => l.id));
+    const [glosas, pays] = sub.submitted_on
+      ? await Promise.all([listGlosas({ group: 'todas', submissionId: id, size: 50 }).then((r) => r.data).catch(() => []), submissionPayments(id).catch(() => [])])
+      : [[], []];
     const names = await profileNames([...hist.map((h) => h.changed_by), ...docs.map((d) => d.uploaded_by)]).catch(() => ({}));
-    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names };
+    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays };
   }
 
   async function refresh() {
@@ -45,7 +50,9 @@ export async function render(main, ctx) {
   }
 
   function draw() {
-    const { sub, lines, lineCk, docs, trans, hist, val, types, org, names } = S;
+    const { sub, lines, lineCk, docs, trans, hist, val, types, org, names, glosas, pays } = S;
+    const canGlosa = can('glosas.edit', ctx.role) && !!sub.submitted_on && !['cerrada', 'rechazada'].includes(sub.status);
+    const canPay = can('payments.create', ctx.role) && Number(sub.balance) > 0 && ['radicada', 'en_auditoria_ars'].includes(sub.status);
     ctx.setTitle(sub.folio);
     const role = ctx.role;
     const editable = EDITABLE.includes(sub.status) && can('subs.edit', role) && (role !== 'client' || sub.status === 'borrador');
@@ -66,6 +73,8 @@ export async function render(main, ctx) {
       <div class="toolbar" style="margin:0">
         ${moves.map((t) => html`<button class="btn ${['lista_para_radicar', 'radicada', 'recibida'].includes(t.to_code) ? 'primary' : ''}" data-to="${t.to_code}">${moveLabel(t.to_code)}</button>`)}
         ${org ? (waLink(org.whatsapp) ? html`<a class="btn" id="wa" target="_blank" rel="noopener" href="${waLink(org.whatsapp, waMessage())}">Pedir faltantes por WhatsApp</a>` : html`<button class="btn" disabled title="El cliente no tiene WhatsApp registrado">WhatsApp</button>`) : ''}
+        ${canPay ? html`<button class="btn primary" id="payBtn">Registrar pago</button>` : ''}
+        ${canGlosa ? html`<button class="btn" id="glosaBtn">Registrar glosa</button>` : ''}
         <button class="btn" id="csv">Exportar CSV</button>
         ${sub.status === 'borrador' && can('subs.delete', role) ? html`<button class="btn danger" id="del">Eliminar</button>` : ''}
       </div></div>
@@ -96,7 +105,11 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">Radicado</div><div class="v">${money(sub.claimed)}</div></div>
       <div class="kpi"><div class="l">Pagado</div><div class="v">${money(sub.paid)}</div></div>
       <div class="kpi"><div class="l">Glosado</div><div class="v">${money(sub.glosado)}</div><div class="h">${money(sub.glosa_in_dispute)} en disputa</div></div>
-      <div class="kpi"><div class="l">Saldo</div><div class="v">${money(sub.balance)}</div><div class="h">${sub.age_days} días desde la radicación</div></div></div>` : ''}
+      <div class="kpi"><div class="l">Saldo</div><div class="v">${money(sub.balance)}</div><div class="h">${sub.age_days} días desde la radicación</div></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card"><h2>Glosas · ${num(glosas.length)}</h2>${glosas.length ? html`<div class="list">${glosas.map((g) => { const [gl, gc] = glosaStatus(g.status); return html`<div class="li"><div class="b"><div class="t1"><a href="#/glosas/${g.id}">${money(g.amount)} · ${g.main_reason || 'Glosa'}</a></div><div class="t2">Notificada ${date(g.notified_on)} · ${num(g.items)} servicios${g.in_dispute > 0 ? ` · ${money(g.in_dispute)} en disputa` : ''}</div></div><span class="pill ${gc}">${gl}</span></div>`; })}</div>` : html`<p class="small muted">Sin glosas.</p>`}</div>
+      <div class="card"><h2>Pagos aplicados · ${num(pays.length)}</h2>${pays.length ? html`<div class="list">${pays.map((a) => html`<div class="li"><div class="b"><div class="t1">${money(a.amount)}</div><div class="t2">${date(a.payments?.paid_on)} · <span class="mono">${a.payments?.reference}</span></div></div></div>`)}</div>` : html`<p class="small muted">Sin pagos todavía.</p>`}</div>
+    </div>` : ''}
 
     <div class="card" style="margin-top:14px"><h2>Servicios del período · ${num(lines.length)} · ${money(total)}</h2>
       ${editable ? html`<div class="toolbar"><button class="btn primary" id="addLine">+ Agregar servicio</button><button class="btn" id="import">Carga masiva</button></div>` : ''}
@@ -181,6 +194,14 @@ export async function render(main, ctx) {
   function bind(editable) {
     box.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', () => busy(b, () => doMove(b.dataset.to))));
     $('#csv', box)?.addEventListener('click', exportCsv);
+    $('#payBtn', box)?.addEventListener('click', async () => {
+      try { const { paymentDialog } = await import('./finance-dialogs.js'); if (await paymentDialog({ orgId: S.sub.organization_id, arsId: S.sub.ars_id, submissionId: id })) { toast('Pago registrado', 'ok'); await refresh(); } }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    });
+    $('#glosaBtn', box)?.addEventListener('click', async () => {
+      try { const { glosaDialog } = await import('./finance-dialogs.js'); const gid = await glosaDialog(S.sub, S.lines); if (gid) { toast('Glosa registrada', 'ok'); location.hash = `#/glosas/${gid}`; } }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    });
     $('#del', box)?.addEventListener('click', async () => {
       if (!(await confirmDialog('Eliminar radicación', `Se eliminará ${S.sub.folio} con sus ${S.lines.length} servicios. Esta acción no se puede deshacer.`, 'Eliminar', true))) return;
       try { await deleteSubmission(id); toast('Radicación eliminada', 'ok'); location.hash = '#/radicaciones'; } catch (err) { toast(friendlyError(err), 'bad'); }

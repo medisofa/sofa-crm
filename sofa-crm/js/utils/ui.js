@@ -110,7 +110,7 @@ export function formDialog({ title, body, submitLabel = 'Guardar', wide = false,
       const msg = d.querySelector('.fd-msg');
       await busy(e.submitter || form.querySelector('[type=submit]'), async () => {
         try { result = await onSubmit(data, form); if (result !== undefined && result !== false) d.close(); }
-        catch (err) { console.error(err); render(msg, html`<div class="note bad" role="alert">${friendlyError(err)}</div>`); }
+        catch (err) { console.warn(err); render(msg, html`<div class="note bad" role="alert">${friendlyError(err)}</div>`); }
       });
     });
     d.showModal();

@@ -40,8 +40,8 @@ export async function render(main, ctx) {
   $('#newc', main)?.addEventListener('click', async () => { const id = await clientDialog(); if (id) location.hash = `#/clientes/${id}`; });
   load();
 }
-export function pager(count, page) {
-  const pages = Math.max(1, Math.ceil((count || 0) / CONFIG.PAGE_SIZE));
+export function pager(count, page, size = CONFIG.PAGE_SIZE) {
+  const pages = Math.max(1, Math.ceil((count || 0) / size));
   if (pages <= 1) return html`<div class="pager">${num(count)} registros</div>`;
   return html`<div class="pager"><span>${num(count)} registros · página ${page + 1} de ${pages}</span>
     <button class="btn sm" data-page="${page - 1}" ${page <= 0 ? 'disabled' : ''}>Anterior</button>

@@ -61,3 +61,14 @@ main.page:focus { outline: none; }
 .pw-wrap { position: relative; }
 .pw-wrap button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--info); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px; }
 .boot { min-height: 100%; display: grid; place-items: center; color: var(--ink-2); gap: 10px; }
+
+/* Impresión de reportes: solo el contenido */
+@media print {
+  .sidebar, .topbar, .scrim, .toasts, .banner, .no-print, .skip { display: none !important; }
+  .app { display: block; }
+  main.page { padding: 0; max-width: none; }
+  body { background: #fff; color: #000; font-size: 12px; }
+  .card, .kpi, .table-wrap { border-color: #bbb; box-shadow: none; break-inside: avoid; }
+  table.t th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: #000; text-decoration: none; }
+}
