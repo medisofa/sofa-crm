@@ -52,3 +52,12 @@ export const glosaStatus = (c) => GLOSA_STATUS[c] || [c, ''];
 export const PAYMENT_METHODS = [['transferencia', 'Transferencia'], ['cheque', 'Cheque'], ['deposito', 'Depósito'], ['otro', 'Otro']];
 export const INVOICE_STATUS = { emitida: ['Emitida', 'info'], pagada_parcial: ['Cobro parcial', 'warn'], pagada: ['Cobrada', 'ok'], anulada: ['Anulada', ''] };
 export const FEE_SOURCE = { pago: '% de lo cobrado', cuota: 'Cuota mensual', radicacion: 'Por radicación', manual: 'Manual' };
+
+/** Inteligencia de mercado */
+export const INTEL_TOPICS = { regulacion: ['Regulación', 'info'], ars: ['ARS', 'info'], facturacion: ['Facturación y glosas', 'warn'], habilitacion: ['Habilitación', 'info'],
+  tecnologia: ['Tecnología', ''], competencia: ['Competencia', 'bad'], internacional: ['Internacional', ''], mercado: ['Mercado', ''] };
+export const intelTopic = (t) => INTEL_TOPICS[t] || [t, ''];
+export const ENTITY_KINDS = { competidor_directo: 'Competidor directo', competidor_indirecto: 'Competidor indirecto', referente_local: 'Referente local',
+  referente_internacional: 'Referente internacional', regulador: 'Regulador', gremio: 'Gremio', aliado_potencial: 'Aliado potencial' };
+export const THREAT = { alto: ['Amenaza alta', 'bad'], medio: ['Amenaza media', 'warn'], bajo: ['Amenaza baja', 'ok'], 'n/a': ['—', ''] };
+export const IDEA_STATUS = { idea: ['Idea', ''], evaluando: ['Evaluando', 'info'], piloto: ['Piloto', 'warn'], lanzado: ['Lanzado', 'ok'], descartado: ['Descartado', ''] };

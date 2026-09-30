@@ -41,6 +41,13 @@ export const NAV = [
     { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
     { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true }
   ]},
+  { group: 'Habilitación', items: [
+    { route: 'habilitacion', label: 'Habilitación MISPAS', roles: ['super_admin', 'admin', 'assistant', 'billing', 'auditor', 'client'], ready: true }
+  ]},
+  { group: 'Inteligencia', items: [
+    { route: 'mercado', label: 'Inteligencia de mercado', roles: ['super_admin', 'admin', 'auditor', 'assistant'], ready: true },
+    { route: 'guias', label: 'Buenas prácticas', roles: ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'auditor'], ready: true }
+  ]},
   { group: 'Catálogos', items: [
     { route: 'ars', label: 'ARS', roles: ALL, ready: true }
   ]},
@@ -68,6 +75,7 @@ export const isStaff = (role) => !!ROLES[role]?.staff;
 const ACTIONS = {
   'settings.edit': ['super_admin'],
   'users.toggle': ['super_admin'],
+  'users.invite': ['super_admin', 'admin'],
   'milestones.edit': ['super_admin', 'admin'],
   'fees.view': ['super_admin', 'admin', 'auditor', 'client'],
   'crm.edit': ['super_admin', 'admin', 'assistant'],
@@ -87,6 +95,11 @@ const ACTIONS = {
   'payments.create': ['super_admin', 'admin', 'billing'],
   'payments.void': ['super_admin'],
   'fees.manage': ['super_admin', 'admin'],
-  'tariffs.edit': ['super_admin', 'admin', 'billing']
+  'tariffs.edit': ['super_admin', 'admin', 'billing'],
+  'hab.edit': ['super_admin', 'admin', 'assistant'],
+  'hab.catalog': ['super_admin', 'admin'],
+  'intel.view': ['super_admin', 'admin', 'auditor', 'assistant'],
+  'intel.edit': ['super_admin', 'admin', 'assistant'],
+  'intel.admin': ['super_admin', 'admin']
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

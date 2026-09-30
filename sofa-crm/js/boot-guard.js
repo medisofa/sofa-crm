@@ -5,6 +5,14 @@
  * "Cargando…". Este script detecta ese caso y muestra qué pasó.
  */
 (function () {
+  // Protección contra clickjacking: SOFA no se muestra dentro de un marco (iframe) de otro sitio
+  try {
+    if (window.top !== window.self) {
+      document.documentElement.style.display = 'none';
+      window.top.location = window.self.location.href;
+      return;
+    }
+  } catch (e) { document.documentElement.style.display = 'none'; return; }
   var errors = [];
   function remember(msg, where) {
     if (errors.length < 5) errors.push((where ? where + ': ' : '') + msg);

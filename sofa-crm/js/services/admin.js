@@ -28,3 +28,22 @@ export async function listMilestones() {
 export async function setMilestoneDone(id, done) {
   return must(await sb().from('plan_milestones').update({ done_on: done ? new Date().toISOString().slice(0, 10) : null }).eq('id', id).select('id, done_on').single());
 }
+
+/** Revisión de accesos: correo, estado y último ingreso (Admin, Super Admin y Auditor) */
+export async function usersOverview() { return must(await sb().rpc('users_overview')); }
+
+/**
+ * Llama a la Edge Function "admin-users" (invitar, reenviar, cambiar rol).
+ * La clave de servicio vive en Supabase; aquí solo viaja la sesión del usuario.
+ */
+export async function adminUsers(payload) {
+  const { data, error } = await sb().functions.invoke('admin-users', { body: payload });
+  if (error) {
+    let msg = error.message || 'Error';
+    try { const body = await error.context?.json?.(); if (body?.message) msg = body.message; } catch { /* sin cuerpo */ }
+    if (error.context?.status === 404 || /Failed to send a request|not found/i.test(msg)) msg = 'La función admin-users no está publicada en Supabase (Iteración 10, paso 3 de la guía).';
+    throw Object.assign(new Error(msg), { code: 'SOFA' });
+  }
+  if (data && data.ok === false) throw Object.assign(new Error(data.message || 'No se pudo completar'), { code: 'SOFA' });
+  return data;
+}

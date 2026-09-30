@@ -2,7 +2,7 @@
 
 Aplicación web estática (HTML + CSS + JavaScript con ES Modules) que se publica en **GitHub Pages** y usa **Supabase** como backend (Auth, PostgreSQL con RLS y Storage).
 
-- Versión: **0.8.0** (Iteración 8 · Inteligencia de negocio)
+- Versión: **1.1.0** (Iteración 11 · Inteligencia de mercado)
 - Librería: `@supabase/supabase-js` **2.117.2**, copia local en `vendor/` (sin CDN externo)
 - Sin frameworks ni proceso de compilación: los archivos se suben tal cual.
 
@@ -33,7 +33,7 @@ sofa-crm/
 └── vendor/               supabase-js 2.117.2 (licencia MIT incluida)
 ```
 
-Los scripts SQL (`001`–`019`) se entregan aparte, en la carpeta `sofa-supabase/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
+Los scripts SQL (`001`–`025`) y las Edge Functions `admin-users` y `market-intel` se entregan aparte, en la carpeta `sofa-supabase/`, y los scripts de respaldo en `respaldos/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
 
 ## Instalación (resumen)
 
@@ -51,7 +51,7 @@ La guía paso a paso con capturas de verificación está en `GUIA_Iteracion3.htm
 2. Cambia `VERSION` en `sw.js` (por ejemplo `sofa-shell-0.3.1`) y `APP_VERSION` en `js/config.js`.
 3. Los usuarios verán el aviso "Hay una versión nueva de SOFA. Recarga la página".
 
-## Módulos disponibles en 0.8.0
+## Módulos disponibles en 1.1.0
 
 | Módulo | Estado |
 |---|---|
@@ -62,10 +62,12 @@ La guía paso a paso con capturas de verificación está en `GUIA_Iteracion3.htm
 | Contactos · Aliados referidores · Tareas | Listo |
 | Codificación y tarifarios: conceptos, códigos, tarifas con vigencia, negociadas, importación y brechas | Listo |
 | ARS | Listo |
-| Usuarios y roles · Parámetros · Mi perfil · Diagnóstico | Listo |
+| Usuarios y roles: invitación por correo (Edge Function admin-users), cambio de rol, revisión de accesos · Parámetros · Mi perfil · Diagnóstico | Listo |
 | Radicaciones: desglose del período, validación de 10 reglas, carga masiva, checklist, expediente digital, estados hasta Radicada | Listo |
 | Documentos | Listo |
 | Glosas: registro por servicio, apelación, resultado parcial, Pareto y tasa por ARS | Listo |
 | Pagos: reparto entre radicaciones, conciliación por ARS, por cobrar, anulación | Listo |
 | Honorarios SOFA: cuotas, % cobrado, facturas, cobros y NCF | Listo |
 | Trabajo de hoy · Dashboard (operación y crecimiento) · Aging · 7 reportes con CSV e impresión | Listo |
+| Habilitación MISPAS: checklist por tipo, semáforo, etapas con reglas, evidencias, informe y renovación | Listo |
+| Inteligencia de mercado: noticias del sector (Edge Function market-intel), competencia y referentes, banco de ideas · Buenas prácticas | Listo |
