@@ -50,9 +50,9 @@ export async function render(main, ctx) {
 
   const list = $('#l', main);
   const load = () => loadInto(list, () => listGlosas({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
-    <div class="table-wrap"><table class="t cards"><thead><tr><th>Radicación</th><th>Prestador</th><th>ARS</th><th>Motivo principal</th><th class="n">Glosado</th><th class="n">En disputa</th><th>Estado</th><th>Responder antes de</th></tr></thead>
+    <div class="table-wrap"><table class="t cards"><thead><tr><th>Glosa · radicación</th><th>Prestador</th><th>ARS</th><th>Motivo principal</th><th class="n">Glosado</th><th class="n">En disputa</th><th>Estado</th><th>Responder antes de</th></tr></thead>
     <tbody>${data.map((g) => { const [l, c] = glosaStatus(g.status); const open = GLOSA_OPEN.includes(g.status); return html`<tr data-id="${g.id}" style="cursor:pointer">
-      <td data-l="Radicación"><a href="#/glosas/${g.id}" class="mono"><b>${g.folio}</b></a><div class="small muted">${period(g.period)}${g.ars_reference ? ` · ${g.ars_reference}` : ''}</div></td>
+      <td data-l="Radicación"><a href="#/glosas/${g.id}" class="mono"><b>${g.glosa_folio || g.folio}</b></a>${g.glosa_folio ? html`<div class="small mono">${g.folio}</div>` : ''}<div class="small muted">${period(g.period)}${g.ars_reference ? ` · ${g.ars_reference}` : ''}</div></td>
       <td data-l="Prestador">${g.provider_name}${isStaff(ctx.role) ? html`<div class="small muted">${g.client_name}</div>` : ''}</td>
       <td data-l="ARS">${g.ars_name}</td><td data-l="Motivo">${g.main_reason || '—'}${g.items > 1 ? html` <span class="small muted">(${g.items} servicios)</span>` : ''}</td>
       <td data-l="Glosado" class="n">${money(g.amount)}</td><td data-l="En disputa" class="n">${money(g.in_dispute)}</td>
@@ -83,7 +83,7 @@ async function renderDetail(main, ctx) {
     } catch (err) { paint(box, errorView(err)); }
   };
   const draw = (g, items, appeals, hist, names) => {
-    ctx.setTitle(`Glosa · ${g.folio}`);
+    ctx.setTitle(`${g.glosa_folio || 'Glosa'} · ${g.folio}`);
     const [l, c] = glosaStatus(g.status); const edit = can('glosas.edit', ctx.role); const open = GLOSA_OPEN.includes(g.status);
     const acts = [];
     if (edit && g.status === 'pendiente') acts.push(['analizada', 'Marcar analizada', '']);
@@ -94,7 +94,7 @@ async function renderDetail(main, ctx) {
     if (edit && ['aceptada', 'revertida', 'parcial'].includes(g.status)) acts.push(['cerrada', 'Cerrar', '']);
     paint(box, html`
       <div class="page-head"><div class="t"><p><a href="#/glosas">← Glosas</a></p>
-        <h2>Glosa · <a href="#/radicaciones/${g.submission_id}" class="mono">${g.folio}</a> <span class="pill ${c}">${l}</span></h2>
+        <h2>${g.glosa_folio ? html`<span class="mono">${g.glosa_folio}</span> · ` : 'Glosa · '}<a href="#/radicaciones/${g.submission_id}" class="mono">${g.folio}</a> <span class="pill ${c}">${l}</span></h2>
         <p>${isStaff(ctx.role) ? `${g.client_name} · ` : ''}${g.provider_name} · ${g.ars_name} · ${period(g.period)}${g.ars_reference ? ` · Ref. ARS ${g.ars_reference}` : ''}</p></div>
         <div class="toolbar" style="margin:0">${acts.map(([k, lb, cl]) => html`<button class="btn ${cl}" data-act="${k}">${lb}</button>`)}</div></div>
       ${open ? html`<div class="note ${g.days_left < 0 ? 'bad' : g.days_left <= 7 ? 'warn' : ''}">Notificada el ${date(g.notified_on)}. Responder antes del <b>${date(g.appeal_deadline)}</b> (${g.days_left < 0 ? `vencida hace ${-g.days_left} días` : `faltan ${g.days_left} días`}).</div>` : ''}

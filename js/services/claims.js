@@ -52,12 +52,13 @@ export async function myRecentClaims(limit = 15) {
 }
 
 // ---------------------------------------------------------------- Reclamaciones
-const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, discrepancy_status, paid, glosado, balance, next_step, last_action_at, status_changed_at';
-export async function listClaims({ group = 'todas', status = '', location = '', providerId = '', arsId = '', q = '', from = '', to = '', page = 0, size = 25 } = {}) {
+const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, discrepancy_status, paid, glosado, balance, next_step, last_action_at, status_changed_at, dossier_ok, dossier_missing';
+export async function listClaims({ group = 'todas', status = '', location = '', providerId = '', arsId = '', q = '', from = '', to = '', dossier = '', page = 0, size = 25 } = {}) {
   let query = sb().from('v_claims').select(LIST_COLS, { count: 'exact' });
   const g = CLAIM_GROUPS[group];
   if (status) query = query.eq('claim_status', status); else if (g?.statuses) query = query.in('claim_status', g.statuses);
   if (location) query = query.eq('location_code', location);
+  if (dossier === 'incompleto') query = query.eq('dossier_ok', false); else if (dossier === 'completo') query = query.eq('dossier_ok', true);
   if (providerId) query = query.eq('provider_id', providerId);
   if (arsId) query = query.eq('ars_id', arsId);
   if (from) query = query.gte('service_date', from);
@@ -109,7 +110,7 @@ export async function listPickups({ status = '', providerId = '', page = 0, size
   return { data, count: count ?? data.length };
 }
 export async function getPickup(id) {
-  return must(await sb().from('receptions').select('*, providers(full_name), organizations(legal_name, phone)').eq('id', id).maybeSingle());
+  return must(await sb().from('receptions').select('*, providers(full_name), organizations(legal_name, phone, whatsapp)').eq('id', id).maybeSingle());
 }
 export async function pickupItems(id) {
   const items = must(await sb().from('reception_items').select('service_line_id, received, observation').eq('reception_id', id));
@@ -192,3 +193,26 @@ export async function adjustDistribution(allocationId, items, reason) {
 export async function capturerScopes(userId) { return must(await sb().from('capturer_scopes').select('provider_id').eq('user_id', userId)).map((r) => r.provider_id); }
 export async function providersOfOrg(orgId) { return must(await sb().from('providers').select('id, full_name').eq('organization_id', orgId).eq('is_active', true).order('full_name')); }
 export async function setCapturerScope(userId, providerIds) { return must(await sb().rpc('set_capturer_scope', { p_user: userId, p_providers: providerIds })); }
+
+
+// ---------------------------------------------------------------- Iteración 14 · post-radicación
+/** Línea de tiempo de 14 hitos de una reclamación */
+export async function claimTimeline(id) { return must(await sb().rpc('claim_timeline', { p_line: id })); }
+/** Reenvía reclamaciones devueltas en una radicación complementaria; devuelve el id del lote nuevo */
+export async function resubmitClaims(ids, reason) { return must(await sb().rpc('resubmit_claims', { p_lines: ids, p_reason: reason })); }
+/** Reenvíos registrados de una reclamación (de qué lote a qué lote) */
+export async function claimResubmissions(id) {
+  return must(await sb().from('claim_resubmissions').select('id, reason, created_at, created_by, from:from_submission_id(id, folio), to:to_submission_id(id, folio)').eq('service_line_id', id).order('created_at'));
+}
+/** Tiempos por etapa (días) por ARS y total */
+export async function stageTimes() { return must(await sb().from('v_stage_times').select('*')); }
+/** Lote original y complementarios de una radicación */
+export async function submissionFamily(id) {
+  const self = must(await sb().from('submissions').select('id, parent_submission_id, is_complementary, parent:parent_submission_id(id, folio, status)').eq('id', id).maybeSingle());
+  const children = must(await sb().from('submissions').select('id, folio, status, created_at').eq('parent_submission_id', id).order('created_at'));
+  return { self, children };
+}
+/** Aprobado vs. pagado por reclamación de un lote */
+export async function submissionClaimMoney(id) {
+  return must(await sb().from('v_claims').select('id, folio, patient_name, claim_status, claimed, recognized, paid, glosado, balance, last_paid_on').eq('submission_id', id).order('folio'));
+}

@@ -36,7 +36,9 @@ export const NAV = [
     { route: 'captura', label: 'Captura rápida', roles: CAPTURE, ready: true },
     { route: 'reclamaciones', label: 'Reclamaciones', roles: CLAIMS, ready: true },
     { route: 'retiros', label: 'Retiros físicos', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'auditor', 'client'], ready: true },
-    { route: 'contratos', label: 'Tarifario contractual', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'client'], ready: true }
+    { route: 'preradicacion', label: 'Pre-radicación', roles: ['super_admin', 'admin', 'billing', 'operations', 'auditor', 'assistant'], ready: true },
+    { route: 'contratos', label: 'Tarifario contractual', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'client'], ready: true },
+    { route: 'requisitos', label: 'Requisitos documentales', roles: ['super_admin', 'admin', 'billing', 'auditor', 'operations', 'assistant'], ready: true }
   ]},
   { group: 'CRM', items: [
     { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
@@ -130,6 +132,16 @@ const ACTIONS = {
   'fiscal.edit': ['super_admin', 'admin', 'billing'],
   'fiscal.exception': ['super_admin', 'admin'],
   'payments.distribute': ['super_admin', 'admin', 'billing', 'glosas'],
-  'capturers.assign': ['super_admin', 'admin']
+  'capturers.assign': ['super_admin', 'admin'],
+  // Iteración 13 · expediente por reclamación (espejo de 028_expediente.sql)
+  'dossier.upload': ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'operations', 'client', 'capturer'],
+  'dossier.physical': ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'client', 'capturer'],
+  'dossier.exception': ['super_admin', 'admin', 'auditor'],
+  'dossier.delete': ['super_admin', 'admin'],
+  // Iteración 14
+  'claims.resubmit': ['super_admin', 'admin', 'billing'],                                        // reenvío en radicación complementaria
+  'stages.view': ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'assistant', 'client'],
+  'rules.edit': ['super_admin', 'admin'],
+  'submissions.send': ['super_admin', 'admin', 'billing', 'operations']
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

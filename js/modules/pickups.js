@@ -10,6 +10,7 @@ import { money, num, date, dateTime } from '../utils/formatters.js';
 import { PICKUP_STATUS, claimStatus } from '../utils/constants.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
+import { waLink } from '../utils/whatsapp.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
 import {
@@ -30,6 +31,7 @@ export async function render(main, ctx) {
     ${manage ? html`<div class="card" style="margin-bottom:14px"><h2>Pendientes de retiro por médico</h2><div id="pend"></div></div>` : ''}
     <div id="l"></div>`);
   const provs = await captureProviders().catch(() => []);
+  if (!$('#pp', main)) return;   // salió de la pantalla mientras cargaba
   paint($('#pp', main), html`<option value="">Todos los médicos</option>${provs.map((p) => opt(p.id, p.full_name))}`);
 
   const list = $('#l', main);
@@ -126,6 +128,8 @@ async function renderDetail(main, ctx) {
         <div class="toolbar" style="margin:0">
           ${open && manage ? html`<button class="btn primary" id="confirm">Confirmar retiro</button>` : ''}
           ${open && can('pickups.manage', role) && role !== 'assistant' ? html`<button class="btn danger" id="cancel">Anular</button>` : ''}
+          ${open ? (() => { const wa = waLink(r.organizations?.whatsapp || r.organizations?.phone, `Hola, le saluda SOFA. Pasaremos a retirar ${r.expected_count} reclamación${r.expected_count === 1 ? '' : 'es'} del ${r.providers?.full_name || 'médico'} (retiro ${r.folio}). Por favor tenerlas listas con sus documentos (autorización, formulario firmado y soportes). Gracias.`);
+            return wa ? html`<a class="btn" id="wa" href="${wa}" target="_blank" rel="noopener">Avisar al consultorio por WhatsApp</a>` : html`<button class="btn" disabled title="El cliente no tiene WhatsApp registrado">WhatsApp</button>`; })() : ''}
           <button class="btn" id="print">Imprimir / PDF</button><button class="btn" id="csv">Exportar CSV</button></div></div>
       <div class="card" id="report">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">

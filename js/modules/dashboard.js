@@ -32,7 +32,7 @@ export async function render(main, ctx) {
 
   async function draw() {
     paint(body, loadingView(6));
-    try { if (tab === 'operacion') { await drawOps(); await drawNewsCard(); } else if (tab === 'mercado') await (await import('./market.js')).renderMarketSummary(body, ctx); else await drawGrowth(); }
+    try { if (tab === 'operacion') { await drawOps(); await drawNewsCard(); drawStageCard(); } else if (tab === 'mercado') await (await import('./market.js')).renderMarketSummary(body, ctx); else await drawGrowth(); }
     catch (err) { console.error(err); paint(body, errorView(err)); }
   }
 
@@ -70,6 +70,27 @@ export async function render(main, ctx) {
         <div class="card"><h2>Conceptos más facturados</h2><p class="sub">Monto de los servicios del período.</p>${Object.keys(mixBy).length ? hBars(Object.entries(mixBy).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value]) => ({ label, value }))) : html`<p class="small muted">Sin servicios en el período.</p>`}</div>
         <div class="card"><h2>Lo más antiguo por cobrar</h2>${open.length ? html`<div class="list">${open.slice(0, 6).map((r) => html`<div class="li"><div class="b"><div class="t1"><a href="#/radicaciones/${r.id}" class="mono">${r.folio}</a> · ${r.ars_name}</div><div class="t2">${isStaff(ctx.role) ? `${r.client_name} · ` : ''}radicada ${date(r.submitted_on)} · ${r.age_days} días</div></div><b>${money(r.balance)}</b></div>`)}</div>` : html`<p class="small muted">Nada pendiente.</p>`}</div>
       </div>`);
+  }
+
+  /** Iteración 14 · Tiempos por etapa (días promedio) por ARS, de las reclamaciones de los últimos 12 meses */
+  async function drawStageCard() {
+    if (tab !== 'operacion' || !can('stages.view', ctx.role)) return;
+    const card = document.createElement('div'); card.className = 'card'; card.style.marginTop = '14px'; card.id = 'stageCard';
+    body.appendChild(card);
+    try {
+      const { stageTimes } = await import('../services/claims.js');
+      const rows = (await stageTimes()).sort((a, b) => (a.ars_id ? 1 : 0) - (b.ars_id ? 1 : 0) || b.claims - a.claims);
+      if (!document.body.contains(card)) return;
+      const d = (v) => (v == null ? '—' : `${num(v)} d`);
+      paint(card, html`<h2>Tiempos por etapa</h2><p class="sub">Días promedio entre hitos de las reclamaciones de los últimos 12 meses. La primera fila es el total.</p>
+        ${rows.length && rows[0].claims ? html`<div class="table-wrap"><table class="t cards"><thead><tr><th>ARS</th><th class="n">Reclam.</th><th class="n">Captura → retiro</th><th class="n">Retiro → validada</th>
+          <th class="n">Validada → radicada</th><th class="n">Radicada → 1er pago</th><th class="n">Mediana radicada → pago</th><th class="n">Radicada → pagada</th><th class="n">Glosa → respuesta</th><th class="n">Ciclo total</th></tr></thead><tbody>
+          ${rows.map((r) => html`<tr${r.ars_id ? '' : ' style="font-weight:600"'}><td data-l="ARS">${r.ars_name}</td><td data-l="Reclamaciones" class="n">${num(r.claims)}</td>
+            <td data-l="Captura → retiro" class="n">${d(r.captura_retiro)}</td><td data-l="Retiro → validada" class="n">${d(r.retiro_validacion)}</td><td data-l="Validada → radicada" class="n">${d(r.validacion_radicacion)}</td>
+            <td data-l="Radicada → 1er pago" class="n">${d(r.radicacion_primer_pago)}</td><td data-l="Mediana" class="n">${d(r.mediana_radicacion_pago)}</td><td data-l="Radicada → pagada" class="n">${d(r.radicacion_pago_total)}</td>
+            <td data-l="Glosa → respuesta" class="n">${d(r.glosa_respuesta)}</td><td data-l="Ciclo total" class="n">${d(r.ciclo_total)}</td></tr>`)}</tbody></table></div>`
+          : html`<p class="small muted">Todavía no hay reclamaciones con hitos registrados.</p>`}`);
+    } catch { card.remove(); }
   }
 
   async function drawNewsCard() {

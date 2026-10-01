@@ -12,7 +12,8 @@ const MODULES = {
   glosas: 'glosas.js', pagos: 'payments.js', honorarios: 'fees.js',
   hoy: 'today.js', dashboard: 'dashboard.js', aging: 'aging.js', reportes: 'reports.js',
   habilitacion: 'habilitation.js', mercado: 'market.js', guias: 'guides.js',
-  captura: 'capture.js', reclamaciones: 'claims.js', retiros: 'pickups.js', contratos: 'contracts.js'
+  captura: 'capture.js', reclamaciones: 'claims.js', retiros: 'pickups.js', contratos: 'contracts.js',
+  preradicacion: 'prerad.js', requisitos: 'requirements.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 

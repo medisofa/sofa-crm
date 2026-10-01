@@ -13,6 +13,8 @@ const FIELDS = [
   ['target_mrr', 'Meta de ingreso mensual recurrente (RD$)', 0, 100000000, ''],
   ['target_billing_mix_pct', '% objetivo del ingreso en facturación médica', 0, 100, ''],
   ['founder_slots', 'Cupos de clientes fundadores', 0, 1000, ''],
+  ['payment_gap_days', 'Alerta de pago incompleto (días sin pagos nuevos)', 5, 180, 'Iteración 14: "Trabajo de hoy" avisa cuando una reclamación con pago parcial lleva más de estos días sin pagos nuevos.'],
+  ['validation_alert_days', 'Alerta de reclamación retirada sin validar (días)', 1, 60, 'Iteración 13: "Trabajo de hoy" avisa cuando una reclamación retirada lleva más de estos días sin auditar.'],
   ['pickup_alert_days', 'Alerta de reclamación sin retirar (días)', 1, 60, 'Iteración 12: "Trabajo de hoy" avisa cuando una reclamación capturada lleva más de estos días en el consultorio.']
 ];
 

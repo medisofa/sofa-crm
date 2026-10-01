@@ -15,7 +15,7 @@ export async function render(main, ctx) {
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Honorarios SOFA</h2><p>${staff ? 'Lo que SOFA gana por cliente: cuotas, porcentaje sobre lo cobrado y cargos por radicación. Cada honorario guarda la regla y la base que lo originaron.' : 'Tus honorarios con SOFA y tus facturas.'}</p></div></div>
     <div class="grid kpis" id="k"></div>
-    ${manage ? html`<div class="card" style="margin-top:14px"><h2>Cierre del mes</h2><p class="sub">1) Genera las cuotas mensuales (también lo hace pg_cron el día 1). 2) Genera las facturas: agrupan por cliente todo lo no facturado del mes.</p>
+    ${manage ? html`<div class="card" style="margin-top:14px"><h2>Cierre del mes</h2><p class="sub">1) Genera las cuotas mensuales (también lo hace pg_cron el día 1). 2) Genera las facturas: agrupan por cliente lo no facturado del mes <b>y los honorarios rezagados de meses anteriores</b> (por ejemplo, de un pago registrado tarde). Las cuotas se <b>prorratean por días activos</b> cuando el cliente entra o sale a mitad de mes.</p>
       <div class="toolbar" style="margin:0"><label class="sr-only" for="mon">Mes</label><input class="input" type="month" id="mon" value="${thisMonth}" max="${thisMonth}" style="width:auto">
         <button class="btn" id="genFees">Generar cuotas del mes</button><button class="btn primary" id="genInv">Generar facturas del mes</button></div></div>` : ''}
     <div class="card" style="margin-top:14px"><h2>Por cliente</h2><div id="sum"></div></div>
@@ -49,7 +49,7 @@ export async function render(main, ctx) {
 
   const loadLedger = () => staff && loadInto($('#led', main), () => listFees(100), (rows) => html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="n">Base</th><th class="n">Tasa</th><th class="n">Honorario</th><th>Factura</th></tr></thead>
     <tbody>${rows.map((f) => html`<tr><td data-l="Fecha">${dateTime(f.calculated_at)}</td><td data-l="Cliente">${f.organizations?.legal_name}</td><td data-l="Origen">${FEE_SOURCE[f.source_type] || f.source_type}<div class="small muted">${period(f.period)}</div></td>
-      <td data-l="Base" class="n">${f.source_type === 'cuota' ? '—' : money(f.base_amount)}</td><td data-l="Tasa" class="n">${f.rate != null ? `${Number(f.rate)}%` : 'Fijo'}</td><td data-l="Honorario" class="n"><b>${money(f.amount)}</b></td>
+      <td data-l="Base" class="n">${f.source_type === 'cuota' ? (Number(f.base_amount) > 0 && Number(f.base_amount) < new Date(Number(String(f.period).slice(0, 4)), Number(String(f.period).slice(5, 7)), 0).getDate() ? html`${num(f.base_amount)} días <span class="pill warn">prorrateada</span>` : 'Mes completo') : money(f.base_amount)}</td><td data-l="Tasa" class="n">${f.rate != null ? `${Number(f.rate)}%` : 'Fijo'}</td><td data-l="Honorario" class="n"><b>${money(f.amount)}</b></td>
       <td data-l="Factura" class="mono">${f.sofa_invoices?.folio || html`<span class="pill warn">Por facturar</span>`}</td></tr>`)}</tbody></table></div>`,
   { empty: () => emptyView('Sin honorarios todavía', 'Se generan al registrar pagos, al radicar (según la regla) y con las cuotas mensuales.') });
 

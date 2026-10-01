@@ -10,9 +10,10 @@ import { money, date, dateTime } from '../utils/formatters.js';
 import { claimStatus, CLAIM_MOVE_LABELS, DISCREPANCY_STATUS, CARE_MODES } from '../utils/constants.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { profileNames } from '../services/submissions.js';
+import { renderDossier } from './dossier-card.js';
 import {
   getClaim, claimHistory, claimAudits, claimDiscrepancies, claimChecks, claimLocations, claimTransitions,
-  claimPaymentLines, claimGlosaItems, recheckContract
+  claimPaymentLines, claimGlosaItems, recheckContract, claimTimeline, claimResubmissions, resubmitClaims
 } from '../services/claims.js';
 
 const kv = (pairs) => html`<dl class="kv">${pairs.map(([k, v]) => html`<dt>${k}</dt><dd>${v == null || v === '' ? '—' : v}</dd>`)}</dl>`;
@@ -31,13 +32,14 @@ export async function render(main, ctx) {
   async function load() {
     const c = await getClaim(id);
     if (!c) return null;
-    const [hist, audits, discs, checks, locs, trans, pays, glosas] = await Promise.all([
+    const [hist, audits, discs, checks, locs, trans, pays, glosas, timeline, resubs] = await Promise.all([
       claimHistory(id), claimAudits(id), claimDiscrepancies(id), claimChecks(id).catch(() => null), claimLocations(), claimTransitions(),
-      showMoney ? claimPaymentLines(id).catch(() => []) : Promise.resolve([]), showMoney ? claimGlosaItems(id).catch(() => []) : Promise.resolve([])
+      showMoney ? claimPaymentLines(id).catch(() => []) : Promise.resolve([]), showMoney ? claimGlosaItems(id).catch(() => []) : Promise.resolve([]),
+      claimTimeline(id).catch(() => []), claimResubmissions(id).catch(() => [])
     ]);
     const names = await profileNames([c.created_by, c.updated_by, ...hist.map((h) => h.changed_by), ...audits.map((a) => a.auditor_id),
       ...discs.flatMap((d) => [d.created_by, d.decided_by])].filter(Boolean)).catch(() => ({}));
-    return { c, hist, audits, discs, checks, locs, trans, pays, glosas, names };
+    return { c, hist, audits, discs, checks, locs, trans, pays, glosas, names, timeline, resubs };
   }
   async function refresh() {
     try {
@@ -48,7 +50,11 @@ export async function render(main, ctx) {
   }
 
   function draw() {
-    const { c, hist, audits, discs, checks, locs, trans, pays, glosas, names } = S;
+    const { c, hist, audits, discs, checks, locs, trans, pays, glosas, names, timeline, resubs } = S;
+    // Reenvío: solo reclamaciones devueltas por la ARS que no se han reenviado desde su última devolución
+    const lastDev = hist.filter((h) => h.to_status === 'devuelta').map((h) => h.changed_at).sort().pop();
+    const canResubmit = can('claims.resubmit', role) && lastDev && ['devuelta', 'en_validacion', 'con_inconsistencia', 'validada'].includes(c.claim_status)
+      && !resubs.some((r) => r.created_at > lastDev);
     const [lbl, cls] = claimStatus(c.claim_status);
     ctx.setTitle(c.folio);
     const moves = trans.filter((t) => t.from_code === c.claim_status && t.allowed_roles.includes(role)
@@ -68,6 +74,7 @@ export async function render(main, ctx) {
         ${canAudit ? html`<button class="btn primary" id="audit">Auditar expediente</button>` : ''}
         ${c.claim_status === 'pendiente_configuracion' && can('claims.recheck', role) ? html`<button class="btn" id="recheck">Volver a buscar contrato</button>` : ''}
         ${can('claims.override', role) ? html`<button class="btn" id="force">Cambio excepcional…</button>` : ''}
+        ${canResubmit ? html`<button class="btn primary" id="resubmit">Reenviar en radicación complementaria</button>` : ''}
         <button class="btn" id="print">Imprimir</button>
       </div></div>
 
@@ -101,9 +108,11 @@ export async function render(main, ctx) {
       </div>
       <div class="card"><h2>Revisión automática${checks ? html` · ${checks.ok ? html`<span class="pill ok">Lista</span>` : html`<span class="pill bad">Con pendientes</span>`}` : ''}</h2>
         ${checks ? html`<div class="list">${CHECKS.map(([k, label, inverse]) => { const good = inverse ? !checks[k] : !!checks[k]; return html`<div class="li"><span aria-hidden="true" style="font-weight:700;color:${good ? 'var(--ok)' : 'var(--bad)'}">${good ? '✓' : '✕'}</span><div class="b"><div class="t1">${label}</div>${k === 'docs' && !good ? html`<div class="t2">Faltan: ${(checks.missing_documents || []).join(', ')}</div>` : ''}</div><span class="sr-only">${good ? 'Cumple' : 'No cumple'}</span></div>`; })}</div>
-          <p class="small muted">Los documentos se marcan en la radicación <a href="#/radicaciones/${c.submission_id}">${c.submission_folio}</a>.</p>` : html`<p class="small muted">No disponible.</p>`}
+          <p class="small muted">El detalle de documentos está en el <a href="#dossier">Expediente</a>.</p>` : html`<p class="small muted">No disponible.</p>`}
       </div>
     </div>
+
+    <div class="card" id="dossier" style="margin-top:14px"></div>
 
     ${showMoney ? html`<div class="card" style="margin-top:14px"><h2>Resultado financiero de esta reclamación</h2>
       <div class="grid kpis">
@@ -135,12 +144,20 @@ export async function render(main, ctx) {
         <div class="t1">${h.from_status ? `${claimStatus(h.from_status)[0]} → ` : ''}<b>${claimStatus(h.to_status)[0]}</b>${h.is_override ? html` <span class="pill warn">Excepción</span>` : ''}</div>
         <div class="t2">${dateTime(h.changed_at)} · ${who(h.changed_by)}${h.to_location ? ` · ${locs.find((l) => l.code === h.to_location)?.name || h.to_location}` : ''}${h.custodian_label ? ` · responsable: ${h.custodian_label}` : ''}</div>
         ${h.comment ? html`<div class="t2">${h.comment}</div>` : ''}</div></div>`)}</div></div>
-    </div>`);
+    </div>
+    ${timeline.length ? html`<div class="card" style="margin-top:14px"><h2>Línea de tiempo · ${timeline.filter((t) => t.done_at).length} de 14 hitos</h2>
+      <p class="small muted">Días entre hitos y desde la captura. Los hitos que no ocurrieron (por ejemplo, sin glosa) quedan en blanco.</p>
+      <div class="table-wrap"><table class="t"><thead><tr><th>#</th><th>Hito</th><th>Fecha</th><th class="n">Días desde el anterior</th><th class="n">Días desde la captura</th></tr></thead><tbody>
+      ${timeline.map((t) => html`<tr style="${t.done_at ? '' : 'opacity:.5'}"><td>${t.step}</td><td>${t.done_at ? '✓ ' : '○ '}${t.label}</td><td>${t.done_at ? dateTime(t.done_at) : '—'}</td>
+        <td class="n">${t.days_from_prev ?? '—'}</td><td class="n">${t.days_from_start ?? '—'}</td></tr>`)}</tbody></table></div>
+      ${resubs.length ? html`<h3 class="small" style="margin-top:12px">Reenvíos</h3><div class="list">${resubs.map((r) => html`<div class="li"><div class="b"><div class="t1">De <a class="mono" href="#/radicaciones/${r.from?.id}">${r.from?.folio}</a> a <a class="mono" href="#/radicaciones/${r.to?.id}">${r.to?.folio}</a> · ${dateTime(r.created_at)}</div><div class="t2">${r.reason}</div></div></div>`)}</div>` : ''}
+    </div>` : ''}`);
     bind();
   }
 
   function bind() {
     const { c, locs, trans } = S;
+    renderDossier($('#dossier', box), c, role, refresh);
     box.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', async () => {
       const { moveDialog } = await import('./claim-dialogs.js');
       try { const n = await moveDialog([id], b.dataset.to, { role, transitions: trans, locations: locs, from: c.claim_status }); if (n != null) { toast('Reclamación actualizada', 'ok'); refresh(); } }
@@ -173,6 +190,11 @@ export async function render(main, ctx) {
       catch (err) { toast(friendlyError(err), 'bad'); }
     });
     $('#print', box)?.addEventListener('click', () => window.print());
+    $('#resubmit', box)?.addEventListener('click', async () => {
+      const { resubmitDialog } = await import('./claim-dialogs.js');
+      try { const sub = await resubmitDialog([id], c.submission_folio); if (sub) { toast('Radicación complementaria creada', 'ok'); location.hash = `#/radicaciones/${sub}`; } }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    });
   }
 
   refresh();

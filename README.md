@@ -2,7 +2,7 @@
 
 Aplicación web estática (HTML + CSS + JavaScript con ES Modules) que se publica en **GitHub Pages** y usa **Supabase** como backend (Auth, PostgreSQL con RLS y Storage).
 
-- Versión: **1.2.0** (Iteración 12 · Reclamaciones individuales, captura rápida, retiro físico y tarifario contractual)
+- Versión: **1.4.0** (Iteración 14 · Post-radicación, trazabilidad y honorarios)
 - Librería: `@supabase/supabase-js` **2.117.2**, copia local en `vendor/` (sin CDN externo)
 - Sin frameworks ni proceso de compilación: los archivos se suben tal cual.
 
@@ -33,7 +33,7 @@ sofa-crm/
 └── vendor/               supabase-js 2.117.2 (licencia MIT incluida)
 ```
 
-Los scripts SQL (`001`–`027`, más `026_revertir.sql`) y las Edge Functions `admin-users` y `market-intel` se entregan aparte, en la carpeta `sofa-supabase/`, y los scripts de respaldo en `respaldos/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
+Los scripts SQL (`001`–`029`, más `026_revertir.sql` y `028_revertir.sql`) y las Edge Functions `admin-users` y `market-intel` se entregan aparte, en la carpeta `sofa-supabase/`, y los scripts de respaldo en `respaldos/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
 
 ## Instalación (resumen)
 
@@ -51,7 +51,7 @@ La guía paso a paso con capturas de verificación está en `GUIA_Iteracion3.htm
 2. Cambia `VERSION` en `sw.js` (por ejemplo `sofa-shell-1.2.1`) y `APP_VERSION` en `js/version.js` (no en `config.js`).
 3. Los usuarios verán el aviso "Hay una versión nueva de SOFA. Recarga la página".
 
-## Módulos disponibles en 1.2.0
+## Módulos disponibles en 1.4.0
 
 | Módulo | Estado |
 |---|---|
@@ -76,3 +76,7 @@ La guía paso a paso con capturas de verificación está en `GUIA_Iteracion3.htm
 | Retiros físicos: programar, confirmar recibidas vs. esperadas, Reporte de Retiro con folio RET imprimible | Listo · 1.2.0 |
 | Tarifario contractual Médico × ARS × Servicio × vigencia, historial e importador con reporte previo | Listo · 1.2.0 |
 | Rol Capturador / Secretaria (mínimo privilegio, médicos asignados) y rol Operaciones SOFA | Listo · 1.2.0 |
+| Expediente por reclamación: requisitos según servicio, ARS y modalidad; subir archivo o marcar en físico; COMPLETO / INCOMPLETO; excepción auditada | Listo · 1.3.0 |
+| Requisitos documentales (reglas con vista previa) · Pre-radicación por lote · Envío a la ARS (Enviada → Radicada) · Aviso de retiro por WhatsApp | Listo · 1.3.0 |
+| Post-radicación: reenvío de devueltas en radicación complementaria, línea de tiempo de 14 hitos, tiempos por etapa, aprobado vs. pagado, folios PAG/GLO | Listo · 1.4.0 |
+| Honorarios: cuota prorrateada por días activos, facturas con honorarios rezagados, alerta de factura sin NCF | Listo · 1.4.0 |

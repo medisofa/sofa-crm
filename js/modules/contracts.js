@@ -51,6 +51,7 @@ export async function render(main, ctx) {
     </div>
     <div id="l"></div>`);
   const [provs, ars] = await Promise.all([captureProviders().catch(() => []), activeArs().catch(() => [])]);
+  if (!$('#cp', main)) return;   // salió de la pantalla mientras cargaba
   paint($('#cp', main), html`<option value="">Todos los médicos</option>${provs.map((p) => opt(p.id, p.full_name))}`);
   paint($('#ca', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`);
 

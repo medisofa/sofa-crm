@@ -13,6 +13,8 @@ import { can, isStaff } from '../utils/permissions.js';
 import {
   captureProviders, activeArs, contractedServices, searchCatalog, patientLookup, captureClaim, myRecentClaims
 } from '../services/claims.js';
+import { requiredDocsPreview, dossierStatus } from '../services/dossier.js';
+import { dossierPill } from './dossier-card.js';
 
 /** Se conserva entre visitas dentro de la misma sesión: médico, ARS, fecha y clínica */
 const memory = { provider: '', ars: '', date: '', clinic: '', careMode: 'ambulatorio' };
@@ -117,7 +119,8 @@ export async function render(main, ctx) {
       <b>${s.name}</b><br>
       SIMON <b class="mono">${s.simon || '—'}</b> · CUPS <b class="mono">${s.cups || '—'}</b>${s.internal_code ? html` · Interno <span class="mono">${s.internal_code}</span>` : ''}${s.ars_service_code ? html` · Código ARS <span class="mono">${s.ars_service_code}</span>` : ''}<br>
       Tarifa contractual <b>${money(s.amount)}</b> · vigente ${date(s.valid_from)}${s.valid_to ? ` al ${date(s.valid_to)}` : ' en adelante'}${s.contract_ref ? html` · contrato <span class="mono">${s.contract_ref}</span>` : ''}
-      ${s.requirements?.length ? html`<div class="small" style="margin-top:4px">Documentos requeridos: ${s.requirements.join(', ')}</div>` : ''}</div>` : html``);
+      <div class="small" style="margin-top:4px" id="reqDocs"></div></div>` : html``);
+    if (s) loadReqDocs();
     drawDiff();
   }
 
@@ -162,6 +165,19 @@ export async function render(main, ctx) {
       <p class="small">Indique el monto a reclamar: sin contrato no hay tarifa automática. La reclamación no será válida para radicar hasta configurar el contrato o autorizar la excepción.</p></div>`);
     el('nc_mode').addEventListener('change', (e) => { el('nc_rs').hidden = e.target.value !== 'excepcion'; });
     el('c_amt').focus();
+  }
+
+  /** Documentos del expediente según servicio + ARS + modalidad (Iteración 13) */
+  let reqSeq = 0;
+  async function loadReqDocs() {
+    const box = el('reqDocs'); if (!box || !S.service) return;
+    const my = ++reqSeq;
+    try {
+      const rows = await requiredDocsPreview(S.service.procedure_id, el('c_ars').value, el('c_mode').value);
+      if (my !== reqSeq || !alive()) return;
+      const must = rows.filter((r) => r.requirement === 'obligatorio').map((r) => r.name);
+      paint(box, must.length ? html`Expediente (${el('c_mode').selectedOptions[0]?.textContent || ''}): <b>${must.join(', ')}</b>. Adjúntelos desde la reclamación.` : html`Sin documentos obligatorios.`);
+    } catch { /* informativo */ }
   }
 
   // ------------------------------------------------------------ alerta de diferencia tarifaria (§9)
@@ -213,7 +229,7 @@ export async function render(main, ctx) {
   el('c_prov').addEventListener('change', loadServices);
   el('c_ars').addEventListener('change', loadServices);
   el('c_date').addEventListener('change', loadServices);
-  el('c_mode').addEventListener('change', () => { memory.careMode = el('c_mode').value; syncAuth(); });
+  el('c_mode').addEventListener('change', () => { memory.careMode = el('c_mode').value; syncAuth(); loadReqDocs(); });
   el('c_srv').addEventListener('change', pickService);
   el('c_amt').addEventListener('input', drawDiff);
   syncAuth();
@@ -304,12 +320,13 @@ export async function render(main, ctx) {
     const box = el('recent'); if (!box) return;
     try {
       const rows = await myRecentClaims(15);
+      const ds = await dossierStatus(rows.map((r) => r.id)).catch(() => ({}));
       if (!alive()) return;
       paint(box, rows.length ? html`<div class="list">${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`
         <a class="li" href="#/reclamaciones/${c.id}" style="text-decoration:none;color:inherit"><div class="b">
           <div class="t1"><span class="mono">${c.folio}</span> · ${c.patient_name}</div>
           <div class="t2">${c.service_name} · ${money(c.claimed)}${staff ? ` · ${c.provider_name}` : ''} · ${c.ars_name}</div>
-          <div class="t2">${dateTime(c.created_at)}</div></div>
+          <div class="t2">${dateTime(c.created_at)} ${dossierPill(ds[c.id])}</div></div>
           <div style="text-align:right"><span class="pill ${cl}">${l}</span>${c.discrepancy_status ? html`<div><span class="pill ${DISCREPANCY_STATUS[c.discrepancy_status]?.[1] || ''}">${DISCREPANCY_STATUS[c.discrepancy_status]?.[0] || c.discrepancy_status}</span></div>` : ''}</div></a>`; })}</div>`
         : html`<p class="small muted">Aún no hay reclamaciones registradas hoy.</p>`);
     } catch (err) { paint(box, html`<div class="note bad">${friendlyError(err)}</div>`); }

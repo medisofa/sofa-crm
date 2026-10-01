@@ -3,7 +3,7 @@ import { html } from '../utils/dom.js';
 import { formDialog, opt, fieldError } from '../utils/ui.js';
 import { money, num } from '../utils/formatters.js';
 import { claimStatus, CLAIM_MOVE_LABELS } from '../utils/constants.js';
-import { changeClaimStatus, auditClaims, decideDiscrepancy, adjustDistribution } from '../services/claims.js';
+import { changeClaimStatus, auditClaims, decideDiscrepancy, adjustDistribution, resubmitClaims } from '../services/claims.js';
 
 const field = (id, label, input, hint = '') => html`<div class="field"><label for="${id}">${label}</label>${input}${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
 
@@ -96,6 +96,19 @@ export function adjustDialog(allocation, current) {
       if (Math.abs(s - total) > 0.005) { fieldError(form.elements.reason, `La suma (${money(s)}) debe ser ${money(total)}`); return false; }
       if ((d.reason || '').trim().length < 10) { fieldError(form.elements.reason, 'Mínimo 10 caracteres'); return false; }
       return adjustDistribution(allocation.id, items, d.reason.trim());
+    }
+  });
+}
+
+/** Iteración 14 · Reenviar reclamaciones devueltas en una radicación complementaria (devuelve el id del lote nuevo) */
+export function resubmitDialog(ids, fromFolio = '') {
+  return formDialog({
+    title: `Reenviar ${num(ids.length)} reclamación${ids.length === 1 ? '' : 'es'} devuelta${ids.length === 1 ? '' : 's'}`, submitLabel: 'Crear radicación complementaria',
+    body: html`<p class="small">Se crea un lote nuevo${fromFolio ? html` vinculado a <b class="mono">${fromFolio}</b>` : ''} (mismo médico, ARS y período) y la reclamación pasa a él conservando su folio, monto y tarifa. Vuelve a auditarse antes de radicar. El lote complementario no cobra otra vez el honorario por radicación.</p>
+      ${field('rs_r', 'Motivo de la devolución y corrección realizada (mín. 10 caracteres) *', html`<textarea id="rs_r" name="reason" rows="3" class="input" placeholder="La ARS devolvió por falta de firma del médico; ya firmada"></textarea>`)}`,
+    onSubmit: async (d, form) => {
+      if ((d.reason || '').trim().length < 10) { fieldError(form.elements.reason, 'Mínimo 10 caracteres'); return false; }
+      return resubmitClaims(ids, d.reason.trim());
     }
   });
 }

@@ -14,7 +14,8 @@ import { waLink } from '../utils/whatsapp.js';
 import { lineDialog, importDialog, checklistDialog, radicarDialog, overrideDialog, commentDialog } from './submission-dialogs.js';
 import { listGlosas, submissionPayments } from '../services/finance.js';
 import { glosaStatus, claimStatus, DELIVERY_METHODS } from '../utils/constants.js';
-import { getFiscal, fiscalCheck, saveFiscal, authorizeFiscalDifference, submissionLineAllocations } from '../services/claims.js';
+import { getFiscal, fiscalCheck, saveFiscal, authorizeFiscalDifference, submissionLineAllocations, submissionFamily, submissionClaimMoney } from '../services/claims.js';
+import { getDelivery, markSubmissionSent } from '../services/dossier.js';
 
 const EDITABLE = ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'];
 const daysTo = (iso) => (iso ? Math.round((new Date(`${iso}T00:00:00`) - new Date(`${todayISO()}T00:00:00`)) / 86400000) : null);
@@ -38,10 +39,11 @@ export async function render(main, ctx) {
     const [glosas, pays] = sub.submitted_on
       ? await Promise.all([listGlosas({ group: 'todas', submissionId: id, size: 50 }).then((r) => r.data).catch(() => []), submissionPayments(id).catch(() => [])])
       : [[], []];
-    const [fiscal, fcheck, dist] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
-      sub.submitted_on && can('claims.money', ctx.role) ? submissionLineAllocations(id).catch(() => []) : Promise.resolve([])]);
+    const [fiscal, fcheck, dist, delivery, family, money_] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
+      sub.submitted_on && can('claims.money', ctx.role) ? submissionLineAllocations(id).catch(() => []) : Promise.resolve([]), getDelivery(id).catch(() => null),
+      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([])]);
     const names = await profileNames([...hist.map((h) => h.changed_by), ...docs.map((d) => d.uploaded_by), fiscal?.fiscal_exception_by].filter(Boolean)).catch(() => ({}));
-    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist };
+    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_ };
   }
 
   async function refresh() {
@@ -53,7 +55,7 @@ export async function render(main, ctx) {
   }
 
   function draw() {
-    const { sub, lines, lineCk, docs, trans, hist, val, types, org, names, glosas, pays, fiscal, fcheck, dist } = S;
+    const { sub, lines, lineCk, docs, trans, hist, val, types, org, names, glosas, pays, fiscal, fcheck, dist, family, money_ } = S;
     const canGlosa = can('glosas.edit', ctx.role) && !!sub.submitted_on && !['cerrada', 'rechazada'].includes(sub.status);
     const canPay = can('payments.create', ctx.role) && Number(sub.balance) > 0 && ['radicada', 'en_auditoria_ars'].includes(sub.status);
     ctx.setTitle(sub.folio);
@@ -72,10 +74,13 @@ export async function render(main, ctx) {
     paint(box, html`
     <div class="page-head"><div class="t"><p><a href="#/radicaciones">← Radicaciones</a></p>
       <h2><span class="mono">${sub.folio}</span> <span class="pill ${cls}">${lbl}</span></h2>
-      <p>${isStaff(role) ? `${sub.client_name} · ` : ''}${sub.provider_name} · ${sub.ars_name} · ${period(sub.period)}${sub.sequence > 1 ? ` · complementaria #${sub.sequence}` : ''}</p></div>
+      <p>${isStaff(role) ? `${sub.client_name} · ` : ''}${sub.provider_name} · ${sub.ars_name} · ${period(sub.period)}${sub.sequence > 1 && !family?.self?.is_complementary ? ` · secuencia #${sub.sequence}` : ''}</p>
+      ${family?.self?.parent ? html`<p class="small"><span class="pill warn">Radicación complementaria</span> de <a class="mono" href="#/radicaciones/${family.self.parent.id}">${family.self.parent.folio}</a> (reclamaciones devueltas reenviadas)</p>` : ''}
+      ${family?.children?.length ? html`<p class="small">Complementarias: ${family.children.map((c, i) => html`${i ? ', ' : ''}<a class="mono" href="#/radicaciones/${c.id}">${c.folio}</a>`)}</p>` : ''}</div>
       <div class="toolbar" style="margin:0">
         ${moves.map((t) => html`<button class="btn ${['lista_para_radicar', 'radicada', 'recibida'].includes(t.to_code) ? 'primary' : ''}" data-to="${t.to_code}">${moveLabel(t.to_code)}</button>`)}
         ${org ? (waLink(org.whatsapp) ? html`<a class="btn" id="wa" target="_blank" rel="noopener" href="${waLink(org.whatsapp, waMessage())}">Pedir faltantes por WhatsApp</a>` : html`<button class="btn" disabled title="El cliente no tiene WhatsApp registrado">WhatsApp</button>`) : ''}
+        ${sub.status === 'lista_para_radicar' && can('submissions.send', role) ? html`<button class="btn ${S.delivery?.sent_on ? '' : 'primary'}" id="sendBtn">${S.delivery?.sent_on ? 'Corregir envío' : 'Marcar enviada a la ARS'}</button>` : ''}
         ${canPay ? html`<button class="btn primary" id="payBtn">Registrar pago</button>` : ''}
         ${canGlosa ? html`<button class="btn" id="glosaBtn">Registrar glosa</button>` : ''}
         <button class="btn" id="csv">Exportar CSV</button>
@@ -104,6 +109,8 @@ export async function render(main, ctx) {
       </div>
     </div>
 
+    ${S.delivery?.sent_on && !sub.submitted_on ? html`<div class="note info" style="margin-top:14px"><b>Enviada a la ARS</b> el ${date(S.delivery.sent_on)} · ${S.delivery.sent_via}${S.delivery.sent_tracking ? ` · guía ${S.delivery.sent_tracking}` : ''}${S.delivery.sent_evidence_id ? ' · con evidencia' : ''}.
+      Las reclamaciones están en poder del mensajero o del portal. Cuando llegue el acuse de la ARS, pulse <b>Radicar</b> con el número de recepción.</div>` : ''}
     ${fiscal ? fiscalCard(sub, fiscal, fcheck, names, role, docs) : ''}
 
     ${sub.submitted_on ? html`<div class="grid kpis" style="margin-top:14px">
@@ -115,7 +122,8 @@ export async function render(main, ctx) {
       <div class="card"><h2>Glosas · ${num(glosas.length)}</h2>${glosas.length ? html`<div class="list">${glosas.map((g) => { const [gl, gc] = glosaStatus(g.status); return html`<div class="li"><div class="b"><div class="t1"><a href="#/glosas/${g.id}">${money(g.amount)} · ${g.main_reason || 'Glosa'}</a></div><div class="t2">Notificada ${date(g.notified_on)} · ${num(g.items)} servicios${g.in_dispute > 0 ? ` · ${money(g.in_dispute)} en disputa` : ''}</div></div><span class="pill ${gc}">${gl}</span></div>`; })}</div>` : html`<p class="small muted">Sin glosas.</p>`}</div>
       <div class="card"><h2>Pagos aplicados · ${num(pays.length)}</h2>${pays.length ? html`<div class="list">${pays.map((a) => html`<div class="li"><div class="b"><div class="t1">${money(a.amount)}</div><div class="t2">${date(a.payments?.paid_on)} · <span class="mono">${a.payments?.reference}</span></div></div></div>`)}</div>` : html`<p class="small muted">Sin pagos todavía.</p>`}</div>
     </div>
-    ${dist?.length ? distributionCard(dist, lines, role) : ''}` : ''}
+    ${dist?.length ? distributionCard(dist, lines, role) : ''}
+    ${money_?.length ? approvedPaidCard(money_) : ''}` : ''}
 
     <div class="card" style="margin-top:14px"><h2>Servicios del período · ${num(lines.length)} · ${money(total)}</h2>
       ${editable ? html`<div class="toolbar"><button class="btn primary" id="addLine">+ Agregar servicio</button><button class="btn" id="import">Carga masiva</button></div>` : ''}
@@ -214,6 +222,27 @@ export async function render(main, ctx) {
           toast('Factura fiscal guardada', 'ok'); await refresh();
         } catch (err) { toast(friendlyError(err), 'bad'); }
       });
+    });
+    $('#sendBtn', box)?.addEventListener('click', async () => {
+      const { formDialog, opt } = await import('../utils/ui.js');
+      const { DELIVERY_METHODS } = await import('../utils/constants.js');
+      const fc = S.fcheck;
+      if (fc && !fc.ok) { toast('La factura fiscal no cuadra con las reclamaciones: corríjala o solicite la excepción antes de enviar.', 'bad'); document.getElementById('fisc')?.scrollIntoView({ behavior: 'smooth' }); return; }
+      const dv = S.delivery || {};
+      const n = await formDialog({ title: `Enviar ${S.sub.folio} a ${S.sub.ars_name}`, submitLabel: 'Registrar envío',
+        body: html`<p class="small">Etapa <b>Enviada</b>: el lote salió hacia la ARS pero todavía no hay acuse. Cada reclamación queda "En poder del mensajero" con el responsable que indique.</p>
+          <div class="form-grid">
+            <div class="field"><label for="sn_d">Fecha de envío *</label><input id="sn_d" name="sentOn" type="date" value="${dv.sent_on || todayISO()}" max="${todayISO()}"></div>
+            <div class="field"><label for="sn_v">Vía / mensajero *</label><input id="sn_v" name="via" list="sn_vl" maxlength="120" value="${dv.sent_via || ''}" placeholder="Mensajero SOFA (nombre), portal de la ARS, courier…">
+              <datalist id="sn_vl">${DELIVERY_METHODS.map(([, l]) => html`<option value="${l}">`)}</datalist></div>
+            <div class="field"><label for="sn_t">No. de guía o referencia</label><input id="sn_t" name="tracking" maxlength="60" value="${dv.sent_tracking || ''}"></div>
+            <div class="field"><label for="sn_e">Evidencia (comprobante de envío)</label><select id="sn_e" name="evidence"><option value="">Sin evidencia</option>${S.docs.map((d) => opt(d.id, d.file_name, dv.sent_evidence_id))}</select></div></div>`,
+        onSubmit: async (v, f) => {
+          if (!v.sentOn) { fieldError(f.elements.sentOn, 'Indique la fecha'); return false; }
+          if ((v.via || '').trim().length < 3) { fieldError(f.elements.via, 'Indique cómo se envió'); return false; }
+          return markSubmissionSent(id, { sentOn: v.sentOn, via: v.via.trim(), tracking: v.tracking?.trim(), evidence: v.evidence || null });
+        } }).catch((err) => { toast(friendlyError(err), 'bad'); return null; });
+      if (n != null) { toast(`Envío registrado · ${n} reclamaciones en poder del mensajero`, 'ok'); await refresh(); }
     });
     $('#fiscExc', box)?.addEventListener('click', async () => {
       const { formDialog } = await import('../utils/ui.js');
@@ -354,4 +383,19 @@ function distributionCard(dist, lines, role) {
           <td class="small">${r.method === 'automatico' ? 'Proporcional' : r.method === 'manual' ? `Manual · ${r.reason || ''}` : 'Migrado'}</td></tr>`; })}</tbody></table></div>
         ${old.length ? html`<details><summary class="small">Repartos anteriores (${old.length} registros reemplazados)</summary><div class="list">${old.map((r) => html`<div class="li small"><div class="b">${lineBy[r.service_line_id]?.claim_folio || ''} · ${money(r.amount)} · ${r.method} · reemplazado ${dateTime(r.superseded_at)}</div></div>`)}</div></details>` : ''}</div>`; })}
   </div>`;
+}
+
+/** Iteración 14 · Aprobado vs. pagado por reclamación (aprobado = reclamado − glosa aceptada) */
+function approvedPaidCard(rows) {
+  const t = rows.reduce((a, r) => ({ c: a.c + Number(r.claimed || 0), r: a.r + Number(r.recognized || 0), p: a.p + Number(r.paid || 0), g: a.g + Number(r.glosado || 0) }), { c: 0, r: 0, p: 0, g: 0 });
+  const diff = (r) => Math.round((Number(r.recognized || 0) - Number(r.paid || 0)) * 100) / 100;
+  const pend = rows.filter((r) => diff(r) > 0.009);
+  return html`<div class="card" style="margin-top:14px"><h2>Aprobado vs. pagado por reclamación</h2>
+    <p class="sub">${pend.length ? html`<b style="color:var(--bad)">${num(pend.length)} reclamación${pend.length === 1 ? '' : 'es'} con diferencia por cobrar: ${money(t.r - t.p)}</b>` : 'Todo lo aprobado está pagado.'} Aprobado = reclamado menos glosa aceptada.</p>
+    <div class="table-wrap"><table class="t cards"><thead><tr><th>Reclamación</th><th>Paciente</th><th>Estado</th><th class="n">Reclamado</th><th class="n">Glosado</th><th class="n">Aprobado</th><th class="n">Pagado</th><th class="n">Diferencia</th><th>Último pago</th></tr></thead><tbody>
+    ${rows.map((r) => { const d = diff(r); return html`<tr><td data-l="Reclamación"><a class="mono" href="#/reclamaciones/${r.id}">${r.folio}</a></td><td data-l="Paciente">${r.patient_name}</td>
+      <td data-l="Estado"><span class="pill ${claimStatus(r.claim_status)[1]}">${claimStatus(r.claim_status)[0]}</span></td><td data-l="Reclamado" class="n">${money(r.claimed)}</td><td data-l="Glosado" class="n">${money(r.glosado)}</td>
+      <td data-l="Aprobado" class="n">${money(r.recognized)}</td><td data-l="Pagado" class="n">${money(r.paid)}</td><td data-l="Diferencia" class="n" style="${d > 0.009 ? 'color:var(--bad);font-weight:600' : ''}">${money(d)}</td>
+      <td data-l="Último pago">${r.last_paid_on ? date(r.last_paid_on) : '—'}</td></tr>`; })}
+    <tr style="font-weight:600"><td colspan="3">Total</td><td class="n">${money(t.c)}</td><td class="n">${money(t.g)}</td><td class="n">${money(t.r)}</td><td class="n">${money(t.p)}</td><td class="n">${money(t.r - t.p)}</td><td></td></tr></tbody></table></div></div>`;
 }

@@ -32,9 +32,9 @@ export async function render(main, ctx) {
   const load = () => {
     $('#q', main).style.display = st.tab === 'conciliacion' ? 'none' : '';
     if (st.tab === 'pagos') return loadInto(list, () => listPayments({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
-      <div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th>${isStaff(ctx.role) ? html`<th>Cliente</th>` : ''}<th>ARS</th><th>Referencia</th><th>Aplicado a</th><th class="n">Monto</th>${showFee ? html`<th class="n">Honorario SOFA</th>` : ''}${can('payments.void', ctx.role) ? html`<th></th>` : ''}</tr></thead>
+      <div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th>${isStaff(ctx.role) ? html`<th>Cliente</th>` : ''}<th>ARS</th><th>Folio · referencia</th><th>Aplicado a</th><th class="n">Monto</th>${showFee ? html`<th class="n">Honorario SOFA</th>` : ''}${can('payments.void', ctx.role) ? html`<th></th>` : ''}</tr></thead>
       <tbody>${data.map((p) => html`<tr><td data-l="Fecha">${date(p.paid_on)}</td>${isStaff(ctx.role) ? html`<td data-l="Cliente">${p.client_name}</td>` : ''}<td data-l="ARS">${p.ars_name}</td>
-        <td data-l="Referencia"><span class="mono">${p.reference}</span><div class="small muted">${METHOD[p.method] || p.method}</div></td>
+        <td data-l="Referencia">${p.payment_folio ? html`<b class="mono">${p.payment_folio}</b><br>` : ''}<span class="mono">${p.reference}</span><div class="small muted">${METHOD[p.method] || p.method}</div></td>
         <td data-l="Aplicado a" class="small">${p.folios || '—'}</td><td data-l="Monto" class="n"><b>${money(p.amount)}</b></td>
         ${showFee ? html`<td data-l="Honorario" class="n">${p.sofa_fee == null ? '—' : money(p.sofa_fee)}</td>` : ''}
         ${can('payments.void', ctx.role) ? html`<td data-l=""><button class="btn sm danger" data-void="${p.id}" data-ref="${p.reference}">Anular</button></td>` : ''}</tr>`)}</tbody></table></div>${pager(count, st.page)}`,

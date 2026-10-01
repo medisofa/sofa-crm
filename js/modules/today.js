@@ -9,15 +9,17 @@ import { isStaff } from '../utils/permissions.js';
 const GROUPS = {
   configuracion: 'Reclamaciones sin contrato (pendientes de configuración)', inconsistencia: 'Reclamaciones con inconsistencia', diferencia: 'Diferencias tarifarias por autorizar',
   retiro: 'Reclamaciones por retirar', fiscal: 'Radicaciones sin factura fiscal o con diferencia',
+  validacion: 'Retiradas sin validar (más días de lo previsto)', enviada: 'Lotes enviados sin acuse de la ARS',
+  reenvio: 'Devueltas por la ARS sin reenviar', pago_incompleto: 'Pagos incompletos (aprobado mayor que pagado)', sofa_ncf: 'Facturas SOFA sin NCF',
   ventana: 'Ventana de radicación', cobro: 'Cobros vencidos o por vencer', glosa: 'Glosas por responder', radicar: 'Listas para radicar',
   depurar: 'Radicaciones por depurar', codigo: 'Códigos de prestador pendientes', tarea: 'Tareas', seguimiento: 'Seguimientos comerciales',
   factura_sofa: 'Facturas SOFA vencidas', habilitacion: 'Habilitaciones: fechas e inspecciones', renovacion: 'Licencias por renovar', borrador: 'Borradores'
 };
 const ORDER = Object.keys(GROUPS);
 const FOR_ROLE = {
-  billing: ['configuracion', 'diferencia', 'fiscal', 'inconsistencia', 'ventana', 'cobro', 'radicar', 'depurar', 'codigo', 'tarea', 'glosa'], glosas: ['glosa', 'cobro', 'tarea'],
+  billing: ['reenvio', 'pago_incompleto', 'enviada', 'validacion', 'configuracion', 'diferencia', 'fiscal', 'inconsistencia', 'ventana', 'cobro', 'radicar', 'depurar', 'codigo', 'tarea', 'glosa'], glosas: ['pago_incompleto', 'glosa', 'cobro', 'tarea'],
   assistant: ['retiro', 'depurar', 'borrador', 'seguimiento', 'tarea', 'ventana', 'habilitacion', 'renovacion'], client: ['configuracion', 'inconsistencia', 'borrador', 'depurar', 'glosa', 'cobro', 'ventana', 'habilitacion', 'renovacion'],
-  operations: ['retiro', 'inconsistencia', 'configuracion', 'radicar', 'fiscal', 'tarea'], auditor: ['inconsistencia', 'retiro', 'diferencia'], capturer: ['configuracion', 'inconsistencia']
+  operations: ['enviada', 'validacion', 'retiro', 'inconsistencia', 'configuracion', 'radicar', 'fiscal', 'tarea'], auditor: ['validacion', 'inconsistencia', 'retiro', 'diferencia'], capturer: ['configuracion', 'inconsistencia']
 };
 const SEV = { critica: ['Urgente', 'bad'], alta: ['Alta', 'warn'], media: ['Media', 'info'], info: ['Info', ''] };
 const link = (i) => ({ submission: `#/radicaciones/${i.entity_id}`, glosa: `#/glosas/${i.entity_id}`, task: '#/tareas', opportunity: `#/oportunidades/${i.entity_id}`, organization: `#/clientes/${i.entity_id}`, sofa_invoice: '#/honorarios', habilitation: `#/habilitacion/${i.entity_id}`, claim: `#/reclamaciones/${i.entity_id}`, provider: '#/retiros', reception: `#/retiros/${i.entity_id}` }[i.entity_type] || '#/inicio');
