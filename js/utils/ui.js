@@ -22,7 +22,7 @@ export function friendlyError(err) {
   if (code === 'PGRST301' || /jwt expired|invalid jwt|session.*(missing|expired)/i.test(msg)) return 'Tu sesión expiró. Inicia sesión de nuevo.';
   if (code === '42501' || /permission denied|row-level security/i.test(msg)) return 'No tienes permiso para esta acción.';
   if (code === '23505') return 'Ya existe un registro con esos datos.';
-  if (code === '23514' || code === '22023' || code === 'P0002') return msg; // mensajes de negocio escritos en español en la base de datos
+  if (code === '23514' || code === '22023' || code === 'P0002' || code === 'SOFA') return msg; // mensajes de negocio ya redactados en español // mensajes de negocio escritos en español en la base de datos
   if (/same.*password|different from the old/i.test(msg)) return 'La nueva contraseña debe ser distinta de la anterior.';
   if (/password/i.test(msg) && /weak|short|at least/i.test(msg)) return 'La contraseña es muy débil. Usa al menos 10 caracteres con letras y números.';
   return msg ? `Ocurrió un error: ${msg}` : 'Ocurrió un error inesperado.';

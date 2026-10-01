@@ -14,11 +14,12 @@ const sum = (rows, k = 'amount') => rows.reduce((t, r) => t + Number(r[k] || 0),
 
 export async function render(main, ctx) {
   const growth = can('fees.view', ctx.role) && isStaff(ctx.role);
+  const intel = can('intel.view', ctx.role);
   let tab = 'operacion';
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Dashboard</h2><p>${isStaff(ctx.role) ? 'Cómo va el ciclo de ingresos de los clientes y el negocio de SOFA.' : 'Cómo va la facturación y el cobro de tu práctica.'}</p></div>
       <button class="btn no-print" id="print">Imprimir</button></div>
-    ${growth ? html`<div class="tabs no-print" id="tabs" role="group" aria-label="Vista"><button data-t="operacion" aria-pressed="true">Operación y cobro</button><button data-t="crecimiento" aria-pressed="false">Crecimiento SOFA</button></div>` : ''}
+    ${growth || intel ? html`<div class="tabs no-print" id="tabs" role="group" aria-label="Vista"><button data-t="operacion" aria-pressed="true">Operación y cobro</button>${growth ? html`<button data-t="crecimiento" aria-pressed="false">Crecimiento SOFA</button>` : ''}${intel ? html`<button data-t="mercado" aria-pressed="false">Mercado e ideas</button>` : ''}</div>` : ''}
     <div id="fb"></div><div id="body">${loadingView(6)}</div>`);
   $('#print', main).addEventListener('click', () => window.print());
   const body = $('#body', main);
@@ -31,7 +32,7 @@ export async function render(main, ctx) {
 
   async function draw() {
     paint(body, loadingView(6));
-    try { if (tab === 'operacion') await drawOps(); else await drawGrowth(); }
+    try { if (tab === 'operacion') { await drawOps(); await drawNewsCard(); } else if (tab === 'mercado') await (await import('./market.js')).renderMarketSummary(body, ctx); else await drawGrowth(); }
     catch (err) { console.error(err); paint(body, errorView(err)); }
   }
 
@@ -69,6 +70,17 @@ export async function render(main, ctx) {
         <div class="card"><h2>Conceptos más facturados</h2><p class="sub">Monto de los servicios del período.</p>${Object.keys(mixBy).length ? hBars(Object.entries(mixBy).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value]) => ({ label, value }))) : html`<p class="small muted">Sin servicios en el período.</p>`}</div>
         <div class="card"><h2>Lo más antiguo por cobrar</h2>${open.length ? html`<div class="list">${open.slice(0, 6).map((r) => html`<div class="li"><div class="b"><div class="t1"><a href="#/radicaciones/${r.id}" class="mono">${r.folio}</a> · ${r.ars_name}</div><div class="t2">${isStaff(ctx.role) ? `${r.client_name} · ` : ''}radicada ${date(r.submitted_on)} · ${r.age_days} días</div></div><b>${money(r.balance)}</b></div>`)}</div>` : html`<p class="small muted">Nada pendiente.</p>`}</div>
       </div>`);
+  }
+
+  async function drawNewsCard() {
+    if (!intel || tab !== 'operacion') return;
+    const card = document.createElement('div'); card.className = 'card no-print'; card.style.marginTop = '14px';
+    body.appendChild(card);
+    try {
+      const { topItems } = await import('../services/intel.js'); const { itemCard } = await import('./market.js');
+      const top = await topItems({ days: 7, limit: 4 });
+      paint(card, html`<h2>Noticias del sector · 7 días</h2>${top.length ? html`<div class="list">${top.map((i) => itemCard(i))}</div>` : html`<p class="small muted">Sin noticias recientes.</p>`}<p class="small" style="margin-top:8px"><a href="#/mercado">Ver inteligencia de mercado →</a></p>`);
+    } catch { card.remove(); }
   }
 
   async function drawGrowth() {

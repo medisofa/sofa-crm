@@ -52,3 +52,40 @@ export const glosaStatus = (c) => GLOSA_STATUS[c] || [c, ''];
 export const PAYMENT_METHODS = [['transferencia', 'Transferencia'], ['cheque', 'Cheque'], ['deposito', 'Depósito'], ['otro', 'Otro']];
 export const INVOICE_STATUS = { emitida: ['Emitida', 'info'], pagada_parcial: ['Cobro parcial', 'warn'], pagada: ['Cobrada', 'ok'], anulada: ['Anulada', ''] };
 export const FEE_SOURCE = { pago: '% de lo cobrado', cuota: 'Cuota mensual', radicacion: 'Por radicación', manual: 'Manual' };
+
+/** Inteligencia de mercado */
+export const INTEL_TOPICS = { regulacion: ['Regulación', 'info'], ars: ['ARS', 'info'], facturacion: ['Facturación y glosas', 'warn'], habilitacion: ['Habilitación', 'info'],
+  tecnologia: ['Tecnología', ''], competencia: ['Competencia', 'bad'], internacional: ['Internacional', ''], mercado: ['Mercado', ''] };
+export const intelTopic = (t) => INTEL_TOPICS[t] || [t, ''];
+export const ENTITY_KINDS = { competidor_directo: 'Competidor directo', competidor_indirecto: 'Competidor indirecto', referente_local: 'Referente local',
+  referente_internacional: 'Referente internacional', regulador: 'Regulador', gremio: 'Gremio', aliado_potencial: 'Aliado potencial' };
+export const THREAT = { alto: ['Amenaza alta', 'bad'], medio: ['Amenaza media', 'warn'], bajo: ['Amenaza baja', 'ok'], 'n/a': ['—', ''] };
+export const IDEA_STATUS = { idea: ['Idea', ''], evaluando: ['Evaluando', 'info'], piloto: ['Piloto', 'warn'], lanzado: ['Lanzado', 'ok'], descartado: ['Descartado', ''] };
+
+/** Iteración 12 · Reclamaciones: estado [etiqueta, clase] (espejo de public.claim_statuses) */
+export const CLAIM_STATUS = {
+  pendiente_configuracion: ['Pendiente de configuración', 'bad'], capturada: ['Capturada', 'info'], pendiente_retiro: ['Pendiente de retiro', 'warn'],
+  retirada: ['Retirada', 'info'], en_validacion: ['En validación', 'info'], con_inconsistencia: ['Con inconsistencia', 'bad'], validada: ['Validada', 'ok'],
+  lista_para_radicar: ['Lista para radicar', 'ok'], radicada: ['Radicada', 'info'], en_proceso_ars: ['En proceso ARS', 'info'], devuelta: ['Devuelta por la ARS', 'bad'],
+  pago_parcial: ['Pago parcial', 'warn'], glosada: ['Glosada', 'bad'], pagada: ['Pagada', 'ok'], cerrada: ['Cerrada', '']
+};
+export const claimStatus = (c) => CLAIM_STATUS[c] || [c, ''];
+/** Filtros rápidos del listado de reclamaciones */
+export const CLAIM_GROUPS = {
+  todas: { label: 'Todas' },
+  captura: { label: 'En captura', statuses: ['pendiente_configuracion', 'capturada', 'pendiente_retiro'] },
+  custodia: { label: 'En SOFA / validación', statuses: ['retirada', 'en_validacion', 'con_inconsistencia', 'validada', 'lista_para_radicar'] },
+  ars: { label: 'En la ARS', statuses: ['radicada', 'en_proceso_ars', 'devuelta'] },
+  cobro: { label: 'Pagadas / glosadas', statuses: ['pago_parcial', 'glosada', 'pagada', 'cerrada'] },
+  atencion: { label: 'Requieren atención', statuses: ['pendiente_configuracion', 'con_inconsistencia', 'devuelta'] }
+};
+/** Botón para cada transición de reclamación */
+export const CLAIM_MOVE_LABELS = {
+  capturada: 'Volver a Capturada', pendiente_retiro: 'Lista para retiro', retirada: 'Marcar retirada', en_validacion: 'Enviar a validación',
+  lista_para_radicar: 'Lista para radicar', validada: 'Devolver a Validada', en_proceso_ars: 'En proceso ARS', devuelta: 'Devuelta por la ARS', cerrada: 'Cerrar'
+};
+export const DISCREPANCY_STATUS = { pendiente: ['Diferencia pendiente', 'warn'], autorizada: ['Diferencia autorizada', 'ok'], rechazada: ['Diferencia rechazada', 'bad'], superada: ['Superada', ''] };
+export const CONTRACT_STATUS = { vigente: ['Vigente', 'ok'], suspendida: ['Suspendida', 'bad'], por_revisar: ['Por revisar', 'warn'] };
+export const CARE_MODES = [['ambulatorio', 'Ambulatorio'], ['emergencia', 'Emergencia'], ['internamiento', 'Internamiento']];
+export const DELIVERY_METHODS = [['plataforma', 'Plataforma / portal de la ARS'], ['fisico', 'Entrega física'], ['correo', 'Correo'], ['otro', 'Otro']];
+export const PICKUP_STATUS = { borrador: ['Programado', 'warn'], confirmado: ['Confirmado', 'ok'], anulado: ['Anulado', ''] };

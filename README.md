@@ -2,7 +2,7 @@
 
 Aplicación web estática (HTML + CSS + JavaScript con ES Modules) que se publica en **GitHub Pages** y usa **Supabase** como backend (Auth, PostgreSQL con RLS y Storage).
 
-- Versión: **0.9.0** (Iteración 9 · Habilitación MISPAS)
+- Versión: **1.2.0** (Iteración 12 · Reclamaciones individuales, captura rápida, retiro físico y tarifario contractual)
 - Librería: `@supabase/supabase-js` **2.117.2**, copia local en `vendor/` (sin CDN externo)
 - Sin frameworks ni proceso de compilación: los archivos se suben tal cual.
 
@@ -33,7 +33,7 @@ sofa-crm/
 └── vendor/               supabase-js 2.117.2 (licencia MIT incluida)
 ```
 
-Los scripts SQL (`001`–`021`) se entregan aparte, en la carpeta `sofa-supabase/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
+Los scripts SQL (`001`–`027`, más `026_revertir.sql`) y las Edge Functions `admin-users` y `market-intel` se entregan aparte, en la carpeta `sofa-supabase/`, y los scripts de respaldo en `respaldos/`. **No los subas a un repositorio público**: describen las reglas internas del negocio. Guárdalos en tu equipo o en un repositorio privado.
 
 ## Instalación (resumen)
 
@@ -48,10 +48,10 @@ La guía paso a paso con capturas de verificación está en `GUIA_Iteracion3.htm
 ## Publicar una versión nueva
 
 1. Sube los archivos modificados.
-2. Cambia `VERSION` en `sw.js` (por ejemplo `sofa-shell-0.3.1`) y `APP_VERSION` en `js/config.js`.
+2. Cambia `VERSION` en `sw.js` (por ejemplo `sofa-shell-1.2.1`) y `APP_VERSION` en `js/version.js` (no en `config.js`).
 3. Los usuarios verán el aviso "Hay una versión nueva de SOFA. Recarga la página".
 
-## Módulos disponibles en 0.9.0
+## Módulos disponibles en 1.2.0
 
 | Módulo | Estado |
 |---|---|
@@ -62,11 +62,17 @@ La guía paso a paso con capturas de verificación está en `GUIA_Iteracion3.htm
 | Contactos · Aliados referidores · Tareas | Listo |
 | Codificación y tarifarios: conceptos, códigos, tarifas con vigencia, negociadas, importación y brechas | Listo |
 | ARS | Listo |
-| Usuarios y roles · Parámetros · Mi perfil · Diagnóstico | Listo |
-| Radicaciones: desglose del período, validación de 10 reglas, carga masiva, checklist, expediente digital, estados hasta Radicada | Listo |
+| Usuarios y roles: invitación por correo (Edge Function admin-users), cambio de rol, revisión de accesos · Parámetros · Mi perfil · Diagnóstico | Listo |
+| Radicaciones (lote médico × ARS × período): validación de 13 reglas, factura fiscal del contador con bloqueo por diferencia (D2), método/lote/evidencia de entrega, pago distribuido por reclamación (D4), carga masiva, checklist, expediente digital, estados hasta Radicada | Listo |
 | Documentos | Listo |
 | Glosas: registro por servicio, apelación, resultado parcial, Pareto y tasa por ARS | Listo |
 | Pagos: reparto entre radicaciones, conciliación por ARS, por cobrar, anulación | Listo |
 | Honorarios SOFA: cuotas, % cobrado, facturas, cobros y NCF | Listo |
 | Trabajo de hoy · Dashboard (operación y crecimiento) · Aging · 7 reportes con CSV e impresión | Listo |
 | Habilitación MISPAS: checklist por tipo, semáforo, etapas con reglas, evidencias, informe y renovación | Listo |
+| Inteligencia de mercado: noticias del sector (Edge Function market-intel), competencia y referentes, banco de ideas · Buenas prácticas | Listo |
+| Captura rápida: médico → ARS → paciente → servicio contratado; SIMON, CUPS y tarifa automáticos; alerta de diferencia tarifaria; servicio no contratado | Listo · 1.2.0 |
+| Reclamaciones: folio REC, estado, ubicación física y responsable por servicio; acciones masivas; auditoría del expediente (D5); línea de tiempo | Listo · 1.2.0 |
+| Retiros físicos: programar, confirmar recibidas vs. esperadas, Reporte de Retiro con folio RET imprimible | Listo · 1.2.0 |
+| Tarifario contractual Médico × ARS × Servicio × vigencia, historial e importador con reporte previo | Listo · 1.2.0 |
+| Rol Capturador / Secretaria (mínimo privilegio, médicos asignados) y rol Operaciones SOFA | Listo · 1.2.0 |

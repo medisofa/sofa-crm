@@ -5,7 +5,7 @@
  * los datos de pacientes y cobros no quedan en caché.
  * Al publicar una versión nueva, cambia VERSION para renovar la caché.
  */
-const VERSION = 'sofa-shell-0.9.0';
+const VERSION = 'sofa-shell-1.2.0';
 const SHELL = [
   './', './index.html', './login.html', './manifest.json',
   './css/variables.css', './css/components.css', './css/app.css',
@@ -13,6 +13,7 @@ const SHELL = [
   './js/boot-guard.js', './js/version.js', './js/config.js', './js/supabase.js', './js/auth.js', './js/router.js', './js/app.js', './js/login.js',
   './js/utils/dom.js', './js/utils/ui.js', './js/utils/formatters.js', './js/utils/validation.js', './js/utils/permissions.js',
   './js/services/stats.js', './js/services/catalog.js', './js/services/clients.js', './js/services/admin.js',
+  './js/modules/capture.js', './js/modules/claims.js', './js/modules/claim.js', './js/modules/claim-dialogs.js', './js/modules/pickups.js', './js/modules/contracts.js', './js/services/claims.js',
   './js/modules/home.js', './js/modules/clients.js', './js/modules/coding.js', './js/modules/ars.js', './js/modules/users.js',
   './js/modules/settings.js', './js/modules/profile.js', './js/modules/diagnostics.js', './js/modules/placeholder.js',
   './js/modules/client.js', './js/modules/contacts.js', './js/modules/crm-dialogs.js', './js/modules/leads.js', './js/modules/opportunity.js', './js/modules/partners.js', './js/modules/pipeline.js', './js/modules/tasks.js', './js/services/crm.js', './js/services/tasks.js', './js/utils/constants.js', './js/utils/whatsapp.js',
@@ -21,6 +22,7 @@ const SHELL = [
   './js/services/tariffs.js', './js/modules/tariff-dialogs.js', './js/modules/coding-concept.js',
   './js/utils/charts.js', './js/utils/filters.js', './js/services/bi.js', './js/modules/dashboard.js', './js/modules/today.js', './js/modules/aging.js', './js/modules/reports.js',
   './js/services/habilitation.js', './js/modules/habilitation.js', './js/modules/habilitation-case.js', './js/modules/habilitation-dialogs.js',
+  './js/services/intel.js', './js/modules/market.js', './js/modules/market-dialogs.js', './js/modules/guides.js',
   './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/favicon-32.png'
 ];
 

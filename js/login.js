@@ -12,6 +12,7 @@ import { isEmail, passwordProblem } from './utils/validation.js';
 // Se lee ANTES de iniciar Supabase, que limpia el hash del enlace de recuperación
 const HASH = new URLSearchParams(location.hash.replace(/^#/, ''));
 const IS_RECOVERY = HASH.get('type') === 'recovery';
+const IS_INVITE = HASH.get('type') === 'invite';
 const LINK_ERROR = HASH.get('error_description');
 const REASON = new URLSearchParams(location.search).get('motivo');
 const REASONS = {
@@ -89,9 +90,9 @@ function forgotView(prefill = '') {
   };
 }
 
-function resetView() {
+function resetView(invite = false) {
   render(card, shell(html`
-    <h1>Crear contraseña nueva</h1><p class="lead">Usa al menos 10 caracteres, combinando letras y números.</p>
+    <h1>${invite ? 'Bienvenido a SOFA' : 'Crear contraseña nueva'}</h1><p class="lead">${invite ? 'Te invitaron a SOFA. Crea tu contraseña para entrar: ' : ''}Usa al menos 10 caracteres, combinando letras y números.</p>
     <form id="f" novalidate>
       ${pwField('p1', 'Contraseña nueva', 'new-password')}
       ${pwField('p2', 'Repite la contraseña', 'new-password')}
@@ -121,12 +122,12 @@ async function start() {
   if (problem) { render(card, shell(html`<h1>Configuración pendiente</h1>${note('warn', problem)}`)); return; }
   if (LINK_ERROR) { loginView(note('warn', /expired|invalid/i.test(LINK_ERROR) ? 'El enlace expiró o ya se usó. Solicita uno nuevo con "¿Olvidaste tu contraseña?".' : LINK_ERROR)); return; }
   const client = sb();
-  if (IS_RECOVERY) {
+  if (IS_RECOVERY || IS_INVITE) {
     render(card, shell(html`<p class="lead">Validando el enlace…</p>`));
     let done = false;
-    client.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY' && !done) { done = true; resetView(); } });
+    client.auth.onAuthStateChange((event, session) => { if (!done && (event === 'PASSWORD_RECOVERY' || (IS_INVITE && session))) { done = true; resetView(IS_INVITE); } });
     const { data } = await client.auth.getSession();
-    if (data.session && !done) { done = true; resetView(); }
+    if (data.session && !done) { done = true; resetView(IS_INVITE); }
     setTimeout(() => { if (!done) loginView(note('warn', 'No se pudo validar el enlace. Solicita uno nuevo.')); }, 6000);
     return;
   }

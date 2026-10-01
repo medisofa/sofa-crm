@@ -7,17 +7,20 @@ import { money, date } from '../utils/formatters.js';
 import { isStaff } from '../utils/permissions.js';
 
 const GROUPS = {
+  configuracion: 'Reclamaciones sin contrato (pendientes de configuración)', inconsistencia: 'Reclamaciones con inconsistencia', diferencia: 'Diferencias tarifarias por autorizar',
+  retiro: 'Reclamaciones por retirar', fiscal: 'Radicaciones sin factura fiscal o con diferencia',
   ventana: 'Ventana de radicación', cobro: 'Cobros vencidos o por vencer', glosa: 'Glosas por responder', radicar: 'Listas para radicar',
   depurar: 'Radicaciones por depurar', codigo: 'Códigos de prestador pendientes', tarea: 'Tareas', seguimiento: 'Seguimientos comerciales',
   factura_sofa: 'Facturas SOFA vencidas', habilitacion: 'Habilitaciones: fechas e inspecciones', renovacion: 'Licencias por renovar', borrador: 'Borradores'
 };
 const ORDER = Object.keys(GROUPS);
 const FOR_ROLE = {
-  billing: ['ventana', 'cobro', 'radicar', 'depurar', 'codigo', 'tarea', 'glosa'], glosas: ['glosa', 'cobro', 'tarea'],
-  assistant: ['depurar', 'borrador', 'seguimiento', 'tarea', 'ventana', 'habilitacion', 'renovacion'], client: ['borrador', 'depurar', 'glosa', 'cobro', 'ventana', 'habilitacion', 'renovacion']
+  billing: ['configuracion', 'diferencia', 'fiscal', 'inconsistencia', 'ventana', 'cobro', 'radicar', 'depurar', 'codigo', 'tarea', 'glosa'], glosas: ['glosa', 'cobro', 'tarea'],
+  assistant: ['retiro', 'depurar', 'borrador', 'seguimiento', 'tarea', 'ventana', 'habilitacion', 'renovacion'], client: ['configuracion', 'inconsistencia', 'borrador', 'depurar', 'glosa', 'cobro', 'ventana', 'habilitacion', 'renovacion'],
+  operations: ['retiro', 'inconsistencia', 'configuracion', 'radicar', 'fiscal', 'tarea'], auditor: ['inconsistencia', 'retiro', 'diferencia'], capturer: ['configuracion', 'inconsistencia']
 };
 const SEV = { critica: ['Urgente', 'bad'], alta: ['Alta', 'warn'], media: ['Media', 'info'], info: ['Info', ''] };
-const link = (i) => ({ submission: `#/radicaciones/${i.entity_id}`, glosa: `#/glosas/${i.entity_id}`, task: '#/tareas', opportunity: `#/oportunidades/${i.entity_id}`, organization: `#/clientes/${i.entity_id}`, sofa_invoice: '#/honorarios', habilitation: `#/habilitacion/${i.entity_id}` }[i.entity_type] || '#/inicio');
+const link = (i) => ({ submission: `#/radicaciones/${i.entity_id}`, glosa: `#/glosas/${i.entity_id}`, task: '#/tareas', opportunity: `#/oportunidades/${i.entity_id}`, organization: `#/clientes/${i.entity_id}`, sofa_invoice: '#/honorarios', habilitation: `#/habilitacion/${i.entity_id}`, claim: `#/reclamaciones/${i.entity_id}`, provider: '#/retiros', reception: `#/retiros/${i.entity_id}` }[i.entity_type] || '#/inicio');
 
 export async function render(main, ctx) {
   const roleKinds = FOR_ROLE[ctx.role];

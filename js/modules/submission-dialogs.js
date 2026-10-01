@@ -3,7 +3,7 @@ import { html, render as paint, raw } from '../utils/dom.js';
 import { formDialog, opt, requireFields, fieldError, toast, friendlyError } from '../utils/ui.js';
 import { money, todayISO, period as periodLabel, rangeContains, addMonths } from '../utils/formatters.js';
 import { isTaxId } from '../utils/validation.js';
-import { CODE_STATUS } from '../utils/constants.js';
+import { CODE_STATUS, DELIVERY_METHODS } from '../utils/constants.js';
 import { listArs } from '../services/catalog.js';
 import {
   newSubmission, activeProviders, providerCodes, procedureOptions, lookupTariff, checkDuplicate,
@@ -204,16 +204,22 @@ export async function checklistDialog(line, reqs, checks, editable) {
 }
 
 /** Datos de la radicación ante la ARS */
-export function radicarDialog(sub) {
+export function radicarDialog(sub, { docs = [], fiscal = null } = {}) {
   return formDialog({
-    title: `Radicar ${sub.folio} ante ${sub.ars_name}`, submitLabel: 'Radicar',
-    body: html`<div class="form-grid">
+    title: `Radicar ${sub.folio} ante ${sub.ars_name}`, submitLabel: 'Radicar', wide: true,
+    body: html`${fiscal ? html`<div class="note ${fiscal.matches ? 'ok' : 'warn'}">Total de reclamaciones ${money(fiscal.total)} · factura fiscal ${money(fiscal.fiscal_amount)}${fiscal.matches ? ' · cuadra' : fiscal.excepted ? ' · diferencia autorizada por un administrador' : ''}</div>` : ''}
+      <div class="form-grid">
       ${f('submitted_on', 'Fecha de radicación *', text('submitted_on', todayISO(), `type="date" required max="${todayISO()}"`))}
-      ${f('receipt', 'No. de recepción de la ARS *', text('receipt', '', 'required maxlength="60" placeholder="R-458921"'))}</div>
-      <p class="small muted">Desde esta fecha corre el plazo de pago (90 días por defecto) y los servicios quedan bloqueados.</p>`,
+      ${f('receipt', 'No. de recepción de la ARS *', text('receipt', '', 'required maxlength="60" placeholder="R-458921"'))}
+      ${f('method', 'Método de entrega *', html`<select id="f_method" name="method">${DELIVERY_METHODS.map(([v, l]) => opt(v, l, 'fisico'))}</select>`)}
+      ${f('batch', 'Lote / relación de envío', text('batch', '', 'maxlength="60" placeholder="Lote ARS o número de relación"'))}
+      <div class="field" style="grid-column:1/-1"><label for="f_ev">Evidencia de entrega (acuse, comprobante del portal)</label>
+        <select id="f_ev" name="evidence"><option value="">Sin evidencia adjunta</option>${docs.map((d) => opt(d.id, `${d.file_name}${d.document_types?.name ? ` · ${d.document_types.name}` : ''}`))}</select>
+        <span class="hint">Suba primero el acuse al expediente de la radicación. Si el parámetro “exigir evidencia” está activo, es obligatoria.</span></div></div>
+      <p class="small muted">Las reclamaciones del lote pasan a <b>Radicada</b> con esta entrega. Desde esta fecha corre el plazo de pago (90 días por defecto) y los servicios quedan bloqueados.</p>`,
     onSubmit: async (d, form) => {
       if (!requireFields(form, ['submitted_on', 'receipt'])) return false;
-      return { submittedOn: d.submitted_on, receipt: d.receipt.trim() };
+      return { submittedOn: d.submitted_on, receipt: d.receipt.trim(), deliveryMethod: d.method || 'fisico', deliveryBatch: d.batch?.trim() || null, deliveryEvidence: d.evidence || null };
     }
   });
 }
