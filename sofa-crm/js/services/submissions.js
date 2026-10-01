@@ -35,8 +35,10 @@ export async function newSubmission({ provider, ars, period, plan = null, notes 
 }
 export async function updateSubmission(id, values) { return must(await sb().from('submissions').update(values).eq('id', id).select('id').single()); }
 export async function deleteSubmission(id) { const { error } = await sb().from('submissions').delete().eq('id', id); if (error) throw error; }
-export async function changeStatus(id, to, { comment = null, override = null, submittedOn = null, receipt = null } = {}) {
-  return must(await sb().rpc('change_submission_status', { p_submission: id, p_to: to, p_comment: comment, p_override_reason: override, p_submitted_on: submittedOn, p_ars_receipt: receipt }));
+/** Iteración 12: la radicación registra método, lote y evidencia de entrega (la factura fiscal se valida en la base de datos) */
+export async function changeStatus(id, to, { comment = null, override = null, submittedOn = null, receipt = null, deliveryMethod = null, deliveryBatch = null, deliveryEvidence = null } = {}) {
+  return must(await sb().rpc('change_submission_status', { p_submission: id, p_to: to, p_comment: comment, p_override_reason: override, p_submitted_on: submittedOn, p_ars_receipt: receipt,
+    p_delivery_method: deliveryMethod, p_delivery_batch: deliveryBatch, p_delivery_evidence: deliveryEvidence }));
 }
 export async function validateSubmission(id, save = false) { return must(await sb().rpc('validate_submission', { p_submission: id, p_save: save })); }
 export async function transitionsFrom(status) {

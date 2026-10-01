@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
 import { resolve, parseHash, DEFAULT_ROUTE } from './router.js';
-import { visibleNav, ROLES } from './utils/permissions.js';
+import { visibleNav, ROLES, homeRoute } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
@@ -53,7 +53,7 @@ async function boot() {
   watchAuth();
   startInactivityTimer();
   window.addEventListener('hashchange', route);
-  if (!location.hash) history.replaceState(null, '', `#/${DEFAULT_ROUTE}`);
+  if (!location.hash || (location.hash.replace(/^#\/?/, '') === DEFAULT_ROUTE && homeRoute(state.role) !== DEFAULT_ROUTE)) history.replaceState(null, '', `#/${homeRoute(state.role)}`);
   route();
   registerSW();
 }
@@ -125,8 +125,10 @@ async function route() {
   catch (e) { render(main, errorView(e)); return; }
   if (my !== routeSeq) return;
   const setTitle = (t) => { title.textContent = t; document.title = `${t} · SOFA`; };
-  if (r.kind === 'notfound') { setTitle('No encontrado'); render(main, emptyView('Página no encontrada', 'La dirección no existe.', html`<a class="btn primary" href="#/${DEFAULT_ROUTE}">Ir al inicio</a>`)); return; }
-  if (r.kind === 'forbidden') { setTitle(r.def.label); render(main, emptyView('Sin acceso a este módulo', `Tu rol (${ROLES[state.role]?.name}) no incluye "${r.def.label}". Si lo necesitas, pide al Super Admin que revise tus permisos.`, html`<a class="btn" href="#/${DEFAULT_ROUTE}">Volver al inicio</a>`)); return; }
+  const home = homeRoute(state.role);
+  if (r.kind === 'forbidden' && r.def.route === DEFAULT_ROUTE && home !== DEFAULT_ROUTE) { location.replace(`#/${home}`); return; }
+  if (r.kind === 'notfound') { setTitle('No encontrado'); render(main, emptyView('Página no encontrada', 'La dirección no existe.', html`<a class="btn primary" href="#/${home}">Ir al inicio</a>`)); return; }
+  if (r.kind === 'forbidden') { setTitle(r.def.label); render(main, emptyView('Sin acceso a este módulo', `Tu rol (${ROLES[state.role]?.name}) no incluye "${r.def.label}". Si lo necesitas, pide al Super Admin que revise tus permisos.`, html`<a class="btn" href="#/${home}">Volver al inicio</a>`)); return; }
   setTitle(r.def.label);
   const ctx = { ...state, def: r.def, arg: r.arg, setTitle, sb: sb() };
   try { await r.mod.render(main, ctx); }

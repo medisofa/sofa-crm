@@ -7,6 +7,9 @@ import { downloadCsv } from '../utils/filters.js';
 import { can, ROLES } from '../utils/permissions.js';
 import { date, dateTime, todayISO } from '../utils/formatters.js';
 import { isEmail } from '../utils/validation.js';
+import { capturerScopes, providersOfOrg, setCapturerScope } from '../services/claims.js';
+
+const ORG_ROLES = ['client', 'capturer'];   // roles de la organización del cliente (no SOFA)
 
 const STATUS = { activo: ['Activo', 'ok'], 'invitación pendiente': ['Invitación pendiente', 'warn'], 'sin ingreso en 90 días': ['Sin ingreso en 90 días', 'warn'], desactivado: ['Desactivado', ''] };
 const f = (name, label, input, hint = '') => html`<div class="field"><label for="f_${name}">${label}</label>${input}${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
@@ -21,16 +24,16 @@ async function roleDialog(ctx, preset = {}) {
       ${invite ? html`${f('email', 'Correo *', html`<input id="f_email" name="email" type="email" required autocomplete="off">`)}
         ${f('full_name', 'Nombre completo *', html`<input id="f_full_name" name="full_name" required maxlength="120">`)}` : ''}
       ${f('role', 'Rol *', html`<select id="f_role" name="role">${roles.map(([k, r]) => opt(k, r.name, preset.role || 'billing'))}</select>`)}
-      ${f('org', 'Organización del cliente', html`<select id="f_org" name="org"><option value="">—</option>${clients.map((c) => opt(c.id, c.legal_name, preset.orgId))}</select>`, 'Solo para el rol Cliente / PSS.')}
+      ${f('org', 'Organización del cliente', html`<select id="f_org" name="org"><option value="">—</option>${clients.map((c) => opt(c.id, c.legal_name, preset.orgId))}</select>`, 'Para Cliente / PSS y Capturador / Secretaria. Al Capturador se le asignan después sus médicos.')}
       </div>${invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}`,
-    onOpen: (form) => { const sync = () => { form.elements.org.disabled = form.elements.role.value !== 'client'; }; form.elements.role.addEventListener('change', sync); sync(); },
+    onOpen: (form) => { const sync = () => { form.elements.org.disabled = !ORG_ROLES.includes(form.elements.role.value); }; form.elements.role.addEventListener('change', sync); sync(); },
     onSubmit: async (d, form) => {
       if (invite) {
         if (!requireFields(form, ['email', 'full_name'])) return false;
         if (!isEmail(d.email)) { fieldError(form.elements.email, 'Correo inválido.'); return false; }
       }
-      if (d.role === 'client' && !form.elements.org.value) { fieldError(form.elements.org, 'Elige la organización del cliente.'); return false; }
-      return adminUsers({ action: invite ? 'invite' : 'grant', email: invite ? d.email.trim() : preset.email, full_name: d.full_name || '', role: d.role, organization_id: d.role === 'client' ? form.elements.org.value : null });
+      if (ORG_ROLES.includes(d.role) && !form.elements.org.value) { fieldError(form.elements.org, 'Elige la organización del cliente.'); return false; }
+      return adminUsers({ action: invite ? 'invite' : 'grant', email: invite ? d.email.trim() : preset.email, full_name: d.full_name || '', role: d.role, organization_id: ORG_ROLES.includes(d.role) ? form.elements.org.value : null });
     }
   });
 }
@@ -59,6 +62,7 @@ export async function render(main, ctx) {
           <td data-l="Último ingreso">${u.last_sign_in_at ? dateTime(u.last_sign_in_at) : '—'}</td>
           ${manage || canToggle ? html`<td data-l="">${self || protectedRow ? '' : html`
             ${manage && u.email ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${u.role_code}" data-org="${u.kind === 'client' ? u.organization_id : ''}">Cambiar rol</button>
+              ${u.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-user="${u.user_id}" data-org="${u.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
               <button class="btn sm" data-act="resend" data-email="${u.email}">${u.status === 'invitación pendiente' ? 'Reenviar invitación' : 'Enviar acceso'}</button>` : ''}
             ${canToggle ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar' : 'Activar'}</button>` : ''}`}</td>` : ''}</tr>`;
       })}</tbody></table></div>`);
@@ -81,6 +85,7 @@ export async function render(main, ctx) {
     const b = e.target.closest('[data-act]'); if (!b) return;
     try {
       if (b.dataset.act === 'grant') { const r = await roleDialog(ctx, { email: b.dataset.email, role: b.dataset.role, orgId: b.dataset.org }); if (r) { toast(r.message, 'ok'); load(); } return; }
+      if (b.dataset.act === 'scope') { if (await scopeDialog(b.dataset.user, b.dataset.org, b.dataset.name)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
       if (b.dataset.act === 'resend') { await busy(b, async () => { const r = await adminUsers({ action: 'resend', email: b.dataset.email }); toast(r.message, 'ok'); }); return; }
       const activate = b.dataset.active === '1';
       if (!(await confirmDialog(activate ? 'Activar usuario' : 'Desactivar usuario', activate ? `${b.dataset.name} podrá volver a entrar a SOFA.` : `${b.dataset.name} no podrá ver ni modificar datos desde este momento. Sus registros y su historial se conservan.`, activate ? 'Activar' : 'Desactivar', !activate))) return;
@@ -88,4 +93,16 @@ export async function render(main, ctx) {
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
   load();
+}
+
+/** D3 · Capturador: solo ve y registra reclamaciones de los médicos asignados aquí (mínimo privilegio, aplicado también por RLS) */
+async function scopeDialog(userId, orgId, name) {
+  const [provs, current] = await Promise.all([providersOfOrg(orgId), capturerScopes(userId)]);
+  return formDialog({
+    title: `Médicos asignados · ${name}`, submitLabel: 'Guardar asignación',
+    body: provs.length ? html`<p class="small">La secretaria solo podrá registrar y consultar reclamaciones de los médicos marcados. Nunca verá pagos, honorarios ni información de otros médicos.</p>
+      <div class="list">${provs.map((p) => html`<label class="li" style="cursor:pointer"><input type="checkbox" name="p_${p.id}" ${current.includes(p.id) ? 'checked' : ''}><div class="b"><div class="t1">${p.full_name}</div></div></label>`)}</div>`
+      : emptyView('Sin médicos', 'Este cliente no tiene médicos activos registrados.'),
+    onSubmit: async (d) => { const ids = provs.filter((p) => d[`p_${p.id}`]).map((p) => p.id); await setCapturerScope(userId, ids); return true; }
+  });
 }

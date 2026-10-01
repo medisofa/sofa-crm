@@ -10,11 +10,17 @@ export const ROLES = Object.freeze({
   glosas: { name: 'Analista de glosas', staff: true },
   assistant: { name: 'Asistente', staff: true },
   auditor: { name: 'Auditor', staff: true },
-  client: { name: 'Cliente / PSS', staff: false }
+  operations: { name: 'Operaciones SOFA', staff: true },
+  client: { name: 'Cliente / PSS', staff: false },
+  capturer: { name: 'Capturador / Secretaria', staff: false }
 });
-const ALL = Object.keys(ROLES);
+/** ALL = roles con acceso general. El Capturador (D3, mínimo privilegio) NO está aquí: solo ve lo que se le asigna explícitamente. */
+const ALL = Object.keys(ROLES).filter((r) => r !== 'capturer');
 const STAFF = ALL.filter((r) => ROLES[r].staff);
-const OPS = ['super_admin', 'admin', 'billing', 'glosas', 'assistant'];
+const OPS = ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'operations'];
+const CAPTURE = ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'client', 'capturer'];
+const CLAIMS = [...CAPTURE, 'glosas', 'auditor'];
+const NO_OPS = (list) => list.filter((r) => r !== 'operations');
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -24,7 +30,13 @@ export const NAV = [
   { group: 'Operación', items: [
     { route: 'inicio', label: 'Inicio', roles: ALL, ready: true },
     { route: 'hoy', label: 'Trabajo de hoy', roles: ALL, ready: true },
-    { route: 'dashboard', label: 'Dashboard', roles: [...STAFF, 'client'], ready: true }
+    { route: 'dashboard', label: 'Dashboard', roles: [...NO_OPS(STAFF), 'client'], ready: true }
+  ]},
+  { group: 'Reclamaciones', items: [
+    { route: 'captura', label: 'Captura rápida', roles: CAPTURE, ready: true },
+    { route: 'reclamaciones', label: 'Reclamaciones', roles: CLAIMS, ready: true },
+    { route: 'retiros', label: 'Retiros físicos', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'auditor', 'client'], ready: true },
+    { route: 'contratos', label: 'Tarifario contractual', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'client'], ready: true }
   ]},
   { group: 'CRM', items: [
     { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
@@ -38,7 +50,7 @@ export const NAV = [
     { route: 'codificacion', label: 'Codificación y tarifas', roles: ALL, ready: true },
     { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], ready: true },
     { route: 'pagos', label: 'Pagos y conciliación', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
-    { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
+    { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },   // nunca operations ni capturer
     { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true }
   ]},
   { group: 'Habilitación', items: [
@@ -61,8 +73,8 @@ export const NAV = [
     { route: 'parametros', label: 'Parámetros', roles: ['super_admin', 'admin', 'auditor'], ready: true }
   ]},
   { group: 'Mi cuenta', items: [
-    { route: 'perfil', label: 'Mi perfil', roles: ALL, ready: true },
-    { route: 'diagnostico', label: 'Diagnóstico', roles: ALL, ready: true }
+    { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer'], ready: true },
+    { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer'], ready: true }
   ]}
 ];
 
@@ -71,6 +83,8 @@ export const findRoute = (r) => allRoutes().find((i) => i.route === r) || null;
 export const canSee = (route, role) => !!findRoute(route)?.roles.includes(role);
 export const visibleNav = (role) => NAV.map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(role)) })).filter((g) => g.items.length);
 export const isStaff = (role) => !!ROLES[role]?.staff;
+/** Ruta inicial por rol: el Capturador entra directo a la captura */
+export const homeRoute = (role) => (role === 'capturer' ? 'captura' : 'inicio');
 /** Acciones de interfaz (espejo de la matriz de permisos de 003_rls.sql) */
 const ACTIONS = {
   'settings.edit': ['super_admin'],
@@ -100,6 +114,22 @@ const ACTIONS = {
   'hab.catalog': ['super_admin', 'admin'],
   'intel.view': ['super_admin', 'admin', 'auditor', 'assistant'],
   'intel.edit': ['super_admin', 'admin', 'assistant'],
-  'intel.admin': ['super_admin', 'admin']
+  'intel.admin': ['super_admin', 'admin'],
+  // Iteración 12 · reclamaciones (espejo de 026_reclamaciones.sql)
+  'claims.capture': CAPTURE,
+  'claims.money': ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'],          // ver pagado/saldo por reclamación
+  'claims.move': ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'glosas', 'auditor', 'client', 'capturer'],
+  'claims.audit': ['super_admin', 'admin', 'auditor'],
+  'claims.override': ['super_admin', 'admin'],
+  'claims.recheck': ['super_admin', 'admin', 'billing', 'operations'],
+  'claims.discrepancy': ['super_admin', 'admin', 'billing'],
+  'claims.exception': ['super_admin', 'admin'],                                                   // servicio no contratado
+  'claims.duplicate': ['super_admin', 'admin', 'billing'],
+  'pickups.manage': ['super_admin', 'admin', 'billing', 'assistant', 'operations'],
+  'contracts.edit': ['super_admin', 'admin', 'billing'],
+  'fiscal.edit': ['super_admin', 'admin', 'billing'],
+  'fiscal.exception': ['super_admin', 'admin'],
+  'payments.distribute': ['super_admin', 'admin', 'billing', 'glosas'],
+  'capturers.assign': ['super_admin', 'admin']
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);
