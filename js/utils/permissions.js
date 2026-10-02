@@ -3,16 +3,16 @@
  * IMPORTANTE: esto solo decide qué se muestra. La seguridad real está en
  * PostgreSQL (RLS y funciones). Ocultar un menú no es un control de acceso.
  */
-export const ROLES = Object.freeze({
-  super_admin: { name: 'Super Admin SOFA', staff: true },
-  admin: { name: 'Administrador SOFA', staff: true },
-  billing: { name: 'Facturación', staff: true },
-  glosas: { name: 'Analista de glosas', staff: true },
-  assistant: { name: 'Asistente', staff: true },
-  auditor: { name: 'Auditor', staff: true },
-  operations: { name: 'Operaciones SOFA', staff: true },
-  client: { name: 'Cliente / PSS', staff: false },
-  capturer: { name: 'Capturador / Secretaria', staff: false }
+export const ROLES = Object.freeze({   // nombres según la tabla de roles (auditoría Fase 1, sección 9) · 1.6.1
+  super_admin: { name: 'Super Admin SOFA', staff: true, desc: 'Todo el sistema, incluidos usuarios, parámetros y datos fiscales.' },
+  admin: { name: 'Administrador SOFA', staff: true, desc: 'Operación completa de SOFA: radicación, pagos, glosas, honorarios, tarifarios y usuarios.' },
+  operations: { name: 'Operaciones SOFA', staff: true, desc: 'Retiro físico, validación, onboarding y bandejas; sin honorarios.' },
+  billing: { name: 'Facturación', staff: true, desc: 'Trabajo de hoy, Dashboard, Captura rápida, Reclamaciones y Retiros físicos.' },
+  glosas: { name: 'Cobros, conciliación y glosas', staff: true, desc: 'Pagos de las ARS, reparto por reclamación y gestión de glosas.' },
+  assistant: { name: 'Comercial', staff: true, desc: 'Prospectos, pipeline, documentos A–E, onboarding y CRM.' },
+  auditor: { name: 'Auditor', staff: true, desc: 'Valida expedientes (completo o incompleto) y consulta todo.' },
+  client: { name: 'Médico', staff: false, desc: 'Dueño de la práctica: su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA).' },
+  capturer: { name: 'Secretaria', staff: false, desc: 'Agenda, captura, cobros a privados y cuadre de los médicos que se le asignan; sin pagos de ARS, glosas ni honorarios.' }
 });
 /** ALL = roles con acceso general. El Capturador (D3, mínimo privilegio) NO está aquí: solo ve lo que se le asigna explícitamente. */
 const ALL = Object.keys(ROLES).filter((r) => r !== 'capturer');

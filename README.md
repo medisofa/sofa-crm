@@ -2,7 +2,7 @@
 
 Aplicación web estática (HTML + CSS + JavaScript con ES Modules) que se publica en **GitHub Pages** y usa **Supabase** como backend (Auth, PostgreSQL con RLS y Storage).
 
-- Versión: **1.6.0** (Iteración 16 · Consultorio: agenda, paciente privado, cuadre del día y Mi práctica)
+- Versión: **1.6.1** (roles Médico y Secretaria en Usuarios, según la tabla de roles)
 - Librería: `@supabase/supabase-js` **2.117.2**, copia local en `vendor/` (sin CDN externo)
 - Sin frameworks ni proceso de compilación: los archivos se suben tal cual.
 

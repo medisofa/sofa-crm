@@ -54,16 +54,14 @@ export async function render(main, ctx) {
       ${staff ? html`<div class="card"><h2>Oportunidades con este cliente</h2><p class="sub">Venta cruzada: codificación, glosas, habilitación…</p>${crm ? html`<button class="btn sm" id="addOpp">+ Oportunidad</button>` : ''}<div id="opps"></div></div>
       <div class="card"><h2>Tareas</h2>${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea</button>` : ''}<div id="tasks"></div></div>
       <div class="card"><h2>Historial</h2>${crm ? html`<button class="btn sm" id="fullAct" style="margin-bottom:8px">+ Interacción completa</button>` : ''}${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
-      ${editOrg ? html`<div class="card" style="grid-column:1/-1"><h2>Acceso del cliente a SOFA</h2><p class="sub">Para que el médico o su secretaria vean sus radicaciones, pagos y glosas: 1) crea su usuario en Supabase (Authentication › Users › Add user, con Auto Confirm); 2) ejecuta esta línea en el SQL Editor, cambiando el correo.</p>
-        <pre class="mono" id="grantSql" style="white-space:pre-wrap;background:var(--surface-2);padding:10px;border-radius:6px;margin:0 0 10px">select app.grant_role('correo.del.cliente@gmail.com', 'client', '${org.id}');</pre>
-        <button class="btn sm" id="copyGrant" type="button">Copiar</button> <span class="small muted">Id de este cliente: <span class="mono">${org.id}</span></span></div>` : ''}
+      ${can('users.invite', ctx.role) ? html`<div class="card" style="grid-column:1/-1"><h2>Usuarios del consultorio</h2>
+        <p class="sub"><b>Médico:</b> ve su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA). <b>Secretaria:</b> agenda, captura, cobros a privados y cuadre solo de los médicos que se le asignan, sin pagos de ARS, glosas ni honorarios.</p>
+        <div class="toolbar" style="margin:0"><button class="btn primary" id="invMed" type="button">+ Invitar médico</button><button class="btn" id="invSec" type="button">+ Invitar secretaria</button><a class="btn" href="#/usuarios">Ver usuarios</a></div></div>` : ''}
     </div>`);
 
-  $('#copyGrant', main)?.addEventListener('click', async (e) => {
-    const txt = $('#grantSql', main).textContent;
-    try { await navigator.clipboard.writeText(txt); toast('Copiado. Pégalo en el SQL Editor y cambia el correo.', 'ok'); }
-    catch { const r = document.createRange(); r.selectNodeContents($('#grantSql', main)); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Texto seleccionado: cópialo con Ctrl + C.'); }
-  });
+  const invite = async (role) => { try { const { inviteToClient } = await import('./users.js'); const r = await inviteToClient(ctx, role, org.id); if (r) toast(r.message, 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } };
+  $('#invMed', main)?.addEventListener('click', () => invite('client'));
+  $('#invSec', main)?.addEventListener('click', () => invite('capturer'));
 
   // ---- Datos del cliente
   $('#editOrg', main)?.addEventListener('click', async () => {
