@@ -154,6 +154,7 @@ const ACTIONS = {
   'dossier.exception': ['super_admin', 'admin', 'auditor'],
   'dossier.delete': ['super_admin', 'admin'],
   // Iteración 14
+  'fees.cleanup': ['super_admin'],   // 1.7: limpieza del libro de honorarios
   'onboarding.manage': ['super_admin', 'admin', 'assistant', 'operations'],   // 1.5: documentos A–E, pasos y activación
   'onboarding.override': ['super_admin', 'admin'],                             // activar con el onboarding incompleto
   'claims.resubmit': ['super_admin', 'admin', 'billing'],                                        // reenvío en radicación complementaria

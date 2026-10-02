@@ -93,3 +93,28 @@ export async function updateOperatorProfile(v) {
     p_address: v.address || null, p_city: v.city || null, p_phone: v.phone || null, p_email: v.email || null,
     p_bank_name: v.bank_name || null, p_bank_account_type: v.bank_account_type || null, p_bank_account: v.bank_account || null, p_bank_holder: v.bank_holder || null, p_terms: v.terms || null }));
 }
+
+// ---- Honorarios 1.7: esquema, servicios por proyecto, factura manual, limpieza del libro, sistema fiscal externo
+export async function feeScheme(orgId) { return must(await sb().rpc('fee_scheme', { p_org: orgId })); }
+export async function setFeeScheme(orgId, mode, fixed, rate, from) { return must(await sb().rpc('set_fee_scheme', { p_org: orgId, p_mode: mode, p_fixed: fixed ?? null, p_rate: rate ?? null, p_from: from })) || true; }
+export async function listServiceContracts(orgId = null) {
+  let q = sb().from('v_service_contracts').select('*').order('created_at', { ascending: false }).limit(200);
+  if (orgId) q = q.eq('organization_id', orgId);
+  return must(await q);
+}
+export async function createServiceContract(v) {
+  return must(await sb().rpc('create_service_contract', { p_org: v.org, p_service: v.service, p_description: v.description, p_total: Number(v.total), p_plan: v.plan,
+    p_installments: v.plan === 'cuotas' ? Number(v.installments) : null, p_pcts: v.plan === 'porcentajes' ? v.pcts.map(Number) : null, p_start: v.start, p_dates: null }));
+}
+export async function cancelServiceContract(id, reason) { return must(await sb().rpc('cancel_service_contract', { p_id: id, p_reason: reason })) ?? true; }
+export async function createManualInvoice(orgId, period, includePending, items) {
+  return must(await sb().rpc('create_sofa_invoice', { p_org: orgId, p_period: period, p_include_pending: includePending, p_items: items }));
+}
+export async function pendingFeesOf(orgId) {
+  return must(await sb().from('sofa_fees').select('amount, period, service_code').eq('organization_id', orgId).is('sofa_invoice_id', null));
+}
+export async function ledgerPreview(orgId, from, to) { return must(await sb().rpc('ledger_cleanup_preview', { p_org: orgId, p_from: from, p_to: to })); }
+export async function ledgerCleanup(orgId, from, to, mode, reason, confirm) {
+  return must(await sb().rpc('ledger_cleanup', { p_org: orgId, p_from: from, p_to: to, p_mode: mode, p_reason: reason, p_confirm: confirm }));
+}
+export async function setFiscalSystem(name) { must(await sb().rpc('set_fiscal_system', { p_name: name || null })); return true; }

@@ -93,8 +93,9 @@ export async function buildInvoicePdf(d) {
 
   // 2) Título y datos de la factura (derecha)
   doc.setFont('helvetica', 'bold'); doc.setFontSize(24); doc.setTextColor(...NAVY); doc.text('Factura', W - M, 21, { align: 'right' });
-  doc.setFontSize(8); doc.setTextColor(...WINE); doc.text(ncfKind(i.ncf), W - M, 26, { align: 'right' });
-  const meta = [['Núm. de factura', i.folio], ['NCF', i.ncf || 'Pendiente'], ['Válido hasta', i.ncf ? fdate(i.ncf_valid_until) : '—'], ['Fecha de la factura', fdate(i.issued_on)], ['Vencimiento', fdate(i.due_on)]];
+  doc.setFontSize(8); doc.setTextColor(...WINE); doc.text('DOCUMENTO DE COBRO', W - M, 26, { align: 'right' });
+  // 1.7: el comprobante fiscal se emite en el sistema fiscal externo; aquí va solo como referencia
+  const meta = [['Núm. de factura', i.folio], ['Comprobante fiscal', i.ncf || 'En sistema fiscal'], ['Fecha de la factura', fdate(i.issued_on)], ['Vencimiento', fdate(i.due_on)], ['Período', fperiod(i.period)]];
   meta.forEach(([k, v], n) => {
     const y = 29 + n * 7.2; box(xr, y, half, 6.2, SOFT);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...GRAY); doc.text(`${k}:`, xr + 3, y + 4.2);
@@ -121,7 +122,13 @@ export async function buildInvoicePdf(d) {
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRAY); doc.text(`Período facturado: ${fperiod(i.period)}`, M, y); y += 3;
 
   // 4) Detalle
-  const body = lines.length ? lines.map((l) => [`${l.description}${l.late ? `\nRezagado de ${fperiod(l.period)}` : ''}`, Number(l.amount).toLocaleString('es-DO', { minimumFractionDigits: 2 }), '1', '0.00%', Number(l.amount).toLocaleString('es-DO', { minimumFractionDigits: 2 })])
+  const multi = new Set(lines.map((l) => l.service_code || 'facturacion')).size > 1; let lastSvc = null;
+  const body = lines.length ? lines.flatMap((l) => {
+    const row = [`${l.description}${l.late ? `\nRezagado de ${fperiod(l.period)}` : ''}`, Number(l.amount).toLocaleString('es-DO', { minimumFractionDigits: 2 }), '1', '0.00%', Number(l.amount).toLocaleString('es-DO', { minimumFractionDigits: 2 })];
+    if (!multi || l.service === lastSvc) return [row];
+    lastSvc = l.service;   // varios servicios: subtítulo por servicio
+    return [[{ content: (l.service || 'Facturación médica').toUpperCase(), colSpan: 5, styles: { fontStyle: 'bold', fillColor: SOFT, textColor: NAVY } }], row];
+  })
     : [[i.status === 'anulada' ? 'Factura anulada antes de la versión 1.5: sus conceptos se liberaron para volver a facturarse.' : 'Sin conceptos', '', '', '', '']];
   doc.autoTable({
     startY: y + 2, margin: { left: M, right: M }, head: [['DESCRIPCIÓN', 'TARIFA, RD$', 'CANTIDAD', 'IMPUESTO', 'IMPORTE, RD$']], body,
@@ -182,12 +189,12 @@ export async function buildInvoicePdf(d) {
     doc.setPage(p); const H = doc.internal.pageSize.getHeight();
     doc.setFillColor(...NAVY); doc.rect(0, H - 5, W * 0.72, 5, 'F'); doc.setFillColor(...WINE); doc.rect(W * 0.72, H - 5, W * 0.28, 5, 'F');
     doc.setFontSize(7.5); doc.setTextColor(...GRAY);
-    doc.text(`${i.folio} · ${i.ncf ? `NCF ${i.ncf}` : 'Documento sin NCF: no válido para crédito fiscal'} · Página ${p} de ${pages}`, W / 2, H - 8, { align: 'center' });
+    doc.text(`${i.folio} · Documento de cobro no fiscal · comprobante fiscal ${i.ncf ? i.ncf : `emitido en ${e.fiscal_system || 'el sistema fiscal de SOFA'}`} · Página ${p} de ${pages}`, W / 2, H - 8, { align: 'center' });
     if (i.status === 'anulada') {
       doc.saveGraphicsState?.(); doc.setGState?.(new doc.GState({ opacity: 0.16 }));
       doc.setFont('helvetica', 'bold'); doc.setFontSize(90); doc.setTextColor(...WINE); doc.text('ANULADA', W / 2, H / 2 + 10, { align: 'center', angle: 35 });
       doc.restoreGraphicsState?.();
-      doc.setFontSize(9); doc.setTextColor(...WINE); doc.text(`Anulada el ${fdate(i.voided_at)}. Motivo: ${String(i.notes || '').replace(/^.*?Anulada:\s*/, '') || '—'}`.slice(0, 140), M, H - 13);
+      doc.setFontSize(9); doc.setTextColor(...WINE); doc.text(`Anulada el ${fdate(i.voided_at)}. Motivo: ${String(i.notes || '').replace(/^.*?Anulada[^:]*:\s*/, '') || '—'}`.slice(0, 140), M, H - 13);
     }
   }
   return { doc, fileName: `${i.folio}${i.status === 'anulada' ? '-ANULADA' : ''}.pdf` };

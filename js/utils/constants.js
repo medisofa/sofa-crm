@@ -61,7 +61,8 @@ export const GLOSA_STATUS = {
 export const glosaStatus = (c) => GLOSA_STATUS[c] || [c, ''];
 export const PAYMENT_METHODS = [['transferencia', 'Transferencia'], ['cheque', 'Cheque'], ['deposito', 'Depósito'], ['otro', 'Otro']];
 export const INVOICE_STATUS = { emitida: ['Emitida', 'info'], pagada_parcial: ['Cobro parcial', 'warn'], pagada: ['Cobrada', 'ok'], anulada: ['Anulada', ''] };
-export const FEE_SOURCE = { pago: '% de lo cobrado', cuota: 'Cuota mensual', radicacion: 'Por radicación', manual: 'Manual' };
+export const FEE_SOURCE = { pago: '% de lo cobrado', cuota: 'Cuota mensual', radicacion: 'Por radicación', manual: 'Concepto manual', servicio: 'Servicio por proyecto' };
+export const SERVICE_PLAN = { unico: 'Pago único', cuotas: 'Cuotas mensuales iguales', porcentajes: '3 pagos por porcentaje' };
 
 /** Inteligencia de mercado */
 export const INTEL_TOPICS = { regulacion: ['Regulación', 'info'], ars: ['ARS', 'info'], facturacion: ['Facturación y glosas', 'warn'], habilitacion: ['Habilitación', 'info'],

@@ -4,7 +4,7 @@ import { loadInto, emptyView, toast, friendlyError, busy, fieldError } from '../
 import { getSettings, updateSettings } from '../services/admin.js';
 import { can } from '../utils/permissions.js';
 import { money } from '../utils/formatters.js';
-import { operatorProfile, updateOperatorProfile } from '../services/finance.js';
+import { operatorProfile, updateOperatorProfile, setFiscalSystem } from '../services/finance.js';
 
 const FIELDS = [
   ['payment_term_days', 'Plazo de pago de las ARS (días)', 1, 365, 'Res. 00219-2017: 90 días desde la radicación.'],
@@ -69,6 +69,7 @@ async function drawOperator(main, editable) {
       <div class="field"><label for="op_bank_account_type">Tipo de cuenta</label><select id="op_bank_account_type" name="bank_account_type" ${editable ? '' : 'disabled'}>
         ${['', 'Corriente', 'Ahorros'].map((t) => html`<option value="${t}" ${o.bank_account_type === t ? 'selected' : ''}>${t || 'Seleccione…'}</option>`)}</select></div>
       ${f('bank_account', 'Número de cuenta', 'maxlength="24" inputmode="numeric"')}${f('bank_holder', 'A nombre de', 'maxlength="120"')}</div>
+    <div class="field"><label for="op_fiscal_system">Sistema fiscal (donde se emiten el NCF / e-CF de SOFA)</label><input id="op_fiscal_system" name="fiscal_system" maxlength="80" value="${o.fiscal_system || ''}" placeholder="Nombre del sistema o proveedor de e-CF" ${editable ? '' : 'disabled'}></div>
     <div class="field"><label for="op_terms">Condiciones de pago</label><textarea id="op_terms" name="terms" rows="2" class="input" maxlength="400" ${editable ? '' : 'disabled'}>${o.terms || ''}</textarea></div>
     ${editable ? html`<div><button class="btn primary" type="submit">Guardar datos fiscales</button></div>` : ''}</form>`);
   $('#opf', box).addEventListener('submit', (e) => {
@@ -78,6 +79,6 @@ async function drawOperator(main, editable) {
     if (tax && !/^(\d{9}|\d{11})$/.test(tax)) { fieldError(form.elements.tax_id, 'RNC de 9 dígitos o cédula de 11'); return; }
     const acc = (v.bank_account || '').replace(/[\s-]/g, '');
     if (acc && !/^\d{6,20}$/.test(acc)) { fieldError(form.elements.bank_account, 'Solo dígitos (6 a 20)'); return; }
-    busy(e.submitter, async () => { try { await updateOperatorProfile(v); toast('Datos fiscales de SOFA guardados', 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } });
+    busy(e.submitter, async () => { try { await updateOperatorProfile(v); await setFiscalSystem(v.fiscal_system); toast('Datos fiscales de SOFA guardados', 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } });
   });
 }

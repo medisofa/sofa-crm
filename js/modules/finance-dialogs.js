@@ -190,14 +190,15 @@ export function invoicePaymentDialog(inv) {
 }
 
 export function ncfDialog(inv) {
+  // 1.7: el comprobante fiscal se emite en el sistema fiscal externo; aquí solo se registra como referencia para conciliar
   return formDialog({
-    title: `NCF de la factura ${inv.folio}`, submitLabel: 'Guardar',
-    body: html`${f('ncf', 'NCF *', text('ncf', inv.ncf || '', 'required maxlength="13" placeholder="B0100000125"'), 'B01 crédito fiscal (clientes con RNC) · B02 consumo · e-CF E31–E34')}
-      ${f('valid', 'Válido hasta (vencimiento de la secuencia)', text('valid', inv.ncf_valid_until || '', 'type="date"'), 'Aparece en la factura impresa y en el PDF')}`,
+    title: `Comprobante fiscal de ${inv.folio}`, submitLabel: 'Guardar referencia',
+    body: html`<p class="small">El NCF / e-CF de esta factura se emite en el sistema fiscal. Regístralo aquí para conciliar el cobro con el comprobante.</p>
+      ${f('ncf', 'NCF emitido en el sistema fiscal *', text('ncf', inv.ncf || '', 'required maxlength="13" placeholder="E310000000123"'), 'B01, B02, B14, B15 o e-CF E31–E34')}`,
     onSubmit: async (d, form) => {
       const v = (d.ncf || '').trim().toUpperCase();
       if (!isNCF(v)) { fieldError(form.elements.ncf, 'Formato: B + 10 dígitos o E + 12 dígitos.'); return false; }
-      return setInvoiceNcf(inv.id, v, d.valid || null);
+      return setInvoiceNcf(inv.id, v, null);
     }
   });
 }
