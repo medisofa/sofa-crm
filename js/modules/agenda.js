@@ -4,18 +4,20 @@
  * Los cobros privados son solo control de caja: no generan honorario SOFA.
  */
 import { html, render as paint, $ } from '../utils/dom.js';
-import { toast, friendlyError, opt, formDialog, fieldError, loadingView, emptyView } from '../utils/ui.js';
+import { toast, friendlyError, opt, formDialog, fieldError, loadingView, emptyView, confirmDialog } from '../utils/ui.js';
 import { money, todayISO, date } from '../utils/formatters.js';
 import { can } from '../utils/permissions.js';
 import { captureProviders, activeArs } from '../services/claims.js';
 import {
   listAppointments, saveAppointment, setAppointmentStatus, listPrivateCharges, registerPrivateCharge, collectPrivateCharge,
-  voidPrivateCharge, daySummary, closeDay, reopenDay, privateServices
+  voidPrivateCharge, daySummary, closeDay, reopenDay, privateServices, registerCopay, receiptDocument, setEligibility
 } from '../services/consultorio.js';
 
 export const APPT_STATUS = { programada: ['Programada', ''], confirmada: ['Confirmada', 'info'], en_espera: ['En espera', 'warn'], atendida: ['Atendida', 'ok'], no_asistio: ['No asistió', 'bad'], cancelada: ['Cancelada', ''] };
 const METHODS = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia', cheque: 'Cheque', pendiente: 'Pendiente (paga después)' };
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '—');
+const ELIG = { verificada: ['Elegible ✓', 'ok'], no_elegible: ['No elegible', 'bad'], no_verificada: ['Elegibilidad sin verificar', 'warn'] };
+const ELIG_SRC = { portal_ars: 'Portal de la ARS', sisalril: 'Consulta de afiliación SISALRIL', senasa: 'Consulta SeNaSa', telefono: 'Llamada a la ARS', otro: 'Otro' };
 const mem = { provider: '', date: '' };   // se conserva durante la sesión
 
 export async function render(main, ctx) {
@@ -64,13 +66,16 @@ export async function renderAgenda(box, ctx) {
     paint(el('ag_list'), appts.length ? html`<div class="list">${appts.map((a) => { const [l, c] = APPT_STATUS[a.status] || [a.status, '']; const open = !['atendida', 'no_asistio', 'cancelada'].includes(a.status); return html`
       <div class="li" style="align-items:flex-start">
         <b class="mono" style="width:46px">${hhmm(a.appointment_time)}</b>
-        <div class="b"><div class="t1">${a.patient_name} <span class="pill ${a.payer_type === 'privado' ? 'info' : ''}">${a.payer_type === 'privado' ? 'Privado' : a.ars?.name || 'ARS'}</span></div>
+        <div class="b"><div class="t1">${a.patient_name} <span class="pill ${a.payer_type === 'privado' ? 'info' : ''}">${a.payer_type === 'privado' ? 'Privado' : a.ars?.name || 'ARS'}</span>
+          ${a.payer_type === 'ars' ? html`<span class="pill ${(ELIG[a.eligibility_status] || ELIG.no_verificada)[1]}" title="${a.eligibility_reference ? `${ELIG_SRC[a.eligibility_source] || ''} · ${a.eligibility_reference}` : ''}">${(ELIG[a.eligibility_status] || ELIG.no_verificada)[0]}</span>` : ''}</div>
           <div class="t2">${[a.reason, a.member_number && `NSS ${a.member_number}`, a.phone].filter(Boolean).join(' · ')}</div>
           ${a.service_line_id ? html`<div class="t2"><a href="#/reclamaciones/${a.service_line_id}">Ver reclamación</a></div>` : ''}</div>
         <span class="pill ${c}">${l}</span>
+        ${a.payer_type === 'ars' && !closed && !['cancelada', 'no_asistio'].includes(a.status) ? html`<button class="btn sm" data-copay="${a.id}" title="Copago o diferencia cobrada al afiliado">Copago</button>` : ''}
         ${open && !closed ? html`<div class="toolbar" style="margin:0;gap:4px;flex-wrap:wrap;justify-content:flex-end">
           ${a.status !== 'en_espera' ? html`<button class="btn sm" data-st="en_espera" data-id="${a.id}" title="El paciente llegó">Llegó</button>` : ''}
           <button class="btn sm primary" data-attend="${a.id}">Atendido</button>
+          ${a.payer_type === 'ars' ? html`<button class="btn sm" data-elig="${a.id}">Elegibilidad</button>` : ''}
           <button class="btn sm" data-edit="${a.id}">Editar</button>
           <button class="btn sm" data-st="no_asistio" data-id="${a.id}">No vino</button>
           <button class="btn sm" data-st="cancelada" data-id="${a.id}">Cancelar</button></div>` : ''}
@@ -85,6 +90,7 @@ export async function renderAgenda(box, ctx) {
         <div class="t1"><span class="mono">${c.folio}</span> · ${c.patient_name} · <b>${money(c.amount)}</b></div>
         <div class="t2">${c.service_name}${Number(c.discount) > 0 ? ` · descuento ${money(c.discount)} (${c.discount_reason})` : ''} · ${METHODS[c.payment_method] || c.payment_method}${c.reference ? ` · ${c.reference}` : ''}</div></div>
         <span class="pill ${c.status === 'cobrado' ? 'ok' : c.status === 'pendiente' ? 'warn' : 'bad'}">${c.status === 'cobrado' ? 'Cobrado' : c.status === 'pendiente' ? 'Pendiente' : 'Anulado'}</span>
+        <button class="btn sm" data-receipt="${c.id}" title="Comprobante de pago para el paciente">Comprobante</button>
         ${!closed && c.status === 'pendiente' ? html`<button class="btn sm" data-collect="${c.id}">Cobrar</button>` : ''}
         ${!closed && c.status !== 'anulado' ? html`<button class="btn sm" data-void="${c.id}">Anular</button>` : ''}</div>`)}</div>`
       : html`<p class="small muted">Sin cobros a privados este día.</p>`);
@@ -97,6 +103,7 @@ export async function renderAgenda(box, ctx) {
       <dl class="kv">
         <dt>Citas</dt><dd>${ap.total} · atendidas ${ap.atendida} · no vinieron ${ap.no_asistio} · por atender ${ap.pendiente}</dd>
         <dt>Reclamaciones ARS del día</dt><dd>${s.ars_claims.count} · ${money(s.ars_claims.claimed)}</dd>
+        ${s.copays && Number(s.copays.count) ? html`<dt>Copagos y diferencias ARS</dt><dd>${s.copays.count} · ${money(s.copays.amount)}${Number(s.copays.pending) ? html` · <span style="color:var(--warn)">pendiente ${money(s.copays.pending)}</span>` : ''}</dd>` : ''}
         <dt>Privados facturados</dt><dd>${s.private.count} · ${money(s.private.billed)}${Number(s.private.pending) ? html` · <span style="color:var(--warn)">pendiente ${money(s.private.pending)}</span>` : ''}</dd>
         <dt>Cobrado hoy</dt><dd><b>${money(col.total)}</b> · efectivo ${money(col.efectivo)} · tarjeta ${money(col.tarjeta)} · transferencia ${money(col.transferencia)}${Number(col.cheque) ? ` · cheque ${money(col.cheque)}` : ''}</dd>
       </dl>
@@ -171,8 +178,46 @@ export async function renderAgenda(box, ctx) {
       else if (b.dataset.edit) { if (await apptDialog(appts.find((a) => a.id === b.dataset.edit))) { toast('Cita actualizada', 'ok'); load(); } }
       else if (b.dataset.attend) {
         const a = appts.find((x) => x.id === b.dataset.attend);
-        if (a.payer_type === 'ars') { location.hash = `#/captura/cita-${a.id}`; return; }   // la Captura rápida se abre prellenada y cierra la cita al guardar
+        if (a.payer_type === 'ars') {
+          if (a.eligibility_status !== 'verificada' && !(await confirmDialog('Elegibilidad sin verificar', a.eligibility_status === 'no_elegible' ? 'Este afiliado se marcó como NO elegible: la ARS rechazará la reclamación completa. ¿Registrar de todos modos?' : 'No se ha verificado la elegibilidad del afiliado para hoy. Si no está activo, la ARS glosará el 100 % del servicio. ¿Continuar?', 'Continuar'))) return;
+          location.hash = `#/captura/cita-${a.id}`; return;
+        }   // la Captura rápida se abre prellenada y cierra la cita al guardar
         if (await chargeDialog(a)) { toast('Cobro registrado · cita atendida', 'ok'); load(); }
+      } else if (b.dataset.elig) {
+        const a = appts.find((x) => x.id === b.dataset.elig);
+        const r = await formDialog({ title: `Elegibilidad · ${a.patient_name}`, submitLabel: 'Guardar verificación',
+          body: html`<p class="small">Verifica en el portal de ${a.ars?.name || 'la ARS'} o en la consulta de afiliación que el afiliado está activo hoy y tiene cobertura para el servicio.</p>
+            <div class="form-grid"><div class="field"><label for="el_s">Resultado *</label><select id="el_s" name="status">${opt('verificada', 'Elegible (activo y con cobertura)', a.eligibility_status)}${opt('no_elegible', 'No elegible', a.eligibility_status)}</select></div>
+            <div class="field"><label for="el_f">Dónde se verificó *</label><select id="el_f" name="source">${Object.entries(ELIG_SRC).map(([k, l]) => opt(k, l, a.eligibility_source || 'portal_ars'))}</select></div>
+            <div class="field"><label for="el_r">Referencia *</label><input id="el_r" name="reference" maxlength="80" value="${a.eligibility_reference || ''}" placeholder="No. de confirmación o captura"></div>
+            <div class="field"><label for="el_d">Fecha de la autorización</label><input id="el_d" name="authdate" type="date" max="${todayISO()}" value="${a.authorization_date || ''}"></div></div>`,
+          onSubmit: async (d, f) => { if ((d.reference || '').trim().length < 3) { fieldError(f.elements.reference, 'Indique la referencia'); return false; } return setEligibility(a.id, d.status, d.source, d.reference.trim(), d.authdate || null); } });
+        if (r) { toast('Elegibilidad registrada', 'ok'); load(); }
+      } else if (b.dataset.copay) {
+        const a = appts.find((x) => x.id === b.dataset.copay);
+        const id = await formDialog({ title: `Cobro al afiliado · ${a.patient_name}`, submitLabel: 'Registrar cobro',
+          body: html`<div class="form-grid"><div class="field"><label for="cp_t">Tipo *</label><select id="cp_t" name="type">${opt('copago', 'Copago')}${opt('diferencia', 'Diferencia no cubierta por la ARS')}</select></div>
+            <div class="field"><label for="cp_a">Monto (RD$) *</label><input id="cp_a" name="amount" type="number" min="0.01" step="0.01"></div>
+            <div class="field"><label for="cp_m">Forma de pago *</label><select id="cp_m" name="method">${Object.entries(METHODS).map(([k, l]) => opt(k, l, 'efectivo'))}</select></div>
+            <div class="field"><label for="cp_r">Referencia</label><input id="cp_r" name="reference" maxlength="60"></div>
+            <div class="field" style="grid-column:1/-1"><label for="cp_n">Motivo de la diferencia</label><input id="cp_n" name="note" maxlength="150" placeholder="Material o servicio no cubierto por el plan"></div></div>
+            <p class="small muted">Se entrega comprobante al afiliado (Circular SISALRIL 002957). Una disputa con la ARS no se cobra al afiliado.</p>`,
+          onSubmit: async (d, f) => {
+            if (!(Number(d.amount) > 0)) { fieldError(f.elements.amount, 'Indique el monto'); return false; }
+            if (['tarjeta', 'transferencia', 'cheque'].includes(d.method) && (d.reference || '').trim().length < 3) { fieldError(f.elements.reference, 'Indique la referencia'); return false; }
+            if (d.type === 'diferencia' && (d.note || '').trim().length < 5) { fieldError(f.elements.note, 'Explique la diferencia'); return false; }
+            return registerCopay(a.id, d.type, d.amount, d.method, d.reference, d.note);
+          } });
+        if (id) {
+          toast('Cobro registrado', 'ok'); load();
+          if (await confirmDialog('Comprobante de pago', '¿Descargar el comprobante para entregarlo al afiliado?', 'Descargar')) {
+            const { downloadReceiptPdf } = await import('../utils/pdf-invoice.js'); await downloadReceiptPdf(await receiptDocument(id));
+          }
+        }
+      } else if (b.dataset.receipt) {
+        b.disabled = true;
+        try { const { downloadReceiptPdf } = await import('../utils/pdf-invoice.js'); toast(`Descargado ${await downloadReceiptPdf(await receiptDocument(b.dataset.receipt))}`, 'ok'); }
+        finally { b.disabled = false; }
       } else if (b.dataset.collect) {
         const r = await formDialog({ title: 'Cobrar saldo pendiente', submitLabel: 'Cobrar',
           body: html`<div class="field"><label for="co_m">Forma de pago</label><select id="co_m" name="method">${['efectivo', 'tarjeta', 'transferencia', 'cheque'].map((k) => opt(k, METHODS[k], 'efectivo'))}</select></div>

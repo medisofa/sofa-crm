@@ -5,7 +5,7 @@
  * los datos de pacientes y cobros no quedan en caché.
  * Al publicar una versión nueva, cambia VERSION para renovar la caché.
  */
-const VERSION = 'sofa-shell-1.7.0';
+const VERSION = 'sofa-shell-1.7.1';
 const SHELL = [
   './', './index.html', './login.html', './manifest.json',
   './css/variables.css', './css/components.css', './css/app.css',

@@ -53,3 +53,13 @@ export function inRange(range, date) {
   return (!m[1] || m[1] <= date) && (!m[2] || date < m[2]);
 }
 export async function practiceDashboard(providerId) { return rpc('practice_dashboard', { p_provider: providerId }); }
+
+// ---- 1.7 · B1 copagos con comprobante · B2 elegibilidad y fecha de autorización
+export async function registerCopay(appointmentId, type, amount, method, reference, note) {
+  return rpc('register_copay', { p_appointment: appointmentId, p_type: type, p_amount: Number(amount), p_method: method, p_reference: reference || null, p_note: note || null });
+}
+export async function receiptDocument(chargeId) { return rpc('receipt_document', { p_charge: chargeId }); }
+export async function setEligibility(appointmentId, status, source, reference, authorizationDate) {
+  await rpc('set_eligibility', { p_appointment: appointmentId, p_status: status, p_source: source, p_reference: reference, p_authorization_date: authorizationDate || null }); return true;
+}
+export async function setClaimAuthorizationDate(lineId, date) { await rpc('set_claim_authorization_date', { p_line: lineId, p_date: date }); return true; }

@@ -104,6 +104,7 @@ export async function render(main, ctx) {
     <div class="grid two" style="margin-top:14px">
       <div class="card"><h2>Paciente y registro</h2>
         ${kv([['Paciente', c.patient_name], ['NSS / afiliado', c.member_number], ['Cédula', c.patient_doc], ['Autorización', c.authorization_number ? html`<span class="mono">${c.authorization_number}</span>` : ''],
+          ['Fecha de la autorización', html`${c.authorization_date ? date(c.authorization_date) : html`<span class="muted">sin registrar</span>`}${['pendiente_configuracion', 'capturada', 'pendiente_retiro', 'retirada', 'en_validacion', 'con_inconsistencia', 'validada', 'lista_para_radicar'].includes(c.claim_status) && can('claims.capture', role) ? html` <button class="btn sm" id="authDate" type="button">${c.authorization_date ? 'Corregir' : 'Registrar'}</button>` : ''}`],
           ['Fecha del servicio', date(c.service_date)], ['Modalidad', c.care_mode ? careMode(c.care_mode) : ''], ['Centro / clínica', c.clinic_name],
           ['Médico', c.provider_name], ...(staff ? [['Cliente', c.client_name]] : []), ['ARS', c.ars_name],
           ['Registrada por', html`${c.created_by_name || who(c.created_by)} · ${dateTime(c.created_at)}`], ['Última modificación', html`${who(c.updated_by)} · ${dateTime(c.updated_at)}`]])}
@@ -165,6 +166,15 @@ export async function render(main, ctx) {
       try { const n = await moveDialog([id], b.dataset.to, { role, transitions: trans, locations: locs, from: c.claim_status }); if (n != null) { toast('Reclamación actualizada', 'ok'); refresh(); } }
       catch (err) { toast(friendlyError(err), 'bad'); }
     }));
+    $('#authDate', box)?.addEventListener('click', async () => {   // 1.7 · B2
+      const { formDialog, fieldError } = await import('../utils/ui.js');
+      try {
+        const ok = await formDialog({ title: 'Fecha de la autorización', submitLabel: 'Guardar',
+          body: html`<div class="field"><label for="ad_d">Fecha en que la ARS autorizó el servicio *</label><input id="ad_d" name="d" type="date" max="${new Date().toISOString().slice(0, 10)}" value="${c.authorization_date || ''}"><span class="hint">Trabajo de hoy avisa a los 150 días si no se ha radicado (la ARS depura a los 180).</span></div>`,
+          onSubmit: async (d, f) => { if (!d.d) { fieldError(f.elements.d, 'Indique la fecha'); return false; } const { setClaimAuthorizationDate } = await import('../services/consultorio.js'); return setClaimAuthorizationDate(id, d.d); } });
+        if (ok) { toast('Fecha de autorización guardada', 'ok'); refresh(); }
+      } catch (err) { toast(friendlyError(err), 'bad'); }
+    });
     $('#audit', box)?.addEventListener('click', async () => {
       const { auditDialog } = await import('./claim-dialogs.js');
       try { const n = await auditDialog([id], { missing: S.checks?.missing_documents || [] }); if (n != null) { toast('Auditoría registrada', 'ok'); refresh(); } }

@@ -40,6 +40,7 @@ export async function render(main, ctx) {
           <div class="field" style="grid-column:1/-1"><label for="c_pat">4 · Paciente *</label><input id="c_pat" name="patient_name" list="c_pats" required maxlength="150" placeholder="Nombre completo (escriba 2 letras o el NSS para buscar)"><datalist id="c_pats"></datalist></div>
           <div class="field"><label for="c_nss">NSS / No. afiliado *</label><input id="c_nss" name="member" required maxlength="40" inputmode="numeric"></div>
           <div class="field"><label for="c_auth">No. de autorización <span id="authReq">*</span></label><input id="c_auth" name="authorization" maxlength="60"></div>
+          <div class="field"><label for="c_authdate">Fecha de la autorización</label><input id="c_authdate" name="authdate" type="date" max="${todayISO()}"><span class="hint">Avisa a los 150 días si no se ha radicado</span></div>
           <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div>
           <div class="field"><label for="c_clinic">Centro / clínica</label><input id="c_clinic" name="clinic" maxlength="120"></div>
           <div class="field" style="grid-column:1/-1"><label for="c_srv">5 · Servicio contratado *</label>
@@ -245,7 +246,7 @@ export async function render(main, ctx) {
 
   // ------------------------------------------------------------ guardar
   const clearPatient = () => {
-    ['c_pat', 'c_nss', 'c_auth', 'c_doc', 'c_notes'].forEach((i) => { el(i).value = ''; fieldError(el(i), ''); });
+    ['c_pat', 'c_nss', 'c_auth', 'c_authdate', 'c_doc', 'c_notes'].forEach((i) => { el(i).value = ''; fieldError(el(i), ''); });
     el('c_qty').value = '1'; paint(el('dupBox'), html``);
   };
   function values() {
@@ -293,6 +294,8 @@ export async function render(main, ctx) {
     try {
       const r = await captureClaim(v);
       memory.clinic = v.clinic;
+      const authDate = el('c_authdate').value;
+      if (authDate) { try { const { setClaimAuthorizationDate } = await import('../services/consultorio.js'); await setClaimAuthorizationDate(r.id, authDate); } catch (err) { toast(friendlyError(err), 'bad'); } }
       if (cita) {
         const { linkAppointmentClaim } = await import('../services/consultorio.js');
         await linkAppointmentClaim(cita.id, r.id);
@@ -350,6 +353,7 @@ export async function render(main, ctx) {
   if (memory.provider && memory.ars) loadServices();
   if (cita) {
     el('c_pat').value = cita.patient_name || ''; el('c_nss').value = cita.member_number || ''; el('c_auth').value = cita.authorization_number || ''; el('c_doc').value = cita.patient_doc || '';
+    el('c_authdate').value = cita.authorization_date || '';
     form.insertAdjacentHTML('afterbegin', `<div class="note info" id="citaNote">Registrando la atención de la cita de <b>${(cita.patient_name || '').replace(/[<>&"]/g, '')}</b>. Al guardar, la cita queda como atendida y vuelves a Trabajo de hoy.</div>`);
   }
   loadRecent();

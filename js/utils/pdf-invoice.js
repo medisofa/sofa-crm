@@ -257,3 +257,46 @@ export async function buildLetterPdf(d) {
   return { doc, fileName: `${safe}.pdf` };
 }
 export async function downloadLetterPdf(d) { const { doc, fileName } = await buildLetterPdf(d); doc.save(fileName); return fileName; }
+
+// ---------------------------------------------------------------- comprobante de pago al paciente (1.7 · B1)
+/**
+ * Comprobante que el consultorio entrega al paciente por un copago, una diferencia o un cobro privado
+ * (Circular SISALRIL 002957). Media carta. No es un comprobante fiscal. `d` = public.receipt_document().
+ */
+export async function buildReceiptPdf(d) {
+  const JsPDF = await loadPdfLib();
+  const doc = new JsPDF({ unit: 'mm', format: [216, 140] });
+  const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 12;
+  const { office: o, provider: p, charge: c } = d;
+  const TYPE = { copago: 'COPAGO ARS', diferencia: 'DIFERENCIA NO CUBIERTA POR LA ARS', privado: 'SERVICIO PRIVADO' };
+  const METH = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia', cheque: 'Cheque', pendiente: 'Pendiente' };
+  doc.setProperties({ title: `Comprobante ${c.folio}`, subject: 'Comprobante de pago', author: o.legal_name || '', creator: 'SOFA' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...NAVY); doc.text(o.legal_name || 'Consultorio', M, 15);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60, 60, 60);
+  [`${p.name}${p.specialty ? ` · ${p.specialty}` : ''}${p.exequatur ? ` · Exequátur ${p.exequatur}` : ''}`, [o.tax_id && `RNC / Cédula ${fmtTax(o.tax_id)}`, o.address].filter(Boolean).join(' · '), [o.phone, o.email].filter(Boolean).join(' · ')]
+    .filter(Boolean).forEach((t, k) => doc.text(t, M, 20 + k * 4));
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...NAVY); doc.text('Comprobante de pago', W - M, 15, { align: 'right' });
+  doc.setFontSize(9); doc.setTextColor(...WINE); doc.text(TYPE[c.type] || 'PAGO', W - M, 20, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40); doc.text(`No. ${c.folio} · ${fdate(c.collected_on || c.date)}`, W - M, 25, { align: 'right' });
+  doc.setDrawColor(...WINE); doc.setLineWidth(0.6); doc.line(M, 34, W - M, 34);
+  const rows = [['Paciente', `${c.patient}${c.patient_doc ? ` · Cédula ${fmtTax(c.patient_doc)}` : ''}`], ['Concepto', c.concept + (Number(c.quantity) > 1 ? ` · ${c.quantity} × ${rd(c.unit_amount)}` : '')]];
+  if (c.ars) rows.push(['ARS', [c.ars, c.member && `NSS ${c.member}`, c.authorization && `Autorización ${c.authorization}`].filter(Boolean).join(' · ')]);
+  if (Number(c.discount) > 0) rows.push(['Descuento', rd(c.discount)]);
+  rows.push(['Forma de pago', `${METH[c.method] || c.method}${c.reference ? ` · Ref. ${c.reference}` : ''}`]);
+  doc.autoTable({ startY: 38, margin: { left: M, right: M }, body: rows, theme: 'plain', styles: { fontSize: 9.5, cellPadding: 1.6 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 34, textColor: NAVY } } });
+  let y = doc.lastAutoTable.finalY + 4;
+  doc.setFillColor(...SOFT); doc.roundedRect(W - M - 80, y, 80, 12, 1.5, 1.5, 'F'); doc.setFillColor(...WINE); doc.rect(W - M - 80, y, 1.4, 12, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...NAVY); doc.text('Monto recibido', W - M - 76, y + 7.6);
+  doc.setFontSize(13); doc.setTextColor(20, 20, 20); doc.text(rd(c.amount), W - M - 3, y + 8, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(doc.splitTextToSize(`Son: ${amountInWords(c.amount)}`, W - 2 * M - 90), M, y + 5);
+  y += 24;
+  doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.3); doc.line(M, y, M + 70, y); doc.line(W - M - 70, y, W - M, y);
+  doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text('Recibido por (consultorio)', M + 35, y + 4, { align: 'center' }); doc.text('Paciente o acompañante', W - M - 35, y + 4, { align: 'center' });
+  doc.setFontSize(7.2); doc.text('Comprobante de pago entregado al afiliado (Circular SISALRIL 002957). No sustituye el comprobante fiscal. Generado con SOFA.', W / 2, H - 7, { align: 'center' });
+  if (c.status === 'anulado') {
+    doc.saveGraphicsState?.(); doc.setGState?.(new doc.GState({ opacity: 0.16 })); doc.setFont('helvetica', 'bold'); doc.setFontSize(60); doc.setTextColor(...WINE);
+    doc.text('ANULADO', W / 2, H / 2 + 8, { align: 'center', angle: 20 }); doc.restoreGraphicsState?.();
+  }
+  return { doc, fileName: `${c.folio}.pdf` };
+}
+export async function downloadReceiptPdf(d) { const { doc, fileName } = await buildReceiptPdf(d); doc.save(fileName); return fileName; }
