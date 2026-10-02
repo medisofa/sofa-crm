@@ -18,11 +18,11 @@ const GROUPS = {
 const ORDER = Object.keys(GROUPS);
 const FOR_ROLE = {
   billing: ['reenvio', 'pago_incompleto', 'validacion', 'configuracion', 'diferencia', 'inconsistencia', 'retiro'],   // solo sus módulos (decisión 01/10/2026) glosas: ['pago_incompleto', 'glosa', 'cobro', 'tarea'],
-  assistant: ['retiro', 'depurar', 'borrador', 'seguimiento', 'tarea', 'ventana', 'habilitacion', 'renovacion'], client: ['configuracion', 'inconsistencia', 'borrador', 'depurar', 'glosa', 'cobro', 'ventana', 'habilitacion', 'renovacion'],
-  operations: ['enviada', 'validacion', 'retiro', 'inconsistencia', 'configuracion', 'radicar', 'fiscal', 'tarea'], auditor: ['validacion', 'inconsistencia', 'retiro', 'diferencia'], capturer: ['configuracion', 'inconsistencia']
+  assistant: ['retiro', 'depurar', 'borrador', 'seguimiento', 'tarea', 'ventana', 'habilitacion', 'renovacion'], client: ['consultorio', 'cuadre', 'configuracion', 'inconsistencia', 'borrador', 'depurar', 'glosa', 'cobro', 'ventana', 'habilitacion', 'renovacion'],
+  operations: ['enviada', 'validacion', 'retiro', 'inconsistencia', 'configuracion', 'radicar', 'fiscal', 'tarea'], auditor: ['validacion', 'inconsistencia', 'retiro', 'diferencia'], capturer: ['consultorio', 'cuadre', 'configuracion', 'inconsistencia']
 };
 const SEV = { critica: ['Urgente', 'bad'], alta: ['Alta', 'warn'], media: ['Media', 'info'], info: ['Info', ''] };
-const link = (i) => ({ submission: `#/radicaciones/${i.entity_id}`, glosa: `#/glosas/${i.entity_id}`, task: '#/tareas', opportunity: `#/oportunidades/${i.entity_id}`, organization: `#/clientes/${i.entity_id}`, sofa_invoice: '#/honorarios', habilitation: `#/habilitacion/${i.entity_id}`, claim: `#/reclamaciones/${i.entity_id}`, provider: '#/retiros', reception: `#/retiros/${i.entity_id}` }[i.entity_type] || '#/inicio');
+const link = (i) => (i.kind === 'cuadre' || i.entity_type === 'appointment' ? '#/agenda' : { submission: `#/radicaciones/${i.entity_id}`, glosa: `#/glosas/${i.entity_id}`, task: '#/tareas', opportunity: `#/oportunidades/${i.entity_id}`, organization: `#/clientes/${i.entity_id}`, sofa_invoice: '#/honorarios', habilitation: `#/habilitacion/${i.entity_id}`, claim: `#/reclamaciones/${i.entity_id}`, provider: '#/retiros', reception: `#/retiros/${i.entity_id}` }[i.entity_type] || '#/inicio');
 
 export async function render(main, ctx) {
   const roleKinds = FOR_ROLE[ctx.role];
@@ -31,7 +31,9 @@ export async function render(main, ctx) {
     <div class="page-head"><div class="t"><h2>Trabajo de hoy</h2><p>Lo que requiere acción hoy, calculado al momento desde los datos. ${new Date().toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Santo_Domingo' })}.</p></div>
       <button class="btn" id="reload">Actualizar</button></div>
     <div class="tabs" id="tabs" role="group" aria-label="Filtro"></div>
+    ${['client', 'capturer'].includes(ctx.role) ? html`<div class="card" style="margin-bottom:14px"><h2>Consultorio de hoy</h2><div id="agz"></div></div>` : ''}
     <div class="grid kpis" id="k"></div><div id="l" style="margin-top:14px"></div>`);
+  if ($('#agz', main)) import('./agenda.js').then((m) => m.renderAgenda($('#agz', main), ctx)).catch(() => {});
   const drawTabs = () => paint($('#tabs', main), html`${roleKinds ? html`<button data-m="rol" aria-pressed="${mode === 'rol'}">Para mi rol</button>` : ''}${isStaff(ctx.role) ? html`<button data-m="mio" aria-pressed="${mode === 'mio'}">Asignado a mí</button>` : ''}<button data-m="todo" aria-pressed="${mode === 'todo'}">Todo</button>`);
   const visible = () => items.filter((i) => (mode === 'todo' ? true : mode === 'mio' ? i.mine : roleKinds.includes(i.kind) || i.mine));
   const draw = () => {

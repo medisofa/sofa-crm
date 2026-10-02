@@ -82,6 +82,15 @@ export async function render(main, ctx) {
       : 'No hay médicos activos visibles para tu usuario.'));
     return;
   }
+  // 1.6: abierta desde la agenda (#/captura/cita-<id>): se prellena con la cita y al guardar la marca como atendida
+  let cita = null;
+  if (String(ctx.arg || '').startsWith('cita-')) {
+    try {
+      const { getAppointment } = await import('../services/consultorio.js');
+      cita = await getAppointment(ctx.arg.slice(5));
+      if (cita) { memory.provider = cita.provider_id; memory.ars = cita.ars_id || memory.ars; memory.date = cita.appointment_date; }
+    } catch (err) { toast(friendlyError(err), 'bad'); }
+  }
   if (!S.providers.some((p) => p.id === memory.provider)) memory.provider = S.providers.length === 1 ? S.providers[0].id : '';
   paint(el('c_prov'), html`<option value="">Seleccione…</option>${S.providers.map((p) => opt(p.id, staff && p.organizations?.legal_name && p.organizations.legal_name !== p.full_name ? `${p.full_name} · ${p.organizations.legal_name}` : p.full_name, memory.provider))}`);
   paint(el('c_ars'), html`<option value="">Seleccione…</option>${S.ars.map((a) => opt(a.id, a.name, memory.ars))}`);
@@ -284,6 +293,12 @@ export async function render(main, ctx) {
     try {
       const r = await captureClaim(v);
       memory.clinic = v.clinic;
+      if (cita) {
+        const { linkAppointmentClaim } = await import('../services/consultorio.js');
+        await linkAppointmentClaim(cita.id, r.id);
+        toast(`${r.folio} registrada · cita de ${cita.patient_name} atendida`, 'ok');
+        cita = null; location.hash = '#/hoy'; return;
+      }
       const [lbl] = claimStatus(r.status);
       toast(`${r.folio} registrada · ${lbl}${r.discrepancy ? ` · ${DISCREPANCY_STATUS[r.discrepancy]?.[0] || r.discrepancy}` : ''}`, r.status === 'pendiente_configuracion' ? 'bad' : 'ok');
       const keep = el('c_keep').checked;
@@ -333,6 +348,10 @@ export async function render(main, ctx) {
   }
 
   if (memory.provider && memory.ars) loadServices();
+  if (cita) {
+    el('c_pat').value = cita.patient_name || ''; el('c_nss').value = cita.member_number || ''; el('c_auth').value = cita.authorization_number || ''; el('c_doc').value = cita.patient_doc || '';
+    form.insertAdjacentHTML('afterbegin', `<div class="note info" id="citaNote">Registrando la atención de la cita de <b>${(cita.patient_name || '').replace(/[<>&"]/g, '')}</b>. Al guardar, la cita queda como atendida y vuelves a Trabajo de hoy.</div>`);
+  }
   loadRecent();
   (memory.provider ? (memory.ars ? el('c_pat') : el('c_ars')) : el('c_prov')).focus();
 }

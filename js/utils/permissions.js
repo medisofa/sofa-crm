@@ -35,7 +35,10 @@ export const BILLING_ROUTES = ['hoy', 'dashboard', 'captura', 'reclamaciones', '
 export const NAV = [
   { group: 'Operación', items: [
     { route: 'inicio', label: 'Inicio', roles: ALL, ready: true },
-    { route: 'hoy', label: 'Trabajo de hoy', roles: ALL, ready: true },
+    { route: 'hoy', label: 'Trabajo de hoy', roles: [...ALL, 'capturer'], ready: true },
+    { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
+    { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
+    { route: 'tarifas-privadas', label: 'Tarifas privadas', roles: ['super_admin', 'admin', 'assistant', 'client'], ready: true },
     { route: 'dashboard', label: 'Dashboard', roles: [...NO_OPS(STAFF), 'client'], ready: true }
   ]},
   { group: 'Reclamaciones', items: [
@@ -98,7 +101,7 @@ export const isStaff = (role) => !!ROLES[role]?.staff;
 /** ¿Puede este rol abrir el enlace? (#/radicaciones/123 → módulo "radicaciones"). Para no mostrar enlaces que llevan a "Sin acceso". */
 export const canOpen = (href, role) => canSee(String(href || '').replace(/^#\/?/, '').split('/')[0], role);
 /** Ruta inicial por rol: el Capturador entra directo a la captura */
-export const homeRoute = (role) => (role === 'capturer' ? 'captura' : role === 'billing' ? 'hoy' : 'inicio');
+export const homeRoute = (role) => (role === 'capturer' || role === 'billing' ? 'hoy' : 'inicio');   // 1.6: la secretaria empieza el día en la agenda
 /** Acciones de interfaz (espejo de la matriz de permisos de 003_rls.sql) */
 const ACTIONS = {
   'settings.edit': ['super_admin'],
