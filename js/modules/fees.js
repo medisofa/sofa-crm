@@ -9,6 +9,7 @@ import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
 
 export async function render(main, ctx) {
+  if (ctx.arg) { const m = await import('./fee-invoice.js'); return m.render(main, ctx); }
   const manage = can('fees.manage', ctx.role); const staff = isStaff(ctx.role);
   const st = { inv: 'pendientes', page: 0 };
   const thisMonth = todayISO().slice(0, 7);
@@ -40,7 +41,7 @@ export async function render(main, ctx) {
   let invRows = [];
   const loadInv = () => loadInto($('#inv', main), async () => { const r = await listInvoices({ status: st.inv, page: st.page, size: CONFIG.PAGE_SIZE }); invRows = r.data; return r; }, ({ data, count }) => html`
     <div class="table-wrap"><table class="t cards"><thead><tr><th>Factura</th>${staff ? html`<th>Cliente</th>` : ''}<th>Mes</th><th>NCF</th><th class="n">Total</th><th class="n">Saldo</th><th>Estado</th>${manage ? html`<th></th>` : ''}</tr></thead>
-    <tbody>${data.map((i) => { const [l, c] = INVOICE_STATUS[i.status] || [i.status, '']; return html`<tr><td data-l="Factura"><b class="mono">${i.folio}</b><div class="small muted">Emitida ${date(i.issued_on)} · vence ${date(i.due_on)}</div></td>
+    <tbody>${data.map((i) => { const [l, c] = INVOICE_STATUS[i.status] || [i.status, '']; return html`<tr><td data-l="Factura"><a href="#/honorarios/${i.id}"><b class="mono">${i.folio}</b></a><div class="small muted">Emitida ${date(i.issued_on)} · vence ${date(i.due_on)}</div></td>
       ${staff ? html`<td data-l="Cliente">${i.client_name}</td>` : ''}<td data-l="Mes">${period(i.period)}</td><td data-l="NCF" class="mono">${i.ncf || '—'}</td>
       <td data-l="Total" class="n">${money(i.total)}</td><td data-l="Saldo" class="n"><b>${money(i.balance)}</b>${i.days_overdue > 0 ? html`<div class="small" style="color:var(--bad);font-weight:600">Vencida hace ${i.days_overdue} días</div>` : ''}</td>
       <td data-l="Estado"><span class="pill ${c}">${l}</span></td>

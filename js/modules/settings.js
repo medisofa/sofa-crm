@@ -4,6 +4,7 @@ import { loadInto, emptyView, toast, friendlyError, busy, fieldError } from '../
 import { getSettings, updateSettings } from '../services/admin.js';
 import { can } from '../utils/permissions.js';
 import { money } from '../utils/formatters.js';
+import { operatorProfile, updateOperatorProfile } from '../services/finance.js';
 
 const FIELDS = [
   ['payment_term_days', 'Plazo de pago de las ARS (días)', 1, 365, 'Res. 00219-2017: 90 días desde la radicación.'],
@@ -20,7 +21,8 @@ const FIELDS = [
 
 export async function render(main, ctx) {
   const editable = can('settings.edit', ctx.role);
-  paint(main, html`<div class="page-head"><div class="t"><h2>Parámetros</h2><p>Plazos y metas que usan las alertas, el aging y el módulo de crecimiento.${editable ? '' : ' Solo lectura para tu rol.'}</p></div></div><div id="b"></div>`);
+  paint(main, html`<div class="page-head"><div class="t"><h2>Parámetros</h2><p>Plazos y metas que usan las alertas, el aging y el módulo de crecimiento.${editable ? '' : ' Solo lectura para tu rol.'}</p></div></div><div id="b"></div><div id="op" style="margin-top:14px"></div>`);
+  drawOperator(main, editable);
   const box = $('#b', main);
   const s = await loadInto(box, getSettings, (s) => html`<form class="card" id="f" novalidate>
       <div class="form-grid">${FIELDS.filter(([k]) => k in s).map(([k, l, min, max, hint]) => html`<div class="field"><label for="${k}">${l}</label><input id="${k}" name="${k}" type="number" min="${min}" max="${max}" step="${k.includes('pct') ? '0.01' : '1'}" value="${s[k]}" ${editable ? '' : 'disabled'}>${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`)}
@@ -48,5 +50,26 @@ export async function render(main, ctx) {
       try { await updateSettings(s.operator_id, values); toast('Parámetros guardados', 'ok'); }
       catch (err) { toast(friendlyError(err), 'bad'); }
     });
+  });
+}
+
+/** 1.4.1 · Datos fiscales de SOFA (emisor de las facturas de honorarios). Solo el Super Admin los edita. */
+async function drawOperator(main, editable) {
+  const box = $('#op', main); if (!box) return;
+  let o;
+  try { o = await operatorProfile(); } catch { return; }
+  if (!o || !document.body.contains(box)) return;
+  const f = (k, label, extra = '') => html`<div class="field"><label for="op_${k}">${label}</label><input id="op_${k}" name="${k}" value="${o[k] || ''}" ${editable ? '' : 'disabled'} ${extra}></div>`;
+  paint(box, html`<form class="card" id="opf" novalidate><h2>Datos fiscales de SOFA</h2>
+    <p class="sub">Aparecen como emisor en las facturas de honorarios.${o.tax_id ? '' : ' <b>Falta el RNC.</b>'}</p>
+    <div class="form-grid">${f('legal_name', 'Razón social *', 'maxlength="150"')}${f('trade_name', 'Nombre comercial', 'maxlength="80"')}${f('tax_id', 'RNC', 'maxlength="13" inputmode="numeric"')}
+      ${f('address', 'Dirección', 'maxlength="200"')}${f('city', 'Ciudad', 'maxlength="60"')}${f('phone', 'Teléfono', 'maxlength="20"')}${f('email', 'Correo de facturación', 'type="email" maxlength="120"')}</div>
+    ${editable ? html`<div><button class="btn primary" type="submit">Guardar datos fiscales</button></div>` : ''}</form>`);
+  $('#opf', box).addEventListener('submit', (e) => {
+    e.preventDefault(); const form = e.target; const v = Object.fromEntries(new FormData(form).entries());
+    if ((v.legal_name || '').trim().length < 3) { fieldError(form.elements.legal_name, 'Indique la razón social'); return; }
+    const tax = (v.tax_id || '').replace(/\D/g, '');
+    if (tax && !/^(\d{9}|\d{11})$/.test(tax)) { fieldError(form.elements.tax_id, 'RNC de 9 dígitos o cédula de 11'); return; }
+    busy(e.submitter, async () => { try { await updateOperatorProfile(v); toast('Datos fiscales de SOFA guardados', 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } });
   });
 }

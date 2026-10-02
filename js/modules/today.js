@@ -4,7 +4,7 @@ import { loadingView, errorView, emptyView, toast, friendlyError } from '../util
 import { workQueue } from '../services/bi.js';
 import { updateTask } from '../services/tasks.js';
 import { money, date } from '../utils/formatters.js';
-import { isStaff } from '../utils/permissions.js';
+import { isStaff, canOpen } from '../utils/permissions.js';
 
 const GROUPS = {
   configuracion: 'Reclamaciones sin contrato (pendientes de configuración)', inconsistencia: 'Reclamaciones con inconsistencia', diferencia: 'Diferencias tarifarias por autorizar',
@@ -17,7 +17,7 @@ const GROUPS = {
 };
 const ORDER = Object.keys(GROUPS);
 const FOR_ROLE = {
-  billing: ['reenvio', 'pago_incompleto', 'enviada', 'validacion', 'configuracion', 'diferencia', 'fiscal', 'inconsistencia', 'ventana', 'cobro', 'radicar', 'depurar', 'codigo', 'tarea', 'glosa'], glosas: ['pago_incompleto', 'glosa', 'cobro', 'tarea'],
+  billing: ['reenvio', 'pago_incompleto', 'validacion', 'configuracion', 'diferencia', 'inconsistencia', 'retiro'],   // solo sus módulos (decisión 01/10/2026) glosas: ['pago_incompleto', 'glosa', 'cobro', 'tarea'],
   assistant: ['retiro', 'depurar', 'borrador', 'seguimiento', 'tarea', 'ventana', 'habilitacion', 'renovacion'], client: ['configuracion', 'inconsistencia', 'borrador', 'depurar', 'glosa', 'cobro', 'ventana', 'habilitacion', 'renovacion'],
   operations: ['enviada', 'validacion', 'retiro', 'inconsistencia', 'configuracion', 'radicar', 'fiscal', 'tarea'], auditor: ['validacion', 'inconsistencia', 'retiro', 'diferencia'], capturer: ['configuracion', 'inconsistencia']
 };
@@ -46,7 +46,7 @@ export async function render(main, ctx) {
     paint($('#l', main), html`${groups.map(([k, r]) => html`<div class="card" style="margin-bottom:14px"><h2>${GROUPS[k]} · ${r.length}</h2><div class="list">
       ${r.sort((a, b) => ['critica', 'alta', 'media', 'info'].indexOf(a.severity) - ['critica', 'alta', 'media', 'info'].indexOf(b.severity) || String(a.due_on || '9').localeCompare(String(b.due_on || '9'))).map((i) => html`<div class="li">
         <span class="pill ${SEV[i.severity]?.[1] || ''}" style="min-width:64px;justify-content:center">${SEV[i.severity]?.[0] || i.severity}</span>
-        <div class="b"><div class="t1"><a href="${link(i)}">${i.title}</a>${i.mine ? html` <span class="pill info">Mío</span>` : ''}</div>
+        <div class="b"><div class="t1">${canOpen(link(i), ctx.role) ? html`<a href="${link(i)}">${i.title}</a>` : html`<b>${i.title}</b>`}${i.mine ? html` <span class="pill info">Mío</span>` : ''}</div>
           <div class="t2">${i.detail || ''}${i.client_name && isStaff(ctx.role) ? ` · ${i.client_name}` : ''}${i.due_on ? ` · ${date(i.due_on)}` : ''}</div></div>
         ${i.amount != null && Number(i.amount) > 0 ? html`<b class="small">${money(i.amount)}</b>` : ''}
         ${i.kind === 'tarea' && isStaff(ctx.role) ? html`<button class="btn sm" data-done="${i.entity_id}">Completar</button>` : ''}</div>`)}</div></div>`)}`);

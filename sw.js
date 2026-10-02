@@ -5,7 +5,7 @@
  * los datos de pacientes y cobros no quedan en caché.
  * Al publicar una versión nueva, cambia VERSION para renovar la caché.
  */
-const VERSION = 'sofa-shell-1.4.0';
+const VERSION = 'sofa-shell-1.4.1';
 const SHELL = [
   './', './index.html', './login.html', './manifest.json',
   './css/variables.css', './css/components.css', './css/app.css',
@@ -14,7 +14,7 @@ const SHELL = [
   './js/utils/dom.js', './js/utils/ui.js', './js/utils/formatters.js', './js/utils/validation.js', './js/utils/permissions.js',
   './js/services/stats.js', './js/services/catalog.js', './js/services/clients.js', './js/services/admin.js',
   './js/modules/dossier-card.js', './js/modules/prerad.js', './js/modules/requirements.js', './js/services/dossier.js',
-  './js/modules/capture.js', './js/modules/claims.js', './js/modules/claim.js', './js/modules/claim-dialogs.js', './js/modules/pickups.js', './js/modules/contracts.js', './js/services/claims.js',
+  './js/modules/fee-invoice.js', './js/modules/capture.js', './js/modules/claims.js', './js/modules/claim.js', './js/modules/claim-dialogs.js', './js/modules/pickups.js', './js/modules/contracts.js', './js/services/claims.js',
   './js/modules/home.js', './js/modules/clients.js', './js/modules/coding.js', './js/modules/ars.js', './js/modules/users.js',
   './js/modules/settings.js', './js/modules/profile.js', './js/modules/diagnostics.js', './js/modules/placeholder.js',
   './js/modules/client.js', './js/modules/contacts.js', './js/modules/crm-dialogs.js', './js/modules/leads.js', './js/modules/opportunity.js', './js/modules/partners.js', './js/modules/pipeline.js', './js/modules/tasks.js', './js/services/crm.js', './js/services/tasks.js', './js/utils/constants.js', './js/utils/whatsapp.js',

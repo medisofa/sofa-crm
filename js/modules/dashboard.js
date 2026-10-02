@@ -6,7 +6,7 @@ import { financialEvents, collectionDays, serviceMix, openBalances, feesInRange,
 import { filterBar } from '../utils/filters.js';
 import { barChart, hBars, progress } from '../utils/charts.js';
 import { money, num, period, date, todayISO } from '../utils/formatters.js';
-import { can, isStaff } from '../utils/permissions.js';
+import { can, isStaff, canOpen } from '../utils/permissions.js';
 
 const pct = (a, b) => (Number(b) > 0 ? Math.round((1000 * Number(a)) / Number(b)) / 10 : null);
 const pctTxt = (v) => (v == null ? '—' : `${v}%`);
@@ -65,10 +65,10 @@ export async function render(main, ctx) {
       <div class="card" style="margin-top:14px"><h2>Radicado y cobrado por mes</h2>${barChart({ labels: months.map((m) => period(`${m}-01`).replace(/ \d{4}$/, (y) => ` ${y.trim().slice(2)}`)), series: [
         { name: 'Radicado', color: 'var(--navy-2)', values: byMonth('radicado') }, { name: 'Cobrado', color: 'var(--ok)', values: byMonth('cobrado') }, { name: 'Glosado', color: 'var(--red)', values: byMonth('glosado') }] })}</div>
       <div class="grid two" style="margin-top:14px">
-        <div class="card"><h2>Antigüedad del saldo</h2><p class="sub">Días desde la radicación. <a href="#/aging">Ver detalle</a></p>${hBars(byBucket)}</div>
+        <div class="card"><h2>Antigüedad del saldo</h2><p class="sub">Días desde la radicación. ${canOpen('#/aging', ctx.role) ? html`<a href="#/aging">Ver detalle</a>` : ''}</p>${hBars(byBucket)}</div>
         <div class="card"><h2>Saldo por ARS</h2>${Object.keys(arsSaldo).length ? hBars(Object.entries(arsSaldo).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value]) => ({ label, value }))) : html`<p class="small muted">Sin saldos pendientes.</p>`}</div>
         <div class="card"><h2>Conceptos más facturados</h2><p class="sub">Monto de los servicios del período.</p>${Object.keys(mixBy).length ? hBars(Object.entries(mixBy).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value]) => ({ label, value }))) : html`<p class="small muted">Sin servicios en el período.</p>`}</div>
-        <div class="card"><h2>Lo más antiguo por cobrar</h2>${open.length ? html`<div class="list">${open.slice(0, 6).map((r) => html`<div class="li"><div class="b"><div class="t1"><a href="#/radicaciones/${r.id}" class="mono">${r.folio}</a> · ${r.ars_name}</div><div class="t2">${isStaff(ctx.role) ? `${r.client_name} · ` : ''}radicada ${date(r.submitted_on)} · ${r.age_days} días</div></div><b>${money(r.balance)}</b></div>`)}</div>` : html`<p class="small muted">Nada pendiente.</p>`}</div>
+        <div class="card"><h2>Lo más antiguo por cobrar</h2>${open.length ? html`<div class="list">${open.slice(0, 6).map((r) => html`<div class="li"><div class="b"><div class="t1">${canOpen('#/radicaciones', ctx.role) ? html`<a href="#/radicaciones/${r.id}" class="mono">${r.folio}</a>` : html`<span class="mono">${r.folio}</span>`} · ${r.ars_name}</div><div class="t2">${isStaff(ctx.role) ? `${r.client_name} · ` : ''}radicada ${date(r.submitted_on)} · ${r.age_days} días</div></div><b>${money(r.balance)}</b></div>`)}</div>` : html`<p class="small muted">Nada pendiente.</p>`}</div>
       </div>`);
   }
 

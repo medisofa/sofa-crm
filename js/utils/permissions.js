@@ -21,6 +21,12 @@ const OPS = ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'operatio
 const CAPTURE = ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'client', 'capturer'];
 const CLAIMS = [...CAPTURE, 'glosas', 'auditor'];
 const NO_OPS = (list) => list.filter((r) => r !== 'operations');
+/**
+ * Facturación (decisión 01/10/2026): solo trabaja en Trabajo de hoy, Dashboard, Captura rápida,
+ * Reclamaciones y Retiros físicos (más Mi perfil y Diagnóstico). Todo lo demás se le oculta aquí.
+ * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
+ */
+export const BILLING_ROUTES = ['hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico'];
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -80,13 +86,18 @@ export const NAV = [
   ]}
 ];
 
+// Aplica el alcance de Facturación a todo el menú (una sola regla, no ruta por ruta)
+NAV.forEach((g) => g.items.forEach((i) => { if (!BILLING_ROUTES.includes(i.route)) i.roles = i.roles.filter((r) => r !== 'billing'); }));
+
 export const allRoutes = () => NAV.flatMap((g) => g.items);
 export const findRoute = (r) => allRoutes().find((i) => i.route === r) || null;
 export const canSee = (route, role) => !!findRoute(route)?.roles.includes(role);
 export const visibleNav = (role) => NAV.map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(role)) })).filter((g) => g.items.length);
 export const isStaff = (role) => !!ROLES[role]?.staff;
+/** ¿Puede este rol abrir el enlace? (#/radicaciones/123 → módulo "radicaciones"). Para no mostrar enlaces que llevan a "Sin acceso". */
+export const canOpen = (href, role) => canSee(String(href || '').replace(/^#\/?/, '').split('/')[0], role);
 /** Ruta inicial por rol: el Capturador entra directo a la captura */
-export const homeRoute = (role) => (role === 'capturer' ? 'captura' : 'inicio');
+export const homeRoute = (role) => (role === 'capturer' ? 'captura' : role === 'billing' ? 'hoy' : 'inicio');
 /** Acciones de interfaz (espejo de la matriz de permisos de 003_rls.sql) */
 const ACTIONS = {
   'settings.edit': ['super_admin'],

@@ -8,7 +8,7 @@ import { html, render as paint, $ } from '../utils/dom.js';
 import { loadingView, emptyView, errorView, toast, friendlyError, busy } from '../utils/ui.js';
 import { money, date, dateTime } from '../utils/formatters.js';
 import { claimStatus, CLAIM_MOVE_LABELS, DISCREPANCY_STATUS, CARE_MODES } from '../utils/constants.js';
-import { can, isStaff } from '../utils/permissions.js';
+import { can, isStaff, canOpen } from '../utils/permissions.js';
 import { profileNames } from '../services/submissions.js';
 import { renderDossier } from './dossier-card.js';
 import {
@@ -20,6 +20,8 @@ const kv = (pairs) => html`<dl class="kv">${pairs.map(([k, v]) => html`<dt>${k}<
 const CHECKS = [['contracted', 'Servicio contratado para el médico con la ARS'], ['tariff', 'Monto igual a la tarifa contractual (o diferencia autorizada)'],
   ['ident', 'Paciente y NSS registrados'], ['auth', 'Autorización registrada'], ['code', 'Servicio con código SIMON / CUPS'], ['docs', 'Documentos obligatorios completos'],
   ['duplicate', 'Sin duplicados', true], ['date', 'Fecha del servicio válida']];
+/** Enlace solo si el rol puede abrir ese módulo; si no, el dato como texto */
+const lnk = (href, role, content, cls = '') => (canOpen(href, role) ? html`<a href="${href}" class="${cls}">${content}</a>` : html`<span class="${cls}">${content}</span>`);
 const careMode = (c) => CARE_MODES.find(([v]) => v === c)?.[1] || c;
 
 export async function render(main, ctx) {
@@ -78,7 +80,7 @@ export async function render(main, ctx) {
         <button class="btn" id="print">Imprimir</button>
       </div></div>
 
-    ${c.claim_status === 'pendiente_configuracion' ? html`<div class="note bad">Este servicio no está contratado para ${c.provider_name} con ${c.ars_name} en la fecha del servicio. Configure la tarifa en <a href="#/contratos">Tarifario contractual</a> y pulse “Volver a buscar contrato”, o autorice la excepción.</div>` : ''}
+    ${c.claim_status === 'pendiente_configuracion' ? html`<div class="note bad">Este servicio no está contratado para ${c.provider_name} con ${c.ars_name} en la fecha del servicio. Configure la tarifa en ${lnk('#/contratos', role, 'Tarifario contractual')} y pulse “Volver a buscar contrato”, o autorice la excepción.</div>` : ''}
     ${pendingDisc ? html`<div class="note warn">Diferencia tarifaria pendiente de autorizar: registrado ${money(pendingDisc.registered_amount)} vs. contrato ${money(pendingDisc.tariff_amount)} (${money(pendingDisc.diff_amount)}).
       ${can('claims.discrepancy', role) ? html` <button class="btn" data-decide="${pendingDisc.id}">Decidir</button>` : ''}</div>` : ''}
 
@@ -87,7 +89,7 @@ export async function render(main, ctx) {
         ${kv([['Ubicación actual', html`<b>${c.location_name || '—'}</b>`], ['Responsable', html`<b>${c.custodian_name || 'Sin responsable asignado'}</b>`],
           ['Estado', html`<span class="pill ${cls}">${lbl}</span> desde ${dateTime(c.status_changed_at)}`], ['Última acción', c.last_action ? html`${c.last_action}<div class="small muted">${dateTime(c.last_action_at)}</div>` : ''],
           ['Próximo paso', html`<b>${c.next_step}</b>`], ['¿Fue validada?', lastAudit ? html`${lastAudit.result === 'validada' ? '✓ Sí' : '✕ Con inconsistencia'} · ${who(lastAudit.auditor_id)} · ${dateTime(lastAudit.audited_at)}` : 'No'],
-          ['¿Fue radicada?', radicada ? html`Sí · lote <a href="#/radicaciones/${c.submission_id}" class="mono">${c.submission_folio}</a>` : html`No · lote <a href="#/radicaciones/${c.submission_id}" class="mono">${c.submission_folio}</a>`]])}
+          ['¿Fue radicada?', radicada ? html`Sí · lote ${lnk(`#/radicaciones/${c.submission_id}`, role, c.submission_folio, 'mono')}` : html`No · lote ${lnk(`#/radicaciones/${c.submission_id}`, role, c.submission_folio, 'mono')}`]])}
       </div>
       <div class="card"><h2>Servicio, códigos y contrato aplicado</h2>
         ${kv([['Servicio', c.service_name], ['Código SIMON', c.simon ? html`<span class="mono">${c.simon}</span>` : ''], ['Código CUPS', c.cups ? html`<span class="mono">${c.cups}</span>` : ''],
@@ -126,7 +128,7 @@ export async function render(main, ctx) {
         <div><h3 class="small">Reparto de pagos</h3>${pays.length ? html`<div class="list">${pays.map((p) => html`<div class="li" style="${p.superseded_at ? 'opacity:.55' : ''}"><div class="b">
           <div class="t1">${money(p.amount)} · ${p.method === 'automatico' ? 'Reparto proporcional' : p.method === 'manual' ? 'Ajuste manual' : 'Migrado'}${p.superseded_at ? ' · reemplazado' : ''}</div>
           <div class="t2">${date(p.payments?.paid_on)} · Ref. <span class="mono">${p.payments?.reference || '—'}</span>${p.reason ? ` · ${p.reason}` : ''}</div></div></div>`)}</div>` : html`<p class="small muted">Sin pagos aplicados.</p>`}</div>
-        <div><h3 class="small">Glosas</h3>${glosas.length ? html`<div class="list">${glosas.map((g) => html`<div class="li"><div class="b"><div class="t1"><a href="#/glosas/${g.glosa_id}">${money(g.amount)} · ${g.glosa_reasons?.name || g.reason_code}</a></div>
+        <div><h3 class="small">Glosas</h3>${glosas.length ? html`<div class="list">${glosas.map((g) => html`<div class="li"><div class="b"><div class="t1">${lnk(`#/glosas/${g.glosa_id}`, role, `${money(g.amount)} · ${g.glosa_reasons?.name || g.reason_code}`)}</div>
           <div class="t2">Notificada ${date(g.glosas?.notified_on)} · aceptada ${money(g.accepted_amount)} · recuperada ${money(g.recovered_amount)}</div></div></div>`)}</div>` : html`<p class="small muted">Sin glosas.</p>`}</div>
       </div></div>` : ''}
 
@@ -150,7 +152,7 @@ export async function render(main, ctx) {
       <div class="table-wrap"><table class="t"><thead><tr><th>#</th><th>Hito</th><th>Fecha</th><th class="n">Días desde el anterior</th><th class="n">Días desde la captura</th></tr></thead><tbody>
       ${timeline.map((t) => html`<tr style="${t.done_at ? '' : 'opacity:.5'}"><td>${t.step}</td><td>${t.done_at ? '✓ ' : '○ '}${t.label}</td><td>${t.done_at ? dateTime(t.done_at) : '—'}</td>
         <td class="n">${t.days_from_prev ?? '—'}</td><td class="n">${t.days_from_start ?? '—'}</td></tr>`)}</tbody></table></div>
-      ${resubs.length ? html`<h3 class="small" style="margin-top:12px">Reenvíos</h3><div class="list">${resubs.map((r) => html`<div class="li"><div class="b"><div class="t1">De <a class="mono" href="#/radicaciones/${r.from?.id}">${r.from?.folio}</a> a <a class="mono" href="#/radicaciones/${r.to?.id}">${r.to?.folio}</a> · ${dateTime(r.created_at)}</div><div class="t2">${r.reason}</div></div></div>`)}</div>` : ''}
+      ${resubs.length ? html`<h3 class="small" style="margin-top:12px">Reenvíos</h3><div class="list">${resubs.map((r) => html`<div class="li"><div class="b"><div class="t1">De ${lnk(`#/radicaciones/${r.from?.id}`, role, r.from?.folio, 'mono')} a ${lnk(`#/radicaciones/${r.to?.id}`, role, r.to?.folio, 'mono')} · ${dateTime(r.created_at)}</div><div class="t2">${r.reason}</div></div></div>`)}</div>` : ''}
     </div>` : ''}`);
     bind();
   }

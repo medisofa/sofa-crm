@@ -81,3 +81,12 @@ export async function recordInvoicePayment(inv, { paidOn, amount, method, refere
 }
 export async function setInvoiceNcf(id, ncf) { return must(await sb().from('sofa_invoices').update({ ncf }).eq('id', id).select('id').single()); }
 export async function voidInvoice(id, reason) { return must(await sb().rpc('void_sofa_invoice', { p_invoice: id, p_reason: reason })); }
+
+/** 1.4.1 · Documento completo de una factura de honorarios (emisor, cliente, conceptos, cobros) */
+export async function invoiceDocument(id) { return must(await sb().rpc('sofa_invoice_document', { p_invoice: id })); }
+/** Datos fiscales de SOFA (operador) y su edición (solo Super Admin) */
+export async function operatorProfile() { return must(await sb().rpc('operator_profile')); }
+export async function updateOperatorProfile(v) {
+  return must(await sb().rpc('update_operator_profile', { p_legal_name: v.legal_name, p_trade_name: v.trade_name || null, p_tax_id: v.tax_id || null,
+    p_address: v.address || null, p_city: v.city || null, p_phone: v.phone || null, p_email: v.email || null }));
+}

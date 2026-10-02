@@ -63,7 +63,8 @@ export async function render(main, ctx) {
 
   const draw = () => {
     drawTabs();
-    if (st.tab === 'resumen') return renderMarketSummary(body, ctx);
+    // Contenedor propio: si el usuario cambia de pestaña mientras el resumen carga, el resumen tardío no pisa la pestaña nueva
+    if (st.tab === 'resumen') { paint(body, html``); const pane = document.createElement('div'); body.appendChild(pane); return renderMarketSummary(pane, ctx); }
     if (st.tab === 'noticias') return drawNews();
     if (st.tab === 'competencia') return drawEntities();
     if (st.tab === 'ideas') return drawIdeas();
