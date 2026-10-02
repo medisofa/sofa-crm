@@ -13,7 +13,7 @@ import { money, date, dateTime, num, todayISO, period as periodLabel } from '../
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { isTaxId, isEmail, isPhone } from '../utils/validation.js';
-import { contactDialog, taskDialog } from './crm-dialogs.js';
+import { contactDialog, taskDialog, interactionDialog, activityExtra } from './crm-dialogs.js';
 import { taskList, taskAction, contactList } from './opportunity.js';
 
 const kv = (pairs) => html`<dl class="kv">${pairs.filter(([, v]) => v !== undefined).map(([k, v]) => html`<dt>${k}</dt><dd>${v || '—'}</dd>`)}</dl>`;
@@ -46,12 +46,14 @@ export async function render(main, ctx) {
       <div class="card"><h2>Prestadores</h2><p class="sub">Médicos o centros que facturan a las ARS bajo este cliente.</p>${editOrg ? html`<button class="btn sm" id="addProv">+ Prestador</button>` : ''}<div id="provs"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Códigos de prestador por ARS</h2><p class="sub">Sin código asignado, la ARS no paga. Lleva aquí las solicitudes pendientes.</p>${editCodes ? html`<button class="btn sm" id="addCode">+ Código ARS</button>` : ''}<div id="codes"></div></div>
       <div class="card"><h2>Contactos</h2>${crm ? html`<button class="btn sm" id="addContact">+ Contacto</button>` : ''}<div id="contacts"></div></div>
+      ${staff || ctx.role === 'client' ? html`<div class="card"><h2>Implementación (onboarding)</h2><p class="sub">9 pasos para dejar al cliente operando. Al completarlos pasa a Activo.</p><div id="onb"></div></div>
+      <div class="card"><h2>Documentos A–E</h2><p class="sub">Contrato, autorización, cartas y formulario, prellenados con los datos del cliente.</p><div id="cdocs"></div></div>` : ''}
       <div class="card" style="grid-column:1/-1"><h2>Radicaciones</h2><p class="sub">Las más recientes de este cliente.</p>${can('subs.create', ctx.role) ? html`<button class="btn sm" id="addSub">+ Nueva radicación</button> ` : ''}<a class="btn sm" href="#/radicaciones">Ver todas</a><div id="subs" style="margin-top:8px"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Tarifas negociadas</h2><p class="sub">Tarifas pactadas por sus prestadores con cada ARS. Tienen prioridad sobre la tarifa general.</p>${can('tariffs.edit', ctx.role) ? html`<button class="btn sm" id="addNeg">+ Tarifa negociada</button>` : ''}<div id="neg" style="margin-top:8px"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Habilitación MISPAS</h2>${can('hab.edit', ctx.role) ? html`<button class="btn sm" id="addHab">+ Caso de habilitación</button>` : ''}<div id="habs" style="margin-top:8px"></div></div>
       ${staff ? html`<div class="card"><h2>Oportunidades con este cliente</h2><p class="sub">Venta cruzada: codificación, glosas, habilitación…</p>${crm ? html`<button class="btn sm" id="addOpp">+ Oportunidad</button>` : ''}<div id="opps"></div></div>
       <div class="card"><h2>Tareas</h2>${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea</button>` : ''}<div id="tasks"></div></div>
-      <div class="card"><h2>Historial</h2>${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
+      <div class="card"><h2>Historial</h2>${crm ? html`<button class="btn sm" id="fullAct" style="margin-bottom:8px">+ Interacción completa</button>` : ''}${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
       ${editOrg ? html`<div class="card" style="grid-column:1/-1"><h2>Acceso del cliente a SOFA</h2><p class="sub">Para que el médico o su secretaria vean sus radicaciones, pagos y glosas: 1) crea su usuario en Supabase (Authentication › Users › Add user, con Auto Confirm); 2) ejecuta esta línea en el SQL Editor, cambiando el correo.</p>
         <pre class="mono" id="grantSql" style="white-space:pre-wrap;background:var(--surface-2);padding:10px;border-radius:6px;margin:0 0 10px">select app.grant_role('correo.del.cliente@gmail.com', 'client', '${org.id}');</pre>
         <button class="btn sm" id="copyGrant" type="button">Copiar</button> <span class="small muted">Id de este cliente: <span class="mono">${org.id}</span></span></div>` : ''}
@@ -87,7 +89,7 @@ export async function render(main, ctx) {
   // ---- Prestadores
   let providers = [];
   const provBox = $('#provs', main);
-  const loadProv = () => loadInto(provBox, async () => { providers = await listProviders(org.id); return providers; }, (list) => html`<div class="list">${list.map((p) => html`<div class="li"><div class="b"><div class="t1">${p.full_name}${p.is_active ? '' : html` <span class="pill">Inactivo</span>`}</div>
+  const loadProv = () => loadInto(provBox, async () => { providers = await listProviders(org.id); return providers; }, (list) => html`<div class="list">${list.map((p) => html`<div class="li"><div class="b"><div class="t1"><a href="#/medicos/${p.id}">${p.full_name}</a>${p.is_active ? '' : html` <span class="pill">Inactivo</span>`}</div>
     <div class="t2">${[PROVIDER_TYPES[p.provider_type], p.specialty, p.exequatur ? `Exequátur ${p.exequatur}` : null, p.tax_id].filter(Boolean).join(' · ')}</div></div>${editOrg ? html`<button class="btn sm" data-prov="${p.id}">Editar</button>` : ''}</div>`)}</div>`,
   { empty: () => emptyView('Sin prestadores', editOrg ? 'Agrega al menos uno: las radicaciones se hacen a nombre de un prestador.' : '') });
   const provDialog = async (p = null) => {
@@ -141,7 +143,7 @@ export async function render(main, ctx) {
   // ---- Contactos
   const cBox = $('#contacts', main);
   const loadContacts = () => loadInto(cBox, () => listContacts({ organizationId: org.id }), contactList, { empty: () => emptyView('Sin contactos') });
-  $('#addContact', main)?.addEventListener('click', async () => { if (await contactDialog(ctx, { organizationId: org.id, label: org.legal_name })) loadContacts(); });
+  $('#addContact', main)?.addEventListener('click', async () => { if (await contactDialog(ctx, { organizationId: org.id, label: org.legal_name, providers })) loadContacts(); });
 
   loadProv(); loadCodes(); loadContacts();
   if (!staff) return;
@@ -165,9 +167,19 @@ export async function render(main, ctx) {
   $('#addTask', main)?.addEventListener('click', async () => { if (await taskDialog(ctx, entity)) loadTasks(); });
   tBox.addEventListener('click', (e) => taskAction(e, loadTasks));
 
+  // ---- 1.5 · Implementación y documentos A–E (se cargan cuando ya se conocen los prestadores)
+  if ($('#onb', main)) {
+    const cc = await import('./client-commercial.js');
+    cc.renderOnboarding($('#onb', main), org, ctx, (activated) => { if (activated) location.reload(); });
+    listProviders(org.id).then((pv) => cc.renderCommercialDocs($('#cdocs', main), org, ctx, pv)).catch(() => cc.renderCommercialDocs($('#cdocs', main), org, ctx, []));
+  }
+  $('#fullAct', main)?.addEventListener('click', async () => {
+    try { if (await interactionDialog(ctx, { entityType: 'organization', entityId: org.id, organizationId: org.id })) { toast('Interacción registrada', 'ok'); loadActs(); } }
+    catch (err) { toast(friendlyError(err), 'bad'); }
+  });
   // ---- Historial (todas las actividades del cliente)
   const aBox = $('#acts', main);
-  const loadActs = () => loadInto(aBox, () => listActivities({ organizationId: org.id }), (list) => html`<div class="list">${list.map((a) => html`<div class="li"><div class="b"><div class="t1">${ACTIVITY_TYPES[a.activity_type] || a.activity_type} · <span class="small muted">${dateTime(a.occurred_at)}</span></div><div class="t2">${a.body}</div></div></div>`)}</div>`, { empty: () => emptyView('Sin historial') });
+  const loadActs = () => loadInto(aBox, () => listActivities({ organizationId: org.id }), (list) => html`<div class="list">${list.map((a) => html`<div class="li"><div class="b"><div class="t1">${ACTIVITY_TYPES[a.activity_type] || a.activity_type} · <span class="small muted">${dateTime(a.occurred_at)}</span></div><div class="t2">${a.body}</div>${activityExtra(a) ? html`<div class="t2">${activityExtra(a)}</div>` : ''}</div></div>`)}</div>`, { empty: () => emptyView('Sin historial') });
   $('#fa', main)?.addEventListener('submit', async (e) => {
     e.preventDefault(); const f = e.target; const body = f.body.value.trim();
     if (body.length < 3) { toast('Escribe qué pasó.', 'bad'); return; }

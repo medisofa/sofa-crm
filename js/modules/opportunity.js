@@ -8,7 +8,7 @@ import { money, date, dateTime, num } from '../utils/formatters.js';
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
 import { can } from '../utils/permissions.js';
 import { moveTo } from './pipeline.js';
-import { taskDialog, contactDialog } from './crm-dialogs.js';
+import { taskDialog, contactDialog, interactionDialog, activityExtra } from './crm-dialogs.js';
 import { isEmail, isPhone } from '../utils/validation.js';
 
 export async function render(main, ctx) {
@@ -57,7 +57,7 @@ export async function render(main, ctx) {
         </div>${edit ? html`<button class="btn primary" type="submit">Guardar prospecto</button>` : ''}</form></div>` : ''}
       <div class="card"><h2>Diagnóstico de fugas</h2><p class="sub">Cuánto dinero pierde hoy el prospecto: la base del cierre ("se paga con lo que hoy pierde").</p><div id="diag"></div></div>
       <div class="card"><h2>Actividad</h2>
-        ${edit ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select>
+        ${edit ? html`<button class="btn sm" id="fullAct" style="margin-bottom:8px">+ Interacción completa</button>` : ''}${edit ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select>
           <label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Qué pasó y qué se acordó" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}
         <div id="acts" class="timeline"></div></div>
       <div class="card"><h2>Tareas</h2>${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea</button>` : ''}<div id="tasks"></div></div>
@@ -65,7 +65,7 @@ export async function render(main, ctx) {
     </div>`);
 
   // Cambio de etapa
-  $('#stageSel', main)?.addEventListener('change', async (e) => { const ok = await moveTo(o, e.target.value, ctx); if (ok && e.target.value !== 'cliente') render(main, ctx); else if (!ok) e.target.value = o.stage; });
+  $('#stageSel', main)?.addEventListener('change', async (e) => { const ok = await moveTo(o, e.target.value, ctx); if (ok && !location.hash.startsWith('#/clientes/')) render(main, ctx); else if (!ok) e.target.value = o.stage; });
   // Guardar oportunidad
   $('#fo', main)?.addEventListener('submit', async (e) => {
     e.preventDefault(); const f = e.target; const v = Object.fromEntries(new FormData(f));
@@ -124,7 +124,11 @@ export async function render(main, ctx) {
 
   // Actividad
   const actsBox = $('#acts', main);
-  const loadActs = () => loadInto(actsBox, () => listActivities({ entityType: 'opportunity', entityId: o.id }), (list) => html`<div class="list">${list.map((a) => html`<div class="li"><div class="b"><div class="t1">${ACTIVITY_TYPES[a.activity_type] || a.activity_type} · <span class="small muted">${dateTime(a.occurred_at)}</span></div><div class="t2">${a.body}</div></div></div>`)}</div>`, { empty: () => emptyView('Sin actividad registrada') });
+  const loadActs = () => loadInto(actsBox, () => listActivities({ entityType: 'opportunity', entityId: o.id }), (list) => html`<div class="list">${list.map((a) => html`<div class="li"><div class="b"><div class="t1">${ACTIVITY_TYPES[a.activity_type] || a.activity_type} · <span class="small muted">${dateTime(a.occurred_at)}</span></div><div class="t2">${a.body}</div>${activityExtra(a) ? html`<div class="t2">${activityExtra(a)}</div>` : ''}</div></div>`)}</div>`, { empty: () => emptyView('Sin actividad registrada') });
+  $('#fullAct', main)?.addEventListener('click', async () => {
+    try { if (await interactionDialog(ctx, { entityType: 'opportunity', entityId: o.id, organizationId: o.organization_id || null })) { toast('Interacción registrada', 'ok'); loadActs(); } }
+    catch (err) { toast(friendlyError(err), 'bad'); }
+  });
   $('#fa', main)?.addEventListener('submit', async (e) => {
     e.preventDefault(); const f = e.target; const body = f.body.value.trim();
     if (body.length < 3) { f.body.focus(); toast('Escribe qué pasó.', 'bad'); return; }

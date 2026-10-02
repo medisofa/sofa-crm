@@ -1,14 +1,19 @@
 /** SOFA · Catálogos de interfaz (espejo de las restricciones CHECK de la base de datos) */
-export const STAGES = [
+export const STAGES = [   // 1.5: 10 etapas del proceso real (los códigos de la base de datos se conservan)
   { code: 'prospecto', label: 'Prospecto', prob: 10 },
   { code: 'contactado', label: 'Contactado', prob: 20 },
-  { code: 'reunion', label: 'Reunión', prob: 35 },
-  { code: 'evaluacion', label: 'Evaluación', prob: 45 },
+  { code: 'reunion', label: 'Presentación', prob: 35 },
+  { code: 'evaluacion', label: 'Seguimiento', prob: 45 },
   { code: 'propuesta', label: 'Propuesta', prob: 60 },
   { code: 'negociacion', label: 'Negociación', prob: 75 },
-  { code: 'cliente', label: 'Cliente', prob: 100 },
+  { code: 'acuerdo', label: 'Acuerdo', prob: 85 },
+  { code: 'contratado', label: 'Contratado', prob: 95 },
+  { code: 'implementacion', label: 'Implementación', prob: 98 },
+  { code: 'cliente', label: 'Activo', prob: 100 },
   { code: 'perdido', label: 'Perdido', prob: 0 }
 ];
+/** Etapas posteriores a la firma: exigen que el prospecto ya sea cliente */
+export const POST_SALE_STAGES = ['contratado', 'implementacion', 'cliente'];
 export const stageLabel = (c) => STAGES.find((s) => s.code === c)?.label || c;
 export const OPEN_STAGES = STAGES.filter((s) => !['cliente', 'perdido'].includes(s.code)).map((s) => s.code);
 export const SOURCES = ['Instagram', 'WhatsApp Business', 'Referido contador', 'Charla sociedad médica', 'Red existente', 'Cliente actual (venta cruzada)', 'Otro'];
@@ -23,7 +28,12 @@ export const ORG_TYPES = ['Médico independiente', 'Consultorio', 'Centro médic
 export const ORG_STATUS = { incorporacion: ['Incorporación', 'info'], activo: ['Activo', 'ok'], suspendido: ['Suspendido', 'warn'], inactivo: ['Inactivo', ''] };
 export const PROVIDER_TYPES = { medico: 'Médico', centro: 'Centro', laboratorio: 'Laboratorio', otro: 'Otro' };
 export const CODE_STATUS = { sin_codigo: ['Sin código', 'bad'], solicitado: ['Solicitado', 'warn'], codificado: ['Codificado', 'ok'] };
-export const ACTIVITY_TYPES = { llamada: 'Llamada', whatsapp: 'WhatsApp', correo: 'Correo', reunion: 'Reunión', nota: 'Nota', sistema: 'Sistema' };
+export const ACTIVITY_TYPES = { presencial: 'Visita presencial', llamada: 'Llamada', whatsapp: 'WhatsApp', correo: 'Correo', videollamada: 'Videollamada', reunion: 'Reunión', nota: 'Nota', sistema: 'Sistema' };
+/** 1.5 · Documentos comerciales A–E */
+export const COMMERCIAL_DOCS = { A: 'Contrato de servicios SOFA', B: 'Autorización de representación', C: 'Carta de presentación a la clínica', D: 'Carta de representación ante ARS', E: 'Formulario de implementación' };
+export const COMMERCIAL_DOC_TYPE = { A: 'contrato_sofa', B: 'autorizacion_representacion', C: 'carta_clinica', D: 'carta_ars', E: 'formulario_implementacion' };
+export const COMMERCIAL_DOC_STATUS = { generado: ['Generado', 'info'], enviado: ['Enviado', 'warn'], entregado: ['Entregado', 'ok'], firmado: ['Firmado', 'ok'], anulado: ['Anulado', 'bad'] };
+export const CONTACT_ROLES = { medico: 'Médico', secretaria: 'Secretaria / asistente', administrador: 'Administrador', contador: 'Contador', otro: 'Otro' };
 export const PRIORITIES = { alta: ['Alta', 'bad'], media: ['Media', 'warn'], baja: ['Baja', ''] };
 export const PARTNER_TYPES = ['Contador', 'Administrador de centro', 'Médico', 'Otro'];
 export const LOST_REASONS = ['Precio', 'Eligió otro gestor', 'No es el momento', 'Lo hace su personal interno', 'Sin respuesta', 'Otro'];

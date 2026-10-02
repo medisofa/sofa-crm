@@ -56,17 +56,36 @@ export async function addDiagnostic(operatorId, { leadId, organizationId }, v) {
 
 // ---- Actividades
 export async function listActivities({ entityType, entityId, organizationId }) {
-  let q = sb().from('activities').select('id, entity_type, entity_id, activity_type, body, occurred_at, created_by').order('occurred_at', { ascending: false }).limit(100);
+  let q = sb().from('activities').select('id, entity_type, entity_id, activity_type, body, occurred_at, created_by, outcome, next_step, next_step_date, contact_person, documents_sent').order('occurred_at', { ascending: false }).limit(100);
   q = organizationId ? q.eq('organization_id', organizationId) : q.eq('entity_type', entityType).eq('entity_id', entityId);
   return must(await q);
 }
-export async function addActivity(operatorId, { entityType, entityId, organizationId = null }, type, body) {
-  return must(await sb().from('activities').insert({ operator_id: operatorId, organization_id: organizationId, entity_type: entityType, entity_id: entityId, activity_type: type, body }).select('id').single());
+export async function addActivity(operatorId, { entityType, entityId, organizationId = null }, type, body, extra = {}) {
+  return must(await sb().from('activities').insert({ operator_id: operatorId, organization_id: organizationId, entity_type: entityType, entity_id: entityId, activity_type: type, body,
+    outcome: extra.outcome || null, next_step: extra.nextStep || null, next_step_date: extra.nextStepDate || null, contact_person: extra.contactPerson || null,
+    documents_sent: extra.documentsSent || [] }).select('id').single());
 }
+
+// ---- 1.5 · Onboarding, documentos A–E, activación y Médico 360
+export async function onboardingStatus(orgId) { return must(await sb().rpc('onboarding_status', { p_org: orgId })); }
+export async function setOnboardingStep(orgId, step, done, notes) { return must(await sb().rpc('set_onboarding_step', { p_org: orgId, p_step: step, p_done: done, p_notes: notes || null })); }
+export async function activateClient(orgId, override = null) { return must(await sb().rpc('activate_client', { p_org: orgId, p_override: override })); }
+export async function listCommercialDocs(orgId) {
+  return must(await sb().from('commercial_documents').select('id, template_code, template_version, title, status, status_changed_at, created_at, provider_id, ars_id, signed_document_id, ars(name), providers(full_name)')
+    .eq('organization_id', orgId).order('created_at', { ascending: false }));
+}
+export async function getCommercialDoc(id) { return must(await sb().from('commercial_documents').select('*').eq('id', id).single()); }
+export async function generateCommercialDoc(orgId, code, providerId = null, arsId = null) {
+  return must(await sb().rpc('generate_commercial_document', { p_org: orgId, p_code: code, p_provider: providerId || null, p_ars: arsId || null }));
+}
+export async function setCommercialDocStatus(id, status, signedDocumentId = null) {
+  return must(await sb().rpc('set_commercial_document_status', { p_id: id, p_status: status, p_signed_document: signedDocumentId }));
+}
+export async function provider360(id) { return must(await sb().rpc('provider_360', { p_provider: id })); }
 
 // ---- Contactos
 export async function listContacts({ q = '', leadId = null, organizationId = null } = {}) {
-  let query = sb().from('contacts').select('id, full_name, role_title, phone, whatsapp, email, is_primary, lead_id, organization_id, leads(company), organizations!contacts_organization_id_fkey(legal_name)');
+  let query = sb().from('contacts').select('id, full_name, role_title, phone, whatsapp, email, is_primary, lead_id, organization_id, contact_role, provider_id, clinic_name, inducted_on, leads(company), organizations!contacts_organization_id_fkey(legal_name)');
   if (leadId) query = query.eq('lead_id', leadId);
   if (organizationId) query = query.eq('organization_id', organizationId);
   if (q) query = query.ilike('full_name', `%${clean(q)}%`);
@@ -75,6 +94,7 @@ export async function listContacts({ q = '', leadId = null, organizationId = nul
 export async function saveContact(operatorId, v, id = null) {
   const row = { full_name: v.full_name.trim(), role_title: v.role_title || null, phone: v.phone || null, whatsapp: v.whatsapp ? v.whatsapp.replace(/\D/g, '') : null,
     email: v.email ? v.email.trim().toLowerCase() : null, is_primary: !!v.is_primary };
+  if ('contact_role' in v) Object.assign(row, { contact_role: v.contact_role || 'otro', provider_id: v.provider_id || null, clinic_name: v.clinic_name?.trim() || null, inducted_on: v.inducted_on || null });
   if (id) return must(await sb().from('contacts').update(row).eq('id', id).select('id').single());
   return must(await sb().from('contacts').insert({ ...row, operator_id: operatorId, lead_id: v.lead_id || null, organization_id: v.lead_id ? null : (v.organization_id || null) }).select('id').single());
 }

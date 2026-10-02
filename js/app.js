@@ -17,7 +17,7 @@ const state = { session: null, profile: null, memberships: [], membership: null,
 
 function fatal(title, text, actions = '') {
   render(app, html`<div class="auth-wrap"><div class="auth-card" role="alert">
-    <div class="logo"><img src="assets/icons/icon-192.png" alt=""><div><b>SOFA</b><span>Soluciones de Facturación Médica</span></div></div>
+    <div class="logo"><img class="logo-full" src="assets/brand/sofa-logo.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
     <h1>${title}</h1><p class="lead">${text}</p>${actions}</div></div>`);
 }
 
@@ -65,7 +65,7 @@ function layout() {
   <a class="skip" href="#main">Saltar al contenido</a>
   <div class="app">
     <aside class="sidebar" id="sidebar" aria-label="Menú principal">
-      <div class="brand"><img src="assets/icons/icon-192.png" alt=""><div><b>SOFA</b><small>Soluciones de Facturación Médica</small></div></div>
+      <div class="brand"><img class="logo-full" src="assets/brand/sofa-logo-white.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
       <nav class="nav" id="nav"></nav>
       <div class="side-foot">v${APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
     </aside>

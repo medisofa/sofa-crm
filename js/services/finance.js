@@ -79,7 +79,9 @@ export async function generateInvoices(period, dueDays = 15) { return must(await
 export async function recordInvoicePayment(inv, { paidOn, amount, method, reference }) {
   return must(await sb().from('sofa_invoice_payments').insert({ sofa_invoice_id: inv.id, organization_id: inv.organization_id, paid_on: paidOn, amount, method, reference: reference || null }).select('id').single());
 }
-export async function setInvoiceNcf(id, ncf) { return must(await sb().from('sofa_invoices').update({ ncf }).eq('id', id).select('id').single()); }
+/** 1.5: valida formato, que no se repita y el vencimiento de la secuencia (public.set_sofa_invoice_ncf) */
+export async function setInvoiceNcf(id, ncf, validUntil = null) { must(await sb().rpc('set_sofa_invoice_ncf', { p_invoice: id, p_ncf: ncf, p_valid_until: validUntil || null })); return true; }   // la función no devuelve datos: el diálogo necesita una confirmación
+export async function setInvoiceNcfLegacy(id, ncf) { return must(await sb().from('sofa_invoices').update({ ncf }).eq('id', id).select('id').single()); }
 export async function voidInvoice(id, reason) { return must(await sb().rpc('void_sofa_invoice', { p_invoice: id, p_reason: reason })); }
 
 /** 1.4.1 · Documento completo de una factura de honorarios (emisor, cliente, conceptos, cobros) */
@@ -88,5 +90,6 @@ export async function invoiceDocument(id) { return must(await sb().rpc('sofa_inv
 export async function operatorProfile() { return must(await sb().rpc('operator_profile')); }
 export async function updateOperatorProfile(v) {
   return must(await sb().rpc('update_operator_profile', { p_legal_name: v.legal_name, p_trade_name: v.trade_name || null, p_tax_id: v.tax_id || null,
-    p_address: v.address || null, p_city: v.city || null, p_phone: v.phone || null, p_email: v.email || null }));
+    p_address: v.address || null, p_city: v.city || null, p_phone: v.phone || null, p_email: v.email || null,
+    p_bank_name: v.bank_name || null, p_bank_account_type: v.bank_account_type || null, p_bank_account: v.bank_account || null, p_bank_holder: v.bank_holder || null, p_terms: v.terms || null }));
 }

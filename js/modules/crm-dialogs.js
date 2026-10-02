@@ -1,9 +1,9 @@
 /** SOFA · Diálogos reutilizables del CRM */
 import { html, render as paint, raw } from '../utils/dom.js';
 import { formDialog, opt, requireFields, fieldError, toast } from '../utils/ui.js';
-import { SOURCES, SERVICES, ORG_TYPES, PARTNER_TYPES, LOST_REASONS, PRIORITIES, STAGES, stageLabel } from '../utils/constants.js';
+import { SOURCES, SERVICES, ORG_TYPES, PARTNER_TYPES, LOST_REASONS, PRIORITIES, STAGES, stageLabel, ACTIVITY_TYPES, COMMERCIAL_DOCS, CONTACT_ROLES } from '../utils/constants.js';
 import { isEmail, isTaxId, isPhone } from '../utils/validation.js';
-import { newProspect, findDuplicates, convertOpportunity, activePartners, listStaff, saveContact, savePartner } from '../services/crm.js';
+import { newProspect, findDuplicates, convertOpportunity, activePartners, listStaff, saveContact, savePartner, addActivity } from '../services/crm.js';
 import { createTask } from '../services/tasks.js';
 import { createClient } from '../services/clients.js';
 import { todayISO, money } from '../utils/formatters.js';
@@ -88,7 +88,7 @@ export function convertDialog(opp) {
       if (!requireFields(form, ['legal_name', 'org_type'])) return false;
       if (v.tax_id && !isTaxId(v.tax_id)) { fieldError(form.elements.tax_id, 'El RNC lleva 9 dígitos y la cédula 11.'); return false; }
       const orgId = await convertOpportunity(opp.id, v);
-      toast('Cliente creado. Completa sus prestadores y códigos ARS.', 'ok');
+      toast('Cliente contratado: su implementación (onboarding de 9 pasos) ya está abierta.', 'ok');
       return orgId;
     }
   });
@@ -156,6 +156,10 @@ export function contactDialog(ctx, parent, contact = null) {
       ${f('whatsapp', 'WhatsApp', text('whatsapp', c.whatsapp, 'inputmode="tel"'))}
       ${f('phone', 'Teléfono', text('phone', c.phone, 'inputmode="tel"'))}
       ${f('email', 'Correo', text('email', c.email, 'type="email"'))}
+      ${parent?.organizationId ? html`${f('contact_role', 'Rol', html`<select id="f_contact_role" name="contact_role">${Object.entries(CONTACT_ROLES).map(([k, l]) => opt(k, l, c.contact_role || 'otro'))}</select>`)}
+      ${parent?.providers?.length ? f('provider_id', 'Médico al que asiste', html`<select id="f_provider_id" name="provider_id"><option value="">—</option>${parent.providers.map((p) => opt(p.id, p.full_name, c.provider_id))}</select>`) : ''}
+      ${f('clinic_name', 'Clínica o consultorio', text('clinic_name', c.clinic_name, 'maxlength="120"'))}
+      ${f('inducted_on', 'Fecha de inducción en SOFA', text('inducted_on', c.inducted_on, 'type="date"'), 'Secretaria: cuándo recibió la capacitación para registrar reclamaciones')}` : ''}
       </div><label class="check small"><input type="checkbox" name="is_primary" ${c.is_primary ? raw('checked') : ''}> Contacto principal</label>`,
     onSubmit: async (v, form) => {
       if (!requireFields(form, ['full_name']) || !checkContactFields(form)) return false;
@@ -188,3 +192,29 @@ export function partnerDialog(ctx, p = null) {
 
 export const stageOptions = (selected) => STAGES.map((s) => opt(s.code, s.label, selected));
 export { stageLabel, money };
+
+/** 1.5 · Interacción completa: canal, persona contactada, resultado, próximo paso y documentos enviados (A–E) */
+export function interactionDialog(ctx, entity) {
+  return formDialog({
+    title: 'Registrar interacción', submitLabel: 'Registrar', wide: true,
+    body: html`<div class="form-grid">
+      <div class="field"><label for="i_type">Canal *</label><select id="i_type" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'presencial'))}</select></div>
+      <div class="field"><label for="i_who">Persona contactada</label><input id="i_who" name="who" maxlength="120"></div>
+      <div class="field" style="grid-column:1/-1"><label for="i_body">Qué se habló *</label><textarea id="i_body" name="body" rows="3" class="input" maxlength="2000"></textarea></div>
+      <div class="field" style="grid-column:1/-1"><label for="i_out">Resultado</label><input id="i_out" name="outcome" maxlength="300" placeholder="Interesado, pide propuesta, no por ahora…"></div>
+      <div class="field"><label for="i_next">Próximo paso</label><input id="i_next" name="next" maxlength="200"></div>
+      <div class="field"><label for="i_date">Fecha del próximo paso</label><input id="i_date" name="date" type="date"></div>
+      <fieldset class="field" style="grid-column:1/-1;border:0;padding:0"><legend class="small" style="font-weight:600">Documentos enviados</legend>
+        ${Object.entries(COMMERCIAL_DOCS).map(([k, l]) => html`<label class="check" style="display:inline-flex;margin-right:14px"><input type="checkbox" name="doc_${k}"> ${k} · ${l}</label>`)}</fieldset></div>`,
+    onSubmit: async (d, form) => {
+      if ((d.body || '').trim().length < 3) { fieldError(form.elements.body, 'Describe la interacción'); return false; }
+      if (d.date && !(d.next || '').trim()) { fieldError(form.elements.next, 'Indica el próximo paso'); return false; }
+      const docs = Object.keys(COMMERCIAL_DOCS).filter((k) => d[`doc_${k}`]);
+      return addActivity(ctx.operatorId, entity, d.type, d.body.trim(), { outcome: d.outcome?.trim(), nextStep: d.next?.trim(), nextStepDate: d.date || null, contactPerson: d.who?.trim(), documentsSent: docs });
+    }
+  });
+}
+/** Detalle extra de una interacción para el historial */
+export const activityExtra = (a) => [a.contact_person && `con ${a.contact_person}`, a.outcome && `Resultado: ${a.outcome}`,
+  a.next_step && `Próximo paso: ${a.next_step}${a.next_step_date ? ` (${a.next_step_date.split('-').reverse().join('/')})` : ''}`,
+  a.documents_sent?.length && `Documentos: ${a.documents_sent.join(', ')}`].filter(Boolean).join(' · ');

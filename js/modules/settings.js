@@ -64,12 +64,20 @@ async function drawOperator(main, editable) {
     <p class="sub">Aparecen como emisor en las facturas de honorarios.${o.tax_id ? '' : ' <b>Falta el RNC.</b>'}</p>
     <div class="form-grid">${f('legal_name', 'Razón social *', 'maxlength="150"')}${f('trade_name', 'Nombre comercial', 'maxlength="80"')}${f('tax_id', 'RNC', 'maxlength="13" inputmode="numeric"')}
       ${f('address', 'Dirección', 'maxlength="200"')}${f('city', 'Ciudad', 'maxlength="60"')}${f('phone', 'Teléfono', 'maxlength="20"')}${f('email', 'Correo de facturación', 'type="email" maxlength="120"')}</div>
+    <h3 class="small" style="margin-top:12px">Forma de pago que sale en la factura</h3>
+    <div class="form-grid">${f('bank_name', 'Banco', 'maxlength="60" placeholder="Banco Popular Dominicano"')}
+      <div class="field"><label for="op_bank_account_type">Tipo de cuenta</label><select id="op_bank_account_type" name="bank_account_type" ${editable ? '' : 'disabled'}>
+        ${['', 'Corriente', 'Ahorros'].map((t) => html`<option value="${t}" ${o.bank_account_type === t ? 'selected' : ''}>${t || 'Seleccione…'}</option>`)}</select></div>
+      ${f('bank_account', 'Número de cuenta', 'maxlength="24" inputmode="numeric"')}${f('bank_holder', 'A nombre de', 'maxlength="120"')}</div>
+    <div class="field"><label for="op_terms">Condiciones de pago</label><textarea id="op_terms" name="terms" rows="2" class="input" maxlength="400" ${editable ? '' : 'disabled'}>${o.terms || ''}</textarea></div>
     ${editable ? html`<div><button class="btn primary" type="submit">Guardar datos fiscales</button></div>` : ''}</form>`);
   $('#opf', box).addEventListener('submit', (e) => {
     e.preventDefault(); const form = e.target; const v = Object.fromEntries(new FormData(form).entries());
     if ((v.legal_name || '').trim().length < 3) { fieldError(form.elements.legal_name, 'Indique la razón social'); return; }
     const tax = (v.tax_id || '').replace(/\D/g, '');
     if (tax && !/^(\d{9}|\d{11})$/.test(tax)) { fieldError(form.elements.tax_id, 'RNC de 9 dígitos o cédula de 11'); return; }
+    const acc = (v.bank_account || '').replace(/[\s-]/g, '');
+    if (acc && !/^\d{6,20}$/.test(acc)) { fieldError(form.elements.bank_account, 'Solo dígitos (6 a 20)'); return; }
     busy(e.submitter, async () => { try { await updateOperatorProfile(v); toast('Datos fiscales de SOFA guardados', 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } });
   });
 }

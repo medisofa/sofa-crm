@@ -2,7 +2,7 @@
 import { html, render as paint, raw, $ } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt } from '../utils/ui.js';
 import { listOpportunities, listStaff, updateOpportunity } from '../services/crm.js';
-import { STAGES, OPEN_STAGES, SERVICES, serviceName, stageLabel } from '../utils/constants.js';
+import { STAGES, OPEN_STAGES, SERVICES, serviceName, stageLabel, POST_SALE_STAGES } from '../utils/constants.js';
 import { money, num, date } from '../utils/formatters.js';
 import { can } from '../utils/permissions.js';
 import { newProspectDialog, lostDialog, convertDialog } from './crm-dialogs.js';
@@ -95,9 +95,16 @@ export async function moveTo(o, stage, ctx) {
   try {
     if (stage === o.stage) return false;
     if (stage === 'perdido') { const reason = await lostDialog(); if (!reason) return false; await updateOpportunity(o.id, { stage, lost_reason: reason }); toast('Oportunidad marcada como perdida'); return true; }
-    if (stage === 'cliente' && o.lead_id && !o.converted_org_id) {
-      if (!can('crm.convert', ctx.role)) { toast('Solo un administrador convierte oportunidades en clientes. Deja la oportunidad en Negociación y avísale.', 'bad'); return false; }
+    // 1.5: firmar convierte el prospecto en cliente (Contratado) y abre su onboarding; "Activo" se logra desde la ficha del cliente
+    if (POST_SALE_STAGES.includes(stage) && o.lead_id && !o.converted_org_id && !o.organization_id) {
+      if (!can('crm.convert', ctx.role)) { toast('Solo un administrador convierte oportunidades en clientes. Deja la oportunidad en Acuerdo y avísale.', 'bad'); return false; }
       const orgId = await convertDialog(o); if (orgId) location.hash = `#/clientes/${orgId}`; return !!orgId;
+    }
+    if (stage === 'cliente') {
+      const org = o.organization_id || o.converted_org_id;
+      toast('El cliente pasa a Activo desde su ficha › Implementación, al completar el onboarding.', 'bad');
+      if (org) location.hash = `#/clientes/${org}`;
+      return false;
     }
     await updateOpportunity(o.id, { stage });
     toast(`Movida a ${stageLabel(stage)}`, 'ok');

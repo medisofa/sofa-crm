@@ -192,11 +192,12 @@ export function invoicePaymentDialog(inv) {
 export function ncfDialog(inv) {
   return formDialog({
     title: `NCF de la factura ${inv.folio}`, submitLabel: 'Guardar',
-    body: html`${f('ncf', 'NCF *', text('ncf', inv.ncf || '', 'required maxlength="13" placeholder="B0100000125"'), 'B + 10 dígitos o E + 12 dígitos')}`,
+    body: html`${f('ncf', 'NCF *', text('ncf', inv.ncf || '', 'required maxlength="13" placeholder="B0100000125"'), 'B01 crédito fiscal (clientes con RNC) · B02 consumo · e-CF E31–E34')}
+      ${f('valid', 'Válido hasta (vencimiento de la secuencia)', text('valid', inv.ncf_valid_until || '', 'type="date"'), 'Aparece en la factura impresa y en el PDF')}`,
     onSubmit: async (d, form) => {
       const v = (d.ncf || '').trim().toUpperCase();
       if (!isNCF(v)) { fieldError(form.elements.ncf, 'Formato: B + 10 dígitos o E + 12 dígitos.'); return false; }
-      return setInvoiceNcf(inv.id, v);
+      return setInvoiceNcf(inv.id, v, d.valid || null);
     }
   });
 }

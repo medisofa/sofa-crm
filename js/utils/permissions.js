@@ -50,6 +50,7 @@ export const NAV = [
     { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
     { route: 'prospectos', label: 'Prospectos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
     { route: 'clientes', label: 'Clientes PSS', roles: ALL, ready: true },
+    { route: 'medicos', label: 'Médicos 360', roles: ALL, ready: true },
     { route: 'contactos', label: 'Contactos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
     { route: 'aliados', label: 'Aliados referidores', roles: ['super_admin', 'admin', 'auditor'], ready: true }
   ]},
@@ -150,6 +151,8 @@ const ACTIONS = {
   'dossier.exception': ['super_admin', 'admin', 'auditor'],
   'dossier.delete': ['super_admin', 'admin'],
   // Iteración 14
+  'onboarding.manage': ['super_admin', 'admin', 'assistant', 'operations'],   // 1.5: documentos A–E, pasos y activación
+  'onboarding.override': ['super_admin', 'admin'],                             // activar con el onboarding incompleto
   'claims.resubmit': ['super_admin', 'admin', 'billing'],                                        // reenvío en radicación complementaria
   'stages.view': ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'assistant', 'client'],
   'rules.edit': ['super_admin', 'admin'],

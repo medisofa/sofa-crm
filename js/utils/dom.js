@@ -22,6 +22,8 @@ export function html(strings, ...values) {
 /** Inserta una plantilla html`` en un elemento. */
 export function render(el, tpl) {
   if (!(tpl instanceof SafeHTML)) throw new Error('render() solo acepta plantillas html``');
+  // 1.5: si el destino ya no existe (el usuario cambió de pantalla antes de que terminara una carga), no hay nada que pintar
+  if (!el) return;
   el.innerHTML = tpl.s;
 }
 export const $ = (sel, root = document) => root.querySelector(sel);

@@ -23,7 +23,7 @@ const REASONS = {
 };
 
 const card = document.getElementById('card');
-const shell = (body) => html`<div class="logo"><img src="assets/icons/icon-192.png" alt=""><div><b>SOFA</b><span>Soluciones de Facturación Médica</span></div></div>${body}<p class="auth-foot">v${APP_VERSION} · Acceso exclusivo para personal y clientes autorizados</p>`;
+const shell = (body) => html`<div class="logo"><img class="logo-full" src="assets/brand/sofa-logo.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>${body}<p class="auth-foot">v${APP_VERSION} · Acceso exclusivo para personal y clientes autorizados</p>`;
 const note = (kind, text) => html`<div class="note ${kind}" role="status">${text}</div>`;
 const pwField = (id, label, auto) => html`<div class="field"><label for="${id}">${label}</label><div class="pw-wrap"><input id="${id}" type="password" autocomplete="${auto}" required minlength="10"><button type="button" data-toggle="${id}" aria-label="Mostrar contraseña">Ver</button></div></div>`;
 

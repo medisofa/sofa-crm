@@ -37,18 +37,18 @@ export function fileProblem(file) {
   return null;
 }
 
-export async function uploadDocument({ orgId, submissionId, lineId = null, docType = null, file, entityType = 'submission', entityId = null }) {
+export async function uploadDocument({ orgId, submissionId, lineId = null, docType = null, file, entityType = 'submission', entityId = null, bucket = BUCKET }) {
   const ready = await compressImage(file);
   const prob = fileProblem(ready); if (prob) throw new Error(prob);
   const eid = entityId || submissionId;
   const path = `${orgId}/${eid}/${crypto.randomUUID()}-${safeName(ready.name)}`;
-  const up = await sb().storage.from(BUCKET).upload(path, ready, { contentType: ready.type, upsert: false, cacheControl: '3600' });
+  const up = await sb().storage.from(bucket).upload(path, ready, { contentType: ready.type, upsert: false, cacheControl: '3600' });
   if (up.error) throw up.error;
   const { data, error } = await sb().from('documents').insert({
     organization_id: orgId, entity_type: entityType, entity_id: eid, service_line_id: lineId || null,
-    document_type_code: docType || null, bucket: BUCKET, storage_path: path, file_name: ready.name, mime_type: ready.type, size_bytes: ready.size
+    document_type_code: docType || null, bucket, storage_path: path, file_name: ready.name, mime_type: ready.type, size_bytes: ready.size
   }).select('id').single();
-  if (error) { await sb().storage.from(BUCKET).remove([path]).catch(() => {}); throw error; }
+  if (error) { await sb().storage.from(bucket).remove([path]).catch(() => {}); throw error; }
   return data;
 }
 
@@ -63,7 +63,7 @@ export async function listDocuments({ submissionId = null, entityType = null, en
 /** Abre el documento con una URL firmada de 5 minutos */
 export async function openDocument(doc) {
   const win = window.open('', '_blank');
-  const { data, error } = await sb().storage.from(BUCKET).createSignedUrl(doc.storage_path, 300);
+  const { data, error } = await sb().storage.from(doc.bucket || BUCKET).createSignedUrl(doc.storage_path, 300);
   if (error || !data?.signedUrl) { win?.close(); throw error || new Error('No se pudo generar el enlace del documento.'); }
   if (win) { win.opener = null; win.location.href = data.signedUrl; return null; }
   return data.signedUrl; // el navegador bloqueó la ventana: se muestra el enlace
@@ -72,6 +72,6 @@ export async function openDocument(doc) {
 export async function deleteDocument(doc) {
   const { error } = await sb().from('documents').delete().eq('id', doc.id);
   if (error) throw error;
-  await sb().storage.from(BUCKET).remove([doc.storage_path]).catch(() => {});
+  await sb().storage.from(doc.bucket || BUCKET).remove([doc.storage_path]).catch(() => {});
 }
 export const sizeLabel = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);

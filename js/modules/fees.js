@@ -45,7 +45,7 @@ export async function render(main, ctx) {
       ${staff ? html`<td data-l="Cliente">${i.client_name}</td>` : ''}<td data-l="Mes">${period(i.period)}</td><td data-l="NCF" class="mono">${i.ncf || '—'}</td>
       <td data-l="Total" class="n">${money(i.total)}</td><td data-l="Saldo" class="n"><b>${money(i.balance)}</b>${i.days_overdue > 0 ? html`<div class="small" style="color:var(--bad);font-weight:600">Vencida hace ${i.days_overdue} días</div>` : ''}</td>
       <td data-l="Estado"><span class="pill ${c}">${l}</span></td>
-      ${manage ? html`<td data-l="">${['emitida', 'pagada_parcial'].includes(i.status) ? html`<button class="btn sm primary" data-inv="pay" data-id="${i.id}">Cobro</button> ` : ''}${i.status !== 'anulada' ? html`<button class="btn sm" data-inv="ncf" data-id="${i.id}">NCF</button> ` : ''}${i.status === 'emitida' ? html`<button class="btn sm danger" data-inv="void" data-id="${i.id}">Anular</button>` : ''}</td>` : ''}</tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
+      ${manage ? html`<td data-l="">${['emitida', 'pagada_parcial'].includes(i.status) ? html`<button class="btn sm primary" data-inv="pay" data-id="${i.id}">Cobro</button> ` : ''}<button class="btn sm" data-inv="pdf" data-id="${i.id}" title="Descargar PDF">PDF</button> ${i.status !== 'anulada' ? html`<button class="btn sm" data-inv="ncf" data-id="${i.id}">NCF</button> ` : ''}${i.status === 'emitida' ? html`<button class="btn sm danger" data-inv="void" data-id="${i.id}">Anular</button>` : ''}</td>` : ''}</tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
   { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin facturas', manage ? 'Genera las facturas del mes en "Cierre del mes".' : 'Aún no hay facturas.') });
 
   const loadLedger = () => staff && loadInto($('#led', main), () => listFees(100), (rows) => html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="n">Base</th><th class="n">Tasa</th><th class="n">Honorario</th><th>Factura</th></tr></thead>
@@ -58,6 +58,13 @@ export async function render(main, ctx) {
   $('#inv', main).addEventListener('click', async (e) => {
     const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); loadInv(); return; }
     const b = e.target.closest('[data-inv]'); if (!b) return;
+    if (b.dataset.inv === 'pdf') {
+      b.disabled = true;
+      try { const { invoiceDocument } = await import('../services/finance.js'); const { downloadInvoicePdf } = await import('../utils/pdf-invoice.js');
+        toast(`Descargado ${await downloadInvoicePdf(await invoiceDocument(b.dataset.id))}`, 'ok'); }
+      catch (err) { toast(friendlyError(err), 'bad'); } finally { b.disabled = false; }
+      return;
+    }
     const inv = invRows.find((x) => x.id === b.dataset.id);
     try {
       const d = await import('./finance-dialogs.js');
