@@ -56,8 +56,11 @@ export const TRANSITION_LABELS = {
 /** Glosas: nombre y color de cada estado */
 export const GLOSA_STATUS = {
   pendiente: ['Pendiente', 'warn'], analizada: ['Analizada', 'info'], apelada: ['Apelada', 'info'], en_revision: ['En revisión', 'info'],
+  en_conciliacion: ['En conciliación', 'warn'], en_arbitraje: ['En arbitraje', 'warn'],   // 1.7 · B3 normativa de auditoría médica
   aceptada: ['Aceptada (pérdida)', 'bad'], revertida: ['Revertida (recuperada)', 'ok'], parcial: ['Resuelta parcial', 'warn'], cerrada: ['Cerrada', '']
 };
+export const AUDIT_TYPES = { documental: 'Documental', retrospectiva: 'Retrospectiva', concurrente: 'Concurrente', telefonica: 'Telefónica', otra: 'Otra' };
+export const ACT_RESULT = { acuerdo_total: ['Acuerdo total', 'ok'], acuerdo_parcial: ['Acuerdo parcial', 'warn'], sin_acuerdo: ['Sin acuerdo', 'bad'] };
 export const glosaStatus = (c) => GLOSA_STATUS[c] || [c, ''];
 export const PAYMENT_METHODS = [['transferencia', 'Transferencia'], ['cheque', 'Cheque'], ['deposito', 'Depósito'], ['otro', 'Otro']];
 export const INVOICE_STATUS = { emitida: ['Emitida', 'info'], pagada_parcial: ['Cobro parcial', 'warn'], pagada: ['Cobrada', 'ok'], anulada: ['Anulada', ''] };

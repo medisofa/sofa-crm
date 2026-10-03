@@ -16,13 +16,17 @@ const FIELDS = [
   ['founder_slots', 'Cupos de clientes fundadores', 0, 1000, ''],
   ['payment_gap_days', 'Alerta de pago incompleto (días sin pagos nuevos)', 5, 180, 'Iteración 14: "Trabajo de hoy" avisa cuando una reclamación con pago parcial lleva más de estos días sin pagos nuevos.'],
   ['validation_alert_days', 'Alerta de reclamación retirada sin validar (días)', 1, 60, 'Iteración 13: "Trabajo de hoy" avisa cuando una reclamación retirada lleva más de estos días sin auditar.'],
-  ['pickup_alert_days', 'Alerta de reclamación sin retirar (días)', 1, 60, 'Iteración 12: "Trabajo de hoy" avisa cuando una reclamación capturada lleva más de estos días en el consultorio.']
+  ['pickup_alert_days', 'Alerta de reclamación sin retirar (días)', 1, 60, 'Iteración 12: "Trabajo de hoy" avisa cuando una reclamación capturada lleva más de estos días en el consultorio.'],
+  ['glosa_ars_response_days', 'Normativa: plazo de la ARS para responder una apelación (días)', 1, 180, '1.7 · Circular SSRL-INT-2026-002960. Ajustar al texto oficial. Vencido, "Trabajo de hoy" sugiere conciliar.'],
+  ['glosa_conciliation_days', 'Normativa: plazo de la conciliación (días)', 1, 180, 'Desde la solicitud de conciliación hasta el acta.'],
+  ['glosa_arbitration_days', 'Normativa: seguimiento del arbitraje ante SISALRIL (días)', 1, 365, 'Desde la solicitud de arbitraje.']
 ];
 
 export async function render(main, ctx) {
   const editable = can('settings.edit', ctx.role);
-  paint(main, html`<div class="page-head"><div class="t"><h2>Parámetros</h2><p>Plazos y metas que usan las alertas, el aging y el módulo de crecimiento.${editable ? '' : ' Solo lectura para tu rol.'}</p></div></div><div id="b"></div><div id="op" style="margin-top:14px"></div>`);
+  paint(main, html`<div class="page-head"><div class="t"><h2>Parámetros</h2><p>Plazos y metas que usan las alertas, el aging y el módulo de crecimiento.${editable ? '' : ' Solo lectura para tu rol.'}</p></div></div><div id="b"></div><div id="op" style="margin-top:14px"></div>${ctx.role === 'super_admin' ? html`<div id="rst" style="margin-top:14px"></div>` : ''}`);
   drawOperator(main, editable);
+  if (ctx.role === 'super_admin') drawReset(main);
   const box = $('#b', main);
   const s = await loadInto(box, getSettings, (s) => html`<form class="card" id="f" novalidate>
       <div class="form-grid">${FIELDS.filter(([k]) => k in s).map(([k, l, min, max, hint]) => html`<div class="field"><label for="${k}">${l}</label><input id="${k}" name="${k}" type="number" min="${min}" max="${max}" step="${k.includes('pct') ? '0.01' : '1'}" value="${s[k]}" ${editable ? '' : 'disabled'}>${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`)}
@@ -80,5 +84,52 @@ async function drawOperator(main, editable) {
     const acc = (v.bank_account || '').replace(/[\s-]/g, '');
     if (acc && !/^\d{6,20}$/.test(acc)) { fieldError(form.elements.bank_account, 'Solo dígitos (6 a 20)'); return; }
     busy(e.submitter, async () => { try { await updateOperatorProfile(v); await setFiscalSystem(v.fiscal_system); toast('Datos fiscales de SOFA guardados', 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } });
+  });
+}
+
+/** Reinicio de datos (solo Super Admin): alcances, vista previa, confirmación y limpieza de archivos */
+function drawReset(main) {
+  const box = $('#rst', main); if (!box) return;
+  const SC = [['operacion', 'Operación', 'Reclamaciones, lotes, retiros, pagos, glosas, expedientes, agenda, cobros del consultorio y cuadres'],
+    ['honorarios', 'Honorarios', 'Honorarios, facturas de SOFA, cobros y servicios por proyecto'],
+    ['comercial', 'Comercial', 'Prospectos, oportunidades, actividades, tareas, documentos A–E, onboarding y habilitaciones'],
+    ['inteligencia', 'Inteligencia de mercado', 'Noticias, entidades e ideas (las fuentes se conservan)'],
+    ['clientes', 'Clientes y médicos', 'Clínicas, médicos, tarifarios, tarifas privadas y usuarios Médico y Secretaria (exige los tres primeros)']];
+  paint(box, html`<div class="card" style="border-left:4px solid var(--bad)"><h2>Reinicio de datos</h2>
+    <p class="sub">Borra datos cargados (por ejemplo, de prueba) antes de operar con datos reales. <b>No se puede deshacer.</b> Siempre se conservan el operador SOFA, los usuarios del equipo SOFA, los catálogos, los parámetros, las plantillas y el banco de respuestas.</p>
+    <form id="rf" novalidate>${SC.map(([k, l, d]) => html`<label class="check" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" name="sc_${k}"> <span><b>${l}</b><br><span class="small muted">${d}</span></span></label>`)}
+      <label class="check" style="display:flex;margin:6px 0"><input type="checkbox" name="folios"> Reiniciar también la numeración de folios de lo borrado</label>
+      <button class="btn" type="button" id="rprev">Ver qué se borraría</button><div id="rbox" aria-live="polite" style="margin-top:8px"></div>
+      <div id="rgo" style="display:none"><label class="check" style="display:flex;margin:6px 0"><input type="checkbox" name="backup"> Hice un respaldo de la base de datos y lo verifiqué</label>
+        <div class="field"><label for="r_reason">Motivo (mínimo 10 caracteres) *</label><input id="r_reason" name="reason" maxlength="200"></div>
+        <div class="field"><label for="r_conf">Escribe <b>REINICIAR DATOS</b> para confirmar *</label><input id="r_conf" name="confirm" autocomplete="off"></div>
+        <button class="btn danger" type="submit">Reiniciar datos</button></div></form></div>`);
+  const form = $('#rf', box); const chosen = () => SC.map(([k]) => k).filter((k) => form.elements[`sc_${k}`].checked);
+  form.addEventListener('change', (e) => { if (e.target.name?.startsWith('sc_')) { $('#rgo', box).style.display = 'none'; paint($('#rbox', box), html``); } });
+  $('#rprev', box).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    const sc = chosen(); if (!sc.length) { toast('Elige al menos un alcance', 'bad'); return; }
+    if (sc.includes('clientes') && !['operacion', 'honorarios', 'comercial'].every((k) => sc.includes(k))) { toast('Para borrar clientes marca también Operación, Honorarios y Comercial', 'bad'); return; }
+    try {
+      const { dataResetPreview } = await import('../services/admin.js'); const p = await dataResetPreview(sc);
+      paint($('#rbox', box), html`<div class="note warn">${Object.entries(p).filter(([k]) => k !== 'se_conserva').map(([k, v]) => html`<div><b>${SC.find((x) => x[0] === k)?.[1] || k}:</b> ${Object.entries(v).map(([a, n]) => `${a.replace(/_/g, ' ')} ${n}`).join(' · ')}</div>`)}
+        <div class="small" style="margin-top:6px">Se conserva: ${p.se_conserva}</div></div>`);
+      $('#rgo', box).style.display = '';
+    } catch (err) { toast(friendlyError(err), 'bad'); }
+  }));
+  form.addEventListener('submit', (e) => {
+    e.preventDefault(); const sc = chosen(); const v = Object.fromEntries(new FormData(form).entries());
+    if (!v.backup) { toast('Confirma que hiciste el respaldo', 'bad'); return; }
+    if ((v.reason || '').trim().length < 10) { fieldError(form.elements.reason, 'Mínimo 10 caracteres'); return; }
+    if (v.confirm !== 'REINICIAR DATOS') { fieldError(form.elements.confirm, 'Escribe exactamente REINICIAR DATOS'); return; }
+    busy(e.submitter, async () => {
+      try {
+        const { dataReset, removeStorageFiles } = await import('../services/admin.js');
+        const r = await dataReset(sc, v.reason.trim(), v.confirm, !!v.folios);
+        const fl = r.files?.length ? await removeStorageFiles(r.files) : { removed: 0, failed: [] };
+        paint($('#rbox', box), html`<div class="note ok"><b>Reinicio hecho.</b> ${Object.entries(r.counts || {}).map(([a, n]) => `${a.replace(/_/g, ' ')} ${n}`).join(' · ')}<br>
+          Archivos borrados de Storage: ${fl.removed}${fl.failed.length ? html` · <b style="color:var(--bad)">${fl.failed.length} no se pudieron borrar</b> (bórralos en Supabase › Storage)` : ''}</div>`);
+        $('#rgo', box).style.display = 'none'; form.reset(); toast('Datos reiniciados', 'ok');
+      } catch (err) { toast(friendlyError(err), 'bad'); }
+    });
   });
 }

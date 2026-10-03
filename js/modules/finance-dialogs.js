@@ -1,14 +1,16 @@
 /** SOFA · Diálogos de glosas, pagos y honorarios */
 import { html, render as paint, raw } from '../utils/dom.js';
-import { formDialog, opt, requireFields, fieldError } from '../utils/ui.js';
+import { formDialog, opt, requireFields, fieldError, toast } from '../utils/ui.js';
 import { money, todayISO, date, period as periodLabel } from '../utils/formatters.js';
 import { PAYMENT_METHODS } from '../utils/constants.js';
 import { isNCF } from '../utils/validation.js';
 import { listArs } from '../services/catalog.js';
 import {
   glosaReasons, glosadoByLine, registerGlosa, appealGlosa, resolveGlosa,
-  openSubmissions, clientsWithOpenBalance, registerPayment, recordInvoicePayment, setInvoiceNcf, voidInvoice
+  openSubmissions, clientsWithOpenBalance, registerPayment, recordInvoicePayment, setInvoiceNcf, voidInvoice,
+  glosaTemplates, setGlosaAuditor, startConciliation, registerConciliationAct, startArbitration
 } from '../services/finance.js';
+import { AUDIT_TYPES } from '../utils/constants.js';
 
 const f = (name, label, input, hint = '') => html`<div class="field"><label for="f_${name}">${label}</label>${input}${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
 const text = (name, value = '', attrs = '') => html`<input id="f_${name}" name="${name}" value="${value ?? ''}" ${raw(attrs)}>`;
@@ -48,16 +50,81 @@ export async function glosaDialog(sub, lines) {
   });
 }
 
-export function appealDialog(glosa) {
+export async function appealDialog(glosa, items = []) {
+  // 1.7 · B3: respuestas del banco para los motivos de esta glosa (y su ARS), con su tasa de éxito
+  const reasons = new Set(items.map((i) => i.reason_code));
+  const tpls = (await glosaTemplates().catch(() => [])).filter((t) => t.is_active && (reasons.has(t.reason_code) || !reasons.size) && (!t.ars_id || t.ars_id === glosa.ars_id));
   return formDialog({
     title: `Apelar glosa · ${glosa.folio}`, submitLabel: 'Registrar apelación', wide: true,
-    body: html`<p class="small muted" style="margin-top:0">Plazo para responder: <b>${date(glosa.appeal_deadline)}</b>. Adjunta los soportes en el expediente de la radicación.</p>
+    body: html`<p class="small muted" style="margin-top:0">Plazo para responder: <b>${date(glosa.appeal_deadline)}</b>. Adjunta los soportes en el expediente de la radicación. Al registrar la apelación empieza a correr el plazo de respuesta de la ARS.</p>
+      ${tpls.length ? f('template', 'Respuesta del banco', html`<select id="f_template" name="template"><option value="">Escribir sin plantilla</option>${tpls.map((t) => opt(t.id, `${t.reason_name} · ${t.title}${t.ars_name ? ` (${t.ars_name})` : ''}${t.success_rate != null ? ` · éxito ${t.success_rate} %` : ''}`))}</select>`, 'Completa los datos entre corchetes antes de enviar') : ''}
       ${f('submitted_on', 'Fecha de envío a la ARS *', text('submitted_on', todayISO(), `type="date" required max="${todayISO()}"`))}
       ${f('argument', 'Argumento de la apelación *', html`<textarea id="f_argument" name="argument" rows="6" class="input" required placeholder="Se anexa la indicación médica firmada y sellada, y la tarifa contratada vigente a la fecha del servicio."></textarea>`)}`,
+    onOpen: (form) => { form.elements.template?.addEventListener('change', (e) => { const t = tpls.find((x) => x.id === e.target.value); if (t) form.elements.argument.value = t.body; }); },
     onSubmit: async (d, form) => {
       if (!d.argument || d.argument.trim().length < 10) { fieldError(form.elements.argument, 'Mínimo 10 caracteres.'); return false; }
-      return appealGlosa(glosa.id, d.argument.trim(), d.submitted_on);
+      if (/\[[A-ZÁÉÍÓÚÑ ]+\]/.test(d.argument)) { fieldError(form.elements.argument, 'Completa los datos entre corchetes de la plantilla.'); return false; }
+      return appealGlosa(glosa.id, d.argument.trim(), d.submitted_on, d.template || null);
     }
+  });
+}
+
+/** 1.7 · B3: auditor médico de la ARS (Registro de Auditores Médicos de SISALRIL) */
+export function auditorDialog(glosa) {
+  return formDialog({
+    title: 'Auditor médico de la ARS', submitLabel: 'Guardar',
+    body: html`${f('code', 'Código en el registro de SISALRIL *', text('code', glosa.auditor_code || '', 'maxlength="30" required'))}
+      ${f('name', 'Nombre del auditor *', text('name', glosa.auditor_name || '', 'maxlength="120" required'))}
+      ${f('type', 'Tipo de auditoría *', html`<select id="f_type" name="type">${Object.entries(AUDIT_TYPES).map(([k, l]) => opt(k, l, glosa.audit_type || 'documental'))}</select>`)}`,
+    onSubmit: async (d, form) => {
+      if ((d.code || '').trim().length < 3) { fieldError(form.elements.code, 'Indique el código'); return false; }
+      if ((d.name || '').trim().length < 3) { fieldError(form.elements.name, 'Indique el nombre'); return false; }
+      return setGlosaAuditor(glosa.id, d.code.trim(), d.name.trim(), d.type);
+    }
+  });
+}
+
+export function conciliationDialog(glosa) {
+  return formDialog({
+    title: 'Solicitar conciliación', submitLabel: 'Pasar a conciliación',
+    body: html`<p class="small">La glosa pasa a <b>En conciliación</b> y corre el plazo de la normativa para reunirse con la ARS y firmar el acta.${glosa.auditor_code ? '' : ' <b>Primero registra el auditor médico de la ARS.</b>'}</p>
+      ${f('comment', 'Motivo', html`<textarea id="f_comment" name="comment" rows="2" class="input" placeholder="La ARS no respondió la apelación en plazo"></textarea>`)}`,
+    onSubmit: async (d) => startConciliation(glosa.id, d.comment)
+  });
+}
+
+export function actaDialog(glosa, items) {
+  return formDialog({
+    title: `Acta de conciliación · ${glosa.glosa_folio || glosa.folio}`, submitLabel: 'Registrar acta', wide: true,
+    body: html`<div class="form-grid">
+      ${f('held', 'Fecha de la conciliación *', text('held', todayISO(), `type="date" max="${todayISO()}"`))}
+      ${f('result', 'Resultado *', html`<select id="f_result" name="result">${opt('acuerdo_total', 'Acuerdo total (la ARS paga todo)')}${opt('acuerdo_parcial', 'Acuerdo parcial')}${opt('sin_acuerdo', 'Sin acuerdo (habilita arbitraje)')}</select>`)}
+      ${f('ars', 'Representante de la ARS *', text('ars', '', 'maxlength="120"'))}${f('sofa', 'Representante del prestador (SOFA) *', text('sofa', '', 'maxlength="120"'))}</div>
+      ${f('agreements', 'Acuerdos o posiciones de las partes *', html`<textarea id="f_agreements" name="agreements" rows="3" class="input"></textarea>`)}
+      <div id="f_items"><h3 class="small">Monto que la ARS reconoce por reclamación</h3><div class="table-wrap"><table class="t"><thead><tr><th>Servicio</th><th class="n">Glosado</th><th class="n">Recupera</th></tr></thead><tbody>
+        ${items.map((i) => html`<tr><td>${i.service_lines?.claim_folio || ''} · ${i.service_lines?.patient_name || ''}<div class="small muted">${i.glosa_reasons?.name || i.reason_code}</div></td><td class="n">${money(i.amount)}</td>
+          <td class="n"><label class="sr-only" for="rc_${i.id}">Recupera</label><input id="rc_${i.id}" name="rc_${i.id}" type="number" min="0" max="${i.amount}" step="0.01" value="${i.amount}" style="width:120px;text-align:right"></td></tr>`)}</tbody></table></div></div>`,
+    onOpen: (form) => { const sync = () => { const r = form.elements.result.value; form.querySelector('#f_items').style.display = r === 'sin_acuerdo' ? 'none' : '';
+      if (r === 'acuerdo_total') items.forEach((i) => { form.elements[`rc_${i.id}`].value = i.amount; }); }; form.elements.result.addEventListener('change', sync); sync(); },
+    onSubmit: async (d, form) => {
+      if ((d.ars || '').trim().length < 3) { fieldError(form.elements.ars, 'Indique el representante'); return false; }
+      if ((d.sofa || '').trim().length < 3) { fieldError(form.elements.sofa, 'Indique el representante'); return false; }
+      if ((d.agreements || '').trim().length < 10) { fieldError(form.elements.agreements, 'Mínimo 10 caracteres'); return false; }
+      const its = d.result === 'sin_acuerdo' ? [] : items.map((i) => ({ id: i.id, recovered_amount: Number(d[`rc_${i.id}`] || 0) }));
+      if (its.some((x) => x.recovered_amount < 0) || items.some((i) => Number(d[`rc_${i.id}`] || 0) > Number(i.amount))) { toast('Lo recuperado no puede superar lo glosado', 'bad'); return false; }
+      return registerConciliationAct(glosa.id, { heldOn: d.held, result: d.result, arsRep: d.ars.trim(), sofaRep: d.sofa.trim(), agreements: d.agreements.trim(), items: its });
+    }
+  });
+}
+
+export function arbitrationDialog(glosa) {
+  return formDialog({
+    title: 'Pasar a arbitraje ante la SISALRIL', submitLabel: 'Registrar solicitud',
+    body: html`<p class="small">Hay un acta de conciliación sin acuerdo. Registra la solicitud de arbitraje presentada ante la SISALRIL.</p>
+      ${f('filed', 'Fecha de la solicitud *', text('filed', todayISO(), `type="date" max="${todayISO()}"`))}
+      ${f('ref', 'Número o referencia de la solicitud *', text('ref', '', 'maxlength="60"'))}
+      ${f('comment', 'Comentario', html`<textarea id="f_comment" name="comment" rows="2" class="input"></textarea>`)}`,
+    onSubmit: async (d, form) => { if ((d.ref || '').trim().length < 3) { fieldError(form.elements.ref, 'Indique la referencia'); return false; } return startArbitration(glosa.id, d.filed, d.ref.trim(), d.comment); }
   });
 }
 

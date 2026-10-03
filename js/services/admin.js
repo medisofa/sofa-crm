@@ -47,3 +47,23 @@ export async function adminUsers(payload) {
   if (data && data.ok === false) throw Object.assign(new Error(data.message || 'No se pudo completar'), { code: 'SOFA' });
   return data;
 }
+
+// ---- Reinicio de datos (Super Admin) y validación de usuarios y roles
+export async function dataResetPreview(scopes) { return must(await sb().rpc('data_reset_preview', { p_scopes: scopes })); }
+export async function dataReset(scopes, reason, confirm, resetFolios) {
+  return must(await sb().rpc('data_reset', { p_scopes: scopes, p_reason: reason, p_confirm: confirm, p_reset_folios: !!resetFolios }));
+}
+/** Borra de Storage los archivos de los documentos eliminados (por bucket, en lotes de 100). Devuelve cuántos se borraron y los que fallaron. */
+export async function removeStorageFiles(files) {
+  const byBucket = {}; for (const f of files || []) (byBucket[f.bucket] = byBucket[f.bucket] || []).push(f.path);
+  let removed = 0; const failed = [];
+  for (const [bucket, paths] of Object.entries(byBucket)) {
+    for (let i = 0; i < paths.length; i += 100) {
+      const chunk = paths.slice(i, i + 100);
+      const { error } = await sb().storage.from(bucket).remove(chunk);
+      if (error) failed.push(...chunk.map((p) => `${bucket}/${p}`)); else removed += chunk.length;
+    }
+  }
+  return { removed, failed };
+}
+export async function usersRolesReport() { return must(await sb().rpc('users_roles_report')); }

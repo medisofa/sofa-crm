@@ -300,3 +300,44 @@ export async function buildReceiptPdf(d) {
   return { doc, fileName: `${c.folio}.pdf` };
 }
 export async function downloadReceiptPdf(d) { const { doc, fileName } = await buildReceiptPdf(d); doc.save(fileName); return fileName; }
+
+// ---------------------------------------------------------------- acta de conciliación de glosa (1.7 · B3)
+/** `d` = { act, glosa (v_glosas), items (glosa_items con service_lines), normRef } */
+export async function buildActaPdf(d) {
+  const JsPDF = await loadPdfLib();
+  const doc = new JsPDF({ unit: 'mm', format: 'letter' });
+  const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 18;
+  const { act: a, glosa: g, items } = d;
+  const RES = { acuerdo_total: 'ACUERDO TOTAL', acuerdo_parcial: 'ACUERDO PARCIAL', sin_acuerdo: 'SIN ACUERDO' };
+  const AUD = { documental: 'documental', retrospectiva: 'retrospectiva', concurrente: 'concurrente', telefonica: 'telefónica', otra: 'otra' };
+  doc.setProperties({ title: `Acta de conciliación ${a.folio}`, subject: 'Conciliación de glosa', creator: 'SOFA' });
+  const img = await logo();
+  if (img) doc.addImage(img, 'PNG', M, 10, 52, 52 * 321 / 942, undefined, 'FAST');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...NAVY); doc.text('Acta de conciliación de glosa', W - M, 17, { align: 'right' });
+  doc.setFontSize(9); doc.setTextColor(...WINE); doc.text(RES[a.result] || a.result, W - M, 22.5, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40); doc.text(`No. ${a.folio} · ${fdate(a.held_on)}`, W - M, 27.5, { align: 'right' });
+  doc.setDrawColor(...WINE); doc.setLineWidth(0.6); doc.line(M, 32, W - M, 32);
+  const info = [['ARS', g.ars_name], ['Prestador', `${g.provider_name}${g.client_name ? ` · ${g.client_name}` : ''}`], ['Glosa', `${g.glosa_folio || ''} · lote ${g.folio}${g.ars_reference ? ` · ref. ARS ${g.ars_reference}` : ''} · notificada el ${fdate(g.notified_on)}`],
+    ['Auditor médico de la ARS', g.auditor_code ? `${g.auditor_name} · registro ${g.auditor_code}${g.audit_type ? ` · auditoría ${AUD[g.audit_type] || g.audit_type}` : ''}` : '—'],
+    ['Representante de la ARS', a.ars_representative], ['Representante del prestador (SOFA)', a.sofa_representative]];
+  doc.autoTable({ startY: 36, margin: { left: M, right: M }, body: info, theme: 'plain', styles: { fontSize: 9, cellPadding: 1.4 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 58, textColor: NAVY } } });
+  let y = doc.lastAutoTable.finalY + 4;
+  doc.autoTable({ startY: y, margin: { left: M, right: M }, head: [['Reclamación', 'Paciente', 'Motivo', 'Glosado', 'Recuperado', 'Aceptado']],
+    body: items.map((i) => [i.service_lines?.claim_folio || '', i.service_lines?.patient_name || '', i.glosa_reasons?.name || i.reason_code, rd(i.amount), rd(i.recovered_amount), rd(i.accepted_amount)]),
+    foot: [['', '', 'Total', rd(items.reduce((t, i) => t + Number(i.amount), 0)), rd(a.recovered_total), rd(a.accepted_total)]],
+    styles: { fontSize: 8.4, cellPadding: 1.8, lineColor: LINE, lineWidth: 0.2 }, headStyles: { fillColor: NAVY, textColor: 255 }, footStyles: { fillColor: SOFT, textColor: NAVY, fontStyle: 'bold' },
+    columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } } });
+  y = doc.lastAutoTable.finalY + 6;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...NAVY); doc.text(a.result === 'sin_acuerdo' ? 'Posiciones de las partes' : 'Acuerdos', M, y);
+  doc.setFont('times', 'normal'); doc.setFontSize(10.5); doc.setTextColor(25, 25, 25);
+  const lines = doc.splitTextToSize(a.agreements || '', W - 2 * M); doc.text(lines, M, y + 6); y += 8 + lines.length * 5;
+  if (a.result === 'sin_acuerdo') { doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(...GRAY); doc.text('Sin acuerdo: el prestador podrá someter la glosa a arbitraje ante la SISALRIL.', M, y); y += 6; }
+  y = Math.max(y + 18, H - 52);
+  doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.3); doc.line(M, y, M + 70, y); doc.line(W - M - 70, y, W - M, y);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+  doc.text([`Por la ARS: ${a.ars_representative}`, 'Firma y sello'], M + 35, y + 4, { align: 'center' }); doc.text([`Por el prestador: ${a.sofa_representative}`, 'Firma'], W - M - 35, y + 4, { align: 'center' });
+  doc.setFillColor(...NAVY); doc.rect(0, H - 5, W * 0.72, 5, 'F'); doc.setFillColor(...WINE); doc.rect(W * 0.72, H - 5, W * 0.28, 5, 'F');
+  doc.setFontSize(7.2); doc.text(`${a.folio} · Conciliación conforme a ${d.normRef || 'la normativa de auditoría médica de la SISALRIL'}`.slice(0, 170), W / 2, H - 8, { align: 'center' });
+  return { doc, fileName: `${a.folio}-acta-conciliacion.pdf` };
+}
+export async function downloadActaPdf(d) { const { doc, fileName } = await buildActaPdf(d); doc.save(fileName); return fileName; }

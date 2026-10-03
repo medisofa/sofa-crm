@@ -1,11 +1,11 @@
 /** SOFA · Glosas: bandeja con plazos, Pareto de motivos, tasa por ARS y ficha de cada glosa */
 import { html, render as paint, $ } from '../utils/dom.js';
 import { loadInto, emptyView, errorView, loadingView, toast, friendlyError, opt, busy } from '../utils/ui.js';
-import { listGlosas, glosaSummary, glosaPareto, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN } from '../services/finance.js';
+import { listGlosas, glosaSummary, glosaPareto, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs } from '../services/finance.js';
 import { profileNames } from '../services/submissions.js';
 import { listArs } from '../services/catalog.js';
-import { money, num, date, dateTime, period } from '../utils/formatters.js';
-import { glosaStatus } from '../utils/constants.js';
+import { money, num, date, dateTime, period, todayISO } from '../utils/formatters.js';
+import { glosaStatus, AUDIT_TYPES, ACT_RESULT } from '../utils/constants.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
@@ -24,7 +24,9 @@ export async function render(main, ctx) {
     <div class="tabs" id="tabs" role="group" aria-label="Estado" style="margin-top:14px"></div>
     <div class="toolbar"><label class="sr-only" for="q">Buscar</label><input class="input grow" id="q" type="search" placeholder="Folio, prestador, cliente o referencia ARS">
       <label class="sr-only" for="ars">ARS</label><select class="input" id="ars" style="width:auto"><option value="">Todas las ARS</option></select></div>
-    <div id="l"></div>`);
+    <div id="l"></div>
+    ${can('glosas.edit', ctx.role) ? html`<div class="card" style="margin-top:14px"><h2>Banco de respuestas</h2><p class="sub">Respuestas por motivo y ARS para apelar más rápido. La tasa de éxito es lo recuperado sobre lo glosado en las glosas ya resueltas que usaron cada respuesta.</p><div id="bank"></div></div>` : ''}`);
+  if ($('#bank', main)) drawBank($('#bank', main));
   const tabs = [['abiertas', 'Abiertas'], ['resueltas', 'Resueltas'], ['todas', 'Todas']];
   const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-g="${k}" aria-pressed="${st.group === k}">${l}</button>`)}`);
   drawTabs();
@@ -77,19 +79,24 @@ async function renderDetail(main, ctx) {
     try {
       const g = await getGlosa(id);
       if (!g) { paint(box, emptyView('Glosa no encontrada', 'No existe o tu rol no tiene acceso.', html`<a class="btn" href="#/glosas">Volver</a>`)); return; }
-      const [items, appeals, hist] = await Promise.all([glosaItems(id), glosaAppeals(id), glosaHistory(id)]);
+      const [items, appeals, hist, actas] = await Promise.all([glosaItems(id), glosaAppeals(id), glosaHistory(id), conciliationActs(id).catch(() => [])]);
       const names = await profileNames([...hist.map((h) => h.changed_by), ...appeals.map((a) => a.created_by)]).catch(() => ({}));
-      draw(g, items, appeals, hist, names);
+      draw(g, items, appeals, hist, names, actas);
     } catch (err) { paint(box, errorView(err)); }
   };
-  const draw = (g, items, appeals, hist, names) => {
+  const draw = (g, items, appeals, hist, names, actas = []) => {
     ctx.setTitle(`${g.glosa_folio || 'Glosa'} · ${g.folio}`);
     const [l, c] = glosaStatus(g.status); const edit = can('glosas.edit', ctx.role); const open = GLOSA_OPEN.includes(g.status);
     const acts = [];
     if (edit && g.status === 'pendiente') acts.push(['analizada', 'Marcar analizada', '']);
     if (edit && open) acts.push(['__appeal', g.appeals ? 'Registrar otra apelación' : 'Apelar', 'primary']);
     if (edit && g.status === 'apelada') acts.push(['en_revision', 'En revisión por la ARS', '']);
-    if (edit && open) acts.push(['__resolve', 'Registrar resultado', 'primary']);
+    // 1.7 · B3 normativa de auditoría médica
+    if (edit && open) acts.push(['__auditor', g.auditor_code ? 'Auditor de la ARS' : 'Registrar auditor de la ARS', '']);
+    if (edit && ['apelada', 'en_revision'].includes(g.status)) acts.push(['__concil', 'Solicitar conciliación', '']);
+    if (edit && g.status === 'en_conciliacion') acts.push(['__acta', 'Registrar acta', 'primary']);
+    if (edit && g.status === 'en_conciliacion' && actas.some((a) => a.result === 'sin_acuerdo')) acts.push(['__arb', 'Pasar a arbitraje', 'danger']);
+    if (edit && open && g.status !== 'en_conciliacion') acts.push(['__resolve', g.status === 'en_arbitraje' ? 'Registrar laudo' : 'Registrar resultado', 'primary']);
     if (edit && ['pendiente', 'analizada'].includes(g.status)) acts.push(['aceptada', 'Aceptar sin apelar', 'danger']);
     if (edit && ['aceptada', 'revertida', 'parcial'].includes(g.status)) acts.push(['cerrada', 'Cerrar', '']);
     paint(box, html`
@@ -98,6 +105,13 @@ async function renderDetail(main, ctx) {
         <p>${isStaff(ctx.role) ? `${g.client_name} · ` : ''}${g.provider_name} · ${g.ars_name} · ${period(g.period)}${g.ars_reference ? ` · Ref. ARS ${g.ars_reference}` : ''}</p></div>
         <div class="toolbar" style="margin:0">${acts.map(([k, lb, cl]) => html`<button class="btn ${cl}" data-act="${k}">${lb}</button>`)}</div></div>
       ${open ? html`<div class="note ${g.days_left < 0 ? 'bad' : g.days_left <= 7 ? 'warn' : ''}">Notificada el ${date(g.notified_on)}. Responder antes del <b>${date(g.appeal_deadline)}</b> (${g.days_left < 0 ? `vencida hace ${-g.days_left} días` : `faltan ${g.days_left} días`}).</div>` : ''}
+      ${g.auditor_code || g.ars_response_due || ['en_conciliacion', 'en_arbitraje'].includes(g.status) || actas.length ? html`<div class="card" style="margin-bottom:14px"><h2>Normativa de auditoría médica</h2>
+        <dl class="kv"><dt>Auditor de la ARS</dt><dd>${g.auditor_code ? `${g.auditor_name} · registro ${g.auditor_code} · ${AUDIT_TYPES[g.audit_type] || ''}` : html`<span class="muted">sin registrar (obligatorio para conciliar)</span>`}</dd>
+          ${g.ars_response_due ? html`<dt>Respuesta de la ARS</dt><dd>${['apelada', 'en_revision'].includes(g.status) && g.ars_response_due < todayISO() ? html`<b style="color:var(--bad)">vencida el ${date(g.ars_response_due)}: solicitar conciliación</b>` : `hasta el ${date(g.ars_response_due)}`}</dd>` : ''}
+          ${g.conciliation_due ? html`<dt>Conciliación</dt><dd>${g.status === 'en_conciliacion' ? `registrar el acta antes del ${date(g.conciliation_due)}` : `plazo ${date(g.conciliation_due)}`}</dd>` : ''}
+          ${g.arbitration_reference ? html`<dt>Arbitraje SISALRIL</dt><dd>${g.arbitration_reference} · solicitado el ${date(g.arbitration_filed_on)} · seguimiento ${date(g.arbitration_due)}</dd>` : ''}</dl>
+        ${actas.length ? html`<div class="list">${actas.map((a) => html`<div class="li"><div class="b"><div class="t1"><span class="mono">${a.folio}</span> · ${date(a.held_on)} · <span class="pill ${ACT_RESULT[a.result][1]}">${ACT_RESULT[a.result][0]}</span></div>
+          <div class="t2">${a.ars_representative} (ARS) · ${a.sofa_representative} (SOFA) · recuperado ${money(a.recovered_total)}</div></div><button class="btn sm" data-acta-pdf="${a.id}">PDF del acta</button></div>`)}</div>` : ''}</div>` : ''}
       <div class="grid kpis"><div class="kpi"><div class="l">Glosado</div><div class="v">${money(g.amount)}</div><div class="h">${num(g.items)} servicios</div></div>
         <div class="kpi"><div class="l">En disputa</div><div class="v">${money(g.in_dispute)}</div></div>
         <div class="kpi"><div class="l">Recuperado</div><div class="v" style="color:var(--ok)">${money(g.recovered)}</div></div>
@@ -111,10 +125,19 @@ async function renderDetail(main, ctx) {
         <div class="card"><h2>Apelaciones</h2>${appeals.length ? html`<div class="list">${appeals.map((a) => html`<div class="li"><div class="b"><div class="t1" style="font-weight:500">${date(a.submitted_on)} · <span class="pill ${a.outcome === 'favorable' ? 'ok' : a.outcome === 'desfavorable' ? 'bad' : a.outcome === 'parcial' ? 'warn' : ''}">${{ pendiente: 'Pendiente', favorable: 'Favorable', parcial: 'Parcial', desfavorable: 'Desfavorable' }[a.outcome]}</span></div><div class="t2" style="white-space:pre-wrap">${a.argument}</div><div class="t2">${names[a.created_by] || ''}</div></div></div>`)}</div>` : html`<p class="small muted">Sin apelaciones.</p>`}</div>
         <div class="card"><h2>Historial</h2><div class="list">${hist.map((h) => html`<div class="li"><div class="b"><div class="t1" style="font-weight:500">${h.from_status ? `${glosaStatus(h.from_status)[0]} → ` : ''}${glosaStatus(h.to_status)[0]}</div><div class="t2">${dateTime(h.changed_at)}${names[h.changed_by] ? ` · ${names[h.changed_by]}` : ''}${h.comment ? ` · ${h.comment}` : ''}</div></div></div>`)}</div></div>
       </div>`);
+    box.querySelectorAll('[data-acta-pdf]').forEach((b) => b.addEventListener('click', () => busy(b, async () => {
+      try { const { downloadActaPdf } = await import('../utils/pdf-invoice.js'); const st = await import('../services/admin.js').then((m) => m.getSettings()).catch(() => null);
+        toast(`Descargado ${await downloadActaPdf({ act: actas.find((a) => a.id === b.dataset.actaPdf), glosa: g, items, normRef: st?.glosa_norm_reference })}`, 'ok'); }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    })));
     box.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => busy(b, async () => {
       try {
         const d = await import('./finance-dialogs.js');
-        if (b.dataset.act === '__appeal') { if (!(await d.appealDialog(g))) return; toast('Apelación registrada', 'ok'); }
+        if (b.dataset.act === '__appeal') { if (!(await d.appealDialog(g, items))) return; toast('Apelación registrada', 'ok'); }
+        else if (b.dataset.act === '__auditor') { if (!(await d.auditorDialog(g))) return; toast('Auditor registrado', 'ok'); }
+        else if (b.dataset.act === '__concil') { if (!(await d.conciliationDialog(g))) return; toast('Glosa en conciliación', 'ok'); }
+        else if (b.dataset.act === '__acta') { const r = await d.actaDialog(g, items); if (!r) return; toast('Acta registrada', 'ok'); }
+        else if (b.dataset.act === '__arb') { if (!(await d.arbitrationDialog(g))) return; toast('Glosa en arbitraje', 'ok'); }
         else if (b.dataset.act === '__resolve') { const r = await d.resolveDialog(g, items); if (!r) return; toast(`Resultado guardado: ${glosaStatus(r)[0]}`, 'ok'); }
         else { await changeGlosaStatus(g.id, b.dataset.act); toast(`Glosa: ${glosaStatus(b.dataset.act)[0]}`, 'ok'); }
         await refresh();
@@ -122,4 +145,38 @@ async function renderDetail(main, ctx) {
     })));
   };
   await refresh();
+}
+
+/** 1.7 · B3: banco de respuestas con tasa de éxito */
+async function drawBank(box) {
+  const { glosaTemplates, saveGlosaTemplate, glosaReasons } = await import('../services/finance.js');
+  const { listArs } = await import('../services/catalog.js');
+  const { formDialog, opt, fieldError } = await import('../utils/ui.js');
+  let rows = [];
+  const load = () => loadInto(box, async () => { rows = await glosaTemplates(); return rows; }, (list) => html`
+    <button class="btn sm primary" id="tpl_new" style="margin-bottom:8px">+ Respuesta</button>
+    ${list.length ? html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Motivo</th><th>Respuesta</th><th>ARS</th><th class="n">Usos</th><th class="n">Éxito</th><th></th></tr></thead><tbody>
+      ${list.map((t) => html`<tr><td data-l="Motivo">${t.reason_name}</td><td data-l="Respuesta"><b>${t.title}</b>${t.is_active ? '' : html` <span class="pill">Inactiva</span>`}<div class="small muted">${String(t.body).slice(0, 110)}…</div></td>
+        <td data-l="ARS">${t.ars_name || 'Todas'}</td><td data-l="Usos" class="n">${num(t.uses)}</td><td data-l="Éxito" class="n">${t.success_rate != null ? html`<b style="color:${t.success_rate >= 60 ? 'var(--ok)' : t.success_rate >= 30 ? 'var(--warn)' : 'var(--bad)'}">${t.success_rate} %</b>` : html`<span class="muted">—</span>`}</td>
+        <td data-l=""><button class="btn sm" data-tpl="${t.id}">Editar</button></td></tr>`)}</tbody></table></div>` : html`<p class="small muted">Sin respuestas en el banco.</p>`}`, { isEmpty: () => false });
+  box.addEventListener('click', async (e) => {
+    const b = e.target.closest('#tpl_new, [data-tpl]'); if (!b) return;
+    const t = b.dataset.tpl ? rows.find((x) => x.id === b.dataset.tpl) : {};
+    try {
+      const [reasons, ars] = await Promise.all([glosaReasons(), listArs().catch(() => [])]);
+      const ok = await formDialog({ title: t.id ? 'Editar respuesta' : 'Nueva respuesta del banco', submitLabel: 'Guardar', wide: true,
+        body: html`<div class="form-grid"><div class="field"><label for="tp_r">Motivo *</label><select id="tp_r" name="reason">${reasons.map((r) => opt(r.code, r.name, t.reason_code))}</select></div>
+          <div class="field"><label for="tp_a">ARS</label><select id="tp_a" name="ars"><option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name, t.ars_id))}</select></div>
+          <div class="field" style="grid-column:1/-1"><label for="tp_t">Título *</label><input id="tp_t" name="title" maxlength="100" value="${t.title || ''}"></div></div>
+          <div class="field"><label for="tp_b">Texto de la respuesta * <span class="small muted">(usa [CORCHETES] para los datos de cada caso)</span></label><textarea id="tp_b" name="body" rows="6" class="input">${t.body || ''}</textarea></div>
+          <label class="check"><input type="checkbox" name="active" ${t.is_active === false ? '' : 'checked'}> Activa</label>`,
+        onSubmit: async (d, f) => {
+          if ((d.title || '').trim().length < 3) { fieldError(f.elements.title, 'Indique el título'); return false; }
+          if ((d.body || '').trim().length < 20) { fieldError(f.elements.body, 'Mínimo 20 caracteres'); return false; }
+          return saveGlosaTemplate({ id: t.id, reason: d.reason, ars: d.ars || null, title: d.title.trim(), body: d.body.trim(), active: !!d.active });
+        } });
+      if (ok) { toast('Respuesta guardada', 'ok'); load(); }
+    } catch (err) { toast(friendlyError(err), 'bad'); }
+  });
+  load();
 }

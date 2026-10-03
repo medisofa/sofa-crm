@@ -75,7 +75,9 @@ export async function render(main, ctx) {
     <div class="page-head"><div class="t"><h2>Usuarios y roles</h2><p>Quién tiene acceso, con qué rol y cuándo entró por última vez. Revísalo cada trimestre y desactiva lo que ya no se usa.</p></div>
       <div class="toolbar" style="margin:0">${manage ? html`<button class="btn primary" id="invite">+ Invitar usuario</button><button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
     <div class="tabs" id="kinds" role="group" aria-label="Tipo de usuario" style="margin-bottom:6px"></div>
-    <div class="tabs" id="tabs" role="group" aria-label="Estado"></div><div id="l"></div>`);
+    <div class="tabs" id="tabs" role="group" aria-label="Estado"></div><div id="l"></div>
+    ${ctx.role === 'super_admin' ? html`<div class="card" style="margin-top:14px"><h2>Validación de usuarios y roles</h2>
+      <p class="sub">Revisa usuarios sin rol, roles cruzados, secretarias sin médicos y otras inconsistencias.</p><button class="btn" id="valRoles">Revisar ahora</button><div id="valBox" style="margin-top:10px"></div></div>` : ''}`);
   let kind = '';
   const KINDS = [['', 'Todos'], ['sofa', 'Equipo SOFA'], ['client', 'Médicos'], ['capturer', 'Secretarias']];
   const ofKind = (r) => (!kind ? true : kind === 'sofa' ? !ORG_ROLES.includes(r.role_code) : r.role_code === kind);
@@ -113,6 +115,7 @@ export async function render(main, ctx) {
     drawKinds(); drawTabs(); draw();
   };
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-s]'); if (b) { filter = b.dataset.s; drawTabs(); draw(); } });
+  $('#valRoles', main)?.addEventListener('click', (e) => busy(e.currentTarget, async () => { try { await runRolesReport($('#valBox', main)); } catch (err) { toast(friendlyError(err), 'bad'); } }));
   $('#kinds', main).addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) { kind = b.dataset.k; drawKinds(); draw(); } });
   const invitePreset = async (role) => { try { const r = await roleDialog(ctx, { role }); if (r) { toast(r.message, 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } };
   $('#inviteMed', main)?.addEventListener('click', () => invitePreset('client'));
@@ -148,3 +151,15 @@ async function scopeDialog(userId, orgId, name) {
 
 /** Invitar Médico o Secretaria desde la ficha del cliente (consultorio ya elegido) */
 export async function inviteToClient(ctx, role, orgId) { return roleDialog(ctx, { role, orgId }); }
+
+/** Validación de usuarios y roles (solo Super Admin) */
+async function runRolesReport(box) {
+  const { usersRolesReport } = await import('../services/admin.js');
+  const SEV = { alta: ['Corregir', 'bad'], media: ['Revisar', 'warn'], info: ['Informativo', 'info'], ok: ['Bien', 'ok'] };
+  const rows = await usersRolesReport();
+  const bad = rows.filter((r) => r.severity === 'alta').length; const warn = rows.filter((r) => r.severity === 'media').length;
+  paint(box, html`<p><b>${bad ? `${bad} punto(s) a corregir` : 'Sin puntos críticos'}</b>${warn ? ` · ${warn} a revisar` : ''} · ${rows.length} reglas revisadas</p>
+    <div class="list">${rows.map((r) => { const [l, c] = SEV[r.severity] || [r.severity, '']; return html`<div class="li" style="align-items:flex-start">
+      <span class="pill ${c}" style="min-width:86px;text-align:center">${l}</span><div class="b"><div class="t1">${r.title}${r.check_code === 'super_admin' || r.n ? ` · ${r.n}` : ''}</div><div class="t2">${r.detail}</div>
+      ${r.n && (r.severity !== 'ok' || r.check_code === 'super_admin') ? html`<div class="t2">${r.users.slice(0, 12).map((u) => [u.name, u.email, u.role, u.roles, u.org, u.medico, u.estado].filter(Boolean).join(' · ')).join(' | ')}${r.users.length > 12 ? ` y ${r.users.length - 12} más` : ''}</div>` : ''}</div></div>`; })}</div>`);
+}

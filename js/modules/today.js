@@ -10,6 +10,7 @@ const GROUPS = {
   configuracion: 'Reclamaciones sin contrato (pendientes de configuración)', inconsistencia: 'Reclamaciones con inconsistencia', diferencia: 'Diferencias tarifarias por autorizar',
   retiro: 'Reclamaciones por retirar', fiscal: 'Radicaciones sin factura fiscal o con diferencia',
   validacion: 'Retiradas sin validar (más días de lo previsto)', enviada: 'Lotes enviados sin acuse de la ARS',
+  glosa_normativa: 'Glosas: plazos de la normativa (respuesta de la ARS, conciliación y arbitraje)',
   consultorio: 'Pacientes atendidos sin registrar', cuadre: 'Días sin cuadre de caja', autorizacion: 'Autorizaciones por vencer (la ARS depura a los 180 días)',
   reenvio: 'Devueltas por la ARS sin reenviar', pago_incompleto: 'Pagos incompletos (aprobado mayor que pagado)', sofa_ncf: 'Facturas SOFA sin NCF',
   ventana: 'Ventana de radicación', cobro: 'Cobros vencidos o por vencer', glosa: 'Glosas por responder', radicar: 'Listas para radicar',
@@ -19,7 +20,7 @@ const GROUPS = {
 const ORDER = Object.keys(GROUPS);
 const FOR_ROLE = {
   billing: ['autorizacion', 'reenvio', 'pago_incompleto', 'validacion', 'configuracion', 'diferencia', 'inconsistencia', 'retiro'],   // solo sus módulos (decisión 01/10/2026)
-  glosas: ['pago_incompleto', 'glosa', 'cobro', 'tarea'],
+  glosas: ['glosa_normativa', 'pago_incompleto', 'glosa', 'cobro', 'tarea'],
   assistant: ['retiro', 'depurar', 'borrador', 'seguimiento', 'tarea', 'ventana', 'habilitacion', 'renovacion'], client: ['consultorio', 'cuadre', 'autorizacion', 'configuracion', 'inconsistencia', 'borrador', 'depurar', 'glosa', 'cobro', 'ventana', 'habilitacion', 'renovacion'],
   operations: ['autorizacion', 'enviada', 'validacion', 'retiro', 'inconsistencia', 'configuracion', 'radicar', 'fiscal', 'tarea'], auditor: ['validacion', 'inconsistencia', 'retiro', 'diferencia'], capturer: ['consultorio', 'cuadre', 'autorizacion', 'configuracion', 'inconsistencia']
 };
