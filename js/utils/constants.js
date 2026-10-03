@@ -103,3 +103,7 @@ export const CONTRACT_STATUS = { vigente: ['Vigente', 'ok'], suspendida: ['Suspe
 export const CARE_MODES = [['ambulatorio', 'Ambulatorio'], ['emergencia', 'Emergencia'], ['internamiento', 'Internamiento']];
 export const DELIVERY_METHODS = [['plataforma', 'Plataforma / portal de la ARS'], ['fisico', 'Entrega física'], ['correo', 'Correo'], ['otro', 'Otro']];
 export const PICKUP_STATUS = { borrador: ['Programado', 'warn'], confirmado: ['Confirmado', 'ok'], anulado: ['Anulado', ''] };
+
+/** 1.7 · B4: e-CF */
+export const ECF_DGII = { en_proceso: ['En proceso en la DGII', 'warn'], aceptado: ['Aceptado por la DGII', 'ok'], aceptado_condicional: ['Aceptado condicional', 'ok'], rechazado: ['Rechazado por la DGII', 'bad'] };
+export const ECF_CLIENT = { no_iniciado: ['No iniciado', 'bad'], en_proceso: ['En proceso', 'warn'], listo: ['Listo', 'ok'] };

@@ -46,6 +46,7 @@ export async function render(main, ctx) {
       <div class="card"><h2>Prestadores</h2><p class="sub">Médicos o centros que facturan a las ARS bajo este cliente.</p>${editOrg ? html`<button class="btn sm" id="addProv">+ Prestador</button>` : ''}<div id="provs"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Códigos de prestador por ARS</h2><p class="sub">Sin código asignado, la ARS no paga. Lleva aquí las solicitudes pendientes.</p>${editCodes ? html`<button class="btn sm" id="addCode">+ Código ARS</button>` : ''}<div id="codes"></div></div>
       <div class="card"><h2>Contactos</h2>${crm ? html`<button class="btn sm" id="addContact">+ Contacto</button>` : ''}<div id="contacts"></div></div>
+      ${staff ? html`<div class="card"><h2>Factura electrónica (e-CF)</h2><p class="sub">Desde su fecha de obligación, sus lotes solo se radican con e-NCF E31 aceptado por la DGII.</p><div id="ecfc"></div></div>` : ''}
       ${staff || ctx.role === 'client' ? html`<div class="card"><h2>Implementación (onboarding)</h2><p class="sub">9 pasos para dejar al cliente operando. Al completarlos pasa a Activo.</p><div id="onb"></div></div>
       <div class="card"><h2>Documentos A–E</h2><p class="sub">Contrato, autorización, cartas y formulario, prellenados con los datos del cliente.</p><div id="cdocs"></div></div>` : ''}
       <div class="card" style="grid-column:1/-1"><h2>Radicaciones</h2><p class="sub">Las más recientes de este cliente.</p>${can('subs.create', ctx.role) ? html`<button class="btn sm" id="addSub">+ Nueva radicación</button> ` : ''}<a class="btn sm" href="#/radicaciones">Ver todas</a><div id="subs" style="margin-top:8px"></div></div>
@@ -165,6 +166,31 @@ export async function render(main, ctx) {
   $('#addTask', main)?.addEventListener('click', async () => { if (await taskDialog(ctx, entity)) loadTasks(); });
   tBox.addEventListener('click', (e) => taskAction(e, loadTasks));
 
+  // ---- 1.7 · B4: preparación e-CF del cliente
+  const drawEcf = (o) => { const box = $('#ecfc', main); if (!box) return; const [l, c] = ({ no_iniciado: ['No iniciado', 'bad'], en_proceso: ['En proceso', 'warn'], listo: ['Listo', 'ok'] })[o.ecf_status] || [o.ecf_status, ''];
+    const days = o.ecf_required_from ? Math.round((new Date(`${o.ecf_required_from}T12:00:00`) - new Date(`${todayISO()}T12:00:00`)) / 864e5) : null;
+    paint(box, html`<dl class="kv"><dt>Preparación</dt><dd><span class="pill ${c}">${l}</span>${o.ecf_ready_on ? ` desde el ${date(o.ecf_ready_on)}` : ''}</dd><dt>Proveedor o sistema de e-CF</dt><dd>${o.ecf_provider || '—'}</dd>
+      <dt>Obligado desde</dt><dd>${o.ecf_required_from ? date(o.ecf_required_from) : '—'}${days != null ? html` · <b style="${days <= 15 && o.ecf_status !== 'listo' ? 'color:var(--bad)' : ''}">${days >= 0 ? `faltan ${days} días` : `vigente hace ${-days} días`}</b>` : ''}</dd></dl>
+      ${can('onboarding.manage', ctx.role) ? html`<button class="btn sm" id="ecfEdit" type="button">Actualizar preparación e-CF</button>` : ''}`); };
+  drawEcf(org);
+  $('#ecfc', main)?.addEventListener('click', async (e) => {
+    if (!e.target.closest('#ecfEdit')) return;
+    const { formDialog, opt: o2 } = await import('../utils/ui.js'); const { setClientEcf } = await import('../services/claims.js');
+    try {
+      const ok = await formDialog({ title: `e-CF · ${org.legal_name}`, submitLabel: 'Guardar',
+        body: html`<div class="form-grid"><div class="field"><label for="ce_s">Preparación *</label><select id="ce_s" name="status">${[['no_iniciado', 'No iniciado'], ['en_proceso', 'En proceso'], ['listo', 'Listo (emite e-CF)']].map(([k, l]) => o2(k, l, org.ecf_status))}</select></div>
+          <div class="field"><label for="ce_p">Proveedor o sistema de e-CF</label><input id="ce_p" name="provider" maxlength="80" value="${org.ecf_provider || ''}"></div>
+          <div class="field"><label for="ce_f">Obligado desde *</label><input id="ce_f" name="from" type="date" value="${org.ecf_required_from || ''}"><span class="hint">Pequeños, micro y no clasificados: 15/11/2026</span></div>
+          <div class="field"><label for="ce_r">Listo desde</label><input id="ce_r" name="ready" type="date" max="${todayISO()}" value="${org.ecf_ready_on || ''}"></div></div>`,
+        onSubmit: async (d, f) => {
+          if (!d.from) { fieldError(f.elements.from, 'Indique la fecha'); return false; }
+          if (d.status === 'listo' && (d.provider || '').trim().length < 2) { fieldError(f.elements.provider, 'Indique el proveedor'); return false; }
+          if (d.status === 'listo' && !d.ready) { fieldError(f.elements.ready, 'Indique desde cuándo'); return false; }
+          await setClientEcf(org.id, { status: d.status, provider: d.provider, from: d.from, ready: d.ready }); Object.assign(org, { ecf_status: d.status, ecf_provider: d.provider || null, ecf_required_from: d.from, ecf_ready_on: d.status === 'listo' ? d.ready : null }); return true;
+        } });
+      if (ok) { toast('Preparación e-CF guardada', 'ok'); drawEcf(org); }
+    } catch (err) { toast(friendlyError(err), 'bad'); }
+  });
   // ---- 1.5 · Implementación y documentos A–E (se cargan cuando ya se conocen los prestadores)
   if ($('#onb', main)) {
     const cc = await import('./client-commercial.js');

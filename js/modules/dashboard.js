@@ -7,6 +7,7 @@ import { filterBar } from '../utils/filters.js';
 import { barChart, hBars, progress } from '../utils/charts.js';
 import { money, num, period, date, todayISO } from '../utils/formatters.js';
 import { can, isStaff, canOpen } from '../utils/permissions.js';
+import { ECF_CLIENT } from '../utils/constants.js';
 
 const pct = (a, b) => (Number(b) > 0 ? Math.round((1000 * Number(a)) / Number(b)) / 10 : null);
 const pctTxt = (v) => (v == null ? '—' : `${v}%`);
@@ -32,7 +33,7 @@ export async function render(main, ctx) {
 
   async function draw() {
     paint(body, loadingView(6));
-    try { if (tab === 'operacion') { await drawOps(); await drawNewsCard(); drawStageCard(); } else if (tab === 'mercado') await (await import('./market.js')).renderMarketSummary(body, ctx); else await drawGrowth(); }
+    try { if (tab === 'operacion') { await drawOps(); await drawNewsCard(); drawStageCard(); drawEcfCard(); } else if (tab === 'mercado') await (await import('./market.js')).renderMarketSummary(body, ctx); else await drawGrowth(); }
     catch (err) { console.error(err); paint(body, errorView(err)); }
   }
 
@@ -73,6 +74,22 @@ export async function render(main, ctx) {
   }
 
   /** Iteración 14 · Tiempos por etapa (días promedio) por ARS, de las reclamaciones de los últimos 12 meses */
+  // 1.7 · B4: preparación e-CF de la cartera (la DGII exige e-CF a pequeños y micro desde el 15/11/2026)
+  async function drawEcfCard() {
+    if (tab !== 'operacion' || !isStaff(ctx.role)) return;
+    const card = document.createElement('div'); card.className = 'card'; card.style.marginTop = '14px'; card.id = 'ecfCard'; body.appendChild(card);
+    try {
+      const { ecfReadiness } = await import('../services/claims.js'); const rows = await ecfReadiness();
+      if (!document.body.contains(card)) return;
+      const by = (k) => rows.filter((r) => r.ecf_status === k).length; const pend = rows.filter((r) => r.ecf_status !== 'listo');
+      paint(card, html`<h2>Factura electrónica (e-CF) de los clientes</h2><p class="sub">Clientes que deben facturar a las ARS con e-CF y su preparación. Sin e-CF aceptado, sus lotes no se radican desde su fecha.</p>
+        <div class="grid kpis"><div class="kpi"><div class="l">Listos</div><div class="v" style="color:var(--ok)">${by('listo')}</div></div><div class="kpi"><div class="l">En proceso</div><div class="v" style="color:var(--warn)">${by('en_proceso')}</div></div>
+          <div class="kpi"><div class="l">No iniciado</div><div class="v" style="color:var(--bad)">${by('no_iniciado')}</div></div><div class="kpi"><div class="l">Lotes abiertos de clientes no listos</div><div class="v">${pend.reduce((t, r) => t + Number(r.open_submissions), 0)}</div></div></div>
+        ${pend.length ? html`<div class="table-wrap" style="margin-top:10px"><table class="t cards"><thead><tr><th>Cliente</th><th>Preparación</th><th>Obligado desde</th><th class="n">Días</th><th>Proveedor</th></tr></thead><tbody>
+          ${pend.slice(0, 12).map((r) => { const [l, c] = ECF_CLIENT[r.ecf_status] || [r.ecf_status, '']; return html`<tr><td data-l="Cliente">${canOpen('#/clientes', ctx.role) ? html`<a href="#/clientes/${r.id}">${r.legal_name}</a>` : r.legal_name}</td><td data-l="Preparación"><span class="pill ${c}">${l}</span></td>
+            <td data-l="Obligado desde">${r.ecf_required_from ? r.ecf_required_from.split('-').reverse().join('/') : '—'}</td><td data-l="Días" class="n" style="${r.days_left <= 15 ? 'color:var(--bad);font-weight:700' : ''}">${r.days_left}</td><td data-l="Proveedor">${r.ecf_provider || '—'}</td></tr>`; })}</tbody></table></div>` : html`<p class="small" style="color:var(--ok)">Todos los clientes activos están listos para el e-CF.</p>`}`);
+    } catch (err) { card.remove(); }
+  }
   async function drawStageCard() {
     if (tab !== 'operacion' || !can('stages.view', ctx.role)) return;
     const card = document.createElement('div'); card.className = 'card'; card.style.marginTop = '14px'; card.id = 'stageCard';

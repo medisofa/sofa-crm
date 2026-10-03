@@ -20,7 +20,7 @@ export async function render(main, ctx) {
     ${manage ? html`<div class="card" style="margin-top:14px"><h2>Cierre del mes</h2><p class="sub">1) Genera las cuotas mensuales (también lo hace pg_cron el día 1). 2) Genera las facturas: agrupan por cliente lo no facturado del mes <b>y los honorarios rezagados de meses anteriores</b> (por ejemplo, de un pago registrado tarde). Las cuotas se <b>prorratean por días activos</b> cuando el cliente entra o sale a mitad de mes.</p>
       <div class="toolbar" style="margin:0"><label class="sr-only" for="mon">Mes</label><input class="input" type="month" id="mon" value="${thisMonth}" max="${thisMonth}" style="width:auto">
         <button class="btn" id="genFees">Generar cuotas del mes</button><button class="btn primary" id="genInv">Generar facturas del mes</button>
-        <button class="btn" id="newInv">+ Nueva factura</button>${can('fees.cleanup', ctx.role) ? html`<button class="btn" id="cleanup">Limpieza del libro</button>` : ''}</div>
+        <button class="btn" id="newInv">+ Nueva factura</button>${can('fees.cleanup', ctx.role) ? html`<button class="btn" id="cleanup">Limpieza del libro</button>` : ''}${ctx.role === 'super_admin' ? html`<button class="btn danger" id="zero">Poner honorarios en cero</button>` : ''}</div>
         <p class="small muted" style="margin:8px 0 0">Las facturas de SOFA son documentos de cobro. El comprobante fiscal (NCF / e-CF) se emite en el sistema fiscal; aquí se registra como referencia.</p></div>` : ''}
     <div class="card" style="margin-top:14px"><h2>Por cliente</h2><p class="sub">Esquema de facturación: monto fijo mensual, % de lo cobrado o ambos.</p><div id="sum"></div></div>
     ${staff ? html`<div class="card" style="margin-top:14px"><h2>Servicios por proyecto</h2><p class="sub">Codificación, Habilitación y otros cobros independientes de la facturación de reclamaciones: pago único, cuotas mensuales o 3 pagos por porcentaje.</p><div id="proj"></div></div>` : ''}
@@ -89,7 +89,7 @@ export async function render(main, ctx) {
     });
   });
   // ---- 1.7: esquema, proyectos, factura manual y limpieza
-  if ($('#proj', main)) adm.renderProjects($('#proj', main), ctx);
+  const projH = $('#proj', main) ? adm.renderProjects($('#proj', main), ctx) : null;
   $('#sum', main).addEventListener('click', async (e) => {
     const b = e.target.closest('[data-scheme]'); if (!b) return;
     try { if (await adm.schemeDialog(ctx, { id: b.dataset.scheme, name: b.dataset.name })) { toast('Esquema aplicado; lo no facturado se recalculó', 'ok'); loadSummary(); loadLedger(); } }
@@ -97,6 +97,28 @@ export async function render(main, ctx) {
   });
   $('#newInv', main)?.addEventListener('click', async () => {
     try { const id = await adm.manualInvoiceDialog(ctx); if (id) { toast('Factura emitida', 'ok'); location.hash = `#/honorarios/${id}`; } } catch (err) { toast(friendlyError(err), 'bad'); }
+  });
+  $('#zero', main)?.addEventListener('click', async () => {   // borra todo el módulo (solo Super Admin)
+    try {
+      const { dataResetPreview } = await import('../services/admin.js'); const { honorariosReset } = await import('../services/finance.js');
+      const { formDialog, fieldError: fe } = await import('../utils/ui.js');
+      const p = (await dataResetPreview(['honorarios'])).honorarios || {};
+      const r = await formDialog({ title: 'Poner honorarios en cero', submitLabel: 'Poner en cero', wide: true,
+        body: html`<div class="note bad">Se borran <b>todos</b> los honorarios, las facturas de SOFA, sus cobros y los servicios por proyecto de todos los clientes. El tablero y el libro quedan en cero. <b>No se puede deshacer.</b></div>
+          <p>Se borrarán: ${num(p.honorarios || 0)} honorario(s) · ${num(p.facturas || 0)} factura(s) · ${num(p.cobros || 0)} cobro(s) · ${num(p.proyectos || 0)} proyecto(s).</p>
+          <label class="check" style="display:flex;margin:4px 0"><input type="checkbox" name="rules"> Quitar también los esquemas de honorarios de los clientes (fijo, % o mixto)</label>
+          <label class="check" style="display:flex;margin:4px 0"><input type="checkbox" name="folios"> Reiniciar la numeración de facturas (FAC) y proyectos (SRV)</label>
+          <label class="check" style="display:flex;margin:4px 0"><input type="checkbox" name="backup"> Hice un respaldo de la base de datos</label>
+          <div class="field"><label for="z_r">Motivo (mínimo 10 caracteres) *</label><input id="z_r" name="reason" maxlength="200"></div>
+          <div class="field"><label for="z_c">Escribe <b>PONER EN CERO</b> para confirmar *</label><input id="z_c" name="confirm" autocomplete="off"></div>`,
+        onSubmit: async (d, f) => {
+          if (!d.backup) { toast('Confirma que hiciste el respaldo', 'bad'); return false; }
+          if ((d.reason || '').trim().length < 10) { fe(f.elements.reason, 'Mínimo 10 caracteres'); return false; }
+          if (d.confirm !== 'PONER EN CERO') { fe(f.elements.confirm, 'Escribe exactamente PONER EN CERO'); return false; }
+          return honorariosReset(d.reason.trim(), d.confirm, !!d.rules, !!d.folios);
+        } });
+      if (r) { const c = r.counts || {}; toast(`Honorarios en cero: ${c.honorarios || 0} honorario(s), ${c.facturas_sofa || 0} factura(s) y ${c.proyectos || 0} proyecto(s) borrados`, 'ok'); loadSummary(); loadInv(); loadLedger(); projH?.reload(); }
+    } catch (err) { toast(friendlyError(err), 'bad'); }
   });
   $('#cleanup', main)?.addEventListener('click', async () => {
     try { if (await adm.cleanupWizard(ctx)) { loadSummary(); loadInv(); loadLedger(); } } catch (err) { toast(friendlyError(err), 'bad'); }

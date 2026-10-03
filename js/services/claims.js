@@ -164,7 +164,7 @@ export async function importContracts(rows, commit = false) { return must(await 
 // ---------------------------------------------------------------- Factura fiscal (D2) y entrega
 /** Campos de factura fiscal, excepción y entrega (no están en v_submissions) */
 export async function getFiscal(submissionId) {
-  return must(await sb().from('submissions').select('id, ncf, fiscal_invoice_number, fiscal_amount, accountant_name, fiscal_requested_on, fiscal_received_on, fiscal_document_id, fiscal_exception_expected, fiscal_exception_amount, fiscal_exception_reason, fiscal_exception_by, fiscal_exception_at, delivery_method, delivery_batch, delivery_evidence_id')
+  return must(await sb().from('submissions').select('id, ncf, invoice_date, ecf_security_code, ecf_signed_on, ecf_dgii_status, ecf_checked_on, organizations(ecf_required_from, ecf_status, ecf_provider), fiscal_invoice_number, fiscal_amount, accountant_name, fiscal_requested_on, fiscal_received_on, fiscal_document_id, fiscal_exception_expected, fiscal_exception_amount, fiscal_exception_reason, fiscal_exception_by, fiscal_exception_at, delivery_method, delivery_batch, delivery_evidence_id')
     .eq('id', submissionId).maybeSingle());
 }
 /** Reclamaciones de la radicación con su estado y folio (para la ficha del lote) */
@@ -216,3 +216,8 @@ export async function submissionFamily(id) {
 export async function submissionClaimMoney(id) {
   return must(await sb().from('v_claims').select('id, folio, patient_name, claim_status, claimed, recognized, paid, glosado, balance, last_paid_on').eq('submission_id', id).order('folio'));
 }
+
+// ---- 1.7 · B4: e-CF del lote y preparación e-CF del cliente
+export async function setSubmissionEcf(id, v) { must(await sb().rpc('set_submission_ecf', { p_submission: id, p_ncf: v.ncf, p_security_code: v.code, p_signed_on: v.signed, p_dgii_status: v.status })); return true; }
+export async function setClientEcf(orgId, v) { must(await sb().rpc('set_client_ecf', { p_org: orgId, p_status: v.status, p_provider: v.provider || null, p_required_from: v.from, p_ready_on: v.ready || null })); return true; }
+export async function ecfReadiness() { return must(await sb().from('v_ecf_readiness').select('*').order('days_left')); }

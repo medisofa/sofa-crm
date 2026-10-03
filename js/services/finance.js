@@ -131,3 +131,8 @@ export async function glosaTemplates() { return must(await sb().from('v_glosa_te
 export async function saveGlosaTemplate(v) {
   return must(await sb().rpc('save_glosa_template', { p_id: v.id || null, p_reason: v.reason, p_ars: v.ars || null, p_title: v.title, p_body: v.body, p_active: v.active !== false }));
 }
+
+/** Poner honorarios en cero (solo Super Admin): honorarios, facturas, cobros y proyectos; opcional esquemas y numeración */
+export async function honorariosReset(reason, confirm, includeRules, resetFolios) {
+  return must(await sb().rpc('honorarios_reset', { p_reason: reason, p_confirm: confirm, p_include_rules: !!includeRules, p_reset_folios: !!resetFolios }));
+}
