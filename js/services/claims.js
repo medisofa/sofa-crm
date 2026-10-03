@@ -220,18 +220,4 @@ export async function submissionClaimMoney(id) {
 // ---- 1.7 · B4: e-CF del lote y preparación e-CF del cliente
 export async function setSubmissionEcf(id, v) { must(await sb().rpc('set_submission_ecf', { p_submission: id, p_ncf: v.ncf, p_security_code: v.code, p_signed_on: v.signed, p_dgii_status: v.status })); return true; }
 export async function setClientEcf(orgId, v) { must(await sb().rpc('set_client_ecf', { p_org: orgId, p_status: v.status, p_provider: v.provider || null, p_required_from: v.from, p_ready_on: v.ready || null })); return true; }
-export async function ecfReadiness() { return must(await sb().from('v_ecf_readiness').select('*').order('days_left'));
-                                     import { sb } from '../supabase.js';
-
-/**
- * Inserta un lote masivo de reclamaciones médicas procesadas en el cliente.
- * @param {Array<Object>} claimsArray - Filas del Excel transformadas en objetos válidos.
- */
-export async function insertBulkClaims(claimsArray) {
-  const { data, error } = await sb()
-    .from('service_lines')
-    .insert(claimsArray);
-
-  if (error) throw error;
-  return data;
-}
+export async function ecfReadiness() { return must(await sb().from('v_ecf_readiness').select('*').order('days_left')); }
