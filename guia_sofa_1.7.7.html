@@ -1,0 +1,659 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SOFA 1.7.7 · Guía de entrega</title><style>
+:root{--bg:#f7f8fa;--card:#fff;--tx:#1d2330;--mu:#5d6675;--bd:#e3e6eb;--ok:#1f7a4d;--okb:#e5f4ec;--wa:#8a5a00;--wab:#fdf3dc;--er:#b42318;--erb:#fdecea;--ac:#1b5e9e}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1a1f27;--tx:#e6e9ee;--mu:#9aa3b2;--bd:#2c333e;--ok:#5fd39a;--okb:#16362a;--wa:#f2c063;--wab:#3a2f15;--er:#ff8a80;--erb:#3d1c1a;--ac:#7fb6ee}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 60px}h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:30px 0 10px;border-bottom:1px solid var(--bd);padding-bottom:6px}
+.sub{color:var(--mu)}table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--bd);font-size:14px}th,td{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}th{background:var(--bg)}
+.wrap{overflow-x:auto}.b{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}.ok{background:var(--okb);color:var(--ok)}.wa{background:var(--wab);color:var(--wa)}.er{background:var(--erb);color:var(--er)}
+code{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:0 4px;font-size:13px}pre{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;overflow:auto;font-size:12.5px;margin:0;max-height:420px}
+.code{position:relative;margin:8px 0}.copy{position:absolute;top:6px;right:18px;font:12px system-ui;padding:3px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);cursor:pointer}
+.note{border-left:4px solid var(--ac);background:var(--card);padding:10px 14px;border-radius:6px;margin:10px 0}.warn{border-left-color:var(--wa)}ol li{margin:6px 0}details{margin:8px 0}summary{cursor:pointer;font-weight:600}
+</style></head><body><main>
+<h1>SOFA 1.7.7 · Estabilización</h1>
+<p class="sub">07/10/2026 · Migración <code>060_estabilizacion.sql</code> + suite <code>061</code> + frontend 1.7.7 (rama <code>sofa-1.7.7-estabilizacion</code>, encima de la 1.7.6). Nada de esto está aplicado todavía.</p>
+
+<h2>Resultado</h2>
+<div class="wrap"><table><tr><th>Suite</th><th>Antes</th><th>Con la 060</th><th>Qué se corrigió</th></tr><tr><td>qa_run_tests (base)</td><td><span class="b er">19/21</span></td><td><span class="b ok">44/44</span></td><td>Contrato Médico×ARS (It. 12), factura fiscal y radicación por Admin, conteo de tarifas sin las contractuales</td></tr><tr><td>radicaciones</td><td><span class="b er">21/23</span></td><td><span class="b ok">26/26</span></td><td>Contrato antes de cargar, validación de ≥10 reglas (hoy 13), fiscal y radicación por Admin</td></tr><tr><td>crm</td><td><span class="b er">27/28</span></td><td><span class="b ok">28/28</span></td><td>Etapa «Contratado» al convertir; «Convertir dos veces» vuelve a fallar por su propia regla</td></tr><tr><td>tarifarios</td><td><span class="b er">18/19</span></td><td><span class="b ok">19/19</span></td><td>La brecha se prueba con un servicio propio (no con el tarifario de ejemplo)</td></tr><tr><td>reinicio</td><td><span class="b er">20/22</span></td><td><span class="b ok">22/22</span></td><td>El reporte de roles se revisa sin depender de los usuarios reales</td></tr><tr><td>finanzas</td><td><span class="b er">12/13</span></td><td><span class="b ok">35/35</span></td><td>Pagos por Admin; que Facturación no vea el honorario se sigue probando con Facturación</td></tr><tr><td>reclamaciones</td><td><span class="b er">43/44</span></td><td><span class="b ok">67/67</span></td><td>Fiscal, radicación y pagos por Admin; «radicar con diferencia fiscal» falla por la diferencia</td></tr><tr><td>expediente</td><td><span class="b er">60/61</span></td><td><span class="b ok">62/62</span></td><td>Envío y radicación por Admin; «datos de envío no se editan» falla por su propia regla</td></tr><tr><td>postradicacion</td><td><span class="b er">0/1</span></td><td><span class="b ok">46/46</span></td><td>Radicación y pagos por Admin; recupera la alerta «Factura SOFA sin NCF»</td></tr>
+<tr><td>Las otras 12</td><td><span class="b ok">verdes</span></td><td><span class="b ok">verdes</span></td><td>Sin cambios en sus reglas; reciben search_path fijo y (las que radican) clientes de prueba sin obligación de e-CF</td></tr>
+<tr><td><b>Total</b></td><td><span class="b er">12 de 21</span></td><td><span class="b ok">21 de 21 · 633 pruebas</span></td><td>Corrido en producción dentro de <code>begin … rollback</code>: no quedó nada aplicado</td></tr></table></div>
+<div class="note">Ninguna regla de negocio cambió. Las suites eran de antes de la decisión del 01/10/2026 (Facturación no radica, no registra factura fiscal ni pagos) y de las Iteraciones 12–16; ahora esos pasos los hace el usuario Admin de cada suite, y las pruebas de bloqueo vuelven a fallar <b>por su propia regla</b> (en 4 casos fallaban por el rol, que es la razón equivocada).</div>
+
+<h2>Qué trae la 060</h2>
+<ol>
+<li><b><code>app.qa_patch()</code></b>: corrige cada suite reemplazando un fragmento exacto. Si el fragmento no aparece exactamente una vez, se detiene y lo dice; si ya se aplicó, lo salta. <i>Sobre la regla 5:</i> no tengo los archivos de migración originales (están en el repositorio privado), así que en lugar de reescribir funciones de 30–55 KB de memoria, se parchan solo las líneas necesarias sobre la versión que está en la base, con verificación. Cuando me des el repositorio privado, se pueden volcar como copias completas.</li>
+<li><b>Suites</b> según la tabla, y clientes de prueba con <code>ecf_required_from = 2099-12-31</code> en las 9 que radican. <span class="b wa">Importante</span> sin esto, desde el <b>15/11/2026</b> las suites volverían a fallar por la fecha general de e-CF.</li>
+<li><b><code>public.remove_service_line(línea, motivo)</code></b>: quitar una reclamación de un lote no radicado. Mismo alcance de roles que la política actual (Super Admin, Admin, Facturación, Comercial y el médico en su lote); bloquea lotes radicados, pagos, glosas y reenvíos; exige motivo; borra sus documentos (antes quedaban huérfanos) y deja la actividad en el cliente.</li>
+<li><b><code>import_claims</code></b>: una fila sin servicio ahora dice «Falta el servicio: indique el código interno, el nombre, el SIMON o el CUPS».</li>
+<li><b>Trabajo de hoy</b>: vuelve la alerta «Facturas SOFA sin NCF» (Iteración 14). Una migración posterior reemplazó <code>work_queue()</code> sin ese bloque; la pantalla todavía tenía su etiqueta. Hoy marcaría 1 factura real. Aviso a los 2 días de emitida — <span class="b wa">confírmelo</span> o diga otro plazo.</li>
+<li><b>search_path fijo</b> en las 21 suites (quita los 21 avisos del asesor de seguridad).</li>
+</ol>
+
+<h2>Frontend 1.7.7</h2>
+<ul><li>El ✕ de cada servicio en la ficha de la radicación pide motivo y usa <code>remove_service_line</code> (antes: <code>delete</code> directo). Si la base todavía no tiene la 060, el mensaje lo dice.</li>
+<li>Se borra la carpeta vieja duplicada <code>sofa-crm/sofa-crm/</code> (del 30/09).</li><li>Versión 1.7.7 en <code>version.js</code>, <code>sw.js</code> y README.</li></ul>
+<p><span class="b ok">9/9</span> pruebas de interfaz nuevas y <span class="b ok">34/34</span> de la 1.7.6 sobre el código 1.7.7.</p>
+
+<h2>Lo que no pude verificar</h2>
+<div class="note warn">La corrida de <code>remove_service_line</code> y de la suite 061 contra la base real pidió aprobación en Supabase tres veces (por los <code>DELETE</code> dentro de la función) y no se ejecutó. La 061 la debe correr usted después de aplicar la 060 (paso 2). Si algo falla, me pega el resultado y lo corrijo.</div>
+
+<h2>Cómo desplegar (en este orden)</h2>
+<ol>
+<li><b>Base primero.</b> SQL Editor de Supabase → pegue y ejecute la 060:<div class="code"><button class="copy">Copiar</button><pre>-- ============================================================================
+-- SOFA 1.7.7 · 060_estabilizacion.sql
+-- Deja en verde la regresión SQL después de las decisiones del 01/10/2026 y de
+-- las Iteraciones 12–17, sin cambiar ninguna regla de negocio de las suites:
+--   1. app.qa_patch(): parcha una suite reemplazando un fragmento EXACTO. Si el
+--      fragmento no está una sola vez, falla y dice qué hacer (nunca adivina).
+--      Si el parche ya se aplicó, lo salta (idempotente).
+--   2. Suites corregidas: los pasos que la decisión del 01/10/2026 reservó a la
+--      Administración (radicar, factura fiscal, envío y pagos de las ARS) los hace
+--      el usuario Admin de cada suite; las pruebas de bloqueo vuelven a fallar por
+--      su propia regla; los clientes de prueba quedan sin obligación de e-CF.
+--   3. public.remove_service_line(): quitar un servicio de un lote por función.
+--   4. public.import_claims(): mensaje claro cuando la fila no trae servicio.
+--   5. search_path fijo en las suites (aviso del asesor de seguridad).
+-- Depende de: 058 (delete_submission) y 056 (import_claims).
+-- ============================================================================
+
+do $$
+begin
+  if not exists (select 1 from app.schema_migrations where version = &#x27;058&#x27;) then
+    raise exception &#x27;Falta la migración 058_delete_submission.sql. Aplíquela primero y vuelva a correr la 060.&#x27;;
+  end if;
+  if not exists (select 1 from app.schema_migrations where version = &#x27;056&#x27;) then
+    raise exception &#x27;Falta la migración 056 (import_claims). Aplíquela primero y vuelva a correr la 060.&#x27;;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 1. Parche exacto de suites
+-- ---------------------------------------------------------------------------
+create or replace function app.qa_patch(p_fn regprocedure, p_old text, p_new text)
+returns text
+language plpgsql
+set search_path = &#x27;&#x27;
+as $$
+declare
+  src text := pg_get_functiondef(p_fn);
+  n_old int := (length(src) - length(replace(src, p_old, &#x27;&#x27;))) / greatest(length(p_old), 1);
+  n_new int := (length(src) - length(replace(src, p_new, &#x27;&#x27;))) / greatest(length(p_new), 1);
+begin
+  -- Ya aplicado (también cuando el fragmento nuevo contiene al viejo, como en los parches que agregan líneas antes)
+  if n_new &gt;= 1 and (n_old = 0 or strpos(p_new, p_old) &gt; 0) then
+    return &#x27;ya estaba&#x27;;
+  elsif n_old = 1 then
+    execute replace(src, p_old, p_new);
+    return &#x27;aplicado&#x27;;
+  end if;
+  raise exception &#x27;No se pudo parchar %: el fragmento aparece % veces (debe aparecer 1). Revise que la suite sea la de su migración original: «%»&#x27;,
+    p_fn, n_old, left(p_old, 120);
+end $$;
+revoke all on function app.qa_patch(regprocedure, text, text) from public;
+
+-- Los usuarios de prueba de cada suite
+--   a0…01 Admin, a0…02 Facturación (qa_run_tests)   · a2… radicaciones · a3… finanzas
+--   a1… crm · a4… tarifarios · a8… reclamaciones / expediente / postradicación / reinicio
+
+-- ---------------------------------------------------------------------------
+-- 2a. qa_run_tests (base)
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests()&#x27;,
+$o$    insert into public.service_lines (submission_id, organization_id, service_date, patient_name, member_number, authorization_number, procedure_id, quantity, unit_amount) values (&#x27;d0000000-0000-4000-8000-00000000000a&#x27;$o$,
+$n$    -- 060: desde la Iteración 12 la reclamación exige contrato Médico × ARS vigente
+    perform public.create_contract_tariff(&#x27;c0000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P02&#x27;), 1500, date_trunc(&#x27;month&#x27;, current_date)::date - 100, null, &#x27;CT-QA-BASE&#x27;);
+    insert into public.service_lines (submission_id, organization_id, service_date, patient_name, member_number, authorization_number, procedure_id, quantity, unit_amount) values (&#x27;d0000000-0000-4000-8000-00000000000a&#x27;$n$);
+
+select app.qa_patch(&#x27;app.qa_run_tests()&#x27;,
+$o$where l.submission_id = &#x27;d0000000-0000-4000-8000-00000000000a&#x27;;$o$,
+$n$where l.submission_id = &#x27;d0000000-0000-4000-8000-00000000000a&#x27;;
+    -- 060: la factura fiscal del lote la registra la Administración (decisión 01/10/2026)
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a0000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    update public.submissions set fiscal_invoice_number = &#x27;F-B0100000125&#x27;, fiscal_amount = 3000, accountant_name = &#x27;Lic. QA&#x27; where id = &#x27;d0000000-0000-4000-8000-00000000000a&#x27;;
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a0000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);$n$);
+
+select app.qa_patch(&#x27;app.qa_run_tests()&#x27;,
+$o$    perform public.change_submission_status(&#x27;d0000000-0000-4000-8000-00000000000a&#x27;, &#x27;radicada&#x27;, null, null, current_date, &#x27;R-QA-001&#x27;);$o$,
+$n$    -- 060: radicar y registrar pagos de las ARS es de la Administración (decisión 01/10/2026)
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a0000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform public.change_submission_status(&#x27;d0000000-0000-4000-8000-00000000000a&#x27;, &#x27;radicada&#x27;, null, null, current_date, &#x27;R-QA-001&#x27;);$n$);
+
+select app.qa_patch(&#x27;app.qa_run_tests()&#x27;,
+$o$    select coalesce(((select count(*) = 0 from public.sofa_fees)$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a0000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    select coalesce(((select count(*) = 0 from public.sofa_fees)$n$);
+
+-- La prueba de &quot;cambio de estado directo&quot; la hace el Admin, para que falle por su propia regla
+select app.qa_patch(&#x27;app.qa_run_tests()&#x27;,
+$o$      execute $q$update public.submissions set status = &#x27;radicada&#x27; where id = &#x27;d0000000-0000-4000-8000-00000000000a&#x27;$q$;$o$,
+$n$      perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a0000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+      execute $q$update public.submissions set status = &#x27;radicada&#x27; where id = &#x27;d0000000-0000-4000-8000-00000000000a&#x27;$q$;$n$);
+
+select app.qa_patch(&#x27;app.qa_run_tests()&#x27;,
+$o$&#x27;Cambio de estado directo (sin la función) se bloquea&#x27;,&#x27;ok&#x27;,true,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;$o$,
+$n$&#x27;Cambio de estado directo (sin la función) se bloquea&#x27;,&#x27;ok&#x27;,true,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a0000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);$n$);
+
+-- La tarifa general se cuenta sin las contractuales (Iteración 12 las guarda en la misma tabla)
+select app.qa_patch(&#x27;app.qa_run_tests()&#x27;,
+$o$(select count(*) = 2 from public.tariffs where procedure_id = (select id from public.procedures where internal_code=&#x27;SOFA-P02&#x27;) and ars_id = (select id from public.ars where code=&#x27;humano&#x27;))$o$,
+$n$(select count(*) = 1 from public.tariffs where procedure_id = (select id from public.procedures where internal_code=&#x27;SOFA-P02&#x27;) and ars_id = (select id from public.ars where code=&#x27;humano&#x27;) and provider_id is null and organization_id is null and plan_id is null and amount = 1700 and lower(valid_during) = current_date + 1) and (select count(*) = 0 from public.tariffs where procedure_id = (select id from public.procedures where internal_code=&#x27;SOFA-P02&#x27;) and ars_id = (select id from public.ars where code=&#x27;humano&#x27;) and provider_id is null and organization_id is null and plan_id is null and amount &lt;&gt; 1700 and valid_during @&gt; (current_date + 1))$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2b. qa_run_tests_radicaciones
+-- ---------------------------------------------------------------------------
+-- Contrato Médico × ARS antes de cargar (Iteración 12)
+select app.qa_patch(&#x27;app.qa_run_tests_radicaciones()&#x27;,
+$o$    v_imp := public.import_service_lines(v_s1, jsonb_build_array($o$,
+$n$    -- 060: desde la Iteración 12 la reclamación exige contrato Médico × ARS vigente
+    perform public.create_contract_tariff(&#x27;c2000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P02&#x27;), 1500, date_trunc(&#x27;month&#x27;, current_date)::date - 100, null, &#x27;CT-QA-RAD&#x27;);
+    perform public.create_contract_tariff(&#x27;c2000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P07&#x27;), 900, date_trunc(&#x27;month&#x27;, current_date)::date - 100, null, &#x27;CT-QA-RAD&#x27;);
+    v_imp := public.import_service_lines(v_s1, jsonb_build_array($n$);
+
+-- La validación creció de 10 a 13 reglas (e-CF, factura fiscal, auditoría): se exige al menos 10
+select app.qa_patch(&#x27;app.qa_run_tests_radicaciones()&#x27;,
+$o$jsonb_array_length(public.validate_submission(v_s1, false)-&gt;&#x27;items&#x27;) = 10 and$o$,
+$n$jsonb_array_length(public.validate_submission(v_s1, false)-&gt;&#x27;items&#x27;) &gt;= 10 and$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_radicaciones()&#x27;,
+$o$&#x27;Validación sin guardar devuelve 10 reglas y no pasa (faltan documentos)&#x27;$o$,
+$n$&#x27;Validación sin guardar devuelve sus reglas y no pasa (faltan documentos)&#x27;$n$);
+
+-- Factura fiscal y radicación por la Administración (decisión 01/10/2026)
+select app.qa_patch(&#x27;app.qa_run_tests_radicaciones()&#x27;,
+$o$    perform public.change_submission_status(v_s1, &#x27;lista_para_radicar&#x27;);$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a2000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    update public.submissions set fiscal_invoice_number = &#x27;F-B0100000777&#x27;, fiscal_amount = (select sum(amount) from public.service_lines where submission_id = v_s1), accountant_name = &#x27;Lic. QA&#x27; where id = v_s1;
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a2000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform public.change_submission_status(v_s1, &#x27;lista_para_radicar&#x27;);$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_radicaciones()&#x27;,
+$o$    perform public.change_submission_status(v_s1, &#x27;radicada&#x27;, null, null, current_date, &#x27;R-QA-500&#x27;);$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a2000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform public.change_submission_status(v_s1, &#x27;radicada&#x27;, null, null, current_date, &#x27;R-QA-500&#x27;);
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a2000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2c. qa_run_tests_crm · el pipeline real usa &quot;Contratado&quot; al convertir (Iteración 16)
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests_crm()&#x27;,
+$o$    select coalesce((select stage = &#x27;cliente&#x27; and probability = 100 and organization_id = v_org from public.opportunities where id = v_opp), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;Oportunidad queda como Cliente (100%) enlazada&#x27;,&#x27;ok&#x27;,v_ok));$o$,
+$n$    select coalesce((select stage = &#x27;contratado&#x27; and organization_id = v_org from public.opportunities where id = v_opp), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;Oportunidad queda en Contratado y enlazada al cliente&#x27;,&#x27;ok&#x27;,v_ok));$n$);
+-- &quot;Convertir dos veces&quot; vuelve a fallar por su propia regla (antes fallaba por &quot;Oportunidad no encontrada&quot;)
+select app.qa_patch(&#x27;app.qa_run_tests_crm()&#x27;,
+$o$(select id from public.opportunities where stage = &#x27;cliente&#x27; order by updated_at desc limit 1)$o$,
+$n$(select id from public.opportunities where stage = &#x27;contratado&#x27; and organization_id is not null order by updated_at desc limit 1)$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2d. qa_run_tests_tarifarios · la brecha se prueba con datos propios de la suite
+--     (antes dependía del tarifario de ejemplo SOFA-P04, que el reinicio de datos puede borrar)
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests_tarifarios()&#x27;,
+$o$    select coalesce((select gap_pct = 44.2 and lowest_ars = &#x27;ARS Humano&#x27; from public.v_tariff_gaps where internal_code = &#x27;SOFA-P04&#x27;), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;Brechas: la interconsulta paga 44.2% más en SENASA que en Humano&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,null));$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a4000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    insert into public.procedures (internal_code, description, service_type_code, family) values (&#x27;QA-BRECHA-01&#x27;, &#x27;QA INTERCONSULTA BRECHA&#x27;, &#x27;consulta&#x27;, &#x27;Medicina y hospitalización&#x27;);
+    perform public.create_tariff((select id from public.procedures where internal_code=&#x27;QA-BRECHA-01&#x27;), (select id from public.ars where code=&#x27;humano&#x27;), 1000, current_date);
+    perform public.create_tariff((select id from public.procedures where internal_code=&#x27;QA-BRECHA-01&#x27;), (select id from public.ars where code=&#x27;senasa_contributivo&#x27;), 1442, current_date);
+    select coalesce((select gap_pct = 44.2 and lowest_ars = &#x27;ARS Humano&#x27; and highest_ars = (select name from public.ars where code=&#x27;senasa_contributivo&#x27;) from public.v_tariff_gaps where internal_code = &#x27;QA-BRECHA-01&#x27;), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;Brechas: el mismo servicio paga 44.2% más en SENASA que en Humano&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,null));$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2e. qa_run_tests_reinicio · el reporte de roles se revisa sin depender de los usuarios reales
+--     (en producción hay un Super Admin y una secretaria reales además de los de la suite)
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests_reinicio()&#x27;,
+$o$(v_js-&gt;&#x27;secretaria_sin_medicos&#x27;-&gt;&gt;&#x27;n&#x27;)::int = 1 and$o$,
+$n$(v_js-&gt;&#x27;secretaria_sin_medicos&#x27;-&gt;&gt;&#x27;n&#x27;)::int &gt;= 1 and$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_reinicio()&#x27;,
+$o$    select coalesce((select (v_js-&gt;&#x27;super_admin&#x27;-&gt;&gt;&#x27;n&#x27;)::int = 1 and v_js-&gt;&#x27;super_admin&#x27;-&gt;&gt;&#x27;sev&#x27; = &#x27;ok&#x27;), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;Super Admin: hay 1 (correcto)&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,null));$o$,
+$n$    select coalesce((select (v_js-&gt;&#x27;super_admin&#x27;-&gt;&gt;&#x27;n&#x27;)::int between 1 and 2 and v_js-&gt;&#x27;super_admin&#x27;-&gt;&gt;&#x27;sev&#x27; = &#x27;ok&#x27; and (v_js-&gt;&#x27;super_admin&#x27;-&gt;&#x27;users&#x27;)::text like &#x27;%super@qa.test%&#x27;), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;Super Admin: 1 o 2 activos se marca como correcto&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,null));$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2f. qa_run_tests_finanzas · los pagos de las ARS los registra la Administración
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests_finanzas()&#x27;,
+$o$-- ===== 2. Pagos y honorarios =====
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a3000000-0000-4000-8000-000000000002&#x27;$o$,
+$n$-- ===== 2. Pagos y honorarios =====
+    -- 060: los pagos de las ARS los registra la Administración (decisión 01/10/2026)
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a3000000-0000-4000-8000-000000000001&#x27;$n$);
+-- Que Facturación no vea el honorario del pago se sigue comprobando con el usuario de Facturación
+select app.qa_patch(&#x27;app.qa_run_tests_finanzas()&#x27;,
+$o$    select coalesce((select allocated = 1200 and allocations = 1 and folios like &#x27;RAD-%&#x27; and sofa_fee is null from public.v_payments where id = v_p), false) into v_ok;$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a3000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    select coalesce((select allocated = 1200 and allocations = 1 and folios like &#x27;RAD-%&#x27; and sofa_fee is null from public.v_payments where id = v_p), false) into v_ok;
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a3000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_finanzas()&#x27;,
+$o$    select coalesce((select count(*) = 0 from public.sofa_fees), false) into v_ok;$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a3000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    select coalesce((select count(*) = 0 from public.sofa_fees), false) into v_ok;$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_finanzas()&#x27;,
+$o$    perform public.register_payment(&#x27;b3000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), current_date, 800, &#x27;cheque&#x27;$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a3000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform public.register_payment(&#x27;b3000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), current_date, 800, &#x27;cheque&#x27;$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2g. qa_run_tests_reclamaciones · factura fiscal, radicación y pagos por la Administración
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests_reclamaciones()&#x27;,
+$o$    update public.submissions set fiscal_invoice_number = &#x27;F-900&#x27;, fiscal_amount = 3900, accountant_name = &#x27;Lic. Contador QA&#x27;, fiscal_requested_on = current_date, fiscal_received_on = current_date where id = v_s;$o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    update public.submissions set fiscal_invoice_number = &#x27;F-900&#x27;, fiscal_amount = 3900, accountant_name = &#x27;Lic. Contador QA&#x27;, fiscal_requested_on = current_date, fiscal_received_on = current_date where id = v_s;
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);$n$);
+-- &quot;Radicar con diferencia fiscal&quot; lo intenta el Admin, para que falle por la diferencia y no por el rol
+select app.qa_patch(&#x27;app.qa_run_tests_reclamaciones()&#x27;,
+$o$      execute $q$select public.change_submission_status((select id from public.submissions where ncf = &#x27;B0100000900&#x27;), &#x27;radicada&#x27;, null, null, current_date, &#x27;R-FIS-1&#x27;)$q$;$o$,
+$n$      perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+      execute $q$select public.change_submission_status((select id from public.submissions where ncf = &#x27;B0100000900&#x27;), &#x27;radicada&#x27;, null, null, current_date, &#x27;R-FIS-1&#x27;)$q$;$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_reclamaciones()&#x27;,
+$o$&#x27;D2 · Radicar con diferencia fiscal se bloquea&#x27;,&#x27;ok&#x27;,true,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;$o$,
+$n$&#x27;D2 · Radicar con diferencia fiscal se bloquea&#x27;,&#x27;ok&#x27;,true,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_reclamaciones()&#x27;,
+$o$json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    perform public.change_submission_status(v_s, &#x27;radicada&#x27;, null, null, current_date, &#x27;R-FIS-1&#x27;, &#x27;plataforma&#x27;, &#x27;LOTE-77&#x27;);$o$,
+$n$json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    perform public.change_submission_status(v_s, &#x27;radicada&#x27;, null, null, current_date, &#x27;R-FIS-1&#x27;, &#x27;plataforma&#x27;, &#x27;LOTE-77&#x27;);$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_reclamaciones()&#x27;,
+$o$json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    v_p := public.register_payment($o$,
+$n$json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    v_p := public.register_payment($n$);
+
+-- ---------------------------------------------------------------------------
+-- 2h. qa_run_tests_expediente · el bloque final (envío y radicación) lo hace la Administración;
+--     &quot;los datos de envío no se editan directamente&quot; vuelve a fallar por su propia regla
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests_expediente()&#x27;,
+$o$&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    begin
+      execute $q$update public.submissions set sent_via = &#x27;Otro&#x27;$o$,
+$n$&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    begin
+      execute $q$update public.submissions set sent_via = &#x27;Otro&#x27;$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2i. qa_run_tests_postradicacion · radicación y pagos por la Administración
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;app.qa_run_tests_postradicacion()&#x27;,
+$o$&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    perform public.change_submission_status(v_lote, &#x27;radicada&#x27;$o$,
+$n$&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    perform public.change_submission_status(v_lote, &#x27;radicada&#x27;$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_postradicacion()&#x27;,
+$o$&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    perform public.change_submission_status(v_new, &#x27;radicada&#x27;$o$,
+$n$&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    perform public.change_submission_status(v_new, &#x27;radicada&#x27;$n$);
+select app.qa_patch(&#x27;app.qa_run_tests_postradicacion()&#x27;,
+$o$    v_pay := public.register_payment($o$,
+$n$    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    v_pay := public.register_payment($n$);
+
+-- ---------------------------------------------------------------------------
+-- 3. Trabajo de hoy: se recupera la alerta &quot;Facturas SOFA sin NCF&quot; (Iteración 14).
+--    Una migración posterior reemplazó work_queue() sin este bloque; la pantalla
+--    Trabajo de hoy todavía tiene su etiqueta (today.js: sofa_ncf).
+--    Aviso a los 2 días de emitida la factura sin el NCF del sistema fiscal externo.
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;public.work_queue()&#x27;,
+$o$  union all
+  select &#x27;factura_sofa&#x27;,$o$,
+$n$  union all
+  -- 060: Factura SOFA emitida sin el NCF del sistema fiscal externo
+  select &#x27;sofa_ncf&#x27;, &#x27;media&#x27;, &#x27;Factura &#x27; || i.folio || &#x27; · &#x27; || i.client_name,
+         &#x27;Emitida el &#x27; || to_char(i.issued_on, &#x27;DD/MM/YYYY&#x27;) || &#x27; sin NCF: registre el comprobante emitido en el sistema fiscal&#x27;,
+         i.issued_on, &#x27;sofa_invoice&#x27;, i.id, i.organization_id, i.client_name, i.total, false
+    from public.v_sofa_invoices i where i.ncf is null and i.status &lt;&gt; &#x27;anulada&#x27; and i.issued_on &lt;= current_date - 2
+  union all
+  select &#x27;factura_sofa&#x27;,$n$);
+
+-- ---------------------------------------------------------------------------
+-- 2j. Clientes de prueba sin obligación de e-CF (regla de las pruebas en CLAUDE.md).
+--     Sin esto, desde el 15/11/2026 (fecha general de e-CF) las suites que radican
+--     fallarían por la fecha y no por su regla.
+-- ---------------------------------------------------------------------------
+do $$
+declare s text;
+begin
+  foreach s in array array[&#x27;app.qa_run_tests()&#x27;, &#x27;app.qa_run_tests_radicaciones()&#x27;, &#x27;app.qa_run_tests_reclamaciones()&#x27;,
+                           &#x27;app.qa_run_tests_expediente()&#x27;, &#x27;app.qa_run_tests_postradicacion()&#x27;, &#x27;app.qa_run_tests_reinicio()&#x27;,
+                           &#x27;app.qa_run_tests_glosas_normativa()&#x27;, &#x27;app.qa_run_tests_finanzas()&#x27;, &#x27;app.qa_run_tests_bi()&#x27;] loop
+    perform app.qa_patch(s::regprocedure,
+$o$    insert into public.providers (id, organization_id, full_name) values ($o$,
+$n$    -- 060: clientes de prueba sin obligación de e-CF
+    update public.organizations set ecf_required_from = date &#x27;2099-12-31&#x27; where kind = &#x27;client&#x27; and ecf_required_from is distinct from date &#x27;2099-12-31&#x27;;
+    insert into public.providers (id, organization_id, full_name) values ($n$);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4. public.remove_service_line · quitar una reclamación de un lote por función
+--    (el frontend dejaba de usar delete directo sobre service_lines)
+-- ---------------------------------------------------------------------------
+create or replace function public.remove_service_line(p_line uuid, p_reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = &#x27;&#x27;
+as $$
+declare l public.service_lines; s public.submissions; v_role text; v_files jsonb; v_n int;
+begin
+  select * into l from public.service_lines where id = p_line for update;
+  if not found then raise exception &#x27;Reclamación no encontrada: puede que otra persona ya la haya quitado. Recargue la radicación.&#x27; using errcode = &#x27;P0002&#x27;; end if;
+  select * into s from public.submissions where id = l.submission_id;
+  v_role := app.claim_access_role(s.organization_id, s.provider_id);
+  if coalesce(v_role, &#x27;&#x27;) not in (&#x27;super_admin&#x27;,&#x27;admin&#x27;,&#x27;billing&#x27;,&#x27;assistant&#x27;,&#x27;client&#x27;) then
+    raise exception &#x27;Su rol no quita reclamaciones de un lote. Pida a Facturación o a la Administración de SOFA que la quite.&#x27; using errcode = &#x27;42501&#x27;;
+  end if;
+  if not app.is_editable_status(s.status) then
+    raise exception &#x27;El lote % ya fue radicado (estado: %): sus reclamaciones no se quitan. Si la ARS la devolvió, use &quot;Reenviar en radicación complementaria&quot;.&#x27;, s.folio, replace(s.status, &#x27;_&#x27;, &#x27; &#x27;) using errcode = &#x27;23514&#x27;;
+  end if;
+  if exists (select 1 from public.payment_line_allocations where service_line_id = l.id) then
+    raise exception &#x27;La reclamación % tiene pagos registrados: no se quita.&#x27;, l.claim_folio using errcode = &#x27;23514&#x27;;
+  end if;
+  if exists (select 1 from public.glosa_items where service_line_id = l.id) then
+    raise exception &#x27;La reclamación % tiene glosas registradas: no se quita.&#x27;, l.claim_folio using errcode = &#x27;23514&#x27;;
+  end if;
+  if exists (select 1 from public.claim_resubmissions where service_line_id = l.id) then
+    raise exception &#x27;La reclamación % está ligada a un reenvío: no se quita (se perdería su historial).&#x27;, l.claim_folio using errcode = &#x27;23514&#x27;;
+  end if;
+  if length(trim(coalesce(p_reason, &#x27;&#x27;))) &lt; 10 then
+    raise exception &#x27;Indique el motivo para quitar la reclamación (mínimo 10 caracteres)&#x27; using errcode = &#x27;22023&#x27;;
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(&#x27;bucket&#x27;, d.bucket, &#x27;path&#x27;, d.storage_path)), &#x27;[]&#x27;::jsonb), count(*)
+    into v_files, v_n
+    from public.documents d where d.entity_type = &#x27;service_line&#x27; and d.service_line_id = l.id;
+  insert into public.activities (operator_id, organization_id, entity_type, entity_id, activity_type, body)
+  select o.operator_id, s.organization_id, &#x27;organization&#x27;, s.organization_id, &#x27;sistema&#x27;,
+         &#x27;Reclamación &#x27; || l.claim_folio || &#x27; (&#x27; || coalesce(l.patient_name, &#x27;sin paciente&#x27;) || &#x27;, &#x27; || to_char(l.service_date, &#x27;DD/MM/YYYY&#x27;)
+         || &#x27;) quitada del lote &#x27; || s.folio || &#x27; · &#x27; || trim(p_reason)
+    from public.organizations o where o.id = s.organization_id;
+  -- Primero los documentos (si no, quedarían huérfanos con service_line_id nulo) y después la reclamación.
+  -- El disparador app.guard_service_line() sigue validando el estado de la reclamación y el acceso del usuario.
+  delete from public.documents where entity_type = &#x27;service_line&#x27; and service_line_id = l.id;
+  delete from public.service_lines where id = l.id;
+  return jsonb_build_object(&#x27;folio&#x27;, l.claim_folio, &#x27;submission_folio&#x27;, s.folio, &#x27;documents&#x27;, v_n, &#x27;files&#x27;, v_files);
+end $$;
+revoke all on function public.remove_service_line(uuid, text) from public, anon;
+grant execute on function public.remove_service_line(uuid, text) to authenticated;
+comment on function public.remove_service_line(uuid, text) is
+  &#x27;1.7.7 · Quita una reclamación de un lote no radicado, con sus documentos; deja la actividad en el cliente y devuelve los archivos a borrar de Storage.&#x27;;
+
+-- ---------------------------------------------------------------------------
+-- 5. public.import_claims · mensaje claro cuando la fila no trae servicio
+--    (antes: &quot;Servicio no encontrado (…): &quot; sin decir qué faltaba)
+-- ---------------------------------------------------------------------------
+select app.qa_patch(&#x27;public.import_claims(jsonb, boolean)&#x27;,
+$o$    if v_proc is null then v_msgs := array_append(v_msgs, ((&#x27;Servicio no encontrado (código interno, nombre, SIMON o CUPS): &#x27; || coalesce(nullif(v_txt, &#x27;&#x27;), e-&gt;&gt;&#x27;simon&#x27;, e-&gt;&gt;&#x27;cups&#x27;, &#x27;—&#x27;)))::text); end if;$o$,
+$n$    if v_proc is null then
+      if coalesce(nullif(v_txt, &#x27;&#x27;), nullif(trim(coalesce(e-&gt;&gt;&#x27;simon&#x27;, &#x27;&#x27;)), &#x27;&#x27;), nullif(trim(coalesce(e-&gt;&gt;&#x27;cups&#x27;, &#x27;&#x27;)), &#x27;&#x27;)) is null then
+        v_msgs := array_append(v_msgs, &#x27;Falta el servicio: indique el código interno, el nombre, el SIMON o el CUPS&#x27;::text);
+      else
+        v_msgs := array_append(v_msgs, ((&#x27;Servicio no encontrado (código interno, nombre, SIMON o CUPS): &#x27; || coalesce(nullif(v_txt, &#x27;&#x27;), nullif(trim(coalesce(e-&gt;&gt;&#x27;simon&#x27;, &#x27;&#x27;)), &#x27;&#x27;), nullif(trim(coalesce(e-&gt;&gt;&#x27;cups&#x27;, &#x27;&#x27;)), &#x27;&#x27;))))::text);
+      end if;
+    end if;$n$);
+
+-- ---------------------------------------------------------------------------
+-- 6. search_path fijo en las suites (aviso &quot;Function Search Path Mutable&quot; del asesor).
+--    Las suites usan nombres calificados (public., app., auth.).
+-- ---------------------------------------------------------------------------
+do $$
+declare f regprocedure;
+begin
+  for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = &#x27;app&#x27; and p.proname like &#x27;qa\_run\_tests%&#x27; and p.proconfig is null loop
+    execute format(&#x27;alter function %s set search_path = %L&#x27;, f, &#x27;&#x27;);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Registro
+-- ---------------------------------------------------------------------------
+insert into app.schema_migrations (version) values (&#x27;060&#x27;) on conflict (version) do nothing;
+</pre></div></li>
+<li>Instale y corra la suite 061 (incluye la regresión de las 21):<div class="code"><button class="copy">Copiar</button><pre>-- ============================================================================
+-- SOFA 1.7.7 · 061_estabilizacion_test.sql · suite de la migración 060
+-- Ejecutar en el SQL Editor:  select * from app.qa_run_tests_estabilizacion();
+-- Todo se deshace al terminar (no deja datos).
+-- CT-01…CT-08  public.remove_service_line
+-- CT-09        public.import_claims: fila sin servicio
+-- CT-10…CT-11  search_path de las suites y app.qa_patch
+-- CT-12        Regresión SQL completa: las 21 suites en TODO OK
+-- ============================================================================
+do $$
+begin
+  if not exists (select 1 from app.schema_migrations where version = &#x27;060&#x27;) then
+    raise exception &#x27;Falta la migración 060_estabilizacion.sql. Aplíquela antes de instalar esta suite.&#x27;;
+  end if;
+end $$;
+
+create or replace function app.qa_run_tests_estabilizacion()
+returns table(n integer, resultado text, prueba text, detalle text)
+language plpgsql
+set search_path = &#x27;&#x27;
+as $function$
+declare
+  v_res jsonb := &#x27;[]&#x27;::jsonb; v_ok boolean; v_n int;
+  v_a jsonb; v_b jsonb; v_c jsonb; v_d jsonb; v_x jsonb; v_lote uuid; v_lote2 uuid; v_f text; v_bad text;
+begin
+  if auth.uid() is not null then raise exception &#x27;Las pruebas solo se ejecutan desde el SQL Editor&#x27; using errcode = &#x27;42501&#x27;; end if;
+  begin
+
+    -- ===== Datos =====
+    insert into auth.users (id, email) values (&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;qa.est.admin@sofa.test&#x27;), (&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;qa.est.fact@sofa.test&#x27;), (&#x27;a8000000-0000-4000-8000-000000000006&#x27;,&#x27;qa.est.cliA@sofa.test&#x27;), (&#x27;a8000000-0000-4000-8000-000000000007&#x27;,&#x27;qa.est.capA@sofa.test&#x27;), (&#x27;a8000000-0000-4000-8000-000000000008&#x27;,&#x27;qa.est.cliB@sofa.test&#x27;);
+    insert into public.profiles (id, full_name) select id, replace(email, &#x27;@sofa.test&#x27;, &#x27;&#x27;) from auth.users where email like &#x27;qa.est.%@sofa.test&#x27; on conflict (id) do nothing;
+    insert into public.organizations (id, kind, operator_id, legal_name, tax_id, org_type, status, started_on) values (&#x27;b8000000-0000-4000-8000-00000000000a&#x27;,&#x27;client&#x27;,&#x27;00000000-0000-4000-8000-000000000001&#x27;,&#x27;QA EST A&#x27;,&#x27;00000000091&#x27;,&#x27;Centro médico&#x27;,&#x27;activo&#x27;, current_date - 90), (&#x27;b8000000-0000-4000-8000-00000000000b&#x27;,&#x27;client&#x27;,&#x27;00000000-0000-4000-8000-000000000001&#x27;,&#x27;QA EST B&#x27;,&#x27;00000000092&#x27;,&#x27;Consultorio&#x27;,&#x27;activo&#x27;, current_date - 90);
+    update public.organizations set ecf_required_from = date &#x27;2099-12-31&#x27; where kind = &#x27;client&#x27; and ecf_required_from is distinct from date &#x27;2099-12-31&#x27;;
+    insert into public.providers (id, organization_id, full_name) values (&#x27;c8000000-0000-4000-8000-00000000000a&#x27;,&#x27;b8000000-0000-4000-8000-00000000000a&#x27;,&#x27;Dr. Médico A QA&#x27;), (&#x27;c8000000-0000-4000-8000-00000000000b&#x27;,&#x27;b8000000-0000-4000-8000-00000000000b&#x27;,&#x27;Dr. Otro Cliente QA&#x27;);
+    insert into public.organization_users (organization_id, user_id, role_code) values (&#x27;00000000-0000-4000-8000-000000000001&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;admin&#x27;), (&#x27;00000000-0000-4000-8000-000000000001&#x27;,&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;billing&#x27;), (&#x27;b8000000-0000-4000-8000-00000000000a&#x27;,&#x27;a8000000-0000-4000-8000-000000000006&#x27;,&#x27;client&#x27;), (&#x27;b8000000-0000-4000-8000-00000000000a&#x27;,&#x27;a8000000-0000-4000-8000-000000000007&#x27;,&#x27;capturer&#x27;), (&#x27;b8000000-0000-4000-8000-00000000000b&#x27;,&#x27;a8000000-0000-4000-8000-000000000008&#x27;,&#x27;client&#x27;);
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    perform public.set_capturer_scope(&#x27;a8000000-0000-4000-8000-000000000007&#x27;, array[&#x27;c8000000-0000-4000-8000-00000000000a&#x27;]::uuid[]);
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform public.create_contract_tariff(&#x27;c8000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P07&#x27;), 1200, date_trunc(&#x27;month&#x27;, current_date)::date - 100, null, &#x27;CT-EST&#x27;);
+    perform public.create_contract_tariff(&#x27;c8000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;universal&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P07&#x27;), 1200, date_trunc(&#x27;month&#x27;, current_date)::date - 100, null, &#x27;CT-EST&#x27;);
+    v_a := public.capture_claim(&#x27;c8000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P07&#x27;), date_trunc(&#x27;month&#x27;, current_date)::date, &#x27;Paciente Quitar A&#x27;, &#x27;NSS-EST-1&#x27;, &#x27;AUT-EST-1&#x27;, null, null, 1, &#x27;ambulatorio&#x27;);
+    v_b := public.capture_claim(&#x27;c8000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P07&#x27;), date_trunc(&#x27;month&#x27;, current_date)::date, &#x27;Paciente Quitar B&#x27;, &#x27;NSS-EST-2&#x27;, &#x27;AUT-EST-2&#x27;, null, null, 1, &#x27;ambulatorio&#x27;);
+    v_c := public.capture_claim(&#x27;c8000000-0000-4000-8000-00000000000a&#x27;, (select id from public.ars where code=&#x27;humano&#x27;), (select id from public.procedures where internal_code=&#x27;SOFA-P07&#x27;), date_trunc(&#x27;month&#x27;, current_date)::date, &#x27;Paciente Quitar C&#x27;, &#x27;NSS-EST-3&#x27;, &#x27;AUT-EST-3&#x27;, null, null, 1, &#x27;ambulatorio&#x27;);
+    v_lote := (v_a-&gt;&gt;&#x27;submission_id&#x27;)::uuid;
+    perform set_config(&#x27;role&#x27;, &#x27;none&#x27;, true);
+    perform set_config(&#x27;request.jwt.claims&#x27;, &#x27;&#x27;, true);
+    v_f := &#x27;b8000000-0000-4000-8000-00000000000a/&#x27; || v_lote || &#x27;/&#x27; || (v_a-&gt;&gt;&#x27;id&#x27;) || &#x27;/qa_autorizacion.pdf&#x27;;
+    insert into public.documents (organization_id, entity_type, entity_id, service_line_id, document_type_code, bucket, storage_path, file_name, mime_type, size_bytes)
+    values (&#x27;b8000000-0000-4000-8000-00000000000a&#x27;, &#x27;service_line&#x27;, (v_a-&gt;&gt;&#x27;id&#x27;)::uuid, (v_a-&gt;&gt;&#x27;id&#x27;)::uuid, &#x27;autorizacion&#x27;, &#x27;claim-documents&#x27;, v_f, &#x27;qa_autorizacion.pdf&#x27;, &#x27;application/pdf&#x27;, 10);
+
+    -- ===== CT-01 · La secretaria no quita reclamaciones =====
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000007&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    begin
+      perform public.remove_service_line((v_a-&gt;&gt;&#x27;id&#x27;)::uuid, &#x27;QA: la secretaria intenta quitarla&#x27;);
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-01 · La secretaria no quita reclamaciones del lote&#x27;,&#x27;ok&#x27;,false,&#x27;d&#x27;,&#x27;Se permitió y debía bloquearse&#x27;));
+    exception when others then
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-01 · La secretaria no quita reclamaciones del lote&#x27;,&#x27;ok&#x27;,sqlerrm like &#x27;Su rol no quita%&#x27;,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;
+
+    -- ===== CT-02 · Otro cliente no quita reclamaciones ajenas =====
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000008&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    begin
+      perform public.remove_service_line((v_a-&gt;&gt;&#x27;id&#x27;)::uuid, &#x27;QA: otro cliente intenta quitarla&#x27;);
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-02 · Otro cliente no quita reclamaciones ajenas&#x27;,&#x27;ok&#x27;,false,&#x27;d&#x27;,&#x27;Se permitió y debía bloquearse&#x27;));
+    exception when others then
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-02 · Otro cliente no quita reclamaciones ajenas&#x27;,&#x27;ok&#x27;,sqlerrm like &#x27;Su rol no quita%&#x27;,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;
+
+    -- ===== CT-03 · El motivo es obligatorio =====
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000002&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    begin
+      perform public.remove_service_line((v_a-&gt;&gt;&#x27;id&#x27;)::uuid, &#x27;corto&#x27;);
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-03 · El motivo es obligatorio&#x27;,&#x27;ok&#x27;,false,&#x27;d&#x27;,&#x27;Se permitió y debía bloquearse&#x27;));
+    exception when others then
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-03 · El motivo es obligatorio&#x27;,&#x27;ok&#x27;,sqlerrm like &#x27;Indique el motivo%&#x27;,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;
+
+    -- ===== CT-04 · Facturación quita una reclamación con su documento =====
+    v_x := public.remove_service_line((v_a-&gt;&gt;&#x27;id&#x27;)::uuid, &#x27;QA: reclamación capturada dos veces&#x27;);
+    select coalesce((select v_x-&gt;&gt;&#x27;folio&#x27; = v_a-&gt;&gt;&#x27;folio&#x27; and (v_x-&gt;&gt;&#x27;documents&#x27;)::int = 1 and jsonb_array_length(v_x-&gt;&#x27;files&#x27;) = 1
+                            and v_x-&gt;&#x27;files&#x27;-&gt;0-&gt;&gt;&#x27;path&#x27; = v_f and v_x-&gt;&#x27;files&#x27;-&gt;0-&gt;&gt;&#x27;bucket&#x27; = &#x27;claim-documents&#x27;), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-04 · Devuelve el folio y los archivos a borrar de Storage&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,v_x::text));
+    perform set_config(&#x27;role&#x27;, &#x27;none&#x27;, true);
+    perform set_config(&#x27;request.jwt.claims&#x27;, &#x27;&#x27;, true);
+    select coalesce((select not exists (select 1 from public.service_lines where id = (v_a-&gt;&gt;&#x27;id&#x27;)::uuid)
+                            and not exists (select 1 from public.documents where storage_path = v_f)
+                            and exists (select 1 from public.service_lines where id = (v_b-&gt;&gt;&#x27;id&#x27;)::uuid)), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-05 · Se van la reclamación y su documento (sin huérfanos); las demás quedan&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,null));
+    select coalesce((select exists (select 1 from public.activities where organization_id = &#x27;b8000000-0000-4000-8000-00000000000a&#x27; and activity_type = &#x27;sistema&#x27;
+                                     and body like &#x27;Reclamación &#x27; || (v_a-&gt;&gt;&#x27;folio&#x27;) || &#x27;%quitada del lote%capturada dos veces&#x27;)), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-06 · Queda la actividad en el cliente con folio, lote y motivo&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,null));
+
+    -- ===== CT-07 · El médico (cliente) quita una de su lote en borrador =====
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000006&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    begin
+      v_x := public.remove_service_line((v_c-&gt;&gt;&#x27;id&#x27;)::uuid, &#x27;QA: el paciente no asistió, se capturó por error&#x27;);
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-07 · El médico quita una reclamación de su lote mientras es suyo&#x27;,&#x27;ok&#x27;,v_x-&gt;&gt;&#x27;folio&#x27; = v_c-&gt;&gt;&#x27;folio&#x27;,&#x27;d&#x27;,null));
+    exception when others then
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-07 · El médico quita una reclamación de su lote mientras es suyo&#x27;,&#x27;ok&#x27;,false,&#x27;d&#x27;,left(sqlerrm, 200)));
+    end;
+    perform set_config(&#x27;role&#x27;, &#x27;none&#x27;, true);
+    perform set_config(&#x27;request.jwt.claims&#x27;, &#x27;&#x27;, true);
+
+    -- ===== CT-08 · Un lote radicado no suelta reclamaciones =====
+    perform set_config(&#x27;request.jwt.claims&#x27;, json_build_object(&#x27;sub&#x27;,&#x27;a8000000-0000-4000-8000-000000000001&#x27;,&#x27;role&#x27;,&#x27;authenticated&#x27;)::text, true);
+    perform set_config(&#x27;role&#x27;, &#x27;authenticated&#x27;, true);
+    update public.submissions set ncf = &#x27;B0100000601&#x27;, invoice_date = current_date where id = v_lote;
+    perform public.change_submission_status(v_lote, &#x27;recibida&#x27;);
+    perform public.change_submission_status(v_lote, &#x27;en_depuracion&#x27;);
+    perform public.change_submission_status(v_lote, &#x27;lista_para_radicar&#x27;, null, &#x27;QA: lote de prueba autorizado por administración&#x27;);
+    update public.submissions set fiscal_invoice_number = &#x27;F-B0100000601&#x27;, accountant_name = &#x27;Lic. QA&#x27;, fiscal_amount = (select sum(amount) from public.service_lines where submission_id = v_lote) where id = v_lote;
+    perform public.change_submission_status(v_lote, &#x27;radicada&#x27;, null, null, current_date, &#x27;R-EST-1&#x27;, &#x27;fisico&#x27;, &#x27;LOTE-EST-1&#x27;);
+    begin
+      perform public.remove_service_line((v_b-&gt;&gt;&#x27;id&#x27;)::uuid, &#x27;QA: intento de quitar una radicada&#x27;);
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-08 · Un lote radicado no suelta reclamaciones (ni el Admin)&#x27;,&#x27;ok&#x27;,false,&#x27;d&#x27;,&#x27;Se permitió y debía bloquearse&#x27;));
+    exception when others then
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-08 · Un lote radicado no suelta reclamaciones (ni el Admin)&#x27;,&#x27;ok&#x27;,sqlerrm like &#x27;El lote % ya fue radicado%&#x27;,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 140)));
+    end;
+
+    -- ===== CT-09 · import_claims: fila sin servicio =====
+    v_x := public.import_claims(jsonb_build_array(jsonb_build_object(&#x27;medico&#x27;,&#x27;Dr. Médico A QA&#x27;,&#x27;ars&#x27;,&#x27;humano&#x27;,&#x27;fecha&#x27;,to_char(current_date,&#x27;DD/MM/YYYY&#x27;),&#x27;paciente&#x27;,&#x27;Paciente Sin Servicio&#x27;,&#x27;nss&#x27;,&#x27;NSS-EST-9&#x27;,&#x27;autorizacion&#x27;,&#x27;AUT-9&#x27;)), false);
+    select coalesce((select (v_x-&gt;&#x27;errors&#x27;-&gt;0-&gt;&#x27;errors&#x27;)::text like &#x27;%Falta el servicio: indique el código interno, el nombre, el SIMON o el CUPS%&#x27;
+                            and (v_x-&gt;&#x27;errors&#x27;-&gt;0-&gt;&#x27;errors&#x27;)::text not like &#x27;%Servicio no encontrado%&#x27;), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-09 · Importación: una fila sin servicio dice qué falta&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,(v_x-&gt;&#x27;errors&#x27;-&gt;0-&gt;&#x27;errors&#x27;)::text));
+    v_x := public.import_claims(jsonb_build_array(jsonb_build_object(&#x27;medico&#x27;,&#x27;Dr. Médico A QA&#x27;,&#x27;ars&#x27;,&#x27;humano&#x27;,&#x27;servicio&#x27;,&#x27;NO-EXISTE-QA&#x27;,&#x27;fecha&#x27;,to_char(current_date,&#x27;DD/MM/YYYY&#x27;),&#x27;paciente&#x27;,&#x27;Paciente Sin Servicio&#x27;,&#x27;nss&#x27;,&#x27;NSS-EST-9&#x27;,&#x27;autorizacion&#x27;,&#x27;AUT-9&#x27;)), false);
+    select coalesce((select (v_x-&gt;&#x27;errors&#x27;-&gt;0-&gt;&#x27;errors&#x27;)::text like &#x27;%Servicio no encontrado (código interno, nombre, SIMON o CUPS): NO-EXISTE-QA%&#x27;), false) into v_ok;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-09b · Un servicio inexistente nombra el valor recibido&#x27;,&#x27;ok&#x27;,v_ok,&#x27;d&#x27;,null));
+    perform set_config(&#x27;role&#x27;, &#x27;none&#x27;, true);
+    perform set_config(&#x27;request.jwt.claims&#x27;, &#x27;&#x27;, true);
+
+    -- ===== CT-10 · search_path fijo en todas las suites =====
+    select string_agg(p.proname, &#x27;, &#x27;) into v_bad from pg_catalog.pg_proc p join pg_catalog.pg_namespace s on s.oid = p.pronamespace
+     where s.nspname = &#x27;app&#x27; and p.proname like &#x27;qa\_run\_tests%&#x27; and p.proconfig is null;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-10 · Todas las suites tienen search_path fijo&#x27;,&#x27;ok&#x27;,v_bad is null,&#x27;d&#x27;,v_bad));
+
+    -- ===== CT-11 · app.qa_patch no adivina =====
+    begin
+      perform app.qa_patch(&#x27;app.qa_run_tests_estabilizacion()&#x27;, &#x27;v_res&#x27;, &#x27;v_res&#x27;);
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-11 · El parche se niega si el fragmento aparece más de una vez&#x27;,&#x27;ok&#x27;,false,&#x27;d&#x27;,&#x27;Se permitió y debía bloquearse&#x27;));
+    exception when others then
+      v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-11 · El parche se niega si el fragmento aparece más de una vez&#x27;,&#x27;ok&#x27;,sqlerrm like &#x27;No se pudo parchar%&#x27;,&#x27;d&#x27;,&#x27;Bloqueado: &#x27; || left(sqlerrm, 110)));
+    end;
+
+    raise exception using errcode = &#x27;P0001&#x27;, message = &#x27;sofa_qa_rollback&#x27;;
+  exception
+    when others then
+      if sqlerrm &lt;&gt; &#x27;sofa_qa_rollback&#x27; then
+        v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;Error inesperado (las pruebas se detuvieron aquí)&#x27;,&#x27;ok&#x27;,false,&#x27;d&#x27;,left(sqlerrm, 300)));
+      end if;
+  end;
+  perform set_config(&#x27;role&#x27;, &#x27;none&#x27;, true);
+  perform set_config(&#x27;request.jwt.claims&#x27;, &#x27;&#x27;, true);
+
+  -- ===== CT-12 · Regresión SQL: las 21 suites en TODO OK (cada una se deshace sola) =====
+  v_bad := null; v_n := 0;
+  declare f record; r record;
+  begin
+    for f in select p.proname from pg_catalog.pg_proc p join pg_catalog.pg_namespace s on s.oid = p.pronamespace
+              where s.nspname = &#x27;app&#x27; and p.proname like &#x27;qa\_run\_tests%&#x27; and p.proname &lt;&gt; &#x27;qa_run_tests_estabilizacion&#x27; order by 1 loop
+      v_n := v_n + 1;
+      begin
+        execute format(&#x27;select resultado, prueba from app.%I() where n = 0&#x27;, f.proname) into r;
+        if r.resultado is distinct from &#x27;TODO OK&#x27; then v_bad := concat_ws(&#x27; · &#x27;, v_bad, f.proname || &#x27;: &#x27; || coalesce(r.prueba, &#x27;sin resumen&#x27;)); end if;
+      exception when others then
+        v_bad := concat_ws(&#x27; · &#x27;, v_bad, f.proname || &#x27;: &#x27; || left(sqlerrm, 80));
+      end;
+    end loop;
+  end;
+  v_res := v_res || jsonb_build_array(jsonb_build_object(&#x27;p&#x27;,&#x27;CT-12 · Regresión SQL: &#x27; || v_n || &#x27; suites en TODO OK&#x27;,&#x27;ok&#x27;,v_bad is null and v_n &gt;= 21,&#x27;d&#x27;,v_bad));
+
+  return query
+    select 0, case when bool_and((e-&gt;&gt;&#x27;ok&#x27;)::boolean) then &#x27;TODO OK&#x27; else &#x27;REVISAR&#x27; end,
+           format(&#x27;%s de %s pruebas aprobadas&#x27;, count(*) filter (where (e-&gt;&gt;&#x27;ok&#x27;)::boolean), count(*)), null::text
+      from jsonb_array_elements(v_res) e
+    union all
+    select x.i::int, case when (x.e-&gt;&gt;&#x27;ok&#x27;)::boolean then &#x27;APROBADA&#x27; else &#x27;FALLÓ&#x27; end, x.e-&gt;&gt;&#x27;p&#x27;, x.e-&gt;&gt;&#x27;d&#x27;
+      from jsonb_array_elements(v_res) with ordinality as x(e, i)
+    order by 1;
+end
+$function$;
+revoke all on function app.qa_run_tests_estabilizacion() from public, anon, authenticated;
+
+</pre></div><div class="code"><button class="copy">Copiar</button><pre>-- 1.7.7 · Después de aplicar 060 y 061
+select * from app.qa_run_tests_estabilizacion();   -- debe decir TODO OK (incluye la regresión de las 21 suites)
+select version, applied_at from app.schema_migrations where version in (&#x27;058&#x27;,&#x27;060&#x27;) order by 1;
+select count(*) as facturas_sofa_sin_ncf from public.work_queue() where kind = &#x27;sofa_ncf&#x27;;
+</pre></div>Debe decir <b>TODO OK</b>. Si no, no siga con el paso 3.</li>
+<li><b>Frontend.</b> En el repositorio <code>sofa-crm</code>, aplique los dos parches del paquete (si ya publicó la 1.7.6, solo el segundo):<div class="code"><button class="copy">Copiar</button><pre>git am 0001-SOFA-1.7.6-*.patch
+git am 0002-SOFA-1.7.7-*.patch
+git push origin HEAD:main</pre></div>Recargue con Ctrl+Shift+R y confirme <b>1.7.7</b> en Diagnóstico.</li>
+<li><b>Noticias.</b> Desplegar <code>market-intel</code> con su nombre y borrar las dos que sobran:<div class="code"><button class="copy">Copiar</button><pre># 1.7.7 · Edge Function market-intel con su nombre (desde una terminal con Supabase CLI e inicio de sesión)
+supabase functions download super-endpoint --project-ref bpwjhgpzhzhiocoxrvzq
+mv supabase/functions/super-endpoint supabase/functions/market-intel
+supabase functions deploy market-intel --project-ref bpwjhgpzhzhiocoxrvzq --no-verify-jwt
+# Probar el botón &quot;Actualizar noticias&quot; en Mercado. Si funciona, borrar las dos que sobran:
+supabase functions delete super-endpoint --project-ref bpwjhgpzhzhiocoxrvzq
+supabase functions delete index-ts --project-ref bpwjhgpzhzhiocoxrvzq
+</pre></div></li>
+<li><b>Tarea programada de noticias</b> <span class="b er">falla hoy</span>: tiene <code>TU-PROYECTO</code> y <code>PEGA_AQUI_TU_CRON_SECRET</code> de ejemplo.<div class="code"><button class="copy">Copiar</button><pre>-- 1.7.7 · Tarea programada de noticias: hoy tiene la URL y el secreto de ejemplo, así que falla todos los días.
+-- Reemplace &lt;SU_CRON_SECRET&gt; por el mismo valor del secreto CRON_SECRET de la Edge Function (no lo guarde en GitHub).
+select cron.alter_job(
+  job_id  := (select jobid from cron.job where jobname = &#x27;sofa_noticias_diarias&#x27;),
+  command := $c$ select net.http_post(
+       url     := &#x27;https://bpwjhgpzhzhiocoxrvzq.supabase.co/functions/v1/market-intel&#x27;,
+       headers := jsonb_build_object(&#x27;Content-Type&#x27;, &#x27;application/json&#x27;, &#x27;x-cron-secret&#x27;, &#x27;&lt;SU_CRON_SECRET&gt;&#x27;),
+       body    := &#x27;{&quot;action&quot;:&quot;refresh&quot;}&#x27;::jsonb) $c$);
+
+-- Verificación: debe mostrar la URL real y no &quot;TU-PROYECTO&quot;
+select jobname, schedule, active, command like &#x27;%bpwjhgpzhzhiocoxrvzq%&#x27; as url_correcta, command not like &#x27;%PEGA_AQUI%&#x27; as secreto_puesto
+  from cron.job where jobname = &#x27;sofa_noticias_diarias&#x27;;
+</pre></div></li>
+<li><b>Auth</b>: Supabase › Authentication › Settings › activar «Leaked password protection».</li>
+</ol>
+
+<h2>Pendientes que siguen abiertos</h2>
+<ul>
+<li><code>js/config.js</code> está en GitHub (solo URL y clave publicable, que son públicas). Decida: sacarlo del repositorio o corregir la regla 8.</li>
+<li>El <code>055</code> registrado como migración: lo dejé, porque quitarlo podría romper una verificación de dependencias que no puedo ver sin el repositorio privado.</li>
+<li>En producción hay una secretaria («Secretaria Demo SOFA», Equilibrium) sin médicos asignados: asígnele médicos o desactívela.</li>
+<li><code>CLAUDE.md</code> actualizado en el proyecto (058 aplicada, SheetJS ya no se usa, 1.7.7).</li>
+</ul>
+</main><script>
+document.querySelectorAll('.copy').forEach((b)=>b.addEventListener('click',async()=>{const t=b.nextElementSibling.textContent;try{await navigator.clipboard.writeText(t);b.textContent='Copiado'}catch{b.textContent='Selecciónelo y copie'}setTimeout(()=>{b.textContent='Copiar'},1500)}));
+</script></body></html>

@@ -1,0 +1,36 @@
+import { chromium } from 'playwright';
+let pass = 0, fail = 0; const t = (n, ok, x = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'APROBADA' : 'FALLÓ   '}  ${n} ${ok ? '' : x}`); };
+const b = await chromium.launch(); const p = await b.newPage(); p.setDefaultTimeout(8000);
+const errs = []; p.on('pageerror', (e) => errs.push(String(e)));
+await p.goto('http://127.0.0.1:8766/test.html');
+const line = { id: 'l-1', claim_folio: 'REC-2026-000123', patient_name: 'Juan Pérez', service_date: '2026-10-05', amount: 1200 };
+await p.evaluate((line) => { window.__calls = []; window.__storage = []; window.__r = undefined;
+  window.__rpcImpl = async (n, a) => n === 'remove_service_line' ? { data: { folio: line.claim_folio, submission_folio: 'RAD-2026-0006', documents: 1, files: [{ bucket: 'claim-documents', path: 'o/s/l/a.pdf' }] }, error: null } : { data: null, error: { message: 'inesperada' } };
+  import('./js/modules/submission.js').then((m) => m.removeLineDialog(line)).then((r) => { window.__r = r; }); }, line);
+await p.waitForSelector('#rl_r');
+t('El diálogo muestra folio y paciente', (await p.textContent('dialog')).includes('REC-2026-000123') && (await p.textContent('dialog')).includes('Juan Pérez'));
+t('El botón es de peligro', await p.$eval('dialog [type=submit]', (e) => e.classList.contains('danger')));
+await p.fill('#rl_r', 'corto'); await p.click('dialog [type=submit]'); await p.waitForTimeout(250);
+t('Motivo corto: no llama a la base y dice qué hacer', (await p.evaluate(() => window.__calls.length)) === 0 && /mínimo 10/.test(await p.textContent('dialog')));
+await p.fill('#rl_r', 'Capturada dos veces por error'); await p.click('dialog [type=submit]');
+await p.waitForFunction(() => window.__r !== undefined);
+const r = await p.evaluate(() => ({ calls: window.__calls, st: window.__storage, r: window.__r }));
+t('Llama remove_service_line con id y motivo', r.calls.length === 1 && r.calls[0].name === 'remove_service_line' && r.calls[0].args.p_line === 'l-1' && r.calls[0].args.p_reason === 'Capturada dos veces por error');
+t('Quita del almacenamiento el archivo devuelto', r.st.length === 1 && r.st[0].paths[0] === 'o/s/l/a.pdf' && r.r.filesLeft === 0);
+// base sin la migración 060
+await p.evaluate((line) => { window.__r2 = undefined; window.__rpcImpl = async () => ({ data: null, error: { code: 'PGRST202', message: 'Could not find the function public.remove_service_line' } });
+  import('./js/modules/submission.js').then((m) => m.removeLineDialog(line)).then((r) => { window.__r2 = r; }); }, line);
+await p.waitForSelector('#rl_r'); await p.fill('#rl_r', 'Capturada dos veces por error'); await p.click('dialog [type=submit]');
+await p.waitForSelector('dialog .fd-msg .note');
+t('Sin la migración 060: mensaje que dice qué hacer', /migración 060/.test(await p.textContent('dialog .fd-msg')));
+await p.click('dialog [data-cancel]');
+// rechazo de negocio
+await p.evaluate((line) => { window.__rpcImpl = async () => ({ data: null, error: { code: '23514', message: 'El lote RAD-2026-0006 ya fue radicado (estado: radicada): sus reclamaciones no se quitan.' } });
+  import('./js/modules/submission.js').then((m) => m.removeLineDialog(line)); }, line);
+await p.waitForSelector('#rl_r'); await p.fill('#rl_r', 'Capturada dos veces por error'); await p.click('dialog [type=submit]');
+await p.waitForSelector('dialog .fd-msg .note');
+t('Rechazo de la base se muestra en el diálogo', /ya fue radicado/.test(await p.textContent('dialog .fd-msg')));
+await p.screenshot({ path: 'quitar.png' });
+t('El módulo de la radicación y el de reclamaciones cargan', (await p.evaluate(async () => { try { await import('./js/modules/claims.js'); await import('./js/modules/submission.js'); return true; } catch (e) { return e.message; } })) === true);
+t('Sin errores de JavaScript', errs.length === 0, errs.join(' | '));
+await b.close(); console.log(`\n${pass} de ${pass + fail} pruebas aprobadas`); process.exit(fail ? 1 : 0);

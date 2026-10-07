@@ -1,0 +1,612 @@
+From a0c948b0828dca2136f39d86dc376f7e24dcf1fd Mon Sep 17 00:00:00 2001
+From: SOFA <gustavoespaillat@gmail.com>
+Date: Wed, 7 Oct 2026 08:49:30 -0400
+Subject: [PATCH 1/2] =?UTF-8?q?SOFA=201.7.6=20=C2=B7=20Carga=20de=20reclam?=
+ =?UTF-8?q?aciones=20desde=20Excel=20por=20import=5Fclaims=20y=20borrado?=
+ =?UTF-8?q?=20de=20lotes=20por=20delete=5Fsubmission?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- claims-import.js reescrito: vista previa e importación por public.import_claims (nada se escribe directo en service_lines)
+- utils/xlsx-lite.js: lector .xlsx sin librerías externas (DecompressionStream + DOMParser); fechas de Excel a AAAA-MM-DD
+- Reclamaciones: botón Importar desde Excel (roles de captura)
+- Radicación: botón Borrar lote (Admin/Super Admin, estados no radicados) con motivo y folio; usa public.delete_submission y limpia Storage
+- Versión 1.7.6 (version.js, sw.js, README)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013zT4MUgnZUvHvb69nkg7Zn
+---
+ README.md                   |   2 +-
+ js/modules/claims-import.js | 219 +++++++++++++++++++++---------------
+ js/modules/claims.js        |   9 +-
+ js/modules/submission.js    |  39 ++++++-
+ js/services/claims.js       |   2 +
+ js/services/submissions.js  |  17 ++-
+ js/utils/xlsx-lite.js       | 162 ++++++++++++++++++++++++++
+ js/version.js               |   2 +-
+ sw.js                       |   4 +-
+ 9 files changed, 357 insertions(+), 99 deletions(-)
+ create mode 100644 js/utils/xlsx-lite.js
+
+diff --git a/README.md b/README.md
+index 7cc21a3..ae90eef 100644
+--- a/README.md
++++ b/README.md
+@@ -2,7 +2,7 @@
+ 
+ Aplicación web estática (HTML + CSS + JavaScript con ES Modules) que se publica en **GitHub Pages** y usa **Supabase** como backend (Auth, PostgreSQL con RLS y Storage).
+ 
+-- Versión: **1.7.5** (botón Poner honorarios en cero, solo Super Admin)
++- Versión: **1.7.6** (carga de reclamaciones desde Excel por `import_claims` y borrado de lotes por `delete_submission`)
+ - Librería: `@supabase/supabase-js` **2.117.2**, copia local en `vendor/` (sin CDN externo)
+ - Sin frameworks ni proceso de compilación: los archivos se suben tal cual.
+ 
+diff --git a/js/modules/claims-import.js b/js/modules/claims-import.js
+index 6dd54d6..d6d126a 100644
+--- a/js/modules/claims-import.js
++++ b/js/modules/claims-import.js
+@@ -1,96 +1,139 @@
+ /**
+- * SOFA 1.7.5 · Módulo de Importación y Carga Masiva desde Excel
+- * Integra el procesamiento local de SheetJS (.xlsx) directamente en el navegador.
++ * SOFA 1.7.6 · Carga de reclamaciones desde Excel o CSV.
++ * Todo pasa por la función public.import_claims (migración 056):
++ *   1. Vista previa (p_commit = false): valida cada fila y no guarda nada.
++ *   2. Importar (p_commit = true): solo si no hay errores; cada fila entra con
++ *      public.capture_claim, igual que la captura manual (tarifa, contrato, duplicados y bitácora).
++ * El navegador nunca escribe directo en las tablas.
+  */
+-import { html, \$ } from '../utils/dom.js';
+-import { toast, friendlyError } from '../utils/ui.js';
+-import { sb } from '../supabase.js';
+-
+-export async function render(container, ctx) {
+-  ctx.setTitle('Carga Masiva de Reclamaciones');
+-
+-  render(container, html`
+-    <div class="page-card" style="max-width: 800px; margin: 20px auto; padding: 25px;">
+-      <div class="card-header" style="margin-bottom: 20px;">
+-        <h2 style="color: #1c7ed6; margin: 0 0 10px 0;">Importador de Archivos Excel (.xlsx)</h2>
+-        <p class="text-muted small">Carga reclamaciones médicas masivamente en el bloque operativo del sistema.</p>
+-      </div>
+-
+-      <div class="upload-zone" style="border: 2px dashed #3498db; padding: 30px; text-align: center; background: #f8f9fa; border-radius: 8px;">
+-        <input type="file" id="excelFile" accept=".xlsx, .xls" style="display: none;" />
+-        <button class="btn secondary" id="btnSelectFile">Seleccionar Archivo de Excel</button>
+-        <div id="fileInfo" style="margin-top: 15px; font-weight: bold; color: #2b2b2b;"></div>
+-      </div>
+-
+-      <div class="actions-bar" style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
+-        <button class="btn" id="btnCancelImport" style="background: #e0e0e0;">Limpiar</button>
+-        <button class="btn primary" id="btnExecuteBulkInsert" disabled>Procesar e Insertar en Supabase</button>
+-      </div>
+-    </div>
+-  `);
+-
+-  let rawRows = null;
+-
+-  \$('#btnSelectFile').onclick = () => \$('#excelFile').click();
+-
+-  \$('#excelFile').onchange = (e) => {
+-    const file = e.target.files[0];
+-    if (!file) return;
+-
+-    \$('#fileInfo').textContent = `Cargando: ${file.name}...`;
+-    const reader = new FileReader();
+-
+-    reader.onload = (evt) => {
+-      try {
+-        const data = new Uint8Array(evt.target.result);
+-        const workbook = window.XLSX.read(data, { type: 'array' });
+-        const sheetName = workbook.SheetNames[0];
+-        const worksheet = workbook.Sheets[sheetName];
+-        
+-        rawRows = window.XLSX.utils.sheet_to_json(worksheet);
+-
+-        if (rawRows && rawRows.length > 0) {
+-          \$('#fileInfo').innerHTML = `<span style="color: #2b8a3e;">✔ ${file.name} listo (${rawRows.length} registros detectados)</span>`;
+-          \$('#btnExecuteBulkInsert').disabled = false;
+-        } else {
+-          throw new Error('La primera hoja del archivo no contiene datos o faltan los encabezados.');
+-        }
+-      } catch (err) {
+-        \$('#fileInfo').innerHTML = `<span style="color: #c92a2a;">❌ Error: ${err.message}</span>`;
+-        \$('#btnExecuteBulkInsert').disabled = true;
+-        rawRows = null;
+-      }
+-    };
+-    reader.readAsArrayBuffer(file);
+-  };
+-
+-  \$('#btnCancelImport').onclick = () => {
+-    \$('#excelFile').value = '';
+-    \$('#fileInfo').textContent = '';
+-    \$('#btnExecuteBulkInsert').disabled = true;
+-    rawRows = null;
++import { html, render as paint } from '../utils/dom.js';
++import { toast, friendlyError, busy, formDialog, fieldError } from '../utils/ui.js';
++import { money, num, date } from '../utils/formatters.js';
++import { downloadCsv } from '../utils/filters.js';
++import { readXlsx } from '../utils/xlsx-lite.js';
++import { importClaims } from '../services/claims.js';
++
++export const MAX_ROWS = 2000;
++export const IMPORT_COLS = ['medico', 'ars', 'servicio', 'simon', 'cups', 'fecha', 'paciente', 'nss', 'autorizacion', 'cedula', 'modo', 'monto', 'cantidad', 'clinica', 'notas'];
++const HEADERS = ['Médico', 'ARS', 'Servicio', 'SIMON', 'CUPS', 'Fecha', 'Paciente', 'NSS', 'Autorización', 'Cédula', 'Modo', 'Monto', 'Cantidad', 'Clínica', 'Notas'];
++const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
++const ALIASES = {
++  medico: ['medico', 'prestador', 'doctor', 'doctora', 'cedulamedico', 'exequatur'],
++  ars: ['ars', 'aseguradora', 'seguro'],
++  servicio: ['servicio', 'codigointerno', 'descripcion', 'procedimiento', 'concepto'],
++  simon: ['simon', 'codigosimon'],
++  cups: ['cups', 'codigocups'],
++  fecha: ['fecha', 'fechaservicio', 'fechadeservicio', 'fechadelservicio', 'fechaatencion', 'fechadeatencion', 'fechadelaatencion'],
++  paciente: ['paciente', 'nombrepaciente', 'afiliado', 'nombreafiliado', 'nombre'],
++  nss: ['nss', 'noafiliado', 'numeroafiliado', 'numerodeafiliado', 'contrato', 'poliza', 'carnet'],
++  autorizacion: ['autorizacion', 'noautorizacion', 'numeroautorizacion', 'numerodeautorizacion', 'aut'],
++  cedula: ['cedula', 'cedulapaciente', 'documento', 'documentopaciente'],
++  modo: ['modo', 'modalidad', 'tipoatencion', 'modoatencion', 'tipodeatencion'],
++  monto: ['monto', 'valor', 'importe', 'tarifa', 'precio'],
++  cantidad: ['cantidad', 'cant', 'unidades'],
++  clinica: ['clinica', 'centro', 'lugar', 'centromedico'],
++  notas: ['notas', 'nota', 'observaciones', 'comentario', 'comentarios']
++};
++
++/** Filas pegadas desde Excel (tabulador) o CSV (; o ,) → arreglo de celdas */
++export function splitText(textIn) {
++  const lines = String(textIn || '').replace(/^﻿/, '').replace(/\r/g, '').split('\n').filter((l) => l.trim());
++  if (!lines.length) return [];
++  const sep = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
++  const split = (l) => {
++    const out = []; let cur = ''; let q = false;
++    for (let i = 0; i < l.length; i += 1) {
++      const ch = l[i];
++      if (ch === '"') { if (q && l[i + 1] === '"') { cur += '"'; i += 1; } else q = !q; }
++      else if (ch === sep && !q) { out.push(cur.trim()); cur = ''; }
++      else cur += ch;
++    }
++    out.push(cur.trim());
++    return out;
+   };
++  return lines.map(split);
++}
+ 
+-  \$('#btnExecuteBulkInsert').onclick = async () => {
+-    if (!rawRows || rawRows.length === 0) return;
+-
+-    try {
+-      \$('#btnExecuteBulkInsert').disabled = true;
+-      \$('#btnExecuteBulkInsert').textContent = 'Subiendo bloques...';
+-
+-      // Estructuración masiva en service_lines (Tabla core de SOFA)
+-      const { data, error } = await sb()
+-        .from('service_lines')
+-        .insert(rawRows);
++/**
++ * Celdas → filas con las claves que espera import_claims.
++ * Si la primera fila tiene al menos 3 encabezados reconocibles, se usan por nombre;
++ * si no, se asume el orden de la plantilla.
++ */
++export function toClaimRows(cells) {
++  let rows = (cells || []).filter((r) => r && r.some((c) => String(c ?? '').trim() !== ''));
++  if (!rows.length) return [];
++  let map = IMPORT_COLS.map((_, i) => i);
++  const head = rows[0].map(norm);
++  const found = IMPORT_COLS.map((k) => head.findIndex((h) => ALIASES[k].includes(h)));
++  if (found.filter((i) => i >= 0).length >= 3) { map = found; rows = rows.slice(1); }
++  return rows.map((c) => Object.fromEntries(IMPORT_COLS.map((k, i) => [k, map[i] >= 0 ? String(c[map[i]] ?? '').trim() : ''])));
++}
+ 
+-      if (error) throw error;
++/** Lee un archivo .xlsx, .csv o .txt y devuelve las filas listas para validar */
++export async function readClaimFile(file) {
++  const name = String(file?.name || '').toLowerCase();
++  if (name.endsWith('.xls')) throw new Error('Es un Excel antiguo (.xls). Ábralo en Excel, guárdelo como .xlsx o CSV, y vuelva a subirlo.');
++  if (name.endsWith('.xlsx')) return toClaimRows(await readXlsx(await file.arrayBuffer()));
++  return toClaimRows(splitText(await file.text()));
++}
+ 
+-      toast(`¡Éxito! Se integraron ${rawRows.length} reclamaciones correctamente.`);
+-      \$('#btnCancelImport').click();
+-    } catch (error) {
+-      alert(`Fallo en la carga masiva: ${friendlyError(error)}`);
+-      \$('#btnExecuteBulkInsert').disabled = false;
+-      \$('#btnExecuteBulkInsert').textContent = 'Procesar e Insertar en Supabase';
++const dataLabel = (d) => [d.medico, d.ars, d.servicio || d.cups || d.simon, d.fecha, d.paciente].filter(Boolean).join(' · ');
++
++/** Diálogo de importación. Devuelve el resultado de import_claims, o null si se cancela. */
++export function importClaimsDialog() {
++  let parsed = []; let report = null;
++  return formDialog({
++    title: 'Importar reclamaciones desde Excel', submitLabel: 'Importar reclamaciones', wide: true,
++    body: html`<p class="small">Suba un <b>.xlsx</b> o <b>CSV</b>, o pegue las celdas copiadas de Excel. Se lee la primera hoja.
++      Columnas: <span class="mono">${HEADERS.join(' · ')}</span>.</p>
++      <ul class="small">
++        <li><b>Médico:</b> nombre exacto, cédula/RNC o exequátur. <b>ARS:</b> nombre o código. <b>Servicio:</b> código interno o nombre, y/o SIMON / CUPS.</li>
++        <li><b>Fecha:</b> DD/MM/AAAA o AAAA-MM-DD (no futura). <b>Modo:</b> ambulatorio, hospitalizacion o emergencia (vacío = ambulatorio). Solo las emergencias van sin autorización.</li>
++        <li><b>Monto</b> es opcional: si queda vacío se usa la tarifa contratada. <b>Cantidad</b> vacía = 1. Máximo ${num(MAX_ROWS)} filas por archivo.</li>
++      </ul>
++      <p class="small"><button type="button" class="btn" id="ci_tpl">Descargar plantilla</button></p>
++      <div class="field"><label for="ci_file">Archivo (.xlsx o .csv)</label><input id="ci_file" type="file" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"></div>
++      <div class="field"><label for="ci_paste">O pegue las filas aquí</label><textarea id="ci_paste" rows="6" class="input"></textarea></div>
++      <div class="toolbar"><button type="button" class="btn" id="ci_check">Validar (vista previa)</button><span class="small" id="ci_cnt">0 filas</span></div>
++      <div id="ci_rep" aria-live="polite"></div>`,
++    onOpen: (form) => {
++      const ta = form.querySelector('#ci_paste'); const rep = form.querySelector('#ci_rep'); const cnt = form.querySelector('#ci_cnt');
++      const fileInput = form.querySelector('#ci_file');
++      const set = (rows, source) => {
++        parsed = rows; report = null; paint(rep, html``);
++        cnt.textContent = `${num(parsed.length)} ${parsed.length === 1 ? 'fila' : 'filas'}${source ? ` · ${source}` : ''}`;
++        if (parsed.length > MAX_ROWS) paint(rep, html`<div class="note bad">El archivo tiene ${num(parsed.length)} filas. El máximo es ${num(MAX_ROWS)}: divídalo en varios archivos.</div>`);
++      };
++      ta.addEventListener('input', () => { fileInput.value = ''; set(toClaimRows(splitText(ta.value)), ''); });
++      fileInput.addEventListener('change', async (e) => {
++        const f = e.target.files[0]; if (!f) return;
++        ta.value = '';
++        try { set(await readClaimFile(f), f.name); fieldError(fileInput, parsed.length ? null : 'El archivo no tiene filas con datos debajo de los encabezados.'); }
++        catch (err) { set([], ''); fieldError(fileInput, friendlyError(err)); }
++      });
++      form.querySelector('#ci_tpl').addEventListener('click', () => downloadCsv('plantilla_reclamaciones.csv', HEADERS,
++        [['Dra. Ana Pérez', 'ARS Humano', 'CONSULTA-ESP', '', '890201', '05/10/2026', 'Juan Rodríguez', '123456789', 'AUT-998877', '00112345678', 'ambulatorio', '', '1', 'Centro Médico Cibao', '']]));
++      form.querySelector('#ci_check').addEventListener('click', (e) => busy(e.currentTarget, async () => {
++        if (!parsed.length) { fieldError(ta, 'Suba un archivo o pegue al menos una fila'); return; }
++        if (parsed.length > MAX_ROWS) { toast(`Máximo ${num(MAX_ROWS)} filas por importación: divida el archivo`, 'bad'); return; }
++        fieldError(ta, null);
++        try {
++          report = await importClaims(parsed, false);
++          paint(rep, html`<div class="note ${report.errors.length ? 'warn' : 'ok'}">${num(report.total)} filas · <b>${num(report.valid)} válidas</b> · <b>${num(report.errors.length)} con errores</b>. Todavía no se ha guardado nada.</div>
++            ${report.errors.length ? html`<div class="table-wrap" style="max-height:240px;overflow:auto"><table class="t"><thead><tr><th>Fila</th><th>Qué corregir</th><th>Datos</th></tr></thead><tbody>
++              ${report.errors.map((r) => html`<tr><td>${r.row}</td><td style="color:var(--bad)">${(r.errors || []).join(' · ')}</td><td class="small">${dataLabel(r.data || {})}</td></tr>`)}</tbody></table></div>
++              <p class="small">Corrija estas filas en el archivo y vuelva a validar. La importación solo se confirma cuando no quedan errores. "Fila 1" es la primera fila de datos, debajo de los encabezados.</p>` : ''}
++            ${report.rows.length ? html`<details><summary class="small">Ver filas válidas (${num(report.rows.length)})</summary><div class="table-wrap" style="max-height:240px;overflow:auto"><table class="t"><thead><tr><th>Fila</th><th>Médico</th><th>ARS</th><th>Servicio</th><th>Fecha</th><th>Paciente</th><th class="n">Monto</th></tr></thead><tbody>
++              ${report.rows.map((r) => html`<tr><td>${r.row}</td><td>${r.provider}</td><td>${r.ars}</td><td>${r.service}</td><td>${date(r.service_date)}</td><td>${r.patient_name}</td><td class="n">${r.amount != null ? money(r.amount) : 'Tarifa contratada'}</td></tr>`)}</tbody></table></div></details>` : ''}`);
++        } catch (err) { paint(rep, html`<div class="note bad">${friendlyError(err)}</div>`); }
++        rep.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
++      }));
++    },
++    onSubmit: async (d, form) => {
++      if (!report) { toast('Primero pulse "Validar (vista previa)"', 'bad'); form.querySelector('#ci_check').focus(); return false; }
++      if (report.errors.length) { toast('Corrija las filas con errores y vuelva a validar antes de importar', 'bad'); return false; }
++      if (!report.valid) { toast('No hay filas válidas para importar', 'bad'); return false; }
++      return importClaims(parsed, true);
+     }
+-  };
++  });
+ }
+diff --git a/js/modules/claims.js b/js/modules/claims.js
+index 29e8df8..a479aa9 100644
+--- a/js/modules/claims.js
++++ b/js/modules/claims.js
+@@ -26,7 +26,7 @@ export async function render(main, ctx) {
+     <div class="page-head"><div class="t"><h2>Reclamaciones</h2>
+       <p>Cada servicio es una reclamación con folio, estado, ubicación física y responsable propios.</p></div>
+       <div class="toolbar" style="margin:0">
+-        ${can('claims.capture', role) ? html`<a class="btn primary" href="#/captura">+ Captura rápida</a>` : ''}
++        ${can('claims.capture', role) ? html`<a class="btn primary" href="#/captura">+ Captura rápida</a><button class="btn" id="imp">Importar desde Excel</button>` : ''}
+         <button class="btn" id="csv">Exportar CSV</button></div></div>
+     <div class="grid kpis" id="k"></div>
+     <div class="tabs" id="tabs" role="group" aria-label="Grupo" style="margin-top:14px"></div>
+@@ -141,6 +141,13 @@ export async function render(main, ctx) {
+       }
+     } catch (err) { toast(friendlyError(err), 'bad'); }
+   });
++  $('#imp', main)?.addEventListener('click', async () => {   // 1.7.6 · carga desde Excel por import_claims
++    try {
++      const { importClaimsDialog } = await import('./claims-import.js');
++      const r = await importClaimsDialog();
++      if (r) { toast(`${num(r.imported)} ${r.imported === 1 ? 'reclamación importada' : 'reclamaciones importadas'}. Quedan en Capturada (o Pendiente de configuración si el servicio no está contratado).`, 'ok'); st.page = 0; load(); }
++    } catch (err) { toast(friendlyError(err), 'bad'); }
++  });
+   $('#csv', main).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+     const all = []; let page = 0;
+     for (;;) { const r = await listClaims({ ...st, page, size: 1000 }); all.push(...r.data); if (r.data.length < 1000 || all.length >= 20000) break; page += 1; }
+diff --git a/js/modules/submission.js b/js/modules/submission.js
+index 83d4ef0..84ee3c7 100644
+--- a/js/modules/submission.js
++++ b/js/modules/submission.js
+@@ -1,6 +1,6 @@
+ /** SOFA · Ficha de una radicación: factura, validación, servicios, expediente digital e historial */
+ import { html, render as paint, raw, $ } from '../utils/dom.js';
+-import { loadingView, emptyView, errorView, toast, friendlyError, confirmDialog, busy, fieldError, opt } from '../utils/ui.js';
++import { loadingView, emptyView, errorView, toast, friendlyError, confirmDialog, busy, fieldError, opt, formDialog } from '../utils/ui.js';
+ import {
+   getSubmission, listLines, lineChecklist, requirements, documentTypes, lineChecks, transitionsFrom, statusHistory,
+   validateSubmission, changeStatus, updateSubmission, deleteSubmission, deleteLine, profileNames, organizationContact
+@@ -84,7 +84,7 @@ export async function render(main, ctx) {
+         ${canPay ? html`<button class="btn primary" id="payBtn">Registrar pago</button>` : ''}
+         ${canGlosa ? html`<button class="btn" id="glosaBtn">Registrar glosa</button>` : ''}
+         <button class="btn" id="csv">Exportar CSV</button>
+-        ${sub.status === 'borrador' && can('subs.delete', role) ? html`<button class="btn danger" id="del">Eliminar</button>` : ''}
++        ${EDITABLE.includes(sub.status) && can('subs.delete', role) ? html`<button class="btn danger" id="del" title="Solo lotes que nunca fueron radicados">Borrar lote</button>` : ''}
+       </div></div>
+     ${sub.provider_code_status !== 'codificado' ? html`<div class="note warn">Código del prestador en ${sub.ars_name}: <b>${codeLbl}</b>. Sin código asignado, la ARS no paga. Regístralo en la ficha del cliente.</div>` : ''}
+     ${role === 'client' && sub.status === 'borrador' ? html`<div class="note">Agrega los servicios del mes y sus documentos. Cuando termines, pulsa <b>Enviar a SOFA</b>: el equipo la revisará y la radicará ante la ARS.</div>` : ''}
+@@ -290,9 +290,15 @@ export async function render(main, ctx) {
+       try { const { glosaDialog } = await import('./finance-dialogs.js'); const gid = await glosaDialog(S.sub, S.lines); if (gid) { toast('Glosa registrada', 'ok'); location.hash = `#/glosas/${gid}`; } }
+       catch (err) { toast(friendlyError(err), 'bad'); }
+     });
+-    $('#del', box)?.addEventListener('click', async () => {
+-      if (!(await confirmDialog('Eliminar radicación', `Se eliminará ${S.sub.folio} con sus ${S.lines.length} servicios. Esta acción no se puede deshacer.`, 'Eliminar', true))) return;
+-      try { await deleteSubmission(id); toast('Radicación eliminada', 'ok'); location.hash = '#/radicaciones'; } catch (err) { toast(friendlyError(err), 'bad'); }
++    $('#del', box)?.addEventListener('click', async () => {   // 1.7.6 · borrado de lotes cargados por error (058_delete_submission.sql)
++      const folio = S.sub.folio;
++      try {
++        const res = await deleteSubmissionDialog(id, folio, S.lines.length);
++        if (!res) return;
++        toast(`Lote ${res.folio} borrado con ${num(res.claims)} ${Number(res.claims) === 1 ? 'reclamación' : 'reclamaciones'}. Quedó registrado en las actividades del cliente.`, 'ok');
++        if (res.filesLeft) toast(`${num(res.filesLeft)} archivos no se pudieron quitar del almacenamiento. El lote ya está borrado; avise al Super Admin para limpiarlos.`, 'bad');
++        location.hash = '#/radicaciones';
++      } catch (err) { toast(friendlyError(err), 'bad'); }
+     });
+     $('#ff', box)?.addEventListener('submit', async (e) => {
+       e.preventDefault();
+@@ -427,3 +433,26 @@ function approvedPaidCard(rows) {
+       <td data-l="Último pago">${r.last_paid_on ? date(r.last_paid_on) : '—'}</td></tr>`; })}
+     <tr style="font-weight:600"><td colspan="3">Total</td><td class="n">${money(t.c)}</td><td class="n">${money(t.g)}</td><td class="n">${money(t.r)}</td><td class="n">${money(t.p)}</td><td class="n">${money(t.r - t.p)}</td><td></td></tr></tbody></table></div></div>`;
+ }
++
++/**
++ * 1.7.6 · Confirmación fuerte para borrar un lote: motivo (mín. 10) y el folio escrito tal cual.
++ * La base repite las mismas reglas y además bloquea lotes con pagos, glosas, reenvíos o complementarios.
++ */
++export function deleteSubmissionDialog(id, folio, claims) {
++  return formDialog({
++    title: `Borrar lote ${folio}`, submitLabel: 'Borrar lote definitivamente',
++    body: html`<div class="note bad">Se borrarán el lote <b class="mono">${folio}</b>, sus <b>${num(claims)} ${claims === 1 ? 'reclamación' : 'reclamaciones'}</b> y los documentos de esas reclamaciones. <b>No se puede deshacer.</b></div>
++      <p class="small">Úselo solo para lotes cargados por error que nunca se radicaron ante la ARS. Si el lote tiene pagos, glosas o reenvíos, la base no permite borrarlo.</p>
++      <div class="field"><label for="dl_r">Motivo del borrado (mín. 10 caracteres; queda en las actividades del cliente) *</label><textarea id="dl_r" name="reason" rows="3" class="input"></textarea></div>
++      <div class="field"><label for="dl_c">Para confirmar, escriba el folio del lote: <span class="mono">${folio}</span> *</label><input id="dl_c" name="confirm" class="input mono" autocomplete="off" spellcheck="false"></div>`,
++    onOpen: (form) => form.querySelector('[type=submit]')?.classList.replace('primary', 'danger'),
++    onSubmit: async (d, f) => {
++      const reason = String(d.reason || '').trim(); const confirm = String(d.confirm || '').trim();
++      let ok = true;
++      if (reason.length < 10) { fieldError(f.elements.reason, 'Escriba el motivo (mínimo 10 caracteres).'); ok = false; } else fieldError(f.elements.reason, null);
++      if (confirm !== folio) { fieldError(f.elements.confirm, `Escriba exactamente ${folio} (respetando mayúsculas y guiones).`); ok = false; } else fieldError(f.elements.confirm, null);
++      if (!ok) return false;
++      return deleteSubmission(id, reason, confirm);
++    }
++  });
++}
+diff --git a/js/services/claims.js b/js/services/claims.js
+index baa508e..c6a7e68 100644
+--- a/js/services/claims.js
++++ b/js/services/claims.js
+@@ -160,6 +160,8 @@ export async function setContractStatus(id, status, notes = undefined) {
+   return must(await sb().from('tariffs').update(values).eq('id', id).select('id').single());
+ }
+ export async function importContracts(rows, commit = false) { return must(await sb().rpc('import_contract_tariffs', { p_rows: rows, p_commit: commit })); }
++/** 1.7.6 · Reclamaciones desde Excel: vista previa (commit = false) o importación (commit = true), siempre por la base */
++export async function importClaims(rows, commit = false) { return must(await sb().rpc('import_claims', { p_rows: rows, p_commit: commit })); }
+ 
+ // ---------------------------------------------------------------- Factura fiscal (D2) y entrega
+ /** Campos de factura fiscal, excepción y entrega (no están en v_submissions) */
+diff --git a/js/services/submissions.js b/js/services/submissions.js
+index 836b8c3..60267aa 100644
+--- a/js/services/submissions.js
++++ b/js/services/submissions.js
+@@ -34,7 +34,22 @@ export async function newSubmission({ provider, ars, period, plan = null, notes
+   return must(await sb().rpc('new_submission', { p_provider: provider, p_ars: ars, p_period: period, p_plan: plan, p_notes: notes }));
+ }
+ export async function updateSubmission(id, values) { return must(await sb().from('submissions').update(values).eq('id', id).select('id').single()); }
+-export async function deleteSubmission(id) { const { error } = await sb().from('submissions').delete().eq('id', id); if (error) throw error; }
++/**
++ * 1.7.6 · Borra un lote que nunca fue radicado, con sus reclamaciones y documentos (058_delete_submission.sql).
++ * La base exige Admin o Super Admin, el folio exacto como confirmación y un motivo; deja la actividad en el cliente.
++ * Después se quitan del almacenamiento los archivos que la base devolvió (si alguno falla, el lote ya quedó borrado).
++ */
++export async function deleteSubmission(id, reason, confirmFolio) {
++  const res = must(await sb().rpc('delete_submission', { p_submission: id, p_reason: reason, p_confirm: confirmFolio }));
++  const byBucket = {};
++  (res?.files || []).forEach((f) => { if (f?.path) (byBucket[f.bucket || 'claim-documents'] ||= []).push(f.path); });
++  let filesLeft = 0;
++  for (const [bucket, paths] of Object.entries(byBucket)) {
++    const { error } = await sb().storage.from(bucket).remove(paths);
++    if (error) filesLeft += paths.length;
++  }
++  return { ...res, filesLeft };
++}
+ /** Iteración 12: la radicación registra método, lote y evidencia de entrega (la factura fiscal se valida en la base de datos) */
+ export async function changeStatus(id, to, { comment = null, override = null, submittedOn = null, receipt = null, deliveryMethod = null, deliveryBatch = null, deliveryEvidence = null } = {}) {
+   return must(await sb().rpc('change_submission_status', { p_submission: id, p_to: to, p_comment: comment, p_override_reason: override, p_submitted_on: submittedOn, p_ars_receipt: receipt,
+diff --git a/js/utils/xlsx-lite.js b/js/utils/xlsx-lite.js
+new file mode 100644
+index 0000000..a18a51c
+--- /dev/null
++++ b/js/utils/xlsx-lite.js
+@@ -0,0 +1,162 @@
++/**
++ * SOFA 1.7.6 · Lector mínimo de Excel (.xlsx) sin librerías externas.
++ * Lee la PRIMERA hoja de un .xlsx y la devuelve como filas de texto.
++ * Usa solo lo que trae el navegador: DecompressionStream (ZIP) y DOMParser (XML).
++ * No ejecuta fórmulas: toma el último valor que Excel guardó en la celda.
++ * Las fechas de Excel (números de serie con formato de fecha) salen como AAAA-MM-DD.
++ * No lee el formato antiguo .xls (binario): en ese caso pide guardar como .xlsx o CSV.
++ */
++
++const u16 = (b, o) => b[o] | (b[o + 1] << 8);
++const u32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
++
++/** Índice de archivos del ZIP: nombre → { method, size, offset } */
++function zipIndex(bytes) {
++  // Fin del directorio central: firma 0x06054b50, buscando desde el final (el comentario puede medir hasta 64 KB)
++  let eocd = -1;
++  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65535); i -= 1) {
++    if (u32(bytes, i) === 0x06054b50) { eocd = i; break; }
++  }
++  if (eocd < 0) throw new Error('El archivo no es un Excel .xlsx válido. Si es un .xls antiguo, ábralo en Excel y guárdelo como .xlsx o CSV.');
++  const count = u16(bytes, eocd + 10);
++  let p = u32(bytes, eocd + 16);
++  const dec = new TextDecoder();
++  const files = {};
++  for (let n = 0; n < count; n += 1) {
++    if (u32(bytes, p) !== 0x02014b50) throw new Error('El archivo .xlsx está dañado (directorio interno inválido). Ábralo en Excel y vuelva a guardarlo.');
++    const method = u16(bytes, p + 10);
++    const size = u32(bytes, p + 20);
++    const nameLen = u16(bytes, p + 28); const extraLen = u16(bytes, p + 30); const commentLen = u16(bytes, p + 32);
++    const offset = u32(bytes, p + 42);
++    const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
++    files[name] = { method, size, offset };
++    p += 46 + nameLen + extraLen + commentLen;
++  }
++  return files;
++}
++
++async function zipText(bytes, files, name) {
++  const f = files[name];
++  if (!f) return null;
++  const lh = f.offset;
++  if (u32(bytes, lh) !== 0x04034b50) throw new Error('El archivo .xlsx está dañado. Ábralo en Excel y vuelva a guardarlo.');
++  const start = lh + 30 + u16(bytes, lh + 26) + u16(bytes, lh + 28);
++  const data = bytes.subarray(start, start + f.size);
++  if (f.method === 0) return new TextDecoder().decode(data);
++  if (f.method !== 8) throw new Error('El archivo .xlsx usa una compresión no compatible. Guárdelo de nuevo desde Excel.');
++  if (typeof DecompressionStream === 'undefined') throw new Error('Este navegador no puede leer .xlsx. Actualícelo, o guarde el archivo como CSV y súbalo así.');
++  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
++  return new Response(stream).text();
++}
++
++const xml = (text) => new DOMParser().parseFromString(text, 'application/xml');
++const all = (node, tag) => Array.from(node.getElementsByTagNameNS('*', tag));
++const first = (node, tag) => node.getElementsByTagNameNS('*', tag)[0] || null;
++const textOf = (node) => all(node, 't').map((t) => t.textContent).join('');
++
++/** "AB12" → índice de columna 27 (base 0) */
++export function colIndex(ref) {
++  const m = /^([A-Z]+)/.exec(String(ref || '').toUpperCase());
++  if (!m) return -1;
++  let n = 0;
++  for (const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
++  return n - 1;
++}
++
++/** Número de serie de Excel (sistema 1900) → AAAA-MM-DD */
++export function serialToISO(serial) {
++  const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(serial)) * 86400000);
++  return d.toISOString().slice(0, 10);
++}
++
++const BUILTIN_DATE = new Set([14, 15, 16, 17, 22, 27, 30, 36, 45, 46, 47, 50, 57]);
++/** ¿El código de formato es de fecha? (d, m, y fuera de comillas y corchetes) */
++export function isDateFormat(code) {
++  const c = String(code || '').replace(/"[^"]*"/g, '').replace(/\[[^\]]*\]/g, '').replace(/\\./g, '');
++  return /[dy]/i.test(c) || /m{1,4}.*[dy]|[dy].*m{1,4}/i.test(c);
++}
++
++/** Estilos de celda → ¿es fecha? (por índice del atributo s) */
++async function dateStyles(bytes, files) {
++  const txt = await zipText(bytes, files, 'xl/styles.xml');
++  if (!txt) return [];
++  const doc = xml(txt);
++  const custom = {};
++  all(doc, 'numFmt').forEach((n) => { custom[Number(n.getAttribute('numFmtId'))] = n.getAttribute('formatCode'); });
++  const xfs = first(doc, 'cellXfs');
++  if (!xfs) return [];
++  return all(xfs, 'xf').map((x) => {
++    const id = Number(x.getAttribute('numFmtId') || 0);
++    return BUILTIN_DATE.has(id) || (custom[id] != null && isDateFormat(custom[id]));
++  });
++}
++
++/** Ruta de la primera hoja según workbook.xml y sus relaciones */
++async function firstSheetPath(bytes, files) {
++  const wb = await zipText(bytes, files, 'xl/workbook.xml');
++  const rels = await zipText(bytes, files, 'xl/_rels/workbook.xml.rels');
++  if (wb && rels) {
++    const sheet = first(xml(wb), 'sheet');
++    const rid = sheet && (sheet.getAttribute('r:id') || sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id'));
++    const rel = rid && all(xml(rels), 'Relationship').find((r) => r.getAttribute('Id') === rid);
++    if (rel) {
++      const target = rel.getAttribute('Target').replace(/^\/+/, '');
++      const path = target.startsWith('xl/') ? target : `xl/${target}`;
++      if (files[path]) return path;
++    }
++  }
++  return Object.keys(files).filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0] || null;
++}
++
++const numText = (v) => {
++  const n = Number(v);
++  if (!Number.isFinite(n)) return String(v);
++  return String(Math.round(n * 1e6) / 1e6);   // 1500.0000000001 → "1500"
++};
++
++/**
++ * Lee la primera hoja de un .xlsx.
++ * @param {ArrayBuffer} buffer contenido del archivo
++ * @returns {Promise<string[][]>} filas (sin las vacías), cada celda como texto
++ */
++export async function readXlsx(buffer) {
++  const bytes = new Uint8Array(buffer);
++  if (bytes.length < 4 || u32(bytes, 0) !== 0x04034b50) {
++    if (bytes[0] === 0xd0 && bytes[1] === 0xcf) throw new Error('Es un Excel antiguo (.xls). Ábralo en Excel y guárdelo como .xlsx o CSV, y vuelva a subirlo.');
++    throw new Error('El archivo no es un Excel .xlsx. Súbalo como .xlsx o CSV.');
++  }
++  const files = zipIndex(bytes);
++  const path = await firstSheetPath(bytes, files);
++  if (!path) throw new Error('El archivo .xlsx no tiene hojas con datos.');
++  const sstText = await zipText(bytes, files, 'xl/sharedStrings.xml');
++  const shared = sstText ? all(xml(sstText), 'si').map(textOf) : [];
++  const isDate = await dateStyles(bytes, files);
++  const doc = xml(await zipText(bytes, files, path));
++  if (doc.getElementsByTagName('parsererror').length) throw new Error('No se pudo leer la hoja del archivo. Ábralo en Excel y vuelva a guardarlo.');
++  const out = [];
++  all(doc, 'row').forEach((row, ri) => {
++    const cells = [];
++    let next = 0;
++    all(row, 'c').forEach((c) => {
++      const ref = c.getAttribute('r');
++      const ci = ref ? colIndex(ref) : next;
++      next = ci + 1;
++      const t = c.getAttribute('t') || 'n';
++      const v = first(c, 'v');
++      let val = '';
++      if (t === 's') val = v ? (shared[Number(v.textContent)] ?? '') : '';
++      else if (t === 'inlineStr') { const is = first(c, 'is'); val = is ? textOf(is) : ''; }
++      else if (t === 'str' || t === 'e') val = v ? v.textContent : '';
++      else if (t === 'b') val = v ? (v.textContent === '1' ? 'VERDADERO' : 'FALSO') : '';
++      else if (t === 'd') val = v ? v.textContent.slice(0, 10) : '';
++      else if (v) {
++        const s = Number(c.getAttribute('s') || 0);
++        val = isDate[s] ? serialToISO(v.textContent) : numText(v.textContent);
++      }
++      cells[ci] = String(val).trim();
++    });
++    for (let i = 0; i < cells.length; i += 1) if (cells[i] == null) cells[i] = '';
++    if (cells.some((x) => x !== '')) out[ri] = cells;
++  });
++  return out.filter(Boolean);
++}
+diff --git a/js/version.js b/js/version.js
+index dfb8c4f..0e94ad9 100644
+--- a/js/version.js
++++ b/js/version.js
+@@ -1,2 +1,2 @@
+ /** SOFA · Versión de la aplicación. Se actualiza con cada entrega (no está en config.js para no tocar tu configuración). */
+-export const APP_VERSION = '1.7.5';
++export const APP_VERSION = '1.7.6';
+diff --git a/sw.js b/sw.js
+index 86b6d75..2077e50 100644
+--- a/sw.js
++++ b/sw.js
+@@ -5,7 +5,7 @@
+  * los datos de pacientes y cobros no quedan en caché.
+  * Al publicar una versión nueva, cambia VERSION para renovar la caché.
+  */
+-const VERSION = 'sofa-shell-1.7.5';
++const VERSION = 'sofa-shell-1.7.6';
+ const SHELL = [
+   './', './index.html', './login.html', './manifest.json',
+   './css/variables.css', './css/components.css', './css/app.css',
+@@ -14,7 +14,7 @@ const SHELL = [
+   './js/utils/dom.js', './js/utils/ui.js', './js/utils/formatters.js', './js/utils/validation.js', './js/utils/permissions.js',
+   './js/services/stats.js', './js/services/catalog.js', './js/services/clients.js', './js/services/admin.js',
+   './js/modules/dossier-card.js', './js/modules/prerad.js', './js/modules/requirements.js', './js/services/dossier.js',
+-  './assets/brand/sofa-logo.png', './assets/brand/sofa-logo-white.png', './assets/brand/sofa-symbol.png', './js/modules/fee-invoice.js', './js/modules/fees-admin.js', './js/modules/agenda.js', './js/modules/private-tariffs.js', './js/modules/practice.js', './js/services/consultorio.js', './js/modules/provider360.js', './js/modules/client-commercial.js', './js/utils/pdf-invoice.js', './vendor/jspdf-4.2.1.umd.min.js', './vendor/jspdf-autotable-5.0.8.min.js', './js/modules/capture.js', './js/modules/claims.js', './js/modules/claim.js', './js/modules/claim-dialogs.js', './js/modules/pickups.js', './js/modules/contracts.js', './js/services/claims.js',
++  './assets/brand/sofa-logo.png', './assets/brand/sofa-logo-white.png', './assets/brand/sofa-symbol.png', './js/modules/fee-invoice.js', './js/modules/fees-admin.js', './js/modules/agenda.js', './js/modules/private-tariffs.js', './js/modules/practice.js', './js/services/consultorio.js', './js/modules/provider360.js', './js/modules/client-commercial.js', './js/utils/pdf-invoice.js', './vendor/jspdf-4.2.1.umd.min.js', './vendor/jspdf-autotable-5.0.8.min.js', './js/modules/capture.js', './js/modules/claims.js', './js/modules/claim.js', './js/modules/claim-dialogs.js', './js/modules/pickups.js', './js/modules/contracts.js', './js/services/claims.js', './js/modules/claims-import.js', './js/utils/xlsx-lite.js',
+   './js/modules/home.js', './js/modules/clients.js', './js/modules/coding.js', './js/modules/ars.js', './js/modules/users.js',
+   './js/modules/settings.js', './js/modules/profile.js', './js/modules/diagnostics.js', './js/modules/placeholder.js',
+   './js/modules/client.js', './js/modules/contacts.js', './js/modules/crm-dialogs.js', './js/modules/leads.js', './js/modules/opportunity.js', './js/modules/partners.js', './js/modules/pipeline.js', './js/modules/tasks.js', './js/services/crm.js', './js/services/tasks.js', './js/utils/constants.js', './js/utils/whatsapp.js',
+-- 
+2.43.0
+
