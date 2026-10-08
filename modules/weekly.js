@@ -2,7 +2,7 @@
  *  Sin proveedor externo: el mensaje se abre en WhatsApp (wa.me) con un clic y se marca como enviado. */
 import { rpc, pendingMessages, recentSummaries, h, num, fmtDate, note, guarded } from '../services/iter18.js';
 
-const KIND = { recordatorio_cita: 'Recordatorio de cita', resumen_semanal: 'Resumen semanal' };
+const KIND = { recordatorio_cita: 'Recordatorio de cita', seguimiento_cita: 'Seguimiento después de la cita', control_pendiente: 'Consulta de control', reprogramar_cita: 'Reprogramar cita (no asistió)', cobro_pendiente: 'Recordatorio de pago', resumen_semanal: 'Resumen semanal' };
 // RD: números locales de 10 dígitos (809/829/849) -> prefijo 1. Si ya trae código de país, se respeta.
 const waLink = (phone, body) => {
   let d = String(phone || '').replace(/\D/g, '');
