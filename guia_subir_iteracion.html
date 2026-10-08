@@ -1,0 +1,129 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SOFA · Cómo subir una iteración</title><style>
+:root{--bg:#f7f8fa;--card:#fff;--tx:#1d2330;--mu:#5d6675;--bd:#e3e6eb;--ok:#1f7a4d;--okb:#e5f4ec;--wa:#8a5a00;--wab:#fdf3dc;--er:#b42318;--erb:#fdecea;--ac:#1b5e9e}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1a1f27;--tx:#e6e9ee;--mu:#9aa3b2;--bd:#2c333e;--ok:#5fd39a;--okb:#16362a;--wa:#f2c063;--wab:#3a2f15;--er:#ff8a80;--erb:#3d1c1a;--ac:#7fb6ee}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 60px}h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:30px 0 10px;border-bottom:1px solid var(--bd);padding-bottom:6px}h3{font-size:15px;margin:18px 0 6px}
+.sub{color:var(--mu)}table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--bd);font-size:14px}th,td{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}th{background:var(--bg)}
+.wrap{overflow-x:auto}.b{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}.ok{background:var(--okb);color:var(--ok)}.wa{background:var(--wab);color:var(--wa)}.er{background:var(--erb);color:var(--er)}
+code{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:0 4px;font-size:13px}pre{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;overflow:auto;font-size:12.5px;margin:0}
+.code{position:relative;margin:8px 0}.copy{position:absolute;top:6px;right:8px;font:12px system-ui;padding:3px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);cursor:pointer}
+.note{border-left:4px solid var(--ac);background:var(--card);padding:10px 14px;border-radius:6px;margin:10px 0}.warn{border-left-color:var(--wa)}.stop{border-left-color:var(--er)}
+.step{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:4px 16px 12px;margin:14px 0}.step h3{display:flex;gap:10px;align-items:center}
+.n{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--ac);color:var(--card);font-size:13px;flex:none}
+ul.ck{list-style:none;padding-left:0}ul.ck li::before{content:"☐ ";color:var(--mu)}
+</style></head><body><main>
+<h1>Cómo subir una iteración de SOFA</h1>
+<p class="sub">Guía paso a paso, con la Iteración 18 (1.8.0) como ejemplo. Sirve igual para la 19, 20…: cambie el número donde diga <code>18</code>.</p>
+
+<h2>Antes de empezar: 4 diferencias con los comandos originales</h2>
+<p>Los comandos que acompañan el paquete suponen una estructura que <b>este repositorio no tiene</b>. Si se copian tal cual, fallan o suben cosas al lugar equivocado:</p>
+<div class="wrap"><table>
+<tr><th>Comando original</th><th>Qué pasa en este repositorio</th><th>Corrección en esta guía</th></tr>
+<tr><td><code>git add app/js app/css docs</code></td><td>No existe carpeta <code>app/</code> ni <code>docs/</code>: el sitio vive en la raíz (<code>js/</code>, <code>css/</code>, <code>index.html</code>). GitHub Pages no serviría nada que quede dentro de <code>app/</code>.</td><td>Se descomprime en una carpeta aparte y se copia el contenido de <code>app/</code> a la raíz (paso 3).</td></tr>
+<tr><td><code>git status --short | grep config.js</code></td><td><code>js/config.js</code> <b>sí está</b> en el repositorio. Ese comando solo detecta si cambió; si el zip lo trae, <code>unzip -o</code> lo pisa.</td><td>Se borra <code>config.js</code> del paquete antes de copiar, y se verifica con <code>git diff</code> (paso 4).</td></tr>
+<tr><td><code>unzip -o … -d .</code> directo en el repo</td><td>Sobrescribe sin avisar y puede crear carpetas sueltas.</td><td>Primero se mira el contenido (<code>unzip -l</code>), luego se descomprime fuera del repo.</td></tr>
+<tr><td>Merge a main = listo</td><td>Subir el código no aplica la base de datos. Las migraciones de <code>supabase/</code> se ejecutan a mano en Supabase.</td><td>Paso 7: migración y regresiones <b>antes</b> del merge.</td></tr>
+</table></div>
+<div class="note warn"><b>Estado actual de la 18 en <code>main</code>:</b> ya hay un commit «Iteración 18 (SOFA 1.8.0)» con solo los 6 archivos nuevos (<code>css/iter18.css</code>, <code>js/modules/statement.js</code>, <code>weekly.js</code>, <code>profitability.js</code>, <code>collections-calendar.js</code>, <code>js/services/iter18.js</code>). Todavía no están conectados al menú (<code>index.html</code> / <code>router.js</code> no los cargan) y <code>js/version.js</code> sigue en <b>1.7.5</b>. No hay migración de la 18 en <code>supabase/migrations/</code>. Esta guía completa lo que falta.</div>
+<div class="note stop"><b>Repositorio público.</b> <code>medisofa/sofa-crm</code> es público y el propio README dice que los scripts SQL «describen las reglas internas del negocio» y no deben subirse a un repositorio público. Decida antes del paso 5 si las migraciones van aquí (como ya está la 060) o a un repositorio privado. Nunca suba la contraseña de la base, la <code>sb_secret_…</code> ni la <code>service_role</code>.</div>
+
+<h2>Lo que necesita</h2>
+<ul><li>Git instalado y el repositorio clonado en su equipo (<code>git clone https://github.com/medisofa/sofa-crm.git</code>).</li>
+<li>El archivo <code>sofa_iteracion_18.zip</code> (en estos ejemplos, en <code>Descargas</code>).</li>
+<li>Una terminal: Terminal en Mac, <b>Git Bash</b> en Windows (no CMD).</li>
+<li>Acceso al SQL Editor del proyecto en Supabase.</li></ul>
+<p>Todos los comandos se escriben <b>dentro de la carpeta del repositorio</b>. Ajuste estas dos líneas una vez y péguelas al abrir la terminal:</p>
+<div class="code"><pre>REPO=~/sofa-crm                              # dónde está su copia del repositorio
+ZIP=~/Downloads/sofa_iteracion_18.zip        # el paquete recibido
+cd "$REPO"</pre></div>
+
+<h2>Pasos</h2>
+
+<div class="step"><h3><span class="n">1</span>Partir de un <code>main</code> limpio y actualizado</h3>
+<div class="code"><pre>git status
+git checkout main
+git pull origin main</pre></div>
+<p><code>git status</code> debe decir <i>nothing to commit, working tree clean</i>. Si muestra archivos modificados, no siga: guárdelos (<code>git stash</code>) o pregunte, porque se mezclarían con la iteración.</p></div>
+
+<div class="step"><h3><span class="n">2</span>Crear la rama de la iteración</h3>
+<div class="code"><pre>git checkout -b iteracion-18</pre></div>
+<p>Nunca se trabaja directo en <code>main</code>: <code>main</code> es lo que publica GitHub Pages. Si la rama ya existe, use <code>git checkout iteracion-18</code>.</p></div>
+
+<div class="step"><h3><span class="n">3</span>Mirar el paquete y descomprimirlo fuera del repositorio</h3>
+<div class="code"><pre>unzip -l "$ZIP"</pre></div>
+<p>Revise la lista: qué carpetas trae (<code>app/</code>, <code>js/</code>, <code>supabase/</code>, <code>docs/</code>) y si aparece algún <code>config.js</code>. Luego:</p>
+<div class="code"><pre>TMP=$(mktemp -d)
+unzip -q "$ZIP" -d "$TMP"
+find "$TMP" -name config.js -print -delete      # nunca se copia config.js
+
+# El sitio vive en la raíz: lo que venga dentro de app/ va a la raíz
+[ -d "$TMP/app" ]      &amp;&amp; cp -R "$TMP/app/." "$REPO/"
+[ -d "$TMP/js" ]       &amp;&amp; cp -R "$TMP/js/."  "$REPO/js/"
+[ -d "$TMP/css" ]      &amp;&amp; cp -R "$TMP/css/." "$REPO/css/"
+[ -d "$TMP/supabase" ] &amp;&amp; cp -R "$TMP/supabase/." "$REPO/supabase/"
+# La guía de la iteración, junto a las anteriores (en la raíz)
+[ -d "$TMP/docs" ]     &amp;&amp; cp "$TMP"/docs/*.html "$REPO/"
+
+ls "$TMP"     # ¿quedó algo que no se copió? (index.html, sw.js…) — revíselo</pre></div>
+<p>Si <code>ls</code> muestra archivos sueltos como <code>index.html</code>, <code>sw.js</code> o <code>README.md</code> en la raíz del paquete, cópielos también: <code>cp "$TMP/index.html" "$TMP/sw.js" "$REPO/"</code>.</p>
+<details><summary>Sin unzip (Windows)</summary><p>Clic derecho en el zip → <i>Extraer todo…</i> a una carpeta fuera del repositorio. Borre cualquier <code>config.js</code> que aparezca. Luego copie el <b>contenido</b> de <code>app\</code> a la raíz del repositorio (no la carpeta <code>app</code> misma), <code>supabase\</code> sobre <code>supabase\</code>, y la guía <code>.html</code> de <code>docs\</code> a la raíz.</p></details></div>
+
+<div class="step"><h3><span class="n">4</span>Verificar antes de confirmar</h3>
+<div class="code"><pre>cd "$REPO"
+git diff --quiet -- js/config.js &amp;&amp; echo "ok: config.js intacto" || echo "PARA: config.js cambió"
+[ -d app ] &amp;&amp; echo "PARA: se creó una carpeta app/ (los archivos van en la raíz)" || echo "ok: sin app/"
+grep APP_VERSION js/version.js        # debe decir la versión nueva, p. ej. '1.8.0'
+git status --short</pre></div>
+<p>Si algo dice <b>PARA</b>:</p>
+<ul><li><code>config.js</code> cambió → <code>git checkout -- js/config.js</code> (recupera el suyo).</li>
+<li>Apareció <code>app/</code> → <code>cp -R app/. . &amp;&amp; rm -rf app</code>.</li></ul>
+<p>En <code>git status --short</code>, <code>M</code> = modificado y <code>??</code> = nuevo. Debe ver solo archivos de la iteración. Para ver qué cambió en uno: <code>git diff js/router.js</code>.</p></div>
+
+<div class="step"><h3><span class="n">5</span>Confirmar (commit) y subir la rama</h3>
+<div class="code"><pre>git add js css supabase index.html sw.js README.md guia_*.html
+git status --short                    # js/config.js NO debe aparecer en verde
+git commit -m "Iteración 18 (1.8.0): estado de cuenta con ROI, calendario de cobros, resumen semanal, rentabilidad"
+git push -u origin iteracion-18</pre></div>
+<p>Si <code>git add</code> dice que alguna ruta no existe (p. ej. <code>README.md</code> no cambió), no pasa nada: quítela del comando. Si el push pide usuario y contraseña, GitHub exige un token o GitHub Desktop; la contraseña normal no funciona.</p></div>
+
+<div class="step"><h3><span class="n">6</span>Abrir el Pull Request</h3>
+<ol><li>Entre a <a href="https://github.com/medisofa/sofa-crm">github.com/medisofa/sofa-crm</a>. Aparece un aviso amarillo «iteracion-18 had recent pushes» → <b>Compare &amp; pull request</b>.</li>
+<li>Base: <code>main</code> ← compare: <code>iteracion-18</code>.</li>
+<li>Pestaña <b>Files changed</b>: confirme que <code>js/config.js</code> no está y que no hay carpeta <code>app/</code>.</li>
+<li><b>Create pull request</b>. Todavía <b>no</b> haga merge.</li></ol></div>
+
+<div class="step"><h3><span class="n">7</span>Base de datos: migración y regresiones</h3>
+<ol><li>Supabase → <b>SQL Editor</b> → <i>New query</i>.</li>
+<li>Pegue la migración nueva de <code>supabase/migrations/</code> (la de número más alto que trajo el paquete) y <b>Run</b>. Si son varias, en orden de número. Si avisa que falta una migración anterior, aplíquela primero.</li>
+<li>Corra la suite de pruebas que acompaña la iteración (<code>supabase/tests/</code>) y las regresiones generales, como indique la guía de la iteración.</li>
+<li>Todo en verde → siga. Algo en rojo → <b>no haga merge</b>; copie el resultado completo y envíelo para corregirlo.</li></ol>
+<div class="note">Base primero, frontend después: si se publica la pantalla antes de la migración, los usuarios verían errores al abrir los módulos nuevos.</div></div>
+
+<div class="step"><h3><span class="n">8</span>Merge y comprobación en vivo</h3>
+<ol><li>En el Pull Request → <b>Merge pull request</b> → <b>Confirm merge</b>.</li>
+<li>Pestaña <b>Actions</b>: espere a que «pages build and deployment» quede en verde (1–3 min).</li>
+<li>Abra la aplicación y recargue forzando (<code>Ctrl+Shift+R</code> / <code>Cmd+Shift+R</code>): el service worker guarda la versión anterior.</li>
+<li>Verifique la versión en el pie o en Diagnóstico y abra cada pantalla nueva una vez.</li>
+<li>Limpie en su equipo: <code>git checkout main &amp;&amp; git pull origin main &amp;&amp; git branch -d iteracion-18</code>.</li></ol></div>
+
+<h2>Si algo sale mal</h2>
+<div class="wrap"><table>
+<tr><th>Situación</th><th>Qué hacer</th></tr>
+<tr><td>Copié mal y aún no hice commit</td><td><code>git restore .</code> y <code>git clean -fd</code> (borra lo nuevo sin confirmar) → repita desde el paso 3.</td></tr>
+<tr><td>Hice commit pero no push</td><td><code>git reset --soft HEAD~1</code>, corrija, y vuelva al paso 4.</td></tr>
+<tr><td>Ya hice push pero no merge</td><td>Corrija en la misma rama, <code>git add</code> + <code>git commit</code> + <code>git push</code>: el Pull Request se actualiza solo.</td></tr>
+<tr><td>Ya hice merge y la app falla</td><td>En el Pull Request cerrado → <b>Revert</b> → crea otro Pull Request que deshace el cambio → merge. La base de datos no se revierte con esto.</td></tr>
+<tr><td><code>config.js</code> llegó a GitHub con una clave secreta</td><td>Rote la clave en Supabase de inmediato (borrarla del repositorio no basta: queda en el historial).</td></tr>
+</table></div>
+
+<h2>Lista rápida</h2>
+<ul class="ck">
+<li><code>main</code> limpio y actualizado</li><li>Rama <code>iteracion-NN</code> creada</li><li>Paquete revisado con <code>unzip -l</code> y descomprimido fuera del repo</li>
+<li><code>config.js</code> intacto, sin carpeta <code>app/</code>, versión nueva en <code>version.js</code></li><li>Commit y push de la rama</li><li>Pull Request abierto y archivos revisados</li>
+<li>Migración aplicada y regresiones en verde</li><li>Merge, Pages en verde, recarga forzada y prueba de pantallas</li></ul>
+</main>
+<script>
+document.querySelectorAll('.code').forEach(function(d){var b=document.createElement('button');b.className='copy';b.textContent='Copiar';b.onclick=function(){var t=d.querySelector('pre').innerText;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){b.textContent='Copiado';setTimeout(function(){b.textContent='Copiar'},1500)}).catch(function(){b.textContent='Seleccione y copie'})};d.appendChild(b)});
+</script>
+</body></html>
