@@ -70,3 +70,19 @@ export async function guarded(box, fn) {
   try { const out = await fn(); box.replaceChildren(); return out; }
   catch (e) { box.replaceChildren(note(e.message, 'error')); return null; }
 }
+
+/** Llamada a una Edge Function con la sesión actual (usada por el alta de usuarios). */
+export async function invoke(name, body) {
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) {
+    let msg = error.message;
+    try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (_) { /* se usa el mensaje base */ }
+    throw new Error(msg);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+export { supabase };
+
+/** Modalidades de atención que aplican al médico (según su especialidad). Para el selector de Reclamaciones. */
+export const careModesFor = (providerId) => rpc('care_modes_for', { p_provider: providerId });

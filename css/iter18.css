@@ -28,3 +28,14 @@
 .i18-msg p{margin:0}.i18-actions{display:flex;flex-wrap:wrap;gap:8px}
 a.i18-btn{text-decoration:none;display:inline-block}
 @media (max-width:640px){.i18-bar{align-items:stretch}.i18-bar>*{flex:1 1 100%}}
+
+/* Formularios y tarjetas (usuarios, centros, mensajes) */
+.i18-form{display:grid;gap:12px;max-width:520px;margin:12px 0}
+.i18-form label{display:grid;gap:4px;font-size:.9rem;color:var(--text-muted,#5b6674)}
+.i18-form input:not([type=checkbox]):not([type=radio]),.i18-form select{padding:8px 10px;border:1px solid var(--border,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.i18-fs{border:1px solid var(--border,#cfd6df);border-radius:8px;padding:8px 12px}
+.i18-chk{display:block;padding:2px 0;color:inherit}
+.i18-list{display:grid;gap:10px;margin:10px 0}
+.i18-card{border:1px solid var(--border,#cfd6df);border-radius:10px;padding:10px 14px;background:var(--surface,#fff)}
+.i18-sub{font-size:.85rem;color:var(--text-muted,#5b6674)}
+.i18-pre{white-space:pre-wrap;word-break:break-word;margin:6px 0;padding:8px 10px;border-radius:8px;background:var(--surface-2,#f1f4f8);font:13px/1.45 ui-monospace,monospace}

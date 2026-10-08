@@ -46,7 +46,7 @@ export async function render(root) {
       try { await rpc('mark_message', { p_id: m.id, p_status: 'enviado' }); setTimeout(load, 600); } catch (e) { msg.replaceChildren(note(e.message, 'error')); }
     });
     const skip = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Descartar');
-    skip.addEventListener('click', () => act(skip, () => rpc('mark_message', { p_id: m.id, p_status: 'descartado' }), () => 'Mensaje descartado.'));
+    skip.addEventListener('click', () => act(skip, () => rpc('mark_message', { p_id: m.id, p_status: 'omitido' }), () => 'Mensaje omitido.'));
     return h('div', { class: 'i18-card' }, h('strong', {}, `${KIND[m.kind] || m.kind} · ${fmtDate(m.scheduled_for)}`),
       h('div', { class: 'i18-sub' }, m.to_phone || 'Sin teléfono'), h('pre', { class: 'i18-pre' }, m.body), h('div', { class: 'i18-bar' }, open, skip));
   }
