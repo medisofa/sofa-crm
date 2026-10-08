@@ -1,0 +1,51 @@
+/* SOFA · Iteración 18 · estilos de las pantallas nuevas (prefijo i18-). Usa las variables de variables.css cuando existen. */
+.i18-wrap{display:grid;gap:16px}
+.i18-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.i18-bar label{display:grid;gap:4px;font-size:.85rem;color:var(--text-muted,#5b6674)}
+.i18-bar select,.i18-bar input{padding:8px 10px;border:1px solid var(--border,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.i18-btn{padding:9px 14px;border:0;border-radius:8px;background:var(--primary,#1f6feb);color:#fff;font:inherit;cursor:pointer}
+.i18-btn.i18-sec{background:transparent;color:var(--primary,#1f6feb);border:1px solid var(--primary,#1f6feb)}
+.i18-btn:disabled{opacity:.55;cursor:default}
+.i18-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.i18-kpi{border:1px solid var(--border,#d9dee5);border-radius:10px;padding:12px 14px;background:var(--surface,#fff)}
+.i18-kpi-v{font-size:1.35rem;font-weight:700}.i18-kpi-l{font-size:.85rem;color:var(--text-muted,#5b6674)}.i18-kpi-h{font-size:.78rem;color:var(--text-muted,#5b6674);margin-top:4px}
+.i18-table-wrap{overflow-x:auto}
+.i18-table{border-collapse:collapse;width:100%;font-size:.9rem}
+.i18-table th,.i18-table td{border-bottom:1px solid var(--border,#e3e7ed);padding:8px;text-align:left;vertical-align:top}
+.i18-table th{font-size:.8rem;color:var(--text-muted,#5b6674);white-space:nowrap}
+.i18-table tfoot td{font-weight:700;border-top:2px solid var(--border,#cfd6df)}
+.i18-r{text-align:right!important;font-variant-numeric:tabular-nums}
+.i18-empty{color:var(--text-muted,#5b6674);text-align:center!important;padding:18px!important}
+.i18-note{margin:0;padding:10px 12px;border-radius:8px;background:var(--surface-2,#f1f4f8)}
+.i18-note.i18-error{background:#fde8e6;color:#8a1c14}
+.i18-note.i18-ok{background:#e4f5ea;color:#0d5a2b}
+.i18-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.78rem;font-weight:600}
+.i18-atrasado{background:#fde8e6;color:#8a1c14}.i18-esta_semana{background:#fff1d6;color:#7a4b00}.i18-proximo{background:#e4f5ea;color:#0d5a2b}
+.i18-tabs{display:flex;gap:6px;border-bottom:1px solid var(--border,#d9dee5)}
+.i18-tab{padding:8px 14px;border:0;background:none;font:inherit;cursor:pointer;border-bottom:3px solid transparent}
+.i18-tab[aria-selected="true"]{border-bottom-color:var(--primary,#1f6feb);font-weight:700}
+.i18-msg{border:1px solid var(--border,#d9dee5);border-radius:10px;padding:12px;display:grid;gap:8px}
+.i18-msg p{margin:0}.i18-actions{display:flex;flex-wrap:wrap;gap:8px}
+a.i18-btn{text-decoration:none;display:inline-block}
+@media (max-width:640px){.i18-bar{align-items:stretch}.i18-bar>*{flex:1 1 100%}}
+
+/* Formularios y tarjetas (usuarios, centros, mensajes) */
+.i18-form{display:grid;gap:12px;max-width:520px;margin:12px 0}
+.i18-form label{display:grid;gap:4px;font-size:.9rem;color:var(--text-muted,#5b6674)}
+.i18-form input:not([type=checkbox]):not([type=radio]),.i18-form select{padding:8px 10px;border:1px solid var(--border,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.i18-fs{border:1px solid var(--border,#cfd6df);border-radius:8px;padding:8px 12px}
+.i18-chk{display:block;padding:2px 0;color:inherit}
+.i18-list{display:grid;gap:10px;margin:10px 0}
+.i18-card{border:1px solid var(--border,#cfd6df);border-radius:10px;padding:10px 14px;background:var(--surface,#fff)}
+.i18-sub{font-size:.85rem;color:var(--text-muted,#5b6674)}
+.i18-pre{white-space:pre-wrap;word-break:break-word;margin:6px 0;padding:8px 10px;border-radius:8px;background:var(--surface-2,#f1f4f8);font:13px/1.45 ui-monospace,monospace}
+
+/* 21-B · Dashboard por rol */
+.i18-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:8px 0}
+.i18-lvl-atencion{border-left:4px solid #9a6700}
+.i18-lvl-critico{border-left:4px solid #cf222e}
+
+/* 22 · Pacientes */
+.i18-link{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit}
+
+/* 23 · Avisos */
