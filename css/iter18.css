@@ -196,3 +196,14 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .bk-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0}.bk-actions select{max-width:280px}
 /* 2.8 · Portal del paciente (lado del consultorio) */
 .pt-admin{margin:10px 0}
+/* 3.0 · Iteración 40 · Mi cuenta con SOFA y casos de servicio */
+.pr-cambio{border-left:4px solid var(--warning,#9a6700)}
+.cs-st{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;background:var(--surface-2,#eef2f7);white-space:nowrap}
+.cs-st.solicitado{background:#fff8c5;color:#7a5200}.cs-st.en_espera_cliente{background:#ffebe9;color:#a40e26}
+.cs-st.aprobado,.cs-st.cerrado{background:#dafbe1;color:#116329}.cs-st.rechazado,.cs-st.cancelado{background:#eaeef2;color:#57606a}
+.cs-tl{list-style:none;margin:8px 0 0;padding:0 0 0 14px;border-left:2px solid var(--border,#cfd6df)}
+.cs-tl li{margin:0 0 8px}.cs-tl .cs-int{opacity:.75;font-style:italic}
+.cs-over{color:#a40e26;font-weight:600}
+@media (prefers-color-scheme:dark){.cs-st{background:#2a3444}.cs-st.solicitado{background:#3a2f0b;color:#e3b341}.cs-st.en_espera_cliente{background:#42161b;color:#ff7b72}
+  .cs-st.aprobado,.cs-st.cerrado{background:#0f2e1a;color:#3fb950}.cs-st.rechazado,.cs-st.cancelado{background:#21262d;color:#8b949e}.cs-over{color:#ff7b72}}
+.i18-note.i18-warn{background:#fff8c5;color:#6b4a00}@media (prefers-color-scheme:dark){.i18-note.i18-warn{background:#3a2f0b;color:#e3b341}}
