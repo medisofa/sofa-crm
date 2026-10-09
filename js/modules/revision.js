@@ -2,7 +2,7 @@
  *  1) Carga cada módulo del menú y avisa si alguno no abre (archivo faltante o con error).
  *  2) Muestra qué familias y módulos ve cada rol, para revisar los permisos de un vistazo.
  *  3) Indica cómo correr todas las pruebas de la base de datos en un solo paso. */
-import { h, note } from '../services/iter18.js';
+import { h, note, rpc } from '../services/iter18.js';
 import { MODULES } from '../router.js';
 import { ROLES, visibleNav, allRoutes } from '../utils/permissions.js';
 import { APP_VERSION } from '../version.js';
@@ -13,6 +13,7 @@ export async function render(root) {
   root.replaceChildren();
   const modBox = h('div', { 'aria-live': 'polite' }, note('Revisando los módulos…'));
   const roleBox = h('div');
+  const accBox = h('div', { 'aria-live': 'polite' });
   const copy = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Copiar');
   copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(QA_SQL); copy.textContent = 'Copiado'; } catch (_) { copy.textContent = 'Selecciónelo y cópielo a mano'; } });
   root.append(h('h2', {}, 'Revisión del sistema'),
@@ -21,7 +22,9 @@ export async function render(root) {
       h('p', {}, 'Abra Supabase › SQL Editor, pegue esta línea y pulse «Run». Cada fila es una suite; todas deben decir «TODO OK».'),
       h('div', { class: 'i18-bar' }, h('code', { class: 'rv-code' }, QA_SQL), copy)),
     h('section', { class: 'i18-card' }, h('h3', { style: 'margin-top:0' }, '2. Módulos de la aplicación'), modBox),
-    h('section', { class: 'i18-card' }, h('h3', { style: 'margin-top:0' }, '3. Qué ve cada rol'), roleBox));
+    h('section', { class: 'i18-card' }, h('h3', { style: 'margin-top:0' }, '3. Qué ve cada rol'), roleBox),
+    h('section', { class: 'i18-card' }, h('h3', { style: 'margin-top:0' }, '4. Cuentas de acceso'), accBox));
+  drawAccounts(accBox);
 
   drawRoles(roleBox);
   const routes = allRoutes().filter((r) => r.ready);
@@ -38,6 +41,16 @@ export async function render(root) {
       h('thead', {}, h('tr', {}, ['Módulo', 'Ruta', 'Archivo', 'Estado'].map((x) => h('th', {}, x)))),
       h('tbody', {}, [...bad, ...res.filter((x) => x.ok)].map((x) => h('tr', {}, h('td', {}, x.r.label), h('td', {}, h('a', { href: `#/${x.r.route}` }, `#/${x.r.route}`)),
         h('td', {}, x.file || '—'), h('td', {}, x.ok ? h('span', { class: 'ac-pill st-ok' }, 'Abre') : h('span', { class: 'ac-pill st-bad', title: x.why }, `No abre: ${x.why}`))))))));
+}
+
+/** 2.6.1 · Cuentas con datos de acceso incompletos (creadas por SQL) o sin rol: impiden entrar o restablecer la clave */
+async function drawAccounts(box) {
+  box.replaceChildren(note('Revisando las cuentas…'));
+  try {
+    const l = await rpc('auth_users_health');
+    box.replaceChildren(l.length ? h('div', {}, note(`${l.length} cuenta(s) con problemas. Corríjalas antes de entregar claves.`, 'error'),
+      h('ul', {}, l.map((u) => h('li', {}, h('strong', {}, u.email), ': ', u.problems.join(' · '))))) : note('Todas las cuentas tienen sus datos de acceso completos y un rol activo.', 'ok'));
+  } catch (e) { box.replaceChildren(note(`No se pudo revisar: ${e.message}. ¿Aplicó la migración 126?`, 'error')); }
 }
 
 function drawRoles(box) {

@@ -71,7 +71,7 @@ export const NAV = [
     { route: 'preradicacion', label: 'Pre-radicación', roles: ['super_admin', 'admin', 'billing', 'operations', 'auditor', 'assistant'], ready: true },
     { route: 'contratos', label: 'Tarifario contractual', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'client'], ready: true },
     { route: 'requisitos', label: 'Requisitos documentales', roles: ['super_admin', 'admin', 'billing', 'auditor', 'operations', 'assistant'], ready: true },
-    { route: 'vencimientos', label: 'Vencimientos de tarifas', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'operations', 'assistant', 'client'], ready: true },   // 2.2 · Iteración 32
+    { route: 'vencimientos', label: 'Renegociación de tarifarios', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'operations', 'assistant'], ready: true },   // 2.2 · 2.6.1: solo SOFA
     { route: 'codigos-ars', label: 'Códigos ARS (tablero)', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor'], ready: true }   // 2.3 · Iteración 33
   ]},
   { group: 'CRM', items: [
@@ -89,7 +89,8 @@ export const NAV = [
     { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], ready: true },
     { route: 'pagos', label: 'Pagos y conciliación', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },   // nunca operations ni capturer
-    { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true }
+    { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
+    { route: 'conciliacion', label: 'Conciliación bancaria', roles: ['super_admin', 'admin', 'glosas', 'auditor'], ready: true }   // 2.7 · Iteración 37
   ]},
   { group: 'Habilitación', items: [
     { route: 'habilitacion', label: 'Habilitación MISPAS', roles: ['super_admin', 'admin', 'assistant', 'billing', 'auditor', 'client'], ready: true }
@@ -108,7 +109,7 @@ export const NAV = [
   ]},
   { group: 'Configuración', items: [
     { route: 'usuarios', label: 'Usuarios y roles', roles: ['super_admin', 'admin', 'auditor'], ready: true },
-    { route: 'alta-usuarios', label: 'Crear usuario', roles: ['super_admin', 'admin', 'client'], ready: true },   // 1.9 · el médico crea a sus secretarias
+    { route: 'alta-usuarios', label: 'Crear o solicitar usuario', roles: ['super_admin', 'admin', 'client'], ready: true },   // 2.6.1: el consultorio solicita y el Super Admin aprueba   // 1.9 · el médico crea a sus secretarias
     { route: 'parametros', label: 'Parámetros', roles: ['super_admin', 'admin', 'auditor'], ready: true },
     { route: 'hc-control', label: 'Historia clínica: control', roles: ['super_admin'], ready: true },   // 2.0 · modo, MFA, bitácora
     { route: 'revision', label: 'Revisión del sistema', roles: ['super_admin'], ready: true }   // 2.6 · Iteración 36
@@ -140,7 +141,7 @@ export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'tareas'] },
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
   { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'codigos-ars', 'codificacion', 'ars'] },
-  { key: 'cobros', group: 'Cobros', routes: ['glosas', 'pagos', 'aging', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
+  { key: 'cobros', group: 'Cobros', routes: ['glosas', 'pagos', 'conciliacion', 'aging', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'mis-secretarias', 'centros', 'habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'rentabilidad', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'documentos'] },
@@ -228,6 +229,11 @@ const ACTIONS = {
   'users.reset': ['super_admin'],                                                                    // 2.1 · restablecer contraseña
   'users.prospect': ['super_admin', 'admin', 'assistant'],                                           // 2.1 · usuarios de prospectos
   'arscodes.edit': ['super_admin', 'admin', 'assistant', 'operations', 'billing', 'client'],         // 2.1 · espejo de app.ars_codes_can_edit (114)
-  'arscodes.followup': ['super_admin', 'admin', 'assistant', 'operations']                          // 2.3 · espejo de ars_codes_followup (118)
+  'arscodes.followup': ['super_admin', 'admin', 'assistant', 'operations'],                         // 2.3 · espejo de ars_codes_followup (118)
+  'ars.edit': ['super_admin', 'admin'],                                                              // 2.6.1 · espejo de app.ars_admin_require (126)
+  'users.approve': ['super_admin'],                                                                  // 2.6.1 · aprobar solicitudes de usuario (128)
+  'clinical.import': ['super_admin'],                                                                // 2.6.1 · importar historias (128)
+  'bank.reconcile': ['super_admin', 'admin', 'glosas'],                                              // 2.7 · espejo de app.bank_require (130)
+  'bank.admin': ['super_admin', 'admin']                                                             // 2.7 · registrar pagos y deshacer conciliaciones
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

@@ -1,4 +1,5 @@
 /** SOFA · 2.5 · Iteración 35 · Importar historias clínicas de otro sistema (Excel o CSV).
+ *  2.6.1: lo usa solo el Super Admin desde «Historia clínica: control»; las notas quedan a nombre del médico elegido (opts.author).
  *  Una fila por consulta: Documento, Nombre, Fecha, Texto y, si hay, Diagnósticos, Fecha de nacimiento y Sexo.
  *  Vista previa sin guardar nada; al confirmar cada fila queda como nota «Historia importada», cifrada y firmada por quien importa. */
 import { h, fmtDate, note } from '../services/iter18.js';
@@ -13,7 +14,8 @@ const ALIASES = {
   fecha_nacimiento: ['fecha nacimiento', 'fecha de nacimiento', 'nacimiento'], sexo: ['sexo', 'genero']
 };
 
-export function importPanel(main, org, rpc) {
+export function importPanel(main, org, rpc, opts = {}) {
+  const author = opts.author || null;
   const src = h('input', { id: 'im-src', placeholder: 'Ej.: Sistema anterior del consultorio', maxlength: '80' });
   const file = h('input', { id: 'im-file', type: 'file', accept: '.xlsx,.csv,.txt' });
   const go = h('button', { class: 'i18-btn', type: 'button' }, 'Revisar el archivo');
@@ -21,7 +23,7 @@ export function importPanel(main, org, rpc) {
   let rows = null; let fname = '';
   main.replaceChildren(h('section', { class: 'i18-card hc-form' },
     h('h3', { style: 'margin-top:0' }, 'Importar historias de otro sistema'),
-    note('Exporte de su sistema anterior un Excel o CSV con una fila por consulta. Columnas: Documento, Nombre, Fecha, Texto (obligatorias) y Diagnósticos, Fecha de nacimiento, Sexo (opcionales). Si el paciente no existe se crea su ficha. Nada se guarda hasta que confirme. Máximo 1,000 filas por archivo.'),
+    note(`Archivo con una fila por consulta. Columnas: Documento, Nombre, Fecha, Texto (obligatorias) y Diagnósticos, Fecha de nacimiento, Sexo (opcionales). Si el paciente no existe se crea su ficha. Nada se guarda hasta que confirme. Máximo 1,000 filas por archivo.${opts.authorName ? ` Las notas quedarán a nombre de ${opts.authorName}.` : ''}`),
     h('label', { for: 'im-src' }, 'Sistema de origen', src), h('label', { for: 'im-file' }, 'Archivo (.xlsx o .csv)', file),
     h('div', { class: 'i18-actions' }, go), out));
   go.addEventListener('click', async () => {
@@ -35,17 +37,17 @@ export function importPanel(main, org, rpc) {
       const miss = ['documento', 'fecha', 'texto'].filter((k) => map[k] == null);
       if (miss.length) throw new Error(`No se reconocieron las columnas: ${miss.join(', ')}. La primera fila debe tener encabezados como «Documento», «Nombre», «Fecha» y «Texto».`);
       rows = t.slice(1).map((r) => Object.fromEntries(Object.entries(map).map(([k, i]) => [k, k.startsWith('fecha') ? excelDate(r[i]) : (r[i] || '')])));
-      const rep = await rpc('clinical_import', { p_org: org, p_rows: rows, p_source: src.value, p_commit: false, p_file: fname });
+      const rep = await rpc('clinical_import', { p_org: org, p_rows: rows, p_source: src.value, p_commit: false, p_file: fname, p_author: author });
       preview(rep);
     } catch (e) { out.replaceChildren(note(e.message, 'error')); } finally { go.disabled = false; }
   });
   function preview(rep) {
     const save = h('button', { class: 'i18-btn', type: 'button', disabled: rep.errors.length > 0 || !rep.valid }, `Confirmar: importar ${rep.valid} consulta(s)`);
     save.addEventListener('click', async () => {
-      if (!confirm('Las historias importadas quedan firmadas a su nombre y no se pueden borrar. ¿Importar ahora?')) return;
+      if (!confirm(`Las historias importadas quedan a nombre de ${opts.authorName || 'el médico'}, con el sello «Importada por SOFA», y no se pueden borrar. ¿Importar ahora?`)) return;
       save.disabled = true;
-      try { const r = await rpc('clinical_import', { p_org: org, p_rows: rows, p_source: src.value, p_commit: true, p_file: fname });
-        out.replaceChildren(note(`Listo: ${r.imported} consulta(s) importadas y ${r.patients_created} paciente(s) nuevo(s). Búsquelos en la lista para ver su historia.`, 'ok')); }
+      try { const r = await rpc('clinical_import', { p_org: org, p_rows: rows, p_source: src.value, p_commit: true, p_file: fname, p_author: author });
+        out.replaceChildren(note(`Listo: ${r.imported} consulta(s) importadas y ${r.patients_created} paciente(s) nuevo(s). El médico las verá en su historia clínica.`, 'ok')); }
       catch (e) { out.replaceChildren(note(e.message, 'error')); }
     });
     out.replaceChildren(
