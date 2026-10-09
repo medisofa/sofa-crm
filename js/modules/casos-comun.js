@@ -1,5 +1,6 @@
 /** SOFA · 3.0 · Iteración 40 · Piezas comunes de los casos de servicio (cliente y equipo SOFA). */
 import { rpc, h, money, fmtDate, note } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 export const STATUS = { solicitado: 'Solicitado', en_proceso: 'En proceso', en_espera_cliente: 'Esperando documentos suyos', presentado: 'Presentado a la ARS',
   aprobado: 'Aprobado', rechazado: 'Rechazado', cerrado: 'Cerrado', cancelado: 'Cancelado' };
@@ -21,6 +22,7 @@ export async function caseDetail(box, id, { staff = false, onChange = null } = {
     h('ol', { class: 'cs-tl', 'aria-label': 'Bitácora del caso' }, c.events.map((e) => h('li', { class: e.visible ? '' : 'cs-int' },
       h('strong', {}, when(e.at)), e.to ? [' · ', pill(e.to, e.to_label)] : '', e.note ? ` · ${e.note}` : '', e.by ? h('span', { class: 'i18-sub' }, ` — ${e.by}`) : '',
       e.visible ? '' : h('span', { class: 'i18-sub' }, ' (interna)'))))];
+  if (staff && c.service_code === 'renegociacion' && c.provider && c.ars) kids.push(folderButton(c, () => caseDetail(box, id, { staff, onChange })));
   if (staff) kids.push(updateForm(c, () => { caseDetail(box, id, { staff, onChange }); if (onChange) onChange(); }));
   else if (c.status === 'solicitado') {
     const cancel = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Cancelar mi solicitud');
@@ -34,6 +36,33 @@ export async function caseDetail(box, id, { staff = false, onChange = null } = {
     kids.push(h('div', { class: 'i18-bar' }, cancel), out);
   }
   box.replaceChildren(h('div', { class: 'i18-card' }, ...kids));
+}
+
+/** 3.5 · Carpeta de negociación (renegociación de tarifarios): tarifas actuales, propuesta, volumen y glosas. */
+function folderButton(c, refresh) {
+  const b = h('button', { class: 'i18-btn', type: 'button' }, 'Generar carpeta de negociación');
+  const out = h('div', { 'aria-live': 'polite' });
+  b.addEventListener('click', async () => {
+    const w = openPrint();
+    try {
+      const f = await rpc('negotiation_folder', { p_case: c.id });
+      const v = f.volume || {};
+      const ok = fillPrint(w, `Carpeta de negociación · ${f.ars}`, `${f.provider}${f.specialty ? ` (${f.specialty})` : ''} · ${f.client} · caso ${f.folio} · ${fmtDate(f.generated_on)}`, [
+        { h: 'Resumen' }, { big: `Aumento anual estimado: ${money(f.annual_increase)}` },
+        { p: `Volumen aportado a ${f.ars} en 12 meses: ${v.claims || 0} reclamaciones por ${money(v.claimed || 0)}; tasa de glosa ${v.glosa_pct == null ? '—' : v.glosa_pct + ' %'}.` },
+        { h: 'Tarifas actuales y propuesta' },
+        f.tariffs.length ? { table: { head: ['Procedimiento', 'Tarifa actual', 'Propuesta', 'Cant. 12 meses', 'Aumento anual'], right: [1, 2, 3, 4],
+          rows: f.tariffs.map((t) => [`${t.code ? t.code + ' · ' : ''}${t.procedure}`, money(t.current), money(t.proposed), String(t.qty12), money((t.proposed - t.current) * t.qty12)]) } }
+          : { p: 'El médico no tiene tarifas vigentes con esta ARS.' },
+        f.not_contracted.length ? { h: 'Procedimientos que conviene contratar' } : null,
+        f.not_contracted.length ? { table: { head: ['Procedimiento', 'Referencia (su mejor tarifa)'], right: [1],
+          rows: f.not_contracted.map((n) => [`${n.code ? n.code + ' · ' : ''}${n.procedure}`, n.reference ? money(n.reference) : '—']) } } : null,
+        { h: 'Método' }, { p: f.method }].filter(Boolean));
+      if (!ok) { out.replaceChildren(note('El navegador bloqueó la ventana. Permita las ventanas emergentes de SOFA e intente de nuevo.', 'error')); return; }
+      refresh();
+    } catch (e) { if (w) w.close(); out.replaceChildren(note(e.message, 'error')); }
+  });
+  return h('div', {}, h('div', { class: 'i18-bar' }, b), out);
 }
 
 function updateForm(c, done) {
