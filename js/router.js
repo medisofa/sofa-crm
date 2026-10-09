@@ -28,7 +28,9 @@ export const MODULES = {
   // 2.2 a 2.6 · Iteraciones 32 a 36
   vencimientos: 'vencimientos.js', 'codigos-ars': 'codigos-ars.js', revision: 'revision.js',
   // 2.7 · Iteración 37
-  conciliacion: 'conciliacion.js'
+  conciliacion: 'conciliacion.js',
+  // 3.0 · Iteración 40
+  'mi-cuenta-sofa': 'mi-cuenta-sofa.js', 'casos-servicio': 'servicios-sofa.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 

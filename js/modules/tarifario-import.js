@@ -114,6 +114,21 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
 
 /** 2.6.1 · Renegociación de tarifarios (solo SOFA): cada grupo de tarifas se revisa a los 2 años de su última vigencia
  *  o cuando vence el contrato, lo que llegue primero. Lo usa la ficha del cliente y la pantalla «Renegociación de tarifarios». */
+/** 3.0 · Iteración 40: la renegociación es un servicio con caso propio. Un clic abre el caso (o lleva al que ya existe). */
+function caseCell(t) {
+  if (t.case) return h('a', { href: `#/casos-servicio/${t.case.id}` }, `${t.case.folio} · ver caso`);
+  if (!t.provider_id) return '';   // base anterior a la 138
+  const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Abrir caso de renegociación');
+  b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      const r = await rpc('tariff_renewal_open_case', { p_org: t.organization_id, p_provider: t.provider_id, p_ars: t.ars_id, p_plan: t.plan_id || null });
+      b.replaceWith(h('a', { href: `#/casos-servicio/${r.id}` }, `${r.folio} · ver caso`));
+    } catch (e) { b.disabled = false; b.after(note(e.message, 'error')); }
+  });
+  return b;
+}
+
 export async function mountExpiring(box, { orgId = null, days = 120 } = {}) {
   const d = await guarded(box, () => rpc('tariffs_expiring', { p_days: days, p_org: orgId }));
   if (!d) return;
@@ -122,10 +137,10 @@ export async function mountExpiring(box, { orgId = null, days = 120 } = {}) {
   const left = (n) => (n < 0 ? `atrasado ${-n} días` : n === 0 ? 'hoy' : `${n} días`);
   box.replaceChildren(
     d.tariffs.length ? h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
-      h('thead', {}, h('tr', {}, [orgId ? null : 'Cliente', 'Médico', 'ARS', 'Plan', 'Contrato', 'Tarifas', 'Vigente desde', 'Motivo', 'Fecha', ''].filter(Boolean).map((x) => h('th', {}, x)))),
+      h('thead', {}, h('tr', {}, [orgId ? null : 'Cliente', 'Médico', 'ARS', 'Plan', 'Contrato', 'Tarifas', 'Vigente desde', 'Motivo', 'Fecha', '', 'Servicio SOFA'].filter(Boolean).map((x) => h('th', {}, x)))),
       h('tbody', {}, d.tariffs.map((t) => h('tr', {}, orgId ? '' : h('td', {}, h('a', { href: `#/clientes/${t.organization_id}` }, t.client)), h('td', {}, t.provider), h('td', {}, t.ars),
         h('td', {}, t.plan || 'General'), h('td', {}, t.contract || '—'), h('td', { class: 'i18-r' }, t.count), h('td', {}, fmtDate(t.since)), h('td', {}, KIND[t.kind] || t.kind),
-        h('td', {}, fmtDate(t.valid_to)), h('td', {}, h('span', { class: `ac-pill ${cls(t.days_left)}` }, left(t.days_left)))))))) : note(`Ningún tarifario llega a su revisión en los próximos ${days} días.`),
+        h('td', {}, fmtDate(t.valid_to)), h('td', {}, h('span', { class: `ac-pill ${cls(t.days_left)}` }, left(t.days_left))), h('td', {}, caseCell(t))))))) : note(`Ningún tarifario llega a su revisión en los próximos ${days} días.`),
     h('p', { class: 'i18-sub' }, `Las ARS contratan por tiempo indefinido: SOFA propone renegociar cada ${d.years || 2} años. Cada mañana se crea una tarea «Renegociar tarifario» 90 días antes.`),
     d.contracts.length ? h('p', { class: 'i18-sub' }, 'Contratos con SOFA por revisar: ' + d.contracts.map((c) => `${orgId ? '' : c.client + ' · '}${c.folio || c.service} (${fmtDate(c.end_date)})`).join(' · ')) : '');
 }

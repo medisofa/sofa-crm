@@ -15,3 +15,9 @@
 .pt-btn{display:inline-block;background:var(--ok);color:#fff;text-decoration:none;border-radius:10px;padding:10px 14px;font-weight:600;margin-top:6px}
 .pt-load{color:var(--mut)}ol,ul{margin:6px 0 0;padding-left:20px}
 @media print{.pt-btn{display:none}}
+/* 2.9 · confirmar o pedir cambio de cita */
+button.pt-btn{border:0;font:inherit;cursor:pointer;min-height:44px}button.pt-btn:disabled{opacity:.6;cursor:default}
+.pt-sec{background:transparent!important;color:var(--ac)!important;border:1px solid var(--ac)!important}
+.pt-acts{display:flex;flex-wrap:wrap;gap:8px}.pt-form{display:grid;gap:6px;width:100%;margin-top:6px}
+.pt-form textarea{font:inherit;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--fg)}
+.pt-ok{color:var(--ok);font-weight:600;margin:6px 0 0}.pt-err-s{color:#cf222e;font-weight:600;margin:6px 0 0}
