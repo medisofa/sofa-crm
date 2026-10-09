@@ -5,6 +5,8 @@
  *  La pantalla se bloquea sola tras 5 minutos sin uso y no guarda datos clínicos en el navegador. */
 import { rpc, supabase, providerOptions, clientOptions, clientName, h, fmtDate, note, guarded, table } from '../services/iter18.js';
 import { mfaState, verifyStep } from './seguridad.js';
+import { orderForm, ordersList, printOrder } from './hc-ordenes.js';
+import { importPanel } from './hc-importar.js';
 
 const LOCK_MS = 5 * 60 * 1000;
 const KIND = { historia_externa: 'Historia de otro sistema', resultado: 'Resultado', imagen: 'Imagen', otro: 'Otro' };
@@ -66,7 +68,8 @@ export async function render(root, ctx = {}) {
     const q = h('input', { id: 'hc-q', type: 'search', placeholder: 'Nombre, cédula o afiliado' });
     const results = h('div', { class: 'hc-results', 'aria-live': 'polite' });
     const main = h('div', { 'aria-live': 'polite' }, note('Busque un paciente para abrir su historia.'));
-    const logBtn = st.can_write ? h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => accessLog(org, main) }, '¿Quién vio mis historias?') : '';
+    const logBtn = st.can_write ? h('div', { class: 'hc-side' }, h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => accessLog(org, main) }, '¿Quién vio mis historias?'),
+      h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => importPanel(main, org, rpc) }, 'Importar historias de otro sistema')) : '';
     body.replaceChildren(...banners, h('div', { class: 'hc-layout' },
       h('aside', { class: 'hc-side' }, h('label', { for: 'hc-q' }, 'Buscar paciente'), q, results, logBtn),
       main));
@@ -121,6 +124,7 @@ export async function render(root, ctx = {}) {
       w ? h('button', { class: 'i18-btn', type: 'button', onclick: () => noteForm(id, null, pane, main, st) }, 'Nueva nota') : '',
       w ? h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => summaryForm(id, rec, pane, main, st) }, 'Resumen clínico') : '',
       w ? h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => consentForm(id, pane, main, st) }, 'Consentimiento') : '',
+      w ? h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => orderForm(pane, id, null, rpc, () => openPatient(id, main, st)) }, 'Receta u orden') : '',
       w ? h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => uploadForm(id, pane, main, st) }, 'Adjuntar historia anterior') : '',
       h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => exportRecord(id, pane) }, 'Exportar / imprimir'));
     const sum = rec.summary || {};
@@ -141,12 +145,14 @@ export async function render(root, ctx = {}) {
           h('span', { class: `i18-badge ${n.status === 'firmada' ? 'i18-proximo' : 'i18-esta_semana'}` }, n.status === 'firmada' ? `Firmada${n.addenda ? ` · ${n.addenda} adenda(s)` : ''}` : 'Borrador'),
           h('button', { class: 'i18-link', type: 'button', onclick: () => viewNote(n.id, pane, main, st, id) }, 'Abrir')),
         h('div', { class: 'i18-sub' }, n.author || ''))) : note('Todavía no hay notas.')),
+      h('h4', { class: 'hc-sec' }, 'Recetas y órdenes'), ordersList(id, pane, rpc),
       h('h4', { class: 'hc-sec' }, `Adjuntos (${rec.attachments.length})`),
       rec.attachments.length ? table([
         { label: 'Archivo', get: (a) => h('button', { class: 'i18-link', type: 'button', onclick: () => download(a.id, a.name) }, a.name) },
         { label: 'Tipo', get: (a) => KIND[a.kind] || a.kind },
         { label: 'Descripción', get: (a) => a.description || '—' },
         { label: 'Fecha', get: (a) => fmtTs(a.at) }], rec.attachments) : note('Sin adjuntos. Puede adjuntar la historia que el paciente traiga de otro sistema (PDF o foto).'));
+    return pane;   // 2.4 · la orden recién firmada se muestra en el panel nuevo
   }
 
   async function viewNote(noteId, pane, main, st, patientId) {
@@ -165,6 +171,18 @@ export async function render(root, ctx = {}) {
           if (!confirm('¿Borrar este borrador? No se puede deshacer.')) return;
           try { await rpc('delete_clinical_draft', { p_id: n.id }); openPatient(patientId, main, st); } catch (e) { pane.prepend(note(e.message, 'error')); }
         } }, 'Borrar borrador'));
+    }
+    if (st.can_write && n.status === 'firmada') {
+      btns.append(h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => orderForm(pane, patientId, n.id, rpc, () => openPatient(patientId, main, st)) }, 'Receta u orden de esta consulta'));
+      if (n.content.diagnosticos) {
+        const dx = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Pasar diagnóstico a la reclamación');
+        dx.addEventListener('click', async () => {
+          dx.disabled = true;
+          try { const r = await rpc('note_diagnosis_to_claim', { p_note: n.id }); add.prepend(note(`Listo: la reclamación de la cita lleva ${r.codes}.`, 'ok')); }
+          catch (e) { add.prepend(note(e.message, 'error')); } finally { dx.disabled = false; }
+        });
+        btns.append(dx);
+      }
     }
     if (st.can_write && n.status === 'firmada') {
       const txt = h('textarea', { id: 'hc-add', rows: '3', maxlength: '4000', style: 'width:100%' });
@@ -187,8 +205,11 @@ export async function render(root, ctx = {}) {
   }
 
   function noteForm(patientId, existing, pane, main, st) {
-    const tpl = h('select', { id: 'hc-tpl' }, templates.map((t) => h('option', { value: t.code, selected: existing?.template === t.code }, `${t.specialty} · ${t.name}`)));
+    const tpl = h('select', { id: 'hc-tpl' }, templates.filter((t) => t.code !== 'historia_importada').map((t) => h('option', { value: t.code, selected: existing?.template === t.code }, `${t.specialty} · ${t.name}`)));
     const date = h('input', { id: 'hc-date', type: 'date', value: existing?.date || new Date().toISOString().slice(0, 10) });
+    const apt = h('select', { id: 'hc-apt' }, h('option', { value: '' }, 'Sin cita'));
+    rpc('clinical_appointments', { p_patient: patientId }).then((l) => apt.append(...l.map((a) => h('option', { value: a.id, selected: existing?.appointment_id === a.id },
+      `${fmtDate(a.date)} ${String(a.time || '').slice(0, 5)} · ${a.reason || a.status}${a.has_claim ? ' · con reclamación' : ''}`)))).catch(() => {});
     const fieldsBox = h('div');
     const inputs = {};
     const msg = h('div', { 'aria-live': 'polite' });
@@ -215,7 +236,7 @@ export async function render(root, ctx = {}) {
     drawFields();
     const content = () => Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value.trim()]).filter(([, v]) => v !== ''));
     async function save() {
-      return rpc('save_clinical_note', { p_id: existing?.id || null, p_patient: patientId, p_template: tpl.value, p_content: content(), p_encounter: date.value || null });
+      return rpc('save_clinical_note', { p_id: existing?.id || null, p_patient: patientId, p_template: tpl.value, p_content: content(), p_encounter: date.value || null, p_appointment: apt.value || null });
     }
     const bSave = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Guardar borrador');
     const bSign = h('button', { class: 'i18-btn', type: 'button' }, 'Guardar y firmar');
@@ -233,7 +254,7 @@ export async function render(root, ctx = {}) {
     });
     pane.replaceChildren(h('section', { class: 'hc-note hc-form' },
       h('header', {}, h('strong', {}, existing ? 'Editar borrador' : 'Nueva nota'), h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
-      h('div', { class: 'hc-grid' }, h('label', { for: 'hc-tpl' }, 'Plantilla', tpl), h('label', { for: 'hc-date' }, 'Fecha de la consulta', date)),
+      h('div', { class: 'hc-grid' }, h('label', { for: 'hc-tpl' }, 'Plantilla', tpl), h('label', { for: 'hc-date' }, 'Fecha de la consulta', date), h('label', { for: 'hc-apt' }, 'Cita (para pasar el diagnóstico a la reclamación)', apt)),
       fieldsBox, h('p', { class: 'i18-sub' }, 'Los campos con * son obligatorios para firmar. El borrador puede guardarse incompleto.'),
       h('div', { class: 'i18-actions' }, bSave, bSign), msg));
     pane.scrollIntoView({ behavior: 'smooth', block: 'start' });

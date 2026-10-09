@@ -1,6 +1,8 @@
 /** SOFA · 2.1 · Iteración 31 · Pestañas de la ficha del cliente y paneles nuevos (tarifario por ARS y documentos del cliente).
  *  client.js pinta sus tarjetas como antes; aquí se agrupan en pestañas según su título, sin tocar su lógica. */
 import { rpc, supabase, h, fmtDate, note, guarded } from '../services/iter18.js';
+import { can } from '../utils/permissions.js';
+import { mountTariffImport } from './tarifario-import.js';
 
 const TABS = [
   ['resumen', 'Resumen'], ['codigos', 'Códigos ARS'], ['tarifario', 'Tarifario'], ['documentos', 'Documentos'],
@@ -14,7 +16,7 @@ const RULES = [
 ];
 const KEY = 'sofa.ficha.pestana';
 
-export function setupClientTabs(main, org) {
+export function setupClientTabs(main, org, role = null) {
   const grid = main.querySelector('.grid.two');
   if (!grid || main.querySelector('.ct-tabs')) return;
   const cards = [...grid.children];
@@ -24,7 +26,7 @@ export function setupClientTabs(main, org) {
   }
   // Paneles nuevos
   const tarif = h('div', { class: 'card', style: 'grid-column:1/-1', 'data-tab': 'tarifario' }, h('h2', {}, 'Tarifario según contrato, por ARS'),
-    h('p', { class: 'sub' }, 'Cuántas tarifas vigentes tiene el cliente con cada ARS, el contrato que las respalda y si ya tiene código. La carga desde Excel por ARS llega en la Iteración 32.'), h('div', { id: 'ctTarif' }));
+    h('p', { class: 'sub' }, 'Cuántas tarifas vigentes tiene el cliente con cada ARS, el contrato que las respalda y si ya tiene código.'), h('div', { id: 'ctTarif' }), h('div', { id: 'ctTarifImp', style: 'margin-top:16px' }));
   const docs = h('div', { class: 'card', style: 'grid-column:1/-1', 'data-tab': 'documentos' }, h('h2', {}, 'Archivos del cliente'),
     h('p', { class: 'sub' }, 'Todos los archivos subidos a los expedientes de este cliente (radicaciones, reclamaciones y otros).'), h('div', { id: 'ctDocs' }));
   grid.prepend(tarif); grid.append(docs);
@@ -38,7 +40,7 @@ export function setupClientTabs(main, org) {
     current = k; try { sessionStorage.setItem(KEY, k); } catch (_) { /* sin almacenamiento */ }
     bar.querySelectorAll('[role=tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === k)));
     [...grid.children].forEach((c) => { c.hidden = c.dataset.tab !== k; });
-    if (k === 'tarifario' && !loaded.has(k)) { loaded.add(k); drawTariffs(tarif.querySelector('#ctTarif'), org.id); }
+    if (k === 'tarifario' && !loaded.has(k)) { loaded.add(k); drawTariffs(tarif.querySelector('#ctTarif'), org.id); mountTariffImport(tarif.querySelector('#ctTarifImp'), { orgId: org.id, canEdit: can('contracts.edit', role) }); }
     if (k === 'documentos' && !loaded.has(k)) { loaded.add(k); drawDocs(docs.querySelector('#ctDocs'), org.id); }
   };
   bar.append(...tabs.map(([k, l]) => h('button', { type: 'button', role: 'tab', 'data-k': k, onclick: () => show(k) }, l)));

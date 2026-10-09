@@ -162,3 +162,24 @@ a.i18-btn{text-decoration:none;display:inline-block}
 :root{--border:var(--line);--text-muted:var(--ink-3)}
 .i18-form [hidden],.hc-form [hidden],.i18-wrap [hidden]{display:none!important}
 .v2-launch-grid{align-items:start}
+
+/* 2.2–2.6 · Iteraciones 32 a 36 */
+/* Hojas imprimibles (receta, orden, carta a la ARS): si hay una en pantalla, solo ella sale en el papel */
+.sofa-print{background:#fff;color:#111;border:1px solid var(--border,#d0d7de);border-radius:8px;padding:28px 32px;margin-top:12px;font-size:14px;line-height:1.5}
+.sofa-print h3{text-align:center;text-transform:uppercase;letter-spacing:.08em;margin:18px 0}
+.or-head{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #111;padding-bottom:10px}
+.or-rx{font:700 28px/1 Georgia,serif;margin:8px 0}
+.or-sheet ol li,.or-sheet ul li{margin-bottom:8px}
+.or-foot{margin-top:48px;display:flex;flex-direction:column;gap:12px}
+.or-sign{text-align:center;align-self:flex-end;min-width:240px}
+.or-foot .hc-hash{font-size:10px;color:#555;word-break:break-all}
+.ac-letter p{margin:0 0 12px}
+.ac-letter .ac-letter-head{display:flex;justify-content:space-between;margin-bottom:24px}
+.rv-code{display:inline-block;padding:6px 10px;border-radius:6px;background:var(--surface-2,#f3f4f6);font-family:ui-monospace,monospace}
+.rv-fams{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.rv-fam ul{margin:6px 0 0;padding-left:18px}
+@media print{
+  body:has(.sofa-print) *{visibility:hidden}
+  body:has(.sofa-print) .sofa-print,body:has(.sofa-print) .sofa-print *{visibility:visible}
+  body:has(.sofa-print) .sofa-print{position:absolute;left:0;top:0;width:100%;border:0;margin:0;padding:0}
+}

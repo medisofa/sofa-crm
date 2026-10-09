@@ -4,7 +4,7 @@
  */
 import { findRoute, canSee } from './utils/permissions.js';
 
-const MODULES = {
+export const MODULES = {
   inicio: 'home.js', clientes: 'clients.js', codificacion: 'coding.js', ars: 'ars.js',
   usuarios: 'users.js', parametros: 'settings.js', perfil: 'profile.js', diagnostico: 'diagnostics.js',
   oportunidades: 'pipeline.js', prospectos: 'leads.js', contactos: 'contacts.js', aliados: 'partners.js', tareas: 'tasks.js',
@@ -24,7 +24,9 @@ const MODULES = {
   // 2.0 · Iteración 29
   'historia-clinica': 'historia-clinica.js', 'hc-control': 'hc-control.js', seguridad: 'seguridad.js',
   // 2.1 · Iteraciones 30 y 31
-  'mi-ficha': 'mi-ficha.js', 'mi-incorporacion': 'mi-incorporacion.js'
+  'mi-ficha': 'mi-ficha.js', 'mi-incorporacion': 'mi-incorporacion.js',
+  // 2.2 a 2.6 · Iteraciones 32 a 36
+  vencimientos: 'vencimientos.js', 'codigos-ars': 'codigos-ars.js', revision: 'revision.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
