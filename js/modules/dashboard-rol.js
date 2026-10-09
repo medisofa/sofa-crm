@@ -15,7 +15,7 @@ const goTo = (c) => { location.hash = `#/${ROUTE[c] || c}`; };
 export async function render(root, { onOpen = goTo } = {}) {
   root.replaceChildren();
   const box = h('div', { 'aria-live': 'polite' });
-  root.append(h('h2', {}, 'Dashboard'), box);
+  root.append(box);   // el título «Mi dashboard» ya lo muestra la barra superior
   const data = await guarded(box, () => rpc('my_dashboard'));
   if (!data) return;
   if (!data.sections || !data.sections.length) {
@@ -28,7 +28,7 @@ export async function render(root, { onOpen = goTo } = {}) {
     card.append(h('div', { class: 'i18-kpis' }, s.kpis.map((k) =>
       h('div', { class: `i18-kpi i18-lvl-${k.level}` }, h('div', { class: 'i18-kpi-v' }, fmt(k)), h('div', { class: 'i18-kpi-l' }, k.label)))));
     if (s.shortcuts && s.shortcuts.length && typeof onOpen === 'function') {
-      card.append(h('div', { class: 'i18-sub' }, s.shortcuts.map((c) =>
+      card.append(h('div', { class: 'i18-actions', role: 'group', 'aria-label': 'Accesos directos' }, s.shortcuts.map((c) =>
         h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => onOpen(c) }, LABEL[c] || c))));
     }
     box.append(card);

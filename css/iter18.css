@@ -49,3 +49,6 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .i18-link{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit}
 
 /* 23 · Avisos */
+
+/* 1.9.1 · accesos directos del dashboard con separación */
+.i18-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
