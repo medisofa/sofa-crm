@@ -183,3 +183,16 @@ a.i18-btn{text-decoration:none;display:inline-block}
   body:has(.sofa-print) .sofa-print,body:has(.sofa-print) .sofa-print *{visibility:visible}
   body:has(.sofa-print) .sofa-print{position:absolute;left:0;top:0;width:100%;border:0;margin:0;padding:0}
 }
+
+/* 2.6.1 · ARS y planes · solicitudes de usuario */
+.ars-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.ars-card header{margin-bottom:6px}.ars-plans{list-style:none;margin:6px 0 10px;padding:0}
+.ars-plans li{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;padding:4px 0;border-top:1px solid var(--border,#d0d7de)}
+.ars-plans li:first-child{border-top:0}.ars-plans li .i18-link{margin-left:auto}
+.ars-off{opacity:.55}
+.ur-pending{border-left:6px solid var(--warning,#9a6700)}
+/* 2.7 · Conciliación bancaria */
+.bk-table td{vertical-align:top}.bk-pending{background:color-mix(in srgb,var(--warning,#9a6700) 8%,transparent)}
+.bk-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0}.bk-actions select{max-width:280px}
+/* 2.8 · Portal del paciente (lado del consultorio) */
+.pt-admin{margin:10px 0}

@@ -1,7 +1,7 @@
 /** SOFA · 2.1 · Iteración 31 · Pestañas de la ficha del cliente y paneles nuevos (tarifario por ARS y documentos del cliente).
  *  client.js pinta sus tarjetas como antes; aquí se agrupan en pestañas según su título, sin tocar su lógica. */
 import { rpc, supabase, h, fmtDate, note, guarded } from '../services/iter18.js';
-import { can } from '../utils/permissions.js';
+import { can, isStaff } from '../utils/permissions.js';
 import { mountTariffImport } from './tarifario-import.js';
 
 const TABS = [
@@ -40,7 +40,7 @@ export function setupClientTabs(main, org, role = null) {
     current = k; try { sessionStorage.setItem(KEY, k); } catch (_) { /* sin almacenamiento */ }
     bar.querySelectorAll('[role=tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === k)));
     [...grid.children].forEach((c) => { c.hidden = c.dataset.tab !== k; });
-    if (k === 'tarifario' && !loaded.has(k)) { loaded.add(k); drawTariffs(tarif.querySelector('#ctTarif'), org.id); mountTariffImport(tarif.querySelector('#ctTarifImp'), { orgId: org.id, canEdit: can('contracts.edit', role) }); }
+    if (k === 'tarifario' && !loaded.has(k)) { loaded.add(k); drawTariffs(tarif.querySelector('#ctTarif'), org.id); mountTariffImport(tarif.querySelector('#ctTarifImp'), { orgId: org.id, canEdit: can('contracts.edit', role), isStaff: isStaff(role) }); }
     if (k === 'documentos' && !loaded.has(k)) { loaded.add(k); drawDocs(docs.querySelector('#ctDocs'), org.id); }
   };
   bar.append(...tabs.map(([k, l]) => h('button', { type: 'button', role: 'tab', 'data-k': k, onclick: () => show(k) }, l)));

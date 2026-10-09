@@ -6,7 +6,6 @@
 import { rpc, supabase, providerOptions, clientOptions, clientName, h, fmtDate, note, guarded, table } from '../services/iter18.js';
 import { mfaState, verifyStep } from './seguridad.js';
 import { orderForm, ordersList, printOrder } from './hc-ordenes.js';
-import { importPanel } from './hc-importar.js';
 
 const LOCK_MS = 5 * 60 * 1000;
 const KIND = { historia_externa: 'Historia de otro sistema', resultado: 'Resultado', imagen: 'Imagen', otro: 'Otro' };
@@ -69,7 +68,7 @@ export async function render(root, ctx = {}) {
     const results = h('div', { class: 'hc-results', 'aria-live': 'polite' });
     const main = h('div', { 'aria-live': 'polite' }, note('Busque un paciente para abrir su historia.'));
     const logBtn = st.can_write ? h('div', { class: 'hc-side' }, h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => accessLog(org, main) }, '¿Quién vio mis historias?'),
-      h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => importPanel(main, org, rpc) }, 'Importar historias de otro sistema')) : '';
+      h('p', { class: 'i18-sub' }, '¿Trae historias de otro sistema? SOFA se las importa: envíe el archivo a su contacto en SOFA.')) : '';
     body.replaceChildren(...banners, h('div', { class: 'hc-layout' },
       h('aside', { class: 'hc-side' }, h('label', { for: 'hc-q' }, 'Buscar paciente'), q, results, logBtn),
       main));

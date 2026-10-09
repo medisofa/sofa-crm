@@ -1,7 +1,9 @@
 /** SOFA · 2.0 · Historia clínica: control (solo Super Admin).
  *  Modo por consultorio (desactivada / prueba / activa), verificación en dos pasos obligatoria,
- *  bitácora de accesos y verificación de integridad de la bitácora. No muestra datos clínicos. */
+ *  bitácora de accesos y verificación de integridad de la bitácora. No muestra datos clínicos.
+ *  2.6.1: aquí el Super Admin importa las historias que el consultorio trae de otro sistema (a nombre del médico). */
 import { rpc, clientOptions, clientName, h, note, guarded, table } from '../services/iter18.js';
+import { importPanel } from './hc-importar.js';
 
 const MODE = { desactivada: 'Desactivada', prueba: 'Prueba (solo pacientes ficticios)', activa: 'Activa (pacientes reales)' };
 const fmtTs = (iso) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' }) : '—');
@@ -57,6 +59,28 @@ export async function render(root) {
       h('label', { class: 'i18-chk', for: 'hcc-mfa' }, mfa, ' Exigir verificación en dos pasos al médico para abrir la historia (recomendado)'),
       ackWrap, h('div', { class: 'i18-actions' }, save, showLog), msg),
       note('Recomendación: deje «Prueba» hasta que un abogado de salud revise el consentimiento, la conservación y la seguridad. En prueba, use solo pacientes ficticios.'),
-      logBox);
+      logBox, importSection(org, st.mode));
+  }
+
+  // 2.6.1 · Importar historias de otro sistema: solo el Super Admin, a nombre del médico del consultorio
+  function importSection(org, mode) {
+    const box = h('section', { class: 'i18-card', id: 'hcc-import' }, h('h3', { style: 'margin-top:0' }, 'Importar historias de otro sistema'));
+    if (mode === 'desactivada') { box.append(note('Active primero la historia clínica en este consultorio (modo Prueba o Activa) para poder importar.')); return box; }
+    const pane = h('div');
+    const author = h('select', { id: 'hcc-author' });
+    const start = h('button', { class: 'i18-btn', type: 'button' }, 'Preparar la importación');
+    const hist = h('div', { 'aria-live': 'polite' });
+    box.append(note('Pida al consultorio el Excel o CSV que exporta su sistema anterior (una fila por consulta). Las notas quedan a nombre del médico que elija, con el sello «Importada por SOFA». Todo queda en la bitácora que ve el médico.'),
+      h('div', { class: 'i18-bar' }, h('label', { for: 'hcc-author' }, 'A nombre de', author), start), pane, h('h4', {}, 'Importaciones anteriores'), hist);
+    guarded(hist, () => rpc('clinical_import_authors', { p_org: org })).then((d) => {
+      if (!d) return;
+      author.replaceChildren(...(d.authors.length ? d.authors.map((a) => h('option', { value: a.id }, a.name)) : [h('option', { value: '' }, 'El consultorio no tiene médicos con usuario')]));
+      start.disabled = !d.authors.length;
+      hist.replaceChildren(d.batches.length ? table([{ label: 'Fecha', get: (r) => fmtTs(r.at) }, { label: 'Sistema', get: (r) => r.source },
+        { label: 'Archivo', get: (r) => r.file || '—' }, { label: 'Notas', right: true, get: (r) => r.notes }, { label: 'Pacientes nuevos', right: true, get: (r) => r.patients },
+        { label: 'Por', get: (r) => r.by || '—' }], d.batches) : note('Este consultorio no tiene importaciones.'));
+    });
+    start.addEventListener('click', () => importPanel(pane, org, rpc, { author: author.value, authorName: author.selectedOptions[0]?.textContent }));
+    return box;
   }
 }
