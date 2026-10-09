@@ -27,7 +27,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico'];
+export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad'];   // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -36,8 +36,8 @@ export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'r
  */
 export const NAV = [
   { group: 'Operación', items: [
-    { route: 'mi-dashboard', label: 'Mi dashboard', roles: [...ALL, 'capturer'], ready: true },   // 1.9 · Iteración 21-B: primera página según el rol
-    { route: 'inicio', label: 'Inicio', roles: ALL, ready: true },
+    { route: 'mi-dashboard', label: 'Inicio', roles: [...ALL, 'capturer'], ready: true },   // 1.9 · primera página según el rol · 2.0: se llama «Inicio»
+    { route: 'inicio', label: 'Panel SOFA', roles: STAFF, ready: true },   // 2.0: el panel general queda para el personal de SOFA
     { route: 'hoy', label: 'Trabajo de hoy', roles: [...ALL, 'capturer'], ready: true },
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
@@ -46,6 +46,7 @@ export const NAV = [
   ]},
   { group: 'Mi consultorio', items: [   // 1.9 · Iteraciones 19 a 27
     { route: 'pacientes', label: 'Pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
+    { route: 'historia-clinica', label: 'Historia clínica', roles: ['client', 'super_admin'], ready: true },   // 2.0 · Iteración 29 (Super Admin solo con acceso de emergencia)
     { route: 'saldos-pacientes', label: 'Saldos de pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
     { route: 'mensajes', label: 'Mensajes (WhatsApp)', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },
     { route: 'indicadores-agenda', label: 'Indicadores de la agenda', roles: ['super_admin', 'admin', 'client'], ready: true },
@@ -103,10 +104,12 @@ export const NAV = [
   { group: 'Configuración', items: [
     { route: 'usuarios', label: 'Usuarios y roles', roles: ['super_admin', 'admin', 'auditor'], ready: true },
     { route: 'alta-usuarios', label: 'Crear usuario', roles: ['super_admin', 'admin', 'client'], ready: true },   // 1.9 · el médico crea a sus secretarias
-    { route: 'parametros', label: 'Parámetros', roles: ['super_admin', 'admin', 'auditor'], ready: true }
+    { route: 'parametros', label: 'Parámetros', roles: ['super_admin', 'admin', 'auditor'], ready: true },
+    { route: 'hc-control', label: 'Historia clínica: control', roles: ['super_admin'], ready: true }   // 2.0 · modo, MFA, bitácora
   ]},
   { group: 'Mi cuenta', items: [
     { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer'], ready: true },
+    { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer'], ready: true },   // 2.0 · MFA
     { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer'], ready: true },
     { route: 'cambio-clave', label: 'Cambiar contraseña', roles: [...ALL, 'capturer'], ready: true, hidden: true }   // 1.9 · también se abre sola en el primer acceso
   ]}
@@ -115,10 +118,97 @@ export const NAV = [
 // Aplica el alcance de Facturación a todo el menú (una sola regla, no ruta por ruta)
 NAV.forEach((g) => g.items.forEach((i) => { if (!BILLING_ROUTES.includes(i.route)) i.roles = i.roles.filter((r) => r !== 'billing'); }));
 
+/**
+ * 2.0 · Decisión 08/10/2026: el Médico solo ve su consultorio. Estos módulos son internos de SOFA
+ * (cartera de clientes, catálogos y lotes) y se le ocultan. CLIENT_HIDDEN es la única lista que hay que tocar.
+ */
+export const CLIENT_HIDDEN = ['clientes', 'medicos', 'radicaciones', 'codificacion', 'ars', 'documentos', 'inicio'];
+NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route)) i.roles = i.roles.filter((r) => r !== 'client'); }));
+
+/**
+ * 2.0 · Menú por tarea: cada rol ve sus grupos en el orden de su trabajo, sin duplicados.
+ * Solo ordena: el permiso lo sigue dando NAV (roles). Lo que un rol puede abrir y no esté
+ * aquí aparece al final en «Más», para que nada se pierda.
+ */
+const MY_ACCOUNT = { group: 'Mi cuenta', routes: ['perfil', 'cambio-clave', 'seguridad', 'diagnostico'] };
+export const MENUS = {
+  client: [
+    { group: 'Mi día', routes: ['mi-dashboard', 'hoy', 'agenda'] },
+    { group: 'Pacientes', routes: ['pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes'] },
+    { group: 'Cobros a las ARS', routes: ['captura', 'reclamaciones', 'retiros', 'glosas', 'pagos', 'aging', 'contratos'] },
+    { group: 'Mis resultados', routes: ['estado-cuenta', 'calendario-cobros', 'rentabilidad', 'analitica-glosas', 'dashboard', 'indicadores-agenda', 'reportes', 'honorarios'] },
+    { group: 'Mi consultorio', routes: ['practica', 'tarifas-privadas', 'mis-secretarias', 'alta-usuarios', 'centros', 'habilitacion'] },
+    MY_ACCOUNT
+  ],
+  capturer: [
+    { group: 'Mi día', routes: ['mi-dashboard', 'hoy', 'agenda'] },
+    { group: 'Pacientes', routes: ['pacientes', 'saldos-pacientes', 'mensajes'] },
+    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones'] },
+    MY_ACCOUNT
+  ],
+  billing: [
+    { group: 'Mi día', routes: ['mi-dashboard', 'hoy', 'dashboard'] },
+    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'retiros'] },
+    MY_ACCOUNT
+  ],
+  glosas: [
+    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
+    { group: 'Cobros y glosas', routes: ['glosas', 'pagos', 'aging', 'calendario-cobros', 'analitica-glosas', 'contratos'] },
+    { group: 'Consulta', routes: ['reclamaciones', 'radicaciones', 'codificacion', 'clientes', 'medicos', 'ars'] },
+    { group: 'Gestión', routes: ['dashboard', 'reportes', 'documentos', 'guias'] },
+    MY_ACCOUNT
+  ],
+  assistant: [
+    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
+    { group: 'Ventas', routes: ['oportunidades', 'prospectos', 'contactos', 'clientes', 'salud-clientes', 'medicos'] },
+    { group: 'Incorporación', routes: ['habilitacion', 'requisitos', 'preradicacion', 'practica', 'tarifas-privadas', 'agenda', 'mensajes'] },
+    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'retiros', 'radicaciones'] },
+    { group: 'Inteligencia', routes: ['mercado', 'guias', 'dashboard', 'reportes', 'documentos', 'codificacion', 'ars'] },
+    MY_ACCOUNT
+  ],
+  operations: [
+    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
+    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos', 'contratos'] },
+    { group: 'Clientes', routes: ['clientes', 'salud-clientes', 'medicos', 'agenda', 'practica', 'mensajes'] },
+    { group: 'Seguimiento', routes: ['glosas', 'analitica-glosas', 'reportes', 'documentos', 'codificacion', 'ars'] },
+    MY_ACCOUNT
+  ],
+  auditor: [
+    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
+    { group: 'Auditoría', routes: ['reclamaciones', 'preradicacion', 'requisitos', 'radicaciones', 'retiros', 'glosas', 'pagos', 'aging'] },
+    { group: 'Comercial', routes: ['oportunidades', 'prospectos', 'contactos', 'aliados'] },
+    { group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'calendario-cobros', 'rentabilidad', 'analitica-glosas', 'honorarios', 'reportes'] },
+    { group: 'Consulta', routes: ['clientes', 'medicos', 'codificacion', 'contratos', 'ars', 'documentos', 'habilitacion', 'mercado', 'guias'] },
+    { group: 'Configuración', routes: ['usuarios', 'parametros'] },
+    MY_ACCOUNT
+  ]
+};
+MENUS.admin = [
+  { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
+  { group: 'Clientes y ventas', routes: ['oportunidades', 'prospectos', 'contactos', 'aliados', 'clientes', 'salud-clientes', 'medicos', 'habilitacion'] },
+  { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos'] },
+  { group: 'Cobros y glosas', routes: ['glosas', 'pagos', 'aging', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
+  { group: 'Consultorios', routes: ['agenda', 'pacientes', 'practica', 'mensajes', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'indicadores-agenda', 'mis-secretarias', 'centros', 'tarifas-privadas'] },
+  { group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'rentabilidad', 'reportes', 'mercado', 'guias'] },
+  { group: 'Catálogos', routes: ['codificacion', 'contratos', 'ars', 'documentos'] },
+  { group: 'Configuración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'historia-clinica'] },
+  MY_ACCOUNT
+];
+MENUS.super_admin = MENUS.admin;
+
 export const allRoutes = () => NAV.flatMap((g) => g.items);
 export const findRoute = (r) => allRoutes().find((i) => i.route === r) || null;
 export const canSee = (route, role) => !!findRoute(route)?.roles.includes(role);
-export const visibleNav = (role) => NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.hidden && i.roles.includes(role)) })).filter((g) => g.items.length);
+export const visibleNav = (role) => {
+  const ok = (i) => i && !i.hidden && i.roles.includes(role);
+  const menu = MENUS[role];
+  if (!menu) return NAV.map((g) => ({ ...g, items: g.items.filter(ok) })).filter((g) => g.items.length);
+  const used = new Set();
+  const groups = menu.map((g) => ({ group: g.group, items: g.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
+  const rest = allRoutes().filter((i) => ok(i) && !used.has(i.route));
+  if (rest.length) groups.push({ group: 'Más', items: rest });
+  return groups.filter((g) => g.items.length);
+};
 export const isStaff = (role) => !!ROLES[role]?.staff;
 /** ¿Puede este rol abrir el enlace? (#/radicaciones/123 → módulo "radicaciones"). Para no mostrar enlaces que llevan a "Sin acceso". */
 export const canOpen = (href, role) => canSee(String(href || '').replace(/^#\/?/, '').split('/')[0], role);

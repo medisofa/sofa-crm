@@ -87,7 +87,10 @@ export async function invoke(name, body) {
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
     let msg = error.message;
-    try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (_) { /* se usa el mensaje base */ }
+    try { const j = await error.context.json(); if (j && (j.error || j.message)) msg = j.error || j.message; } catch (_) { /* se usa el mensaje base */ }
+    // 1.9.2 · Mensajes en español que dicen qué hacer
+    if (/Failed to send a request/i.test(msg)) msg = `No se pudo comunicar con la función «${name}» de Supabase. Revise su conexión a internet; si sigue igual, el Administrador debe verificar que la función «${name}» esté publicada (Supabase › Edge Functions).`;
+    else if (/Relay Error|non-2xx/i.test(msg)) msg = `La función «${name}» respondió con un error. Intente de nuevo; si se repite, avise al Administrador.`;
     throw new Error(msg);
   }
   if (data && data.error) throw new Error(data.error);

@@ -81,7 +81,8 @@ function layout() {
   <div class="app">
     <aside class="sidebar" id="sidebar" aria-label="Menú principal">
       <div class="brand"><img class="logo-full" src="assets/brand/sofa-logo-white.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
-      <nav class="nav" id="nav"></nav>
+      <div class="nav-search"><label class="sr-only" for="navSearch">Buscar en el menú</label><input id="navSearch" type="search" placeholder="Buscar módulo…" autocomplete="off"></div>
+      <nav class="nav nav-v2" id="nav"></nav>
       <div class="side-foot">v${APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
     </aside>
     <div class="scrim" id="scrim"></div>
@@ -97,7 +98,7 @@ function layout() {
       <main class="page" id="main" tabindex="-1"></main>
     </div>
   </div>`);
-  renderNav();
+  renderNav(); bindNav();
   $('#menuBtn').onclick = () => toggleMenu(true);
   $('#scrim').onclick = () => toggleMenu(false);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleMenu(false); closeUserMenu(); } });
@@ -107,10 +108,44 @@ function layout() {
   window.addEventListener('online', net); window.addEventListener('offline', net); net();
 }
 
+/** 2.0 · Grupos plegables (se recuerdan en este navegador) y búsqueda en el menú. */
+const NAV_KEY = 'sofa.nav.cerrados';
+const closedGroups = () => { try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || '[]')); } catch (_) { return new Set(); } };
+const saveClosed = (set) => { try { localStorage.setItem(NAV_KEY, JSON.stringify([...set])); } catch (_) { /* sin almacenamiento: no se recuerda */ } };
+const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 function renderNav() {
+  const nav = $('#nav'); if (!nav) return;
   const { route } = parseHash();
-  render($('#nav'), html`${visibleNav(state.role).map((g) => html`<h6>${g.group}</h6>${g.items.map((i) => html`
-    <a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`)}`)}`);
+  const q = norm($('#navSearch')?.value).trim();
+  const closed = closedGroups();
+  const link = (i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`;
+  const groups = visibleNav(state.role);
+  if (q) {
+    const hits = groups.flatMap((g) => g.items.filter((i) => norm(i.label).includes(q) || norm(g.group).includes(q)));
+    render(nav, hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : html`<p class="nav-empty">No hay módulos con «${$('#navSearch').value}». Borre la búsqueda para ver todo el menú.</p>`);
+    return;
+  }
+  render(nav, html`${groups.map((g) => {
+    const active = g.items.some((i) => i.route === route);
+    const open = active || !closed.has(g.group);
+    return html`<div class="nav-group ${open ? 'open' : ''}">
+      <button type="button" class="nav-group-btn" data-group="${g.group}" aria-expanded="${open ? 'true' : 'false'}">${g.group}<span class="nav-count">${g.items.length}</span></button>
+      <div class="nav-items" ${open ? '' : raw('hidden')}>${g.items.map(link)}</div></div>`;
+  })}`);
+}
+function bindNav() {
+  $('#nav').addEventListener('click', (e) => {
+    const b = e.target.closest('.nav-group-btn'); if (!b) return;
+    const set = closedGroups(); const g = b.dataset.group;
+    if (b.getAttribute('aria-expanded') === 'true') set.add(g); else set.delete(g);
+    saveClosed(set); renderNav();
+  });
+  const s = $('#navSearch');
+  s.addEventListener('input', renderNav);
+  s.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { const a = $('#nav a'); if (a) { location.hash = a.getAttribute('href'); s.value = ''; } }
+    if (e.key === 'Escape') { s.value = ''; renderNav(); }
+  });
 }
 function toggleMenu(open) {
   $('#sidebar')?.classList.toggle('open', open); $('#scrim')?.classList.toggle('show', open);
@@ -122,7 +157,7 @@ function openUserMenu() {
   const pop = document.createElement('div');
   pop.className = 'menu-pop'; pop.setAttribute('role', 'menu');
   render(pop, html`<div class="who"><b>${state.profile.full_name || '—'}</b><span>${state.session.user.email}</span><br><span>${state.membership.role_name} · ${state.membership.organization}</span></div>
-    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/diagnostico">Diagnóstico</a>
+    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><a role="menuitem" href="#/diagnostico">Diagnóstico</a>
     <button role="menuitem" data-out="local">Cerrar sesión</button><button role="menuitem" data-out="global">Cerrar sesión en todos los dispositivos</button>`);
   document.body.appendChild(pop); $('#userBtn').setAttribute('aria-expanded', 'true');
   pop.addEventListener('click', (e) => { const b = e.target.closest('[data-out]'); if (b) signOut('salida', b.dataset.out); else closeUserMenu(); });
@@ -133,7 +168,7 @@ function openUserMenu() {
 let routeSeq = 0;
 async function route() {
   const my = ++routeSeq;
-  toggleMenu(false); closeUserMenu(); renderNav();
+  toggleMenu(false); closeUserMenu(); if ($('#navSearch')) $('#navSearch').value = ''; renderNav();
   const main = $('#main'); const title = $('#pageTitle');
   let r;
   try { r = await resolve(state.role); }
