@@ -21,6 +21,20 @@ function fatal(title, text, actions = '') {
     <h1>${title}</h1><p class="lead">${text}</p>${actions}</div></div>`);
 }
 
+/**
+ * 1.9 · Primer acceso: si el usuario entró con la clave temporal (creada con «Crear usuario»),
+ * debe cambiarla antes de usar el sistema. Se carga aparte: si falla, la aplicación sigue arrancando.
+ */
+async function passwordGate() {
+  try {
+    const cc = await import('./modules/cambio-clave.js');
+    if (!(await cc.needsPasswordChange())) return false;
+    render(app, html`<div class="auth-wrap"><div class="auth-card" id="cambioClave"></div></div>`);
+    await cc.render($('#cambioClave'), { onDone: () => setTimeout(() => location.reload(), 800) });
+    return true;
+  } catch (e) { console.warn('cambio-clave', e); return false; }
+}
+
 async function boot() {
   const problem = configProblem();
   if (problem) { fatal('Configuración pendiente', problem, html`<p class="small muted">Edita <b>js/config.js</b> en el repositorio con la Project URL y la Publishable key (paso 7 de la Iteración 2).</p>`); return; }
@@ -47,6 +61,7 @@ async function boot() {
     $('#out').onclick = () => signOut('sin-acceso'); return;
   }
   state.role = state.membership.role;
+  if (await passwordGate()) return;   // 1.9 · cambio de clave obligatorio en el primer acceso
   // Organización operadora (SOFA) para crear registros del CRM; null para usuarios de clientes
   state.operatorId = (state.memberships.find((m) => m.kind === 'operator') || {}).organization_id || null;
   layout();
@@ -107,7 +122,7 @@ function openUserMenu() {
   const pop = document.createElement('div');
   pop.className = 'menu-pop'; pop.setAttribute('role', 'menu');
   render(pop, html`<div class="who"><b>${state.profile.full_name || '—'}</b><span>${state.session.user.email}</span><br><span>${state.membership.role_name} · ${state.membership.organization}</span></div>
-    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/diagnostico">Diagnóstico</a>
+    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/diagnostico">Diagnóstico</a>
     <button role="menuitem" data-out="local">Cerrar sesión</button><button role="menuitem" data-out="global">Cerrar sesión en todos los dispositivos</button>`);
   document.body.appendChild(pop); $('#userBtn').setAttribute('aria-expanded', 'true');
   pop.addEventListener('click', (e) => { const b = e.target.closest('[data-out]'); if (b) signOut('salida', b.dataset.out); else closeUserMenu(); });

@@ -1,7 +1,18 @@
 /** SOFA · Iteración 18 · Adaptador común (servicios + utilidades de pantalla).
  *  Es el ÚNICO archivo de la Iteración 18 que toca el cliente de Supabase.
- *  Si en tu repo el cliente se exporta con otro nombre, cambia SOLO la línea del import (guía, Paso 0). */
-import { supabase } from '../supabase.js';
+ *  Usa el cliente único de js/supabase.js (función sb()). */
+import { sb } from '../supabase.js';
+
+/** Cliente de Supabase del proyecto. js/supabase.js exporta sb() (no «supabase»): este objeto lo envuelve
+ *  para que las pantallas sigan usando supabase.rpc / .from / .functions / .auth sin cambios. */
+const supabase = new Proxy({}, {
+  get(_, key) {
+    const c = sb();
+    if (!c) throw new Error('SOFA no tiene configurada la conexión con Supabase (js/config.js). Pide al administrador que la revise.');
+    const v = c[key];
+    return typeof v === 'function' ? v.bind(c) : v;
+  }
+});
 
 /** Llama una función de la base (RPC). Los errores de la base ya vienen en español y dicen qué hacer. */
 export async function rpc(name, args = {}) {
