@@ -234,3 +234,7 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .di-target{position:absolute;left:0;right:0;border-top:2px dashed #9a6700;z-index:1}
 @media (prefers-color-scheme:dark){.in-v{background:#21262d;color:#8b949e}.in-v.fuga_facturacion{background:#42161b;color:#ff7b72}.in-v.fuga_inventario{background:#3a2f0b;color:#e3b341}
   .in-v.cuadra{background:#0f2e1a;color:#3fb950}.mh-bar span{background:#3fb950}.di-col span{background:#58a6ff}.ecf-l.gris{background:#21262d;color:#8b949e}}
+/* 4.1 a 4.5 · Iteraciones 51 a 55 */
+.qt-recs li{margin:0 0 8px}.ob-ms{padding-left:20px}.ob-ms li{margin:0 0 8px}.ob-ms li.ob-done strong{color:#116329}.ob-ms li.ob-late strong{color:#a40e26}
+.i18-card blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--border,#cfd6df);font-style:italic}
+@media (prefers-color-scheme:dark){.ob-ms li.ob-done strong{color:#3fb950}.ob-ms li.ob-late strong{color:#ff7b72}}

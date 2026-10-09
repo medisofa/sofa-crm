@@ -104,7 +104,15 @@ export const NAV = [
     { route: 'mi-habilitacion', label: 'Mi habilitación', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'client'], ready: true },
     { route: 'direccion', label: 'Tablero de dirección', roles: ['super_admin', 'admin'], ready: true },
     { route: 'mis-horas', label: 'Mis horas', roles: ['super_admin', 'admin', 'glosas', 'assistant', 'operations', 'auditor'], ready: true },
-    { route: 'salud-sistema', label: 'Seguridad y salud del sistema', roles: ['super_admin'], ready: true }
+    { route: 'salud-sistema', label: 'Seguridad y salud del sistema', roles: ['super_admin'], ready: true },
+    // 4.1 a 4.5 · Iteraciones 51 a 55 (espejo de los permisos de las migraciones 160 a 168)
+    { route: 'propuestas', label: 'Diagnóstico y propuestas', roles: ['super_admin', 'admin', 'assistant'], ready: true },
+    { route: 'verificacion', label: 'Verificación de mañana', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },
+    { route: 'informe-trimestral', label: 'Informe trimestral', roles: ['super_admin', 'admin', 'assistant', 'operations', 'glosas', 'auditor', 'client'], ready: true },
+    { route: 'casos-exito', label: 'Casos de éxito y referidos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
+    { route: 'recomendar', label: 'Recomendar a un colega', roles: ['client'], ready: true },
+    { route: 'onboarding-30', label: 'Onboarding 30 días', roles: ['super_admin', 'admin', 'assistant', 'operations'], ready: true },
+    { route: 'mis-30-dias', label: 'Mis primeros 30 días', roles: ['client'], ready: true }
   ]},
   { group: 'Habilitación', items: [
     { route: 'habilitacion', label: 'Habilitación MISPAS', roles: ['super_admin', 'admin', 'assistant', 'billing', 'auditor', 'client'], ready: true }
@@ -153,14 +161,14 @@ NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route))
  * en una familia aparece al final en «Más», para que nada se pierda.
  */
 export const FAMILIES = [
-  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'tareas', 'mis-horas'] },
-  { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'casos-servicio', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
+  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
+  { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'casos-exito', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
   { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'causas-glosa', 'pagos', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'habilitacion', 'mi-habilitacion'] },
-  { key: 'resultados', group: 'Resultados', routes: ['direccion', 'dashboard', 'estado-cuenta', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
+  { key: 'resultados', group: 'Resultados', routes: ['direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'documentos'] },
-  { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
+  { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mis-30-dias', 'recomendar', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
 
 export const allRoutes = () => NAV.flatMap((g) => g.items);
@@ -263,6 +271,9 @@ const ACTIONS = {
   'supplies.admin': ['super_admin', 'admin', 'operations', 'client'],                                // 3.7 · app.supply_access 'admin' (152)
   'direction.view': ['super_admin', 'admin'],                                                        // 3.9 · app.direction_require (156)
   'direction.goals': ['super_admin'],                                                                // 3.9 · direction_settings_save
-  'security.admin': ['super_admin']                                                                  // 4.0 · app.sa_require (158)
+  'security.admin': ['super_admin'],                                                                 // 4.0 · app.sa_require (158)
+  'sales.proposals': ['super_admin', 'admin', 'assistant'],                                          // 4.1 · app.sales_require (160)
+  'success.edit': ['super_admin', 'admin', 'assistant'],                                             // 4.4 · casos de éxito (166)
+  'onboarding.review': ['super_admin', 'admin', 'assistant', 'operations']                           // 4.5 · onboarding_review_add (168)
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);
