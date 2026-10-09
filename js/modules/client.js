@@ -1,4 +1,4 @@
-/** SOFA · Ficha 360° del cliente PSS */
+/** SOFA · Ficha 360° del cliente PSS · 2.1: pestañas, códigos ARS en 6 estados (las 21 ARS), tarifario por ARS y archivos del cliente */
 import { html, render as paint, raw, $ } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, formDialog, requireFields, fieldError } from '../utils/ui.js';
 import { getClient, updateClient, listProviders, saveProvider, listCodes, saveCode } from '../services/clients.js';
@@ -14,6 +14,8 @@ import { waLink, phoneFmt } from '../utils/whatsapp.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { isTaxId, isEmail, isPhone } from '../utils/validation.js';
 import { contactDialog, taskDialog, interactionDialog, activityExtra } from './crm-dialogs.js';
+import { setupClientTabs } from './client-tabs.js';
+import { mountArsCodes } from './ars-codes.js';
 import { taskList, taskAction, contactList } from './opportunity.js';
 
 const kv = (pairs) => html`<dl class="kv">${pairs.filter(([, v]) => v !== undefined).map(([k, v]) => html`<dt>${k}</dt><dd>${v || '—'}</dd>`)}</dl>`;
@@ -59,6 +61,9 @@ export async function render(main, ctx) {
         <p class="sub"><b>Médico:</b> ve su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA). <b>Secretaria:</b> agenda, captura, cobros a privados y cuadre solo de los médicos que se le asignan, sin pagos de ARS, glosas ni honorarios.</p>
         <div class="toolbar" style="margin:0"><button class="btn primary" id="invMed" type="button">+ Invitar médico</button><button class="btn" id="invSec" type="button">+ Invitar secretaria</button><a class="btn" href="#/usuarios">Ver usuarios</a></div></div>` : ''}
     </div>`);
+
+  setupClientTabs(main, org);   // 2.1 · pestañas
+  $('#addCode', main)?.remove();   // 2.1 · los códigos se actualizan ARS por ARS en la tabla nueva
 
   const invite = async (role) => { try { const { inviteToClient } = await import('./users.js'); const r = await inviteToClient(ctx, role, org.id); if (r) toast(r.message, 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } };
   $('#invMed', main)?.addEventListener('click', () => invite('client'));
@@ -112,13 +117,8 @@ export async function render(main, ctx) {
   // ---- Códigos ARS
   let codes = [], arsList = [];
   const codesBox = $('#codes', main);
-  const loadCodes = () => loadInto(codesBox, async () => { codes = await listCodes(org.id); return codes; }, (list) => {
-    const done = list.filter((c) => c.status === 'codificado').length;
-    return html`<p class="small">${num(done)} de ${num(list.length)} códigos asignados${list.length && done < list.length ? html` · <b style="color:var(--warn)">${list.length - done} pendientes</b>` : ''}</p>
-    <div class="table-wrap"><table class="t cards"><thead><tr><th>Prestador</th><th>ARS</th><th>Código</th><th>Estado</th><th>Solicitado</th><th></th></tr></thead>
-    <tbody>${list.map((c) => { const [l, cls] = CODE_STATUS[c.status] || [c.status, '']; return html`<tr><td data-l="Prestador">${c.providers?.full_name || '—'}</td><td data-l="ARS">${c.ars?.name || '—'}</td><td data-l="Código" class="mono">${c.code || '—'}</td>
-      <td data-l="Estado"><span class="pill ${cls}">${l}</span></td><td data-l="Solicitado">${date(c.requested_on)}</td><td data-l="">${editCodes ? html`<button class="btn sm" data-code="${c.id}">Actualizar</button>` : ''}</td></tr>`; })}</tbody></table></div>`;
-  }, { empty: () => emptyView('Sin códigos registrados', editCodes ? 'Registra cada ARS con la que trabaja el prestador, aunque el código esté en trámite.' : '') });
+  // 2.1 · Las 21 ARS por prestador, 6 estados con historial (ars-codes.js). La versión anterior (lista y diálogo) queda sin uso.
+  const loadCodes = () => mountArsCodes(codesBox, { orgId: org.id });
   const codeDialog = async (c = null) => {
     if (!providers.length) { toast('Primero agrega un prestador.', 'bad'); return false; }
     if (!arsList.length) { try { arsList = await listArs(); } catch (err) { toast(friendlyError(err), 'bad'); return false; } }

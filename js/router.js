@@ -22,7 +22,9 @@ const MODULES = {
   centros: 'centros.js', 'alta-usuarios': 'usuarios.js', 'cambio-clave': 'cambio-clave.js',
   'analitica-glosas': 'analitica-glosas.js', 'salud-clientes': 'salud-clientes.js',
   // 2.0 · Iteración 29
-  'historia-clinica': 'historia-clinica.js', 'hc-control': 'hc-control.js', seguridad: 'seguridad.js'
+  'historia-clinica': 'historia-clinica.js', 'hc-control': 'hc-control.js', seguridad: 'seguridad.js',
+  // 2.1 · Iteraciones 30 y 31
+  'mi-ficha': 'mi-ficha.js', 'mi-incorporacion': 'mi-incorporacion.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 

@@ -27,7 +27,7 @@ export const serviceName = (c) => SERVICES.find((s) => s.code === c)?.name || c;
 export const ORG_TYPES = ['Médico independiente', 'Consultorio', 'Centro médico', 'Clínica', 'Laboratorio', 'Centro diagnóstico', 'Otro'];
 export const ORG_STATUS = { incorporacion: ['Incorporación', 'info'], activo: ['Activo', 'ok'], suspendido: ['Suspendido', 'warn'], inactivo: ['Inactivo', ''] };
 export const PROVIDER_TYPES = { medico: 'Médico', centro: 'Centro', laboratorio: 'Laboratorio', otro: 'Otro' };
-export const CODE_STATUS = { sin_codigo: ['Sin código', 'bad'], solicitado: ['Solicitado', 'warn'], codificado: ['Codificado', 'ok'] };
+export const CODE_STATUS = { sin_codigo: ['Sin código', 'bad'], en_preparacion: ['Documentos en preparación', 'info'], solicitado: ['Solicitado', 'warn'], pendiente_respuesta: ['Pendiente de respuesta', 'warn'], codificado: ['Codificado', 'ok'], rechazado: ['Rechazado', 'bad'] };   // 2.1 · 6 estados (114)
 export const ACTIVITY_TYPES = { presencial: 'Visita presencial', llamada: 'Llamada', whatsapp: 'WhatsApp', correo: 'Correo', videollamada: 'Videollamada', reunion: 'Reunión', nota: 'Nota', sistema: 'Sistema' };
 /** 1.5 · Documentos comerciales A–E */
 export const COMMERCIAL_DOCS = { A: 'Contrato de servicios SOFA', B: 'Autorización de representación', C: 'Carta de presentación a la clínica', D: 'Carta de representación ante ARS', E: 'Formulario de implementación' };

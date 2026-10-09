@@ -12,10 +12,11 @@ export const ROLES = Object.freeze({   // nombres según la tabla de roles (audi
   assistant: { name: 'Comercial', staff: true, desc: 'Prospectos, pipeline, documentos A–E, onboarding y CRM.' },
   auditor: { name: 'Auditor', staff: true, desc: 'Valida expedientes (completo o incompleto) y consulta todo.' },
   client: { name: 'Médico', staff: false, desc: 'Dueño de la práctica: su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA).' },
-  capturer: { name: 'Secretaria', staff: false, desc: 'Agenda, captura, cobros a privados y cuadre de los médicos que se le asignan; sin pagos de ARS, glosas ni honorarios.' }
+  capturer: { name: 'Secretaria', staff: false, desc: 'Agenda, captura, cobros a privados y cuadre de los médicos que se le asignan; sin pagos de ARS, glosas ni honorarios.' },
+  prospect: { name: 'Prospecto', staff: false, desc: 'Futuro cliente: solo ve el avance de su incorporación. Al convertirse en cliente pasa a Médico.' }   // 2.1 · Iteración 30
 });
 /** ALL = roles con acceso general. El Capturador (D3, mínimo privilegio) NO está aquí: solo ve lo que se le asigna explícitamente. */
-const ALL = Object.keys(ROLES).filter((r) => r !== 'capturer');
+const ALL = Object.keys(ROLES).filter((r) => r !== 'capturer' && r !== 'prospect');   // 2.1: el Prospecto tampoco tiene acceso general
 const STAFF = ALL.filter((r) => ROLES[r].staff);
 const OPS = ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'operations'];
 const CAPTURE = ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'client', 'capturer'];
@@ -46,7 +47,9 @@ export const NAV = [
   ]},
   { group: 'Mi consultorio', items: [   // 1.9 · Iteraciones 19 a 27
     { route: 'pacientes', label: 'Pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
-    { route: 'historia-clinica', label: 'Historia clínica', roles: ['client', 'super_admin'], ready: true },   // 2.0 · Iteración 29 (Super Admin solo con acceso de emergencia)
+    { route: 'historia-clinica', label: 'Historia clínica', roles: ['client', 'super_admin'], ready: true },
+    { route: 'mi-ficha', label: 'Mi ficha (ARS y tarifas)', roles: ['client'], ready: true },   // 2.1 · Iteración 31
+    { route: 'mi-incorporacion', label: 'Mi incorporación', roles: ['prospect'], ready: true },   // 2.1 · Iteración 30   // 2.0 · Iteración 29 (Super Admin solo con acceso de emergencia)
     { route: 'saldos-pacientes', label: 'Saldos de pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
     { route: 'mensajes', label: 'Mensajes (WhatsApp)', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },
     { route: 'indicadores-agenda', label: 'Indicadores de la agenda', roles: ['super_admin', 'admin', 'client'], ready: true },
@@ -72,7 +75,7 @@ export const NAV = [
   { group: 'CRM', items: [
     { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
     { route: 'prospectos', label: 'Prospectos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
-    { route: 'clientes', label: 'Clientes PSS', roles: ALL, ready: true },
+    { route: 'clientes', label: 'Clientes (ficha)', roles: ALL, ready: true },
     { route: 'salud-clientes', label: 'Salud de los clientes', roles: ['super_admin', 'admin', 'assistant', 'operations'], ready: true },   // 1.9 · Iteración 28
     { route: 'medicos', label: 'Médicos 360', roles: ALL, ready: true },
     { route: 'contactos', label: 'Contactos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
@@ -98,7 +101,7 @@ export const NAV = [
   ]},
   { group: 'Gestión', items: [
     { route: 'tareas', label: 'Tareas', roles: [...OPS, 'auditor'], ready: true },
-    { route: 'documentos', label: 'Documentos', roles: ALL, ready: true },
+    { route: 'documentos', label: 'Documentos de radicaciones', roles: ALL, ready: true },
     { route: 'reportes', label: 'Reportes', roles: [...STAFF, 'client'], ready: true }
   ]},
   { group: 'Configuración', items: [
@@ -108,10 +111,10 @@ export const NAV = [
     { route: 'hc-control', label: 'Historia clínica: control', roles: ['super_admin'], ready: true }   // 2.0 · modo, MFA, bitácora
   ]},
   { group: 'Mi cuenta', items: [
-    { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer'], ready: true },
-    { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer'], ready: true },   // 2.0 · MFA
-    { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer'], ready: true },
-    { route: 'cambio-clave', label: 'Cambiar contraseña', roles: [...ALL, 'capturer'], ready: true, hidden: true }   // 1.9 · también se abre sola en el primer acceso
+    { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer', 'prospect'], ready: true },
+    { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer', 'prospect'], ready: true },   // 2.0 · MFA
+    { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer', 'prospect'], ready: true },
+    { route: 'cambio-clave', label: 'Cambiar contraseña', roles: [...ALL, 'capturer', 'prospect'], ready: true, hidden: true }   // 1.9 · también se abre sola en el primer acceso
   ]}
 ];
 
@@ -126,94 +129,37 @@ export const CLIENT_HIDDEN = ['clientes', 'medicos', 'radicaciones', 'codificaci
 NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route)) i.roles = i.roles.filter((r) => r !== 'client'); }));
 
 /**
- * 2.0 · Menú por tarea: cada rol ve sus grupos en el orden de su trabajo, sin duplicados.
- * Solo ordena: el permiso lo sigue dando NAV (roles). Lo que un rol puede abrir y no esté
- * aquí aparece al final en «Más», para que nada se pierda.
+ * 2.1 · Menú por FAMILIAS (decisión 08/10/2026): las mismas familias, en el mismo orden y con el mismo ícono para todos.
+ * Cada rol ve solo las familias y módulos a los que tiene acceso (NAV.roles). Lo que un rol pueda abrir y no esté
+ * en una familia aparece al final en «Más», para que nada se pierda.
  */
-const MY_ACCOUNT = { group: 'Mi cuenta', routes: ['perfil', 'cambio-clave', 'seguridad', 'diagnostico'] };
-export const MENUS = {
-  client: [
-    { group: 'Mi día', routes: ['mi-dashboard', 'hoy', 'agenda'] },
-    { group: 'Pacientes', routes: ['pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes'] },
-    { group: 'Cobros a las ARS', routes: ['captura', 'reclamaciones', 'retiros', 'glosas', 'pagos', 'aging', 'contratos'] },
-    { group: 'Mis resultados', routes: ['estado-cuenta', 'calendario-cobros', 'rentabilidad', 'analitica-glosas', 'dashboard', 'indicadores-agenda', 'reportes', 'honorarios'] },
-    { group: 'Mi consultorio', routes: ['practica', 'tarifas-privadas', 'mis-secretarias', 'alta-usuarios', 'centros', 'habilitacion'] },
-    MY_ACCOUNT
-  ],
-  capturer: [
-    { group: 'Mi día', routes: ['mi-dashboard', 'hoy', 'agenda'] },
-    { group: 'Pacientes', routes: ['pacientes', 'saldos-pacientes', 'mensajes'] },
-    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones'] },
-    MY_ACCOUNT
-  ],
-  billing: [
-    { group: 'Mi día', routes: ['mi-dashboard', 'hoy', 'dashboard'] },
-    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'retiros'] },
-    MY_ACCOUNT
-  ],
-  glosas: [
-    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
-    { group: 'Cobros y glosas', routes: ['glosas', 'pagos', 'aging', 'calendario-cobros', 'analitica-glosas', 'contratos'] },
-    { group: 'Consulta', routes: ['reclamaciones', 'radicaciones', 'codificacion', 'clientes', 'medicos', 'ars'] },
-    { group: 'Gestión', routes: ['dashboard', 'reportes', 'documentos', 'guias'] },
-    MY_ACCOUNT
-  ],
-  assistant: [
-    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
-    { group: 'Ventas', routes: ['oportunidades', 'prospectos', 'contactos', 'clientes', 'salud-clientes', 'medicos'] },
-    { group: 'Incorporación', routes: ['habilitacion', 'requisitos', 'preradicacion', 'practica', 'tarifas-privadas', 'agenda', 'mensajes'] },
-    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'retiros', 'radicaciones'] },
-    { group: 'Inteligencia', routes: ['mercado', 'guias', 'dashboard', 'reportes', 'documentos', 'codificacion', 'ars'] },
-    MY_ACCOUNT
-  ],
-  operations: [
-    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
-    { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos', 'contratos'] },
-    { group: 'Clientes', routes: ['clientes', 'salud-clientes', 'medicos', 'agenda', 'practica', 'mensajes'] },
-    { group: 'Seguimiento', routes: ['glosas', 'analitica-glosas', 'reportes', 'documentos', 'codificacion', 'ars'] },
-    MY_ACCOUNT
-  ],
-  auditor: [
-    { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
-    { group: 'Auditoría', routes: ['reclamaciones', 'preradicacion', 'requisitos', 'radicaciones', 'retiros', 'glosas', 'pagos', 'aging'] },
-    { group: 'Comercial', routes: ['oportunidades', 'prospectos', 'contactos', 'aliados'] },
-    { group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'calendario-cobros', 'rentabilidad', 'analitica-glosas', 'honorarios', 'reportes'] },
-    { group: 'Consulta', routes: ['clientes', 'medicos', 'codificacion', 'contratos', 'ars', 'documentos', 'habilitacion', 'mercado', 'guias'] },
-    { group: 'Configuración', routes: ['usuarios', 'parametros'] },
-    MY_ACCOUNT
-  ]
-};
-MENUS.admin = [
-  { group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'tareas'] },
-  { group: 'Clientes y ventas', routes: ['oportunidades', 'prospectos', 'contactos', 'aliados', 'clientes', 'salud-clientes', 'medicos', 'habilitacion'] },
-  { group: 'Reclamaciones', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos'] },
-  { group: 'Cobros y glosas', routes: ['glosas', 'pagos', 'aging', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
-  { group: 'Consultorios', routes: ['agenda', 'pacientes', 'practica', 'mensajes', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'indicadores-agenda', 'mis-secretarias', 'centros', 'tarifas-privadas'] },
-  { group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'rentabilidad', 'reportes', 'mercado', 'guias'] },
-  { group: 'Catálogos', routes: ['codificacion', 'contratos', 'ars', 'documentos'] },
-  { group: 'Configuración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'historia-clinica'] },
-  MY_ACCOUNT
+export const FAMILIES = [
+  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'tareas'] },
+  { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
+  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'codificacion', 'ars'] },
+  { key: 'cobros', group: 'Cobros', routes: ['glosas', 'pagos', 'aging', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
+  { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'mis-secretarias', 'centros', 'habilitacion'] },
+  { key: 'resultados', group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'rentabilidad', 'reportes', 'guias'] },
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'documentos'] },
+  { key: 'cuenta', group: 'Mi cuenta', routes: ['perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
-MENUS.super_admin = MENUS.admin;
 
 export const allRoutes = () => NAV.flatMap((g) => g.items);
 export const findRoute = (r) => allRoutes().find((i) => i.route === r) || null;
 export const canSee = (route, role) => !!findRoute(route)?.roles.includes(role);
 export const visibleNav = (role) => {
   const ok = (i) => i && !i.hidden && i.roles.includes(role);
-  const menu = MENUS[role];
-  if (!menu) return NAV.map((g) => ({ ...g, items: g.items.filter(ok) })).filter((g) => g.items.length);
   const used = new Set();
-  const groups = menu.map((g) => ({ group: g.group, items: g.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
+  const groups = FAMILIES.map((f) => ({ key: f.key, group: f.group, items: f.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
   const rest = allRoutes().filter((i) => ok(i) && !used.has(i.route));
-  if (rest.length) groups.push({ group: 'Más', items: rest });
+  if (rest.length) groups.push({ key: 'mas', group: 'Más', items: rest });
   return groups.filter((g) => g.items.length);
 };
 export const isStaff = (role) => !!ROLES[role]?.staff;
 /** ¿Puede este rol abrir el enlace? (#/radicaciones/123 → módulo "radicaciones"). Para no mostrar enlaces que llevan a "Sin acceso". */
 export const canOpen = (href, role) => canSee(String(href || '').replace(/^#\/?/, '').split('/')[0], role);
 /** Ruta inicial por rol. 1.9: todos entran a «Mi dashboard», que muestra las cifras de su rol y accesos a sus módulos. */
-export const homeRoute = (role) => (canSee('mi-dashboard', role) ? 'mi-dashboard' : (role === 'capturer' || role === 'billing' ? 'hoy' : 'inicio'));
+export const homeRoute = (role) => (role === 'prospect' ? 'mi-incorporacion' : canSee('mi-dashboard', role) ? 'mi-dashboard' : (role === 'capturer' || role === 'billing' ? 'hoy' : 'inicio'));
 /** Acciones de interfaz (espejo de la matriz de permisos de 003_rls.sql) */
 const ACTIONS = {
   'settings.edit': ['super_admin'],
@@ -275,6 +221,9 @@ const ACTIONS = {
   'submissions.send': ['super_admin', 'admin', 'billing', 'operations'],
   // 1.9 · Iteraciones 18 a 28
   'appointments.attend': ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'],   // atender cita y crear su reclamación (094)
-  'users.create': ['super_admin', 'admin', 'client']                                                 // crear usuario con clave temporal (074)
+  'users.create': ['super_admin', 'admin', 'client'],
+  'users.reset': ['super_admin'],                                                                    // 2.1 · restablecer contraseña
+  'users.prospect': ['super_admin', 'admin', 'assistant'],                                           // 2.1 · usuarios de prospectos
+  'arscodes.edit': ['super_admin', 'admin', 'assistant', 'operations', 'billing', 'client']          // 2.1 · espejo de app.ars_codes_can_edit (114)                                                 // crear usuario con clave temporal (074)
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

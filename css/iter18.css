@@ -60,7 +60,7 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .nav-search input:focus{outline:2px solid #5aa2ff;outline-offset:1px;background:rgba(255,255,255,.12)}
 .nav-v2 .nav-group{margin:2px 0}
 .nav-v2 .nav-group-btn{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px 6px;border:0;background:none;color:inherit;opacity:.7;
-  font:600 .72rem/1.2 inherit;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;text-align:left}
+  font-family:inherit;font-size:11.5px;font-weight:700;line-height:1.2;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;text-align:left}
 .nav-v2 .nav-group-btn:hover,.nav-v2 .nav-group-btn:focus-visible{opacity:1}
 .nav-v2 .nav-group-btn::after{content:"▸";font-size:.8rem;transition:transform .15s;margin-left:auto}
 .nav-v2 .nav-group.open>.nav-group-btn::after{transform:rotate(90deg)}
@@ -116,3 +116,49 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .hc-form fieldset{display:grid;gap:10px;margin:10px 0}
 .hc-form fieldset>div:not(.hc-grid){display:grid;gap:10px}
 .hc-grid{align-items:end}
+
+/* ===== 2.1 · Familias del menú con ícono y color ===== */
+.nav-v2 .nav-group-btn{justify-content:flex-start}
+.nav-v2 .nav-gname{flex:1}
+.nav-v2 .nav-ico{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;background:rgba(255,255,255,.08);flex:none}
+.nav-v2 .nav-group-btn::after{margin-left:6px}
+.nav-v2 .fam-dia .nav-ico{color:#ffd27a}.nav-v2 .fam-clientes .nav-ico{color:#8fd3ff}.nav-v2 .fam-facturacion .nav-ico{color:#b9a7ff}
+.nav-v2 .fam-cobros .nav-ico{color:#86e0a6}.nav-v2 .fam-consultorio .nav-ico{color:#ff9fb0}.nav-v2 .fam-resultados .nav-ico{color:#7ee0d6}
+.nav-v2 .fam-admin .nav-ico{color:#cfd6df}.nav-v2 .fam-cuenta .nav-ico{color:#cfd6df}.nav-v2 .fam-mas .nav-ico{color:#cfd6df}
+.nav-v2 .nav-items a{padding-left:40px}
+
+/* ===== 2.1 · Ficha del cliente en pestañas ===== */
+.ct-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:14px 0 10px;border-bottom:1px solid var(--line,#dce1e8)}
+.ct-tabs [role=tab]{border:0;background:none;color:inherit;font:inherit;font-size:14px;padding:9px 12px;border-bottom:3px solid transparent;cursor:pointer;opacity:.75}
+.ct-tabs [role=tab][aria-selected="true"]{opacity:1;font-weight:600;border-bottom-color:var(--red,#8b0000)}
+.ct-tabs [role=tab]:focus-visible{outline:2px solid var(--focus,#2e5a92);outline-offset:-2px}
+.grid.two>[hidden]{display:none!important}
+@media (max-width:640px){.ct-tabs{flex-wrap:nowrap;overflow-x:auto}.ct-tabs [role=tab]{white-space:nowrap}}
+
+/* ===== 2.1 · Códigos ARS (6 estados) ===== */
+.ac-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ac-prov select{padding:6px 8px;border:1px solid var(--line,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.ac-sum{display:flex;flex-wrap:wrap;gap:6px}
+.ac-chip{border:1px solid var(--line,#cfd6df);background:var(--surface,#fff);color:inherit;border-radius:999px;padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+.ac-chip[aria-pressed="true"]{outline:2px solid var(--focus,#2e5a92);outline-offset:1px;font-weight:600}
+.ac-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+.st-none{background:var(--surface-2,#eef2f7);color:var(--ink-2,#4b5768)}
+.st-prep{background:var(--info-bg,#e4ecf6);color:var(--info,#1a365d)}
+.st-req,.st-wait{background:var(--warn-bg,#fbefd5);color:var(--warn,#8a5a00)}
+.st-ok{background:var(--ok-bg,#e2f2e6);color:var(--ok,#23703b)}
+.st-bad{background:var(--bad-bg,#f9e3e3);color:var(--bad,#8b0000)}
+.ac-progress{height:8px;border-radius:999px;background:var(--surface-2,#eef2f7);overflow:hidden;margin:6px 0}
+.ac-progress>div{height:100%;background:var(--ok,#23703b)}
+.ac-table tr.ac-alert td{background:var(--bad-bg,#f9e3e3)}
+.ac-mono{font-family:var(--mono,ui-monospace,monospace)}
+.ac-sm{padding:5px 10px;font-size:13px}
+.ac-edit{max-width:560px}
+.ac-timeline{list-style:none;margin:8px 0 0;padding:0 0 0 14px;border-left:2px solid var(--line,#dce1e8);display:grid;gap:10px}
+.ac-timeline li{position:relative}.ac-timeline li::before{content:"";position:absolute;left:-20px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--navy-3,#2e5a92)}
+@media (max-width:640px){.ac-table thead{display:none}.ac-table tr{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--line,#dce1e8)}
+  .ac-table td{border:0;padding:2px 0}.ac-table td::before{content:attr(data-l);display:block;font-size:11px;color:var(--ink-3,#6e7a89)}}
+
+/* ===== 2.1 · Variables de las pantallas nuevas enlazadas al tema (claro/oscuro) ===== */
+:root{--border:var(--line);--text-muted:var(--ink-3)}
+.i18-form [hidden],.hc-form [hidden],.i18-wrap [hidden]{display:none!important}
+.v2-launch-grid{align-items:start}
