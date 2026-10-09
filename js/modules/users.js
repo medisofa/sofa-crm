@@ -1,4 +1,4 @@
-/** SOFA · Usuarios y roles: invitaciones, cambio de rol, activación y revisión periódica de accesos */
+/** SOFA · Usuarios y roles: invitaciones, cambio de rol, activación, restablecer contraseña (2.1) y revisión periódica de accesos */
 import { html, render as paint, $ } from '../utils/dom.js';
 import { emptyView, toast, friendlyError, confirmDialog, busy, formDialog, opt, requireFields, fieldError } from '../utils/ui.js';
 import { listMemberships, setUserActive, usersOverview, adminUsers } from '../services/admin.js';
@@ -8,6 +8,7 @@ import { can, ROLES } from '../utils/permissions.js';
 import { date, dateTime, todayISO } from '../utils/formatters.js';
 import { isEmail } from '../utils/validation.js';
 import { capturerScopes, providersOfOrg, setCapturerScope } from '../services/claims.js';
+import { invoke } from '../services/iter18.js';
 
 const ORG_ROLES = ['client', 'capturer'];   // roles de la organización del cliente (no SOFA)
 
@@ -100,6 +101,7 @@ export async function render(main, ctx) {
           ${manage || canToggle ? html`<td data-l="">${self || protectedRow ? '' : html`
             ${manage && u.email ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${u.role_code}" data-user="${u.user_id}" data-org="${u.kind === 'client' ? u.organization_id : ''}">Cambiar rol</button>
               ${u.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-user="${u.user_id}" data-org="${u.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
+              ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
               <button class="btn sm" data-act="resend" data-email="${u.email}">${u.status === 'invitación pendiente' ? 'Reenviar invitación' : 'Enviar acceso'}</button>` : ''}
             ${canToggle ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar' : 'Activar'}</button>` : ''}`}</td>` : ''}</tr>`;
       })}</tbody></table></div>`);
@@ -128,6 +130,7 @@ export async function render(main, ctx) {
     try {
       if (b.dataset.act === 'grant') { const r = await roleDialog(ctx, { email: b.dataset.email, role: b.dataset.role, orgId: b.dataset.org, userId: b.dataset.user }); if (r) { toast(r.message, 'ok'); load(); } return; }
       if (b.dataset.act === 'scope') { if (await scopeDialog(b.dataset.user, b.dataset.org, b.dataset.name)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
+      if (b.dataset.act === 'reset') { await resetPassword(b.dataset.user, b.dataset.name); return; }
       if (b.dataset.act === 'resend') { await busy(b, async () => { const r = await adminUsers({ action: 'resend', email: b.dataset.email }); toast(r.message, 'ok'); }); return; }
       const activate = b.dataset.active === '1';
       if (!(await confirmDialog(activate ? 'Activar usuario' : 'Desactivar usuario', activate ? `${b.dataset.name} podrá volver a entrar a SOFA.` : `${b.dataset.name} no podrá ver ni modificar datos desde este momento. Sus registros y su historial se conservan.`, activate ? 'Activar' : 'Desactivar', !activate))) return;
@@ -162,4 +165,22 @@ async function runRolesReport(box) {
     <div class="list">${rows.map((r) => { const [l, c] = SEV[r.severity] || [r.severity, '']; return html`<div class="li" style="align-items:flex-start">
       <span class="pill ${c}" style="min-width:86px;text-align:center">${l}</span><div class="b"><div class="t1">${r.title}${r.check_code === 'super_admin' || r.n ? ` · ${r.n}` : ''}</div><div class="t2">${r.detail}</div>
       ${r.n && (r.severity !== 'ok' || r.check_code === 'super_admin') ? html`<div class="t2">${r.users.slice(0, 12).map((u) => [u.name, u.email, u.role, u.roles, u.org, u.medico, u.estado].filter(Boolean).join(' · ')).join(' | ')}${r.users.length > 12 ? ` y ${r.users.length - 12} más` : ''}</div>` : ''}</div></div>`; })}</div>`);
+}
+
+/** 2.1 · Restablecer contraseña (solo Super Admin): clave temporal que se muestra una sola vez; el usuario la cambia al entrar */
+async function resetPassword(userId, name) {
+  if (!(await confirmDialog('Restablecer contraseña', `Se generará una clave temporal para ${name}. Su contraseña actual dejará de funcionar y deberá cambiar la temporal al entrar.`, 'Restablecer'))) return;
+  let r;
+  try { r = await invoke('restablecer-clave', { user_id: userId }); } catch (err) { toast(friendlyError(err), 'bad'); return; }
+  await formDialog({
+    title: `Clave temporal · ${name}`, submitLabel: 'Listo, ya la entregué',
+    body: html`<p>Entregue esta clave por un medio privado (en persona o mensaje directo). <b>Se muestra una sola vez.</b></p>
+      <p class="mono" style="font-size:1.3rem;letter-spacing:.06em;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);user-select:all" id="tmpPass">${r.temporary_password}</p>
+      <button type="button" class="btn sm" id="cpPass">Copiar clave</button>
+      <p class="small muted">Al entrar con ella, SOFA le pedirá una contraseña nueva. Quedó registrado en la bitácora de usuarios.</p>`,
+    onOpen: (form) => form.querySelector('#cpPass').addEventListener('click', async (e) => {
+      try { await navigator.clipboard.writeText(r.temporary_password); e.currentTarget.textContent = 'Copiada'; } catch (_) { e.currentTarget.textContent = 'Seleccione y copie con Ctrl+C'; }
+    }),
+    onSubmit: async () => true
+  });
 }
