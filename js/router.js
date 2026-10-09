@@ -13,7 +13,14 @@ const MODULES = {
   hoy: 'today.js', dashboard: 'dashboard.js', aging: 'aging.js', reportes: 'reports.js',
   habilitacion: 'habilitation.js', mercado: 'market.js', guias: 'guides.js',
   captura: 'capture.js', reclamaciones: 'claims.js', retiros: 'pickups.js', contratos: 'contracts.js',
-  preradicacion: 'prerad.js', requisitos: 'requirements.js'
+  preradicacion: 'prerad.js', requisitos: 'requirements.js',
+  // Iteraciones 18 a 28 (SOFA 1.9.0)
+  'mi-dashboard': 'dashboard-rol.js',
+  'estado-cuenta': 'statement.js', 'calendario-cobros': 'collections-calendar.js', mensajes: 'weekly.js', rentabilidad: 'profitability.js',
+  pacientes: 'pacientes.js', 'saldos-pacientes': 'saldos-pacientes.js', 'indicadores-agenda': 'indicadores-agenda.js',
+  seguimiento: 'seguimiento.js', 'avisos-pacientes': 'avisos-pacientes.js', 'mis-secretarias': 'mis-secretarias.js',
+  centros: 'centros.js', 'alta-usuarios': 'usuarios.js', 'cambio-clave': 'cambio-clave.js',
+  'analitica-glosas': 'analitica-glosas.js', 'salud-clientes': 'salud-clientes.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
