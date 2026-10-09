@@ -62,7 +62,7 @@ export async function render(main, ctx) {
         <div class="toolbar" style="margin:0"><button class="btn primary" id="invMed" type="button">+ Invitar médico</button><button class="btn" id="invSec" type="button">+ Invitar secretaria</button><a class="btn" href="#/usuarios">Ver usuarios</a></div></div>` : ''}
     </div>`);
 
-  setupClientTabs(main, org);   // 2.1 · pestañas
+  setupClientTabs(main, org, ctx.role);   // 2.1 · pestañas · 2.2: carga de tarifario por rol
   $('#addCode', main)?.remove();   // 2.1 · los códigos se actualizan ARS por ARS en la tabla nueva
 
   const invite = async (role) => { try { const { inviteToClient } = await import('./users.js'); const r = await inviteToClient(ctx, role, org.id); if (r) toast(r.message, 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } };

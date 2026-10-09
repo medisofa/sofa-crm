@@ -70,7 +70,9 @@ export const NAV = [
     { route: 'retiros', label: 'Retiros físicos', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'auditor', 'client'], ready: true },
     { route: 'preradicacion', label: 'Pre-radicación', roles: ['super_admin', 'admin', 'billing', 'operations', 'auditor', 'assistant'], ready: true },
     { route: 'contratos', label: 'Tarifario contractual', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'client'], ready: true },
-    { route: 'requisitos', label: 'Requisitos documentales', roles: ['super_admin', 'admin', 'billing', 'auditor', 'operations', 'assistant'], ready: true }
+    { route: 'requisitos', label: 'Requisitos documentales', roles: ['super_admin', 'admin', 'billing', 'auditor', 'operations', 'assistant'], ready: true },
+    { route: 'vencimientos', label: 'Vencimientos de tarifas', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'operations', 'assistant', 'client'], ready: true },   // 2.2 · Iteración 32
+    { route: 'codigos-ars', label: 'Códigos ARS (tablero)', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor'], ready: true }   // 2.3 · Iteración 33
   ]},
   { group: 'CRM', items: [
     { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
@@ -108,7 +110,8 @@ export const NAV = [
     { route: 'usuarios', label: 'Usuarios y roles', roles: ['super_admin', 'admin', 'auditor'], ready: true },
     { route: 'alta-usuarios', label: 'Crear usuario', roles: ['super_admin', 'admin', 'client'], ready: true },   // 1.9 · el médico crea a sus secretarias
     { route: 'parametros', label: 'Parámetros', roles: ['super_admin', 'admin', 'auditor'], ready: true },
-    { route: 'hc-control', label: 'Historia clínica: control', roles: ['super_admin'], ready: true }   // 2.0 · modo, MFA, bitácora
+    { route: 'hc-control', label: 'Historia clínica: control', roles: ['super_admin'], ready: true },   // 2.0 · modo, MFA, bitácora
+    { route: 'revision', label: 'Revisión del sistema', roles: ['super_admin'], ready: true }   // 2.6 · Iteración 36
   ]},
   { group: 'Mi cuenta', items: [
     { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer', 'prospect'], ready: true },
@@ -136,11 +139,11 @@ NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route))
 export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'tareas'] },
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
-  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'codificacion', 'ars'] },
+  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'codigos-ars', 'codificacion', 'ars'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'pagos', 'aging', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'mis-secretarias', 'centros', 'habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'rentabilidad', 'reportes', 'guias'] },
-  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'documentos'] },
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'documentos'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
 
@@ -224,6 +227,7 @@ const ACTIONS = {
   'users.create': ['super_admin', 'admin', 'client'],
   'users.reset': ['super_admin'],                                                                    // 2.1 · restablecer contraseña
   'users.prospect': ['super_admin', 'admin', 'assistant'],                                           // 2.1 · usuarios de prospectos
-  'arscodes.edit': ['super_admin', 'admin', 'assistant', 'operations', 'billing', 'client']          // 2.1 · espejo de app.ars_codes_can_edit (114)                                                 // crear usuario con clave temporal (074)
+  'arscodes.edit': ['super_admin', 'admin', 'assistant', 'operations', 'billing', 'client'],         // 2.1 · espejo de app.ars_codes_can_edit (114)
+  'arscodes.followup': ['super_admin', 'admin', 'assistant', 'operations']                          // 2.3 · espejo de ars_codes_followup (118)
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

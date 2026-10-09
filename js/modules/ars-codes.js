@@ -51,7 +51,8 @@ export async function mountArsCodes(box, { orgId }) {
         h('td', { 'data-l': 'Tarifas' }, r.tariffs ? `${r.tariffs} vigente${r.tariffs > 1 ? 's' : ''}` : '—'),
         h('td', { 'data-l': '' }, h('div', { class: 'i18-actions', style: 'margin:0' },
           data.can_edit ? h('button', { class: 'i18-btn i18-sec ac-sm', type: 'button', onclick: () => edit(prov, r) }, 'Actualizar') : '',
-          r.days != null ? h('button', { class: 'i18-link', type: 'button', onclick: () => history(prov, r) }, 'Historial') : ''))))
+          r.days != null ? h('button', { class: 'i18-link', type: 'button', onclick: () => history(prov, r) }, 'Historial') : '',
+          data.can_edit && r.status !== 'codificado' ? h('button', { class: 'i18-link', type: 'button', onclick: () => letter(prov, r) }, 'Carta') : ''))))
         : h('tr', {}, h('td', { colspan: '7', class: 'i18-empty' }, 'No hay ARS en este estado.'))))));
   }
 
@@ -87,6 +88,31 @@ export async function mountArsCodes(box, { orgId }) {
       h('div', { class: 'i18-actions' }, save, h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')), msg));
     pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     st.focus();
+  }
+
+  // 2.3 · Carta de solicitud de código, lista para imprimir y firmar
+  async function letter(prov, r) {
+    const d = await guarded(pane, () => rpc('ars_code_letter', { p_provider: prov.id, p_ars: r.ars_id }));
+    if (!d) return;
+    const today = new Date(d.today + 'T12:00:00').toLocaleDateString('es-DO', { day: 'numeric', month: 'long', year: 'numeric' });
+    const o = d.organization; const pv = d.provider;
+    const body = h('article', { class: 'sofa-print ac-letter' },
+      h('p', { style: 'text-align:right' }, `${o.city || 'Santiago de los Caballeros'}, ${today}`),
+      h('p', {}, 'Señores', h('br'), h('strong', {}, d.ars), h('br'), 'Departamento de Prestadores / Afiliación de Prestadores', h('br'), 'Su despacho.'),
+      h('p', {}, h('strong', {}, 'Asunto: '), `Solicitud de código de prestador para ${pv.name}`),
+      h('p', {}, 'Distinguidos señores:'),
+      h('p', {}, `Por medio de la presente, ${o.name}${o.tax_id ? ` (RNC/Cédula ${o.tax_id})` : ''} solicita la asignación del código de prestador de servicios de salud para `,
+        h('strong', {}, pv.name), `${pv.specialty ? `, especialidad ${pv.specialty}` : ''}${pv.exequatur ? `, exequátur n.º ${pv.exequatur}` : ''}${pv.tax_id ? `, cédula ${pv.tax_id}` : ''}, con el fin de brindar servicios a los afiliados de ${d.ars}.`),
+      h('p', {}, 'Anexamos los documentos requeridos por su institución (copia de cédula y exequátur, título y especialidad, certificación del Colegio Médico, datos bancarios y demás formularios). Quedamos atentos a cualquier requisito adicional.'),
+      h('p', {}, `Para seguimiento puede comunicarse con nosotros${o.phone ? ` al ${o.phone}` : ''}${o.email ? ` o al correo ${o.email}` : ''}.${d.operator ? ` La gestión está a cargo de ${d.operator} en representación del prestador.` : ''}`),
+      d.request_number ? h('p', {}, `Referencia de solicitud: ${d.request_number}`) : '',
+      h('p', {}, 'Atentamente,'), h('p', { style: 'margin-top:56px' }, '______________________________', h('br'), pv.name, h('br'), o.name, o.address ? [h('br'), o.address] : ''));
+    pane.replaceChildren(h('section', { class: 'i18-card' },
+      h('div', { class: 'hc-head' }, h('h4', { style: 'margin:0' }, `Carta de solicitud · ${r.ars}`),
+        h('div', { class: 'i18-actions', style: 'margin:0' }, h('button', { class: 'i18-btn', type: 'button', onclick: () => window.print() }, 'Imprimir o guardar en PDF'),
+          h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cerrar'))),
+      h('p', { class: 'i18-sub' }, 'Revise el texto: cada ARS puede pedir requisitos propios. Después de entregarla, marque el código como «Solicitado» con el número que le den.'), body));
+    pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   async function history(prov, r) {
