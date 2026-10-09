@@ -207,3 +207,16 @@ a.i18-btn{text-decoration:none;display:inline-block}
 @media (prefers-color-scheme:dark){.cs-st{background:#2a3444}.cs-st.solicitado{background:#3a2f0b;color:#e3b341}.cs-st.en_espera_cliente{background:#42161b;color:#ff7b72}
   .cs-st.aprobado,.cs-st.cerrado{background:#0f2e1a;color:#3fb950}.cs-st.rechazado,.cs-st.cancelado{background:#21262d;color:#8b949e}.cs-over{color:#ff7b72}}
 .i18-note.i18-warn{background:#fff8c5;color:#6b4a00}@media (prefers-color-scheme:dark){.i18-note.i18-warn{background:#3a2f0b;color:#e3b341}}
+/* 3.1 a 3.5 · Iteraciones 41 a 45 */
+.ecf-l{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+.ecf-l.verde{background:#dafbe1;color:#116329}.ecf-l.amarillo{background:#fff8c5;color:#7a5200}.ecf-l.rojo{background:#ffebe9;color:#a40e26}
+.ecf-steps{margin:8px 0;padding-left:20px}.ecf-steps li{margin:0 0 8px}.ecf-steps li.ecf-done strong{text-decoration:line-through;opacity:.75}
+.ecf-steps input[type=text]{margin-top:4px;padding:6px 8px;border:1px solid var(--border,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.ecf-k.ok .i18-kpi-v{color:#116329}.ecf-k.warn .i18-kpi-v{color:#7a5200}.ecf-k.bad .i18-kpi-v{color:#a40e26}
+.ecf-card.listo summary{color:#116329}
+.pa-score{display:inline-block;min-width:2.4em;text-align:center;border-radius:6px;padding:1px 6px;font-weight:700}
+.pa-score.ok{background:#dafbe1;color:#116329}.pa-score.warn{background:#fff8c5;color:#7a5200}.pa-score.bad{background:#ffebe9;color:#a40e26}
+.pa-list li{margin:0 0 10px}.pa-sev{display:inline-block;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700}
+.pa-sev.bloquea{background:#ffebe9;color:#a40e26}.pa-sev.advierte{background:#fff8c5;color:#7a5200}
+@media (prefers-color-scheme:dark){.ecf-l.verde,.pa-score.ok{background:#0f2e1a;color:#3fb950}.ecf-l.amarillo,.pa-score.warn,.pa-sev.advierte{background:#3a2f0b;color:#e3b341}
+  .ecf-l.rojo,.pa-score.bad,.pa-sev.bloquea{background:#42161b;color:#ff7b72}.ecf-k.ok .i18-kpi-v{color:#3fb950}.ecf-k.warn .i18-kpi-v{color:#e3b341}.ecf-k.bad .i18-kpi-v{color:#ff7b72}}

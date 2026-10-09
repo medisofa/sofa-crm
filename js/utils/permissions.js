@@ -91,7 +91,13 @@ export const NAV = [
     { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },   // nunca operations ni capturer
     { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'conciliacion', label: 'Conciliación bancaria', roles: ['super_admin', 'admin', 'glosas', 'auditor'], ready: true },   // 2.7 · Iteración 37
-    { route: 'casos-servicio', label: 'Casos de servicio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'glosas'], ready: true }   // 3.0 · Iteración 40 (espejo de app.case_staff)
+    { route: 'casos-servicio', label: 'Casos de servicio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'glosas'], ready: true },   // 3.0 · Iteración 40 (espejo de app.case_staff)
+    // 3.1 a 3.5 · Iteraciones 41 a 45 (espejo de los permisos de las migraciones 140 a 148)
+    { route: 'ecf', label: 'Preparación e-CF', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'glosas'], ready: true },
+    { route: 'preauditoria', label: 'Pre-auditoría de lotes', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'glosas', 'auditor', 'client'], ready: true },
+    { route: 'causas-glosa', label: 'Glosas: plazo y causa raíz', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'operations', 'client'], ready: true },
+    { route: 'cartera', label: 'Cartera escalonada', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'client'], ready: true },
+    { route: 'brechas-tarifa', label: 'Brechas de tarifa', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'glosas', 'client'], ready: true }
   ]},
   { group: 'Habilitación', items: [
     { route: 'habilitacion', label: 'Habilitación MISPAS', roles: ['super_admin', 'admin', 'assistant', 'billing', 'auditor', 'client'], ready: true }
@@ -142,8 +148,8 @@ NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route))
 export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'tareas'] },
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'casos-servicio', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
-  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'codigos-ars', 'codificacion', 'ars'] },
-  { key: 'cobros', group: 'Cobros', routes: ['glosas', 'pagos', 'conciliacion', 'aging', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
+  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars'] },
+  { key: 'cobros', group: 'Cobros', routes: ['glosas', 'causas-glosa', 'pagos', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'mis-secretarias', 'centros', 'habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'rentabilidad', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'documentos'] },
@@ -238,6 +244,12 @@ const ACTIONS = {
   'bank.reconcile': ['super_admin', 'admin', 'glosas'],                                              // 2.7 · espejo de app.bank_require (130)
   'bank.admin': ['super_admin', 'admin'],                                                            // 2.7 · registrar pagos y deshacer conciliaciones
   'cases.edit': ['super_admin', 'admin', 'assistant', 'operations'],                                 // 3.0 · espejo de app.case_staff(true) (138)
-  'notices.edit': ['super_admin', 'admin', 'client']                                                 // 2.9 · espejo de patient_notice_settings_save (136)
+  'notices.edit': ['super_admin', 'admin', 'client'],                                                // 2.9 · espejo de patient_notice_settings_save (136)
+  'ecf.steps': ['super_admin', 'admin', 'assistant', 'operations', 'client'],                        // 3.1 · espejo de app.ecf_require (140)
+  'ecf.providers': ['super_admin', 'admin'],                                                         // 3.1 · ecf_provider_save
+  'glosas.root': ['super_admin', 'admin', 'glosas'],                                                 // 3.3 · acciones correctivas (144)
+  'holidays.edit': ['super_admin', 'admin'],                                                         // 3.3 · feriados
+  'collections.edit': ['super_admin', 'admin', 'glosas'],                                            // 3.4 · app.collection_access (146)
+  'collections.templates': ['super_admin', 'admin']                                                  // 3.4 · cartas modelo
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

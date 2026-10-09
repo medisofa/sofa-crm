@@ -2,6 +2,7 @@
  *  con lo pagado y el saldo, y las solicitudes de servicio con el avance que SOFA comparte. */
 import { rpc, h, money, fmtDate, note, kpi, guarded } from '../services/iter18.js';
 import { pill, caseDetail } from './casos-comun.js';
+import { ecfSteps } from './ecf-comun.js';
 
 const CONTRACT = { borrador: 'Borrador', enviado: 'Enviado para firma', firmado: 'Firmado', terminado: 'Terminado' };
 const INVOICE = { emitida: 'Pendiente', pagada_parcial: 'Abonada', pagada: 'Pagada', anulada: 'Anulada' };
@@ -11,9 +12,22 @@ export async function render(root, ctx = {}) {
   root.replaceChildren();
   const box = h('div', { 'aria-live': 'polite' });
   const detail = h('div', { id: 'cs-detail' });
+  const ecf = h('div', { id: 'cs-ecf', 'aria-live': 'polite' });
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Mi cuenta con SOFA'),
-    h('p', { class: 'i18-sub' }, 'Sus servicios con SOFA, sus facturas y el avance de lo que nos ha pedido.'), box, detail));
+    h('p', { class: 'i18-sub' }, 'Sus servicios con SOFA, sus facturas y el avance de lo que nos ha pedido.'), ecf, box, detail));
   if (!org) { box.replaceChildren(note('No se encontró su consultorio. Cierre la sesión y vuelva a entrar.', 'error')); return; }
+
+  // 3.1 · Facturación electrónica (e-CF): pasos que faltan y lotes que se bloquearían
+  async function loadEcf() {
+    try {
+      const s = await rpc('ecf_client_status', { p_org: org });
+      const done = s.steps.filter((x) => x.done).length;
+      ecf.replaceChildren(h('details', { class: `i18-card ecf-card ${s.status}`, open: s.status !== 'listo' && s.days_left <= 45 },
+        h('summary', {}, h('strong', {}, 'Facturación electrónica (e-CF): '), s.status === 'listo' ? 'lista' : `${done} de ${s.steps.length} pasos · ${s.days_left < 0 ? 'obligación vencida' : `faltan ${s.days_left} días`}`),
+        ecfSteps(s, loadEcf)));
+    } catch (_) { ecf.replaceChildren(); }   // antes de la 140 no existe
+  }
+  loadEcf();
 
   async function load() {
     const d = await guarded(box, () => rpc('client_account', { p_org: org }));
