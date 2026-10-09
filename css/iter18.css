@@ -52,3 +52,67 @@ a.i18-btn{text-decoration:none;display:inline-block}
 
 /* 1.9.1 · accesos directos del dashboard con separación */
 .i18-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+
+/* ===== 2.0 · Menú por tarea, búsqueda, grupos plegables y «Mis módulos» ===== */
+.nav-search{padding:10px 12px 4px}
+.nav-search input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:inherit;font:inherit}
+.nav-search input::placeholder{color:rgba(255,255,255,.55)}
+.nav-search input:focus{outline:2px solid #5aa2ff;outline-offset:1px;background:rgba(255,255,255,.12)}
+.nav-v2 .nav-group{margin:2px 0}
+.nav-v2 .nav-group-btn{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px 6px;border:0;background:none;color:inherit;opacity:.7;
+  font:600 .72rem/1.2 inherit;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;text-align:left}
+.nav-v2 .nav-group-btn:hover,.nav-v2 .nav-group-btn:focus-visible{opacity:1}
+.nav-v2 .nav-group-btn::after{content:"▸";font-size:.8rem;transition:transform .15s;margin-left:auto}
+.nav-v2 .nav-group.open>.nav-group-btn::after{transform:rotate(90deg)}
+.nav-v2 .nav-count{font-weight:500;opacity:.7;letter-spacing:0;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:0 6px;font-size:.68rem}
+.nav-v2 .nav-group:has(a[aria-current="page"])>.nav-group-btn{opacity:1}
+.nav-v2 .nav-items a{border-radius:8px}
+.nav-v2 .nav-hits{padding-top:6px}
+.nav-v2 .nav-empty{padding:10px 12px;font-size:.85rem;opacity:.75}
+@media (prefers-reduced-motion:reduce){.nav-v2 .nav-group-btn::after{transition:none}}
+
+.v2-launcher{margin-top:18px}
+.v2-launcher h3{margin:0 0 10px}
+.v2-launch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.v2-launch-card{border:1px solid var(--border,#cfd6df);border-radius:12px;padding:12px 14px;background:var(--surface,#fff)}
+.v2-launch-card h4{margin:0 0 8px;font-size:.8rem;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted,#5b6674)}
+.v2-launch-card ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.v2-launch-card a{display:block;padding:6px 8px;margin:0 -8px;border-radius:8px;color:inherit;text-decoration:none}
+.v2-launch-card a:hover,.v2-launch-card a:focus-visible{background:var(--surface-2,rgba(127,127,127,.12))}
+.v2-launch-card a::after{content:" ›";opacity:.5}
+
+/* ===== 2.0 · Historia clínica ===== */
+.hc-banner{padding:10px 12px;border-radius:8px;font-weight:600}
+.hc-banner.prueba{background:#fff1d6;color:#7a4b00}
+.hc-banner.emergencia{background:#fde8e6;color:#8a1c14}
+.hc-layout{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:16px;align-items:start}
+@media (max-width:860px){.hc-layout{grid-template-columns:1fr}}
+.hc-side{display:grid;gap:10px}
+.hc-results{display:grid;gap:4px}
+.hc-results button{text-align:left;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#cfd6df);background:var(--surface,#fff);color:inherit;font:inherit;cursor:pointer}
+.hc-results button[aria-pressed="true"]{border-color:var(--primary,#1f6feb);box-shadow:0 0 0 1px var(--primary,#1f6feb)}
+.hc-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.hc-head h3{margin:0}
+.hc-notes{display:grid;gap:8px}
+.hc-note{border:1px solid var(--border,#cfd6df);border-radius:10px;padding:10px 12px;background:var(--surface,#fff)}
+.hc-note header{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between}
+.hc-sec{margin:10px 0 4px;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted,#5b6674)}
+.hc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.hc-form textarea{min-height:70px;padding:8px 10px;border:1px solid var(--border,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit;resize:vertical}
+.hc-form label{display:grid;gap:4px;font-size:.88rem}
+.hc-form input,.hc-form select{padding:8px 10px;border:1px solid var(--border,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.hc-req::after{content:" *";color:#cf222e}
+.hc-dl{display:grid;grid-template-columns:minmax(140px,220px) 1fr;gap:4px 12px;margin:6px 0}
+.hc-dl dt{color:var(--text-muted,#5b6674);font-size:.85rem}.hc-dl dd{margin:0;white-space:pre-wrap}
+.hc-hash{font:12px/1.3 ui-monospace,monospace;word-break:break-all;color:var(--text-muted,#5b6674)}
+.hc-locked{display:grid;place-items:center;gap:10px;padding:40px 16px;text-align:center}
+@media print{.sidebar,.topbar,.hc-side,.hc-actions,.i18-actions,button{display:none!important}.hc-layout{display:block}.hc-note{break-inside:avoid}}
+
+/* 2.0 · ajustes de la historia clínica tras la prueba visual */
+.hc-form input,.hc-form select,.hc-form textarea,.hc-side input{width:100%;box-sizing:border-box;min-width:0}
+.hc-side input{padding:8px 10px;border:1px solid var(--border,#cfd6df);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.hc-grid>label{min-width:0}
+.hc-grid>.hc-wide{grid-column:1/-1}
+.hc-form fieldset{display:grid;gap:10px;margin:10px 0}
+.hc-form fieldset>div:not(.hc-grid){display:grid;gap:10px}
+.hc-grid{align-items:end}

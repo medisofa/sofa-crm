@@ -2,6 +2,7 @@
  *  Muestra una sección por cada rol del usuario (lo decide la base con my_dashboard) y accesos a sus módulos.
  *  onOpen(code) lo provee el router para abrir un módulo desde un acceso directo. */
 import { rpc, h, money, num, note, guarded } from '../services/iter18.js';
+import { visibleNav } from '../utils/permissions.js';
 
 const LABEL = { agenda: 'Agenda', captura_rapida: 'Captura rápida', reclamaciones: 'Reclamaciones', trabajo_hoy: 'Trabajo de hoy',
   nueva_cita: 'Nueva cita', retiros_fisicos: 'Retiros físicos', radicacion: 'Radicación' };
@@ -12,12 +13,12 @@ const ROUTE = { agenda: 'agenda', captura_rapida: 'captura', reclamaciones: 'rec
   nueva_cita: 'agenda', retiros_fisicos: 'retiros', radicacion: 'radicaciones' };
 const goTo = (c) => { location.hash = `#/${ROUTE[c] || c}`; };
 
-export async function render(root, { onOpen = goTo } = {}) {
+export async function render(root, { onOpen = goTo, role = null } = {}) {
   root.replaceChildren();
   const box = h('div', { 'aria-live': 'polite' });
   root.append(box);   // el título «Mi dashboard» ya lo muestra la barra superior
   const data = await guarded(box, () => rpc('my_dashboard'));
-  if (!data) return;
+  if (!data) { if (role) box.append(launcher(role)); return; }   // aunque fallen las cifras, los módulos siguen a mano
   if (!data.sections || !data.sections.length) {
     box.replaceChildren(note('Su usuario todavía no tiene un rol asignado. Pida al Administrador que se lo asigne.'));
     return;
@@ -33,4 +34,16 @@ export async function render(root, { onOpen = goTo } = {}) {
     }
     box.append(card);
   }
+  if (role) box.append(launcher(role));
+}
+
+/** 2.0 · «Mis módulos»: los grupos del menú del rol como tarjetas, para abrir cualquier módulo con un toque. */
+function launcher(role) {
+  const groups = visibleNav(role).filter((g) => g.group !== 'Mi cuenta')
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.route !== 'mi-dashboard') })).filter((g) => g.items.length);
+  return h('section', { class: 'v2-launcher', 'aria-label': 'Mis módulos' },
+    h('h3', {}, 'Mis módulos'),
+    h('div', { class: 'v2-launch-grid' }, groups.map((g) =>
+      h('div', { class: 'v2-launch-card' }, h('h4', {}, g.group),
+        h('ul', {}, g.items.map((i) => h('li', {}, h('a', { href: `#/${i.route}` }, i.label))))))));
 }

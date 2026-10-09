@@ -20,7 +20,9 @@ const MODULES = {
   pacientes: 'pacientes.js', 'saldos-pacientes': 'saldos-pacientes.js', 'indicadores-agenda': 'indicadores-agenda.js',
   seguimiento: 'seguimiento.js', 'avisos-pacientes': 'avisos-pacientes.js', 'mis-secretarias': 'mis-secretarias.js',
   centros: 'centros.js', 'alta-usuarios': 'usuarios.js', 'cambio-clave': 'cambio-clave.js',
-  'analitica-glosas': 'analitica-glosas.js', 'salud-clientes': 'salud-clientes.js'
+  'analitica-glosas': 'analitica-glosas.js', 'salud-clientes': 'salud-clientes.js',
+  // 2.0 · Iteración 29
+  'historia-clinica': 'historia-clinica.js', 'hc-control': 'hc-control.js', seguridad: 'seguridad.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
