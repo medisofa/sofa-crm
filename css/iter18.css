@@ -220,3 +220,17 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .pa-sev.bloquea{background:#ffebe9;color:#a40e26}.pa-sev.advierte{background:#fff8c5;color:#7a5200}
 @media (prefers-color-scheme:dark){.ecf-l.verde,.pa-score.ok{background:#0f2e1a;color:#3fb950}.ecf-l.amarillo,.pa-score.warn,.pa-sev.advierte{background:#3a2f0b;color:#e3b341}
   .ecf-l.rojo,.pa-score.bad,.pa-sev.bloquea{background:#42161b;color:#ff7b72}.ecf-k.ok .i18-kpi-v{color:#3fb950}.ecf-k.warn .i18-kpi-v{color:#e3b341}.ecf-k.bad .i18-kpi-v{color:#ff7b72}}
+/* 3.6 a 4.0 · Iteraciones 46 a 50 */
+.au-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 16px;margin:6px 0}
+.in-v{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;background:#eaeef2;color:#57606a}
+.in-v.fuga_facturacion{background:#ffebe9;color:#a40e26}.in-v.fuga_inventario{background:#fff8c5;color:#7a5200}.in-v.cuadra{background:#dafbe1;color:#116329}
+.mh-bar{height:10px;border-radius:999px;background:var(--border,#e3e7ed);overflow:hidden;margin:8px 0}.mh-bar span{display:block;height:100%;background:#1a7f37}
+.mh-items{list-style:none;padding:0;margin:6px 0}.mh-items li{border-top:1px solid var(--border,#e3e7ed);padding:8px 0}
+.ecf-l.gris{background:#eaeef2;color:#57606a}
+.di-chart{position:relative;display:flex;align-items:flex-end;gap:6px;height:180px;padding:8px 0 22px;border-bottom:1px solid var(--border,#cfd6df)}
+.di-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative}
+.di-col span{display:block;width:100%;max-width:38px;background:#1f6feb;border-radius:4px 4px 0 0;min-height:2px}
+.di-col small{position:absolute;bottom:-20px;font-size:11px;color:var(--text-muted,#5b6674)}
+.di-target{position:absolute;left:0;right:0;border-top:2px dashed #9a6700;z-index:1}
+@media (prefers-color-scheme:dark){.in-v{background:#21262d;color:#8b949e}.in-v.fuga_facturacion{background:#42161b;color:#ff7b72}.in-v.fuga_inventario{background:#3a2f0b;color:#e3b341}
+  .in-v.cuadra{background:#0f2e1a;color:#3fb950}.mh-bar span{background:#3fb950}.di-col span{background:#58a6ff}.ecf-l.gris{background:#21262d;color:#8b949e}}

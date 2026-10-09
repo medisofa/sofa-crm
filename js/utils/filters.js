@@ -4,6 +4,15 @@ import { opt } from './ui.js';
 import { listArs } from '../services/catalog.js';
 import { clientOptions, defaultRange } from '../services/bi.js';
 import { isStaff } from './permissions.js';
+import { sb } from '../supabase.js';
+
+/** 4.0 · Bitácora de exportaciones: se registra quién descargó qué (no bloquea la descarga si falla). */
+export function logExport(file, count) {
+  try {
+    const module = (location.hash.replace(/^#\/?/, '').split('/')[0] || 'inicio').slice(0, 60);
+    const c = sb(); if (c) c.rpc('log_export', { p_module: module, p_file: String(file || '').slice(0, 120), p_rows: Number(count) || 0, p_org: null }).then(() => {}, () => {});
+  } catch (_) { /* sin efecto */ }
+}
 
 /**
  * Pinta la barra en `el` y llama onChange(state) al cambiar.
@@ -34,8 +43,10 @@ export async function filterBar(el, ctx, onChange, { period = true, months = 6 }
 
 /** Descarga filas como CSV (separador ; y BOM para Excel en español) */
 export function downloadCsv(name, head, rows) {
-  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  // 4.0: protección contra fórmulas (=, +, -, @) al abrir en Excel y registro de la exportación
+  const q = (v) => { let t = String(v ?? ''); if (/^[=+\-@]/.test(t) && isNaN(Number(t))) t = "'" + t; return `"${t.replace(/"/g, '""')}"`; };
   const csv = '\uFEFF' + [head, ...rows].map((r) => r.map(q).join(';')).join('\n');
+  logExport(name, rows.length);
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
