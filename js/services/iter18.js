@@ -69,6 +69,7 @@ export const note = (text, kind = 'info') => h('p', { class: `i18-note i18-${kin
 
 /** CSV para Excel en español: BOM, comillas y protección contra fórmulas (=, +, -, @). */
 export function downloadCsv(filename, rows) {
+  try { const m = (location.hash.replace(/^#\/?/, '').split('/')[0] || 'inicio').slice(0, 60); supabase.rpc('log_export', { p_module: m, p_file: String(filename).slice(0, 120), p_rows: Math.max(rows.length - 1, 0), p_org: null }).then(() => {}, () => {}); } catch (_) { /* 4.0: registro de exportaciones (no bloquea) */ }
   const cell = (v) => { let s = v == null ? '' : String(v); if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = "'" + s; return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const blob = new Blob(['﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = h('a', { href: URL.createObjectURL(blob), download: filename });

@@ -97,7 +97,14 @@ export const NAV = [
     { route: 'preauditoria', label: 'Pre-auditoría de lotes', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'causas-glosa', label: 'Glosas: plazo y causa raíz', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'operations', 'client'], ready: true },
     { route: 'cartera', label: 'Cartera escalonada', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'client'], ready: true },
-    { route: 'brechas-tarifa', label: 'Brechas de tarifa', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'glosas', 'client'], ready: true }
+    { route: 'brechas-tarifa', label: 'Brechas de tarifa', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'glosas', 'client'], ready: true },
+    // 3.6 a 4.0 · Iteraciones 46 a 50 (espejo de los permisos de las migraciones 150 a 158)
+    { route: 'auditoria-expedientes', label: 'Auditoría de expedientes', roles: ['super_admin', 'admin', 'auditor', 'glosas', 'operations', 'client'], ready: true },
+    { route: 'insumos', label: 'Insumos facturables', roles: ['super_admin', 'admin', 'operations', 'glosas', 'auditor', 'client', 'capturer'], ready: true },
+    { route: 'mi-habilitacion', label: 'Mi habilitación', roles: ['super_admin', 'admin', 'assistant', 'operations', 'auditor', 'client'], ready: true },
+    { route: 'direccion', label: 'Tablero de dirección', roles: ['super_admin', 'admin'], ready: true },
+    { route: 'mis-horas', label: 'Mis horas', roles: ['super_admin', 'admin', 'glosas', 'assistant', 'operations', 'auditor'], ready: true },
+    { route: 'salud-sistema', label: 'Seguridad y salud del sistema', roles: ['super_admin'], ready: true }
   ]},
   { group: 'Habilitación', items: [
     { route: 'habilitacion', label: 'Habilitación MISPAS', roles: ['super_admin', 'admin', 'assistant', 'billing', 'auditor', 'client'], ready: true }
@@ -146,13 +153,13 @@ NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route))
  * en una familia aparece al final en «Más», para que nada se pierda.
  */
 export const FAMILIES = [
-  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'tareas'] },
+  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'agenda', 'tareas', 'mis-horas'] },
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'casos-servicio', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
   { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'causas-glosa', 'pagos', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
-  { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'mis-secretarias', 'centros', 'habilitacion'] },
-  { key: 'resultados', group: 'Resultados', routes: ['dashboard', 'estado-cuenta', 'rentabilidad', 'reportes', 'guias'] },
-  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'documentos'] },
+  { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'habilitacion', 'mi-habilitacion'] },
+  { key: 'resultados', group: 'Resultados', routes: ['direccion', 'dashboard', 'estado-cuenta', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'documentos'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
 
@@ -250,6 +257,12 @@ const ACTIONS = {
   'glosas.root': ['super_admin', 'admin', 'glosas'],                                                 // 3.3 · acciones correctivas (144)
   'holidays.edit': ['super_admin', 'admin'],                                                         // 3.3 · feriados
   'collections.edit': ['super_admin', 'admin', 'glosas'],                                            // 3.4 · app.collection_access (146)
-  'collections.templates': ['super_admin', 'admin']                                                  // 3.4 · cartas modelo
+  'collections.templates': ['super_admin', 'admin'],                                                 // 3.4 · cartas modelo
+  'legalaudit.edit': ['super_admin', 'admin', 'auditor'],                                            // 3.6 · app.legal_audit_staff(true) (150)
+  'legalaudit.settings': ['super_admin', 'admin'],                                                   // 3.6 · activar por cliente
+  'supplies.admin': ['super_admin', 'admin', 'operations', 'client'],                                // 3.7 · app.supply_access 'admin' (152)
+  'direction.view': ['super_admin', 'admin'],                                                        // 3.9 · app.direction_require (156)
+  'direction.goals': ['super_admin'],                                                                // 3.9 · direction_settings_save
+  'security.admin': ['super_admin']                                                                  // 4.0 · app.sa_require (158)
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);

@@ -32,7 +32,10 @@ export const MODULES = {
   // 3.0 · Iteración 40
   'mi-cuenta-sofa': 'mi-cuenta-sofa.js', 'casos-servicio': 'servicios-sofa.js',
   // 3.1 a 3.5 · Iteraciones 41 a 45
-  ecf: 'ecf-preparacion.js', preauditoria: 'preauditoria.js', 'causas-glosa': 'causas-glosa.js', cartera: 'cartera.js', 'brechas-tarifa': 'brechas-tarifa.js'
+  ecf: 'ecf-preparacion.js', preauditoria: 'preauditoria.js', 'causas-glosa': 'causas-glosa.js', cartera: 'cartera.js', 'brechas-tarifa': 'brechas-tarifa.js',
+  // 3.6 a 4.0 · Iteraciones 46 a 50
+  'auditoria-expedientes': 'auditoria-expedientes.js', insumos: 'insumos.js', 'mi-habilitacion': 'mi-habilitacion.js', direccion: 'direccion.js',
+  'mis-horas': 'mis-horas.js', 'salud-sistema': 'salud-sistema.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
