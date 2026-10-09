@@ -42,7 +42,7 @@ export const NAV = [
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
     { route: 'tarifas-privadas', label: 'Tarifas privadas', roles: ['super_admin', 'admin', 'assistant', 'client'], ready: true },
-    { route: 'dashboard', label: 'Dashboard', roles: [...NO_OPS(STAFF), 'client'], ready: true }
+    { route: 'dashboard', label: 'Dashboard BI', roles: [...NO_OPS(STAFF), 'client'], ready: true }
   ]},
   { group: 'Mi consultorio', items: [   // 1.9 · Iteraciones 19 a 27
     { route: 'pacientes', label: 'Pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
