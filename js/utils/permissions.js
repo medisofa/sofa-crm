@@ -28,7 +28,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
+export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -154,6 +154,7 @@ export const NAV = [
     { route: 'mi-suscripcion', label: 'Mi suscripción', roles: ['client', 'super_admin', 'admin'], ready: true },   // 4.9 · P2
     { route: 'mi-puesta-en-marcha', label: 'Mi puesta en marcha', roles: ['client'], ready: true },   // 4.9 · I56
     { route: 'mis-avisos', label: 'Mis avisos por correo', roles: ['client', 'super_admin', 'admin', 'operations', 'billing', 'glosas'], ready: true },   // 5.0 · I63
+    { route: 'novedades', label: 'Novedades', roles: [...ALL, 'capturer', 'prospect'], ready: true },   // 5.5.0 · I65
     { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer', 'prospect'], ready: true },
     { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer', 'prospect'], ready: true },   // 2.0 · MFA
     { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer', 'prospect'], ready: true },

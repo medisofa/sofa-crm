@@ -48,7 +48,9 @@ export const MODULES = {
   'tarifas-versiones': 'tarifas-versiones.js', 'aplicar-pago': 'aplicar-pago.js', 'mi-bandeja': 'mi-bandeja.js',
   // 5.0.0 · I60 a I64
   'reconsideracion': 'reconsideracion.js', 'calidad-captura': 'calidad-captura.js', 'expediente': 'expediente.js',
-  'mis-avisos': 'mis-avisos.js', 'cola-correos': 'cola-correos.js', 'rendimiento': 'rendimiento.js'
+  'mis-avisos': 'mis-avisos.js', 'cola-correos': 'cola-correos.js', 'rendimiento': 'rendimiento.js',
+  // 5.5.0 · I65 · cierre de Fase A
+  'novedades': 'novedades.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
