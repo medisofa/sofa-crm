@@ -50,7 +50,13 @@ export const MODULES = {
   'reconsideracion': 'reconsideracion.js', 'calidad-captura': 'calidad-captura.js', 'expediente': 'expediente.js',
   'mis-avisos': 'mis-avisos.js', 'cola-correos': 'cola-correos.js', 'rendimiento': 'rendimiento.js',
   // 5.5.0 · I65 · cierre de Fase A
-  'novedades': 'novedades.js'
+  'novedades': 'novedades.js',
+  // 5.6.0 · I66 · modo clínica
+  'clinica': 'clinica.js',
+  // 5.7.0 · I68a · reporte de hospitalización del médico
+  'hospitalizacion': 'hospitalizacion.js',
+  // 5.8.0 · médico · paneles de síntesis
+  'mi-dinero': 'mi-dinero.js', 'mis-glosas': 'mis-glosas.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
