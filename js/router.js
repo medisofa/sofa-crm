@@ -56,7 +56,9 @@ export const MODULES = {
   // 5.7.0 · I68a · reporte de hospitalización del médico
   'hospitalizacion': 'hospitalizacion.js',
   // 5.8.0 · médico · paneles de síntesis
-  'mi-dinero': 'mi-dinero.js', 'mis-glosas': 'mis-glosas.js'
+  'mi-dinero': 'mi-dinero.js', 'mis-glosas': 'mis-glosas.js',
+  // 5.9.0 · médico · productividad
+  'mi-productividad': 'mi-productividad.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 

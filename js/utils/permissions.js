@@ -63,6 +63,7 @@ export const NAV = [
   { group: 'Mis resultados', items: [   // 1.9 · Iteraciones 18 y 26
     { route: 'mi-dinero', label: 'Mi dinero', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
     { route: 'mis-glosas', label: 'Mis glosas', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
+    { route: 'mi-productividad', label: 'Mi productividad', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.9
     { route: 'estado-cuenta', label: 'Estado de cuenta (ROI)', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
     { route: 'calendario-cobros', label: 'Calendario de cobros', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'rentabilidad', label: 'Rentabilidad por ARS', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
