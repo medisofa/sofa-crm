@@ -530,3 +530,21 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 }
 :root[data-theme="dark"] .rd-ok{color:#3fb950}
 :root[data-theme="dark"] .rd-bad{color:#ff7b72}
+
+/* 5.5.0 · I65 · Novedades */
+.nov-wrap .nov-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.nov-wrap .nov-item{border:1px solid var(--i18-line,#d9dee2);border-radius:8px;padding:12px 14px}
+.nov-wrap .nov-ver{font-weight:700;font-size:14px;color:var(--i18-acc,#0b6b5d)}
+.nov-wrap .nov-tema{margin-top:3px}
+
+/* 5.6.0 · I66 · Mi clínica */
+.cli-kpis{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 16px}
+.cli-kpi{border:1px solid var(--i18-line,#d9dee2);border-radius:8px;padding:10px 16px;min-width:120px}
+.cli-kpi-n{font-size:22px;font-weight:700;color:var(--i18-acc,#0b6b5d)}
+.cli-kpi-l{font-size:13px;color:var(--i18-mut,#5b6872)}
+.cli-deps{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.cli-dep{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--i18-line,#d9dee2);border-radius:8px;padding:10px 14px}
+.cli-acc{display:flex;gap:8px}
+.cli-mut{color:var(--i18-mut,#5b6872)}
+.cli-add{display:flex;gap:8px;margin-top:10px}
+.cli-add input{flex:1;min-width:0}
