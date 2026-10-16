@@ -3,6 +3,7 @@
  * sin configuración de servidor.
  */
 import { findRoute, canSee } from './utils/permissions.js';
+import { medirRuta } from './services/perf.js';   // 5.0.0 · I64: tiempos de carga por pantalla (indicador p95)
 
 export const MODULES = {
   inicio: 'home.js', clientes: 'clients.js', codificacion: 'coding.js', ars: 'ars.js',
@@ -44,7 +45,10 @@ export const MODULES = {
   // 4.9 · P2, I56, I57, I58 e I59
   'mi-suscripcion': 'suscripcion.js', suscripciones: 'suscripciones-admin.js',
   'puesta-en-marcha': 'go-live.js', 'mi-puesta-en-marcha': 'go-live.js',
-  'tarifas-versiones': 'tarifas-versiones.js', 'aplicar-pago': 'aplicar-pago.js', 'mi-bandeja': 'mi-bandeja.js'
+  'tarifas-versiones': 'tarifas-versiones.js', 'aplicar-pago': 'aplicar-pago.js', 'mi-bandeja': 'mi-bandeja.js',
+  // 5.0.0 · I60 a I64
+  'reconsideracion': 'reconsideracion.js', 'calidad-captura': 'calidad-captura.js', 'expediente': 'expediente.js',
+  'mis-avisos': 'mis-avisos.js', 'cola-correos': 'cola-correos.js', 'rendimiento': 'rendimiento.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
@@ -65,5 +69,18 @@ export async function resolve(role) {
     return { kind: 'module', def, mod, arg };
   }
   const mod = await import(`./modules/${MODULES[route]}`);
-  return { kind: 'module', def, mod, arg };
+  return { kind: 'module', def, mod: conMedicion(route, mod), arg };
+}
+
+/** 5.0.0 · I64: envuelve render() para medir cuánto tarda en pintarse la pantalla (solo la clave de la ruta, nunca parámetros).
+ *  Medir nunca estorba: si falla la medición se ignora, y si render() falla no se registra el tiempo. */
+function conMedicion(route, mod) {
+  if (typeof mod.render !== 'function') return mod;
+  return { ...mod, render: async (root, ctx) => {
+    let fin = () => {};
+    try { fin = medirRuta(route); } catch { /* medir nunca estorba */ }
+    const r = await mod.render(root, ctx);
+    try { fin(); } catch { /* medir nunca estorba */ }
+    return r;
+  } };
 }
