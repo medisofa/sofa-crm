@@ -52,7 +52,9 @@ export const MODULES = {
   // 5.5.0 · I65 · cierre de Fase A
   'novedades': 'novedades.js',
   // 5.6.0 · I66 · modo clínica
-  'clinica': 'clinica.js'
+  'clinica': 'clinica.js',
+  // 5.7.0 · I68a · reporte de hospitalización del médico
+  'hospitalizacion': 'hospitalizacion.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
