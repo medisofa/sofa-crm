@@ -2,6 +2,7 @@
  *  Tablas grandes, tareas programadas que fallaron, revisión trimestral de accesos, simulacros de respaldo y exportaciones. */
 import { rpc, h, fmtDate, note, guarded } from '../services/iter18.js';
 
+const nz = (v, alt = '—') => (v == null || v === '' ? alt : v);   // 4.7.0: nunca se imprime «null» o «undefined»
 const KIND = { respaldo_descargado: 'Respaldo descargado', restauracion_prueba: 'Restauración de prueba', pitr_verificado: 'Recuperación a un punto en el tiempo verificada' };
 
 export async function render(root) {
@@ -18,12 +19,12 @@ export async function render(root) {
     health.replaceChildren(
       d.drill_due ? note('Pasaron más de 90 días sin un simulacro de respaldo exitoso: hágalo con la guía de operación y regístrelo abajo.', 'warn') : null,
       d.access_review_due ? note('La revisión de accesos de este trimestre no está cerrada.', 'warn') : null,
-      h('p', {}, `Base de datos: ${d.db_size} · última migración ${d.last_migration} · personal sin entrar en 90 días: ${d.staff_inactive_90d}.`),
+      h('p', {}, `Base de datos: ${nz(d.db_size)} · última migración ${nz(d.last_migration)} · personal sin entrar en 90 días: ${nz(d.staff_inactive_90d)}.`),
       h('h3', {}, 'Tareas programadas con error (7 días)'),
-      d.cron_failures.length ? h('ul', {}, d.cron_failures.map((f) => h('li', {}, `${f.job} · ${fmtDate(f.at)} · ${f.message || ''}`))) : note('Ninguna falló.'),
-      h('details', {}, h('summary', {}, 'Tablas más grandes'), table(['Tabla', 'Filas aprox.', 'Tamaño'], d.tables.map((t) => [t.table, String(t.rows), t.size]))),
-      h('details', {}, h('summary', {}, `Exportaciones de los últimos 30 días (${d.exports_30d.length})`),
-        d.exports_30d.length ? table(['Fecha', 'Usuario', 'Módulo', 'Archivo', 'Filas'], d.exports_30d.map((e) => [fmtDate(e.at), e.user || '—', e.module, e.file || '—', e.rows == null ? '—' : String(e.rows)])) : note('Sin exportaciones.')));
+      d.cron_failures.length ? h('ul', {}, d.cron_failures.map((f) => h('li', {}, `${nz(f.job, 'Tarea')} · ${fmtDate(f.at)} · ${nz(f.message, 'sin detalle')}`))) : note('Ninguna falló.'),
+      h('details', {}, h('summary', {}, 'Tablas más grandes'), table(['Tabla', 'Filas aprox.', 'Tamaño'], d.tables.map((t) => [nz(t.table), t.rows == null || Number(t.rows) < 0 ? '—' : String(t.rows), nz(t.size)]))),
+      h('details', {}, h('summary', {}, `Exportaciones de los últimos 30 días (${(d.exports_30d || []).length})`),
+        d.exports_30d.length ? table(['Fecha', 'Usuario', 'Módulo', 'Archivo', 'Filas'], d.exports_30d.map((e) => [fmtDate(e.at), e.user || '—', nz(e.module), e.file || '—', e.rows == null ? '—' : String(e.rows)])) : note('Sin exportaciones.')));
     drawDrill(d);
   }
 
@@ -35,21 +36,21 @@ export async function render(root) {
     const o = h('div', { 'aria-live': 'polite' });
     s.addEventListener('click', async () => { try { await rpc('backup_drill_add', { p_kind: k.value, p_result: r.value, p_note: n.value || null, p_done_on: null }); await loadHealth(); } catch (e) { o.replaceChildren(note(e.message, 'error')); } });
     drill.replaceChildren(h('fieldset', { class: 'i18-fs' }, h('legend', {}, 'Simulacro de respaldo y restauración'),
-      h('p', { class: 'i18-sub' }, d.last_drill ? `Último: ${KIND[d.last_drill.kind]} el ${fmtDate(d.last_drill.done_on)} (${d.last_drill.result === 'ok' ? 'bien' : 'con problemas'}).` : 'Todavía no hay simulacros registrados.'),
+      h('p', { class: 'i18-sub' }, d.last_drill ? `Último: ${KIND[d.last_drill.kind] || nz(d.last_drill.kind)} el ${fmtDate(d.last_drill.done_on)} (${d.last_drill.result === 'ok' ? 'bien' : 'con problemas'}).` : 'Todavía no hay simulacros registrados.'),
       h('div', { class: 'i18-bar' }, h('label', { for: 'ss-d-kind' }, 'Tipo', k), h('label', { for: 'ss-d-res' }, 'Resultado', r), h('label', { for: 'ss-d-note' }, 'Nota', n), s), o));
   }
 
   async function loadReview() {
     const d = await guarded(review, () => rpc('access_review_get', { p_id: null }));
     if (!d) return;
-    const start = h('button', { class: 'i18-btn', type: 'button' }, `Iniciar revisión ${d.quarter}`);
+    const start = h('button', { class: 'i18-btn', type: 'button' }, `Iniciar revisión ${nz(d.quarter, 'del trimestre')}`);
     start.addEventListener('click', async () => { try { await rpc('access_review_start'); loadReview(); loadHealth(); } catch (e) { review.prepend(note(e.message, 'error')); } });
     const rv = d.review;
     if (!rv || (rv.quarter !== d.quarter)) { review.replaceChildren(h('h3', {}, 'Revisión trimestral de accesos'), note('Toma una foto de quién tiene qué rol y le permite mantener o quitar cada acceso.'), start); return; }
     const pending = d.items.filter((i) => !i.decision).length;
     const close = h('button', { class: 'i18-btn', type: 'button', disabled: pending > 0 || !!rv.completed_at }, rv.completed_at ? `Cerrada el ${fmtDate(rv.completed_at)}` : 'Cerrar revisión');
     close.addEventListener('click', async () => { try { await rpc('access_review_complete', { p_id: rv.id }); loadReview(); loadHealth(); } catch (e) { review.prepend(note(e.message, 'error')); } });
-    review.replaceChildren(h('h3', {}, `Revisión de accesos ${rv.quarter} · ${pending} por decidir`), h('div', { class: 'i18-bar' }, close),
+    review.replaceChildren(h('h3', {}, `Revisión de accesos ${nz(rv.quarter)} · ${pending} por decidir`), h('div', { class: 'i18-bar' }, close),
       table(['Usuario', 'Correo', 'Rol', 'Organización', 'Último ingreso', 'Decisión'], d.items.map((i) => {
         let cell;
         if (i.decision || rv.completed_at) cell = i.decision ? `${i.decision === 'mantener' ? 'Mantener' : 'Quitado'}${i.note ? ` · ${i.note}` : ''}` : '—';
@@ -62,7 +63,7 @@ export async function render(root) {
           keep.addEventListener('click', go('mantener')); rm.addEventListener('click', go('quitar'));
           cell = h('div', {}, h('div', { class: 'i18-bar' }, keep, nt, rm), o);
         }
-        return [i.user || '—', i.email || '—', i.role, i.organization || '—', h('span', { class: i.stale ? 'cs-over' : '' }, i.last_sign_in ? fmtDate(i.last_sign_in) : 'Nunca'), cell];
+        return [i.user || '—', i.email || '—', nz(i.role), i.organization || '—', h('span', { class: i.stale ? 'cs-over' : '' }, i.last_sign_in ? fmtDate(i.last_sign_in) : 'Nunca'), cell];
       })));
   }
 

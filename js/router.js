@@ -38,7 +38,13 @@ export const MODULES = {
   'mis-horas': 'mis-horas.js', 'salud-sistema': 'salud-sistema.js',
   // 4.1 a 4.5 · Iteraciones 51 a 55
   propuestas: 'propuestas.js', verificacion: 'verificacion.js', 'informe-trimestral': 'informe-trimestral.js', 'casos-exito': 'referidos.js', recomendar: 'referidos.js',
-  'onboarding-30': 'onboarding-30.js', 'mis-30-dias': 'onboarding-30.js'
+  'onboarding-30': 'onboarding-30.js', 'mis-30-dias': 'onboarding-30.js',
+  // 4.8 · P1 · planes y bloqueo por plan
+  'mi-plan': 'mi-plan.js', planes: 'planes-admin.js',
+  // 4.9 · P2, I56, I57, I58 e I59
+  'mi-suscripcion': 'suscripcion.js', suscripciones: 'suscripciones-admin.js',
+  'puesta-en-marcha': 'go-live.js', 'mi-puesta-en-marcha': 'go-live.js',
+  'tarifas-versiones': 'tarifas-versiones.js', 'aplicar-pago': 'aplicar-pago.js', 'mi-bandeja': 'mi-bandeja.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 

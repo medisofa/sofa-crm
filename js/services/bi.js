@@ -48,6 +48,6 @@ export async function growthMonthly() { return must(await sb().from('v_growth_mo
 export async function mrr() { return must(await sb().from('v_mrr').select('*').limit(1).maybeSingle()); }
 export async function pipelineTotals() { return must(await sb().from('v_pipeline').select('stage, opportunities, monthly_value, weighted_value')); }
 export async function growthTargets() { return must(await sb().from('growth_targets').select('*').order('ends_on')); }
-export async function settings() { return must(await sb().from('app_settings').select('*').limit(1).maybeSingle()); }
+export async function settings() { const { getSettings } = await import('./admin.js'); return getSettings(); }   // 4.7.0 (SEG-29): por app_settings_staff()
 export async function glosaPareto(f = {}) { return must(await scope(sb().from('v_glosa_pareto').select('*'), f).limit(5000)); }
 export async function feeSummaryAll() { return must(await sb().from('v_fee_summary').select('*').order('client_name')); }

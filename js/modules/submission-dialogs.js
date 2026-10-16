@@ -82,7 +82,7 @@ export async function lineDialog(sub, line = null) {
       ${f('member_number', 'NSS / No. de afiliado *', text('member_number', line?.member_number, 'required inputmode="numeric"'))}
       ${f('authorization_number', 'No. de autorización', text('authorization_number', line?.authorization_number, 'autocomplete="off"'), 'Obligatoria para radicar.')}
       <div class="field" style="grid-column:1/-1"><label for="f_procedure_id">Concepto *</label><select id="f_procedure_id" name="procedure_id" required>${optsHtml(line?.procedure_id)}</select></div>
-      ${f('quantity', 'Cantidad *', text('quantity', line?.quantity ?? 1, 'type="number" min="0.01" step="0.01" required'))}
+      ${f('quantity', 'Cantidad *', text('quantity', line?.quantity ?? 1, 'type="number" min="1" max="999" step="1" inputmode="numeric" required'))}
       ${f('unit_amount', 'Monto unitario (RD$) *', text('unit_amount', line?.unit_amount ?? '', 'type="number" min="0" step="0.01" required'), html`<span id="tarHint"></span>`)}
       ${f('notes', 'Notas', text('notes', line?.notes, 'maxlength="300"'))}
       </div>`,
@@ -106,7 +106,8 @@ export async function lineDialog(sub, line = null) {
       if (!requireFields(form, ['service_date', 'patient_name', 'member_number', 'procedure_id', 'quantity', 'unit_amount'])) return false;
       if (d.patient_doc && !/^\d{11}$/.test(d.patient_doc.replace(/\D/g, ''))) { fieldError(form.elements.patient_doc, 'La cédula lleva 11 dígitos.'); return false; }
       if (d.service_date < min || d.service_date > maxD) { fieldError(form.elements.service_date, `Debe estar entre ${min} y ${maxD}.`); return false; }
-      if (Number(d.unit_amount) < 0 || Number(d.quantity) <= 0) { fieldError(form.elements.unit_amount, 'Revisa cantidad y monto.'); return false; }
+      if (Number(d.unit_amount) < 0) { fieldError(form.elements.unit_amount, 'Revisa el monto.'); return false; }
+      if (!Number.isInteger(Number(d.quantity)) || Number(d.quantity) < 1 || Number(d.quantity) > 999) { fieldError(form.elements.quantity, 'La cantidad debe ser un número entero entre 1 y 999.'); return false; }   // 4.7.0 (SEG-34)
       if (!dupConfirmed) {
         const dups = (await checkDuplicate(sub.organization_id, sub.ars_id, d.member_number, d.service_date, d.procedure_id, d.authorization_number))
           .filter((x) => x.service_line_id !== line?.id);

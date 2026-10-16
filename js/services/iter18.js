@@ -32,6 +32,19 @@ export const providerOptions = () => read(supabase.from('providers').select('id,
 export const pendingMessages = () => read(supabase.from('message_queue').select('id, kind, provider_id, organization_id, to_phone, subject, body, scheduled_for, status, patient_id').eq('status', 'pendiente').order('scheduled_for').limit(300));
 export const recentSummaries = () => read(supabase.from('message_queue').select('id, provider_id, organization_id, subject, body, scheduled_for, status').eq('kind', 'resumen_semanal').order('scheduled_for', { ascending: false }).limit(40));
 
+/** 4.7.0 · «null» visible en pantalla: replaceChildren/append/prepend convierten null, undefined y false en TEXTO («null», «false»).
+ *  Varias pantallas arman sus hijos con `cond ? nodo : null`; aquí se ignoran esos valores, igual que hace h(). Se aplica una sola vez. */
+if (typeof Element !== 'undefined') {
+  for (const m of ['replaceChildren', 'append', 'prepend']) {
+    const orig = Element.prototype[m];
+    if (orig && !orig.__sinNulos) {
+      const seguro = function (...kids) { return orig.apply(this, kids.filter((k) => k != null && k !== false)); };
+      seguro.__sinNulos = true;
+      Element.prototype[m] = seguro;
+    }
+  }
+}
+
 /** Constructor de nodos sin innerHTML (evita inyección de texto). h('div', {class:'x'}, 'texto', otroNodo) */
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -67,10 +80,10 @@ export function table(cols, rows, foot) {
 }
 export const note = (text, kind = 'info') => h('p', { class: `i18-note i18-${kind}`, role: kind === 'error' ? 'alert' : 'status' }, text);
 
-/** CSV para Excel en español: BOM, comillas y protección contra fórmulas (=, +, -, @). */
+/** CSV para Excel en español: BOM, comillas y protección contra fórmulas (=, +, -, @, tabulador y retorno de carro). */
 export function downloadCsv(filename, rows) {
   try { const m = (location.hash.replace(/^#\/?/, '').split('/')[0] || 'inicio').slice(0, 60); supabase.rpc('log_export', { p_module: m, p_file: String(filename).slice(0, 120), p_rows: Math.max(rows.length - 1, 0), p_org: null }).then(() => {}, () => {}); } catch (_) { /* 4.0: registro de exportaciones (no bloquea) */ }
-  const cell = (v) => { let s = v == null ? '' : String(v); if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = "'" + s; return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const cell = (v) => { let s = v == null ? '' : String(v); if (/^[\t\r]/.test(s) || (/^[=+\-@]/.test(s) && isNaN(Number(s)))) s = "'" + s; return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const blob = new Blob(['﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = h('a', { href: URL.createObjectURL(blob), download: filename });
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);

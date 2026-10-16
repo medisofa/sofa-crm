@@ -11,6 +11,7 @@ import { subStatus, TRANSITION_LABELS, CODE_STATUS, ECF_DGII, ECF_CLIENT } from 
 import { can, isStaff } from '../utils/permissions.js';
 import { isNCF } from '../utils/validation.js';
 import { waLink } from '../utils/whatsapp.js';
+import { downloadCsv } from '../utils/filters.js';
 import { lineDialog, importDialog, checklistDialog, radicarDialog, overrideDialog, commentDialog } from './submission-dialogs.js';
 import { listGlosas, submissionPayments } from '../services/finance.js';
 import { glosaStatus, claimStatus, DELIVERY_METHODS } from '../utils/constants.js';
@@ -175,13 +176,11 @@ export async function render(main, ctx) {
 
   function exportCsv() {
     const { sub, lines } = S;
-    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const head = ['Folio', 'Prestador', 'ARS', 'Período', 'Fecha', 'Afiliado', 'Cédula', 'NSS', 'Autorización', 'Código', 'Concepto', 'Cantidad', 'Unitario', 'Total', 'Tarifa'];
     const rows = lines.map((l) => [sub.folio, sub.provider_name, sub.ars_name, sub.period.slice(0, 7), l.service_date, l.patient_name, l.patient_doc, l.member_number, l.authorization_number,
       l.procedures?.internal_code, l.procedures?.description, l.quantity, l.unit_amount, l.amount, l.tariff_amount]);
-    const csv = '\uFEFF' + [head, ...rows].map((r) => r.map(q).join(';')).join('\n');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = `${sub.folio}-desglose.csv`; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    // 4.7.0 (SEG-30): el desglose lleva cédula y NSS; se exporta con protección contra fórmulas y queda registrado
+    downloadCsv(`${sub.folio}-desglose.csv`, head, rows);
   }
 
   async function doMove(to) {

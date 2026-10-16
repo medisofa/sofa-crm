@@ -8,7 +8,7 @@ import { can, ROLES } from '../utils/permissions.js';
 import { date, dateTime, todayISO } from '../utils/formatters.js';
 import { isEmail } from '../utils/validation.js';
 import { capturerScopes, providersOfOrg, setCapturerScope } from '../services/claims.js';
-import { invoke } from '../services/iter18.js';
+import { invoke, rpc, supabase } from '../services/iter18.js';
 
 const ORG_ROLES = ['client', 'capturer'];   // roles de la organización del cliente (no SOFA)
 
@@ -167,8 +167,34 @@ async function runRolesReport(box) {
       ${r.n && (r.severity !== 'ok' || r.check_code === 'super_admin') ? html`<div class="t2">${r.users.slice(0, 12).map((u) => [u.name, u.email, u.role, u.roles, u.org, u.medico, u.estado].filter(Boolean).join(' · ')).join(' | ')}${r.users.length > 12 ? ` y ${r.users.length - 12} más` : ''}</div>` : ''}</div></div>`; })}</div>`);
 }
 
+/** 4.7.0 (SEG-21) · Médico con historia clínica activa: no se muestra ninguna clave temporal (con ella se podría entrar como él).
+ *  Se pide el motivo, queda en la bitácora de usuarios y Supabase envía el enlace de recuperación al correo del propio médico. */
+async function recoveryLink(userId, name, email) {
+  await formDialog({
+    title: `Enlace de recuperación · ${name}`, submitLabel: 'Registrar y enviar enlace',
+    body: html`<p><b>${name}</b> tiene historia clínica activa. Por seguridad SOFA no genera una clave temporal para este usuario: se envía un enlace de recuperación a su correo (<b>${email}</b>) y solo él elige su contraseña nueva.</p>
+      <div class="field"><label for="f_reason">Motivo del restablecimiento *</label><textarea id="f_reason" name="reason" rows="3" maxlength="300" required placeholder="Ej.: el médico olvidó su clave y pidió ayuda por teléfono"></textarea><span class="hint">Mínimo 10 caracteres. Queda en la bitácora de usuarios.</span></div>`,
+    onSubmit: async (d, form) => {
+      if (!requireFields(form, ['reason'])) return false;
+      const reason = String(d.reason || '').trim();
+      if (reason.length < 10) { fieldError(form.elements.reason, 'Escriba el motivo con al menos 10 caracteres.'); return false; }
+      await rpc('record_recovery_link', { p_user: userId, p_reason: reason });
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/login.html` });
+      if (error) throw new Error(`El motivo quedó registrado, pero Supabase no pudo enviar el correo (${error.message}). Espere unos minutos y vuelva a intentarlo.`);
+      toast(`Enlace de recuperación enviado a ${email}`, 'ok');
+      return true;
+    }
+  });
+}
+
 /** 2.1 · Restablecer contraseña (solo Super Admin): clave temporal que se muestra una sola vez; el usuario la cambia al entrar */
 async function resetPassword(userId, name) {
+  // 4.7.0 (SEG-21): si es un médico con historia clínica activa, enlace al correo en vez de clave temporal.
+  // Si la migración 176 todavía no está aplicada, se sigue con la clave temporal pero con la advertencia.
+  let info = null;
+  try { info = await rpc('password_reset_info', { p_user: userId }); }
+  catch (err) { if (!/password_reset_info|schema cache|does not exist/i.test(String(err?.message))) { toast(friendlyError(err), 'bad'); return; } }
+  if (info?.clinical) { try { await recoveryLink(userId, name, info.email); } catch (err) { toast(friendlyError(err), 'bad'); } return; }
   if (!(await confirmDialog('Restablecer contraseña', `Se generará una clave temporal para ${name}. Su contraseña actual dejará de funcionar y deberá cambiar la temporal al entrar.`, 'Restablecer'))) return;
   let r;
   try { r = await invoke('restablecer-clave', { user_id: userId }); } catch (err) { toast(friendlyError(err), 'bad'); return; }
@@ -177,7 +203,8 @@ async function resetPassword(userId, name) {
     body: html`<p>Entregue esta clave por un medio privado (en persona o mensaje directo). <b>Se muestra una sola vez.</b></p>
       <p class="mono" style="font-size:1.3rem;letter-spacing:.06em;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);user-select:all" id="tmpPass">${r.temporary_password}</p>
       <button type="button" class="btn sm" id="cpPass">Copiar clave</button>
-      <p class="small muted">Al entrar con ella, SOFA le pedirá una contraseña nueva. Quedó registrado en la bitácora de usuarios.</p>`,
+      <p class="small muted">Al entrar con ella, SOFA le pedirá una contraseña nueva. Quedó registrado en la bitácora de usuarios.</p>
+      <p class="small"><b>Advertencia:</b> quien conozca esta clave puede entrar como ${name}. No la use con un médico que maneja historia clínica; para ellos use el enlace de recuperación al correo.</p>`,
     onOpen: (form) => form.querySelector('#cpPass').addEventListener('click', async (e) => {
       try { await navigator.clipboard.writeText(r.temporary_password); e.currentTarget.textContent = 'Copiada'; } catch (_) { e.currentTarget.textContent = 'Seleccione y copie con Ctrl+C'; }
     }),

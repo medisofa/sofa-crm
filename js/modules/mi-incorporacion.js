@@ -2,7 +2,10 @@
  *  Muestra el avance de su oportunidad con SOFA y de su habilitación MISPAS. Al convertirse en cliente pasa a Médico. */
 import { rpc, h, fmtDate, note, guarded } from '../services/iter18.js';
 
-const STAGE = { nuevo: 'Nuevo', contactado: 'Contactado', reunion: 'Reunión', propuesta: 'Propuesta enviada', negociacion: 'Negociación', ganado: 'Aprobado', perdido: 'Cerrado' };
+// 4.7.0: todas las etapas que puede devolver prospect_portal tienen su texto en español (antes «prospecto» salía tal cual)
+const STAGE = { prospecto: 'Primer contacto', nuevo: 'Nuevo', contactado: 'Contactado', reunion: 'Presentación', evaluacion: 'Seguimiento', propuesta: 'Propuesta enviada', negociacion: 'Negociación',
+  acuerdo: 'Acuerdo', contratado: 'Contratado', implementacion: 'Implementación', cliente: 'Activo', ganado: 'Aprobado', perdido: 'Cerrado' };
+const HAB = { diagnostico: 'Diagnóstico de brechas', correccion: 'Corrección', ensamblaje: 'Ensamblaje del expediente', depositado: 'Depositado en DGHA', inspeccion: 'Inspección', habilitado: 'Habilitado', cancelado: 'Cancelado' };
 
 export async function render(root) {
   root.replaceChildren();
@@ -20,7 +23,7 @@ export async function render(root) {
       : note('Todavía no hay servicios en proceso. Su asesor lo registrará después de la primera reunión.'),
     h('h3', {}, 'Habilitación MISPAS'),
     d.habilitation.length ? h('div', { class: 'i18-list' }, d.habilitation.map((x) => h('div', { class: 'i18-card' },
-      h('strong', {}, x.name), h('div', {}, `${x.stage || ''} · ${x.ready_pct ?? 0}% listo`),
+      h('strong', {}, x.name), h('div', {}, `${HAB[x.stage] || x.stage || 'Sin etapa'} · ${x.ready_pct ?? 0}% listo`),
       h('div', { class: 'ac-progress' }, h('div', { style: `width:${Math.max(0, Math.min(100, x.ready_pct || 0))}%` })),
       x.target_date ? h('div', { class: 'i18-sub' }, `Meta: ${fmtDate(x.target_date)}`) : '')))
       : note('Sin caso de habilitación abierto.'));
