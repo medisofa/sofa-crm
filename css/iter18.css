@@ -548,3 +548,15 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .cli-mut{color:var(--i18-mut,#5b6872)}
 .cli-add{display:flex;gap:8px;margin-top:10px}
 .cli-add input{flex:1;min-width:0}
+
+/* 5.7.0 · I68a · Hospitalización */
+.hosp-list{display:flex;flex-direction:column;gap:6px}
+.hosp-row{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;border:1px solid var(--i18-line,#d9dee2);border-radius:8px;padding:10px 14px;background:var(--i18-card,#fff);cursor:pointer}
+.hosp-mut{color:var(--i18-mut,#5b6872)}
+.hosp-form{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.hosp-form input,.hosp-form select{min-width:0}
+.hosp-tbl{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+.hosp-tbl th,.hosp-tbl td{border-bottom:1px solid var(--i18-line,#d9dee2);padding:6px 8px;text-align:left}
+.hosp-tbl td.num,.hosp-tbl th.num{text-align:right}
+.hosp-foot{margin:6px 0 12px}
+.hosp-detail{border-top:2px solid var(--i18-line,#d9dee2);margin-top:16px;padding-top:12px}
