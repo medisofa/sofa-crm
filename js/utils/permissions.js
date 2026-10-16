@@ -43,6 +43,7 @@ export const NAV = [
     { route: 'mi-bandeja', label: 'Mi bandeja', roles: ['super_admin', 'admin', 'operations', 'billing'], ready: true },   // 4.9 · I59
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
+    { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.7 · I68a
     { route: 'tarifas-privadas', label: 'Tarifas privadas', roles: ['super_admin', 'admin', 'assistant', 'client'], ready: true },
     { route: 'dashboard', label: 'Dashboard BI', roles: [...NO_OPS(STAFF), 'client'], ready: true }
   ]},
@@ -60,6 +61,8 @@ export const NAV = [
     { route: 'centros', label: 'Centros de salud', roles: ['super_admin', 'admin', 'client'], ready: true }
   ]},
   { group: 'Mis resultados', items: [   // 1.9 · Iteraciones 18 y 26
+    { route: 'mi-dinero', label: 'Mi dinero', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
+    { route: 'mis-glosas', label: 'Mis glosas', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
     { route: 'estado-cuenta', label: 'Estado de cuenta (ROI)', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
     { route: 'calendario-cobros', label: 'Calendario de cobros', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'rentabilidad', label: 'Rentabilidad por ARS', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
@@ -150,6 +153,7 @@ export const NAV = [
   ]},
   { group: 'Mi cuenta', items: [
     { route: 'mi-cuenta-sofa', label: 'Mi cuenta con SOFA', roles: ['client'], ready: true },   // 3.0 · Iteración 40
+    { route: 'clinica', label: 'Mi clínica', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.6 · I66
     { route: 'mi-plan', label: 'Mi plan', roles: ['client', 'super_admin', 'admin', 'operations', 'assistant'], ready: true },   // 4.8 · P1: consumo y límites del plan
     { route: 'mi-suscripcion', label: 'Mi suscripción', roles: ['client', 'super_admin', 'admin'], ready: true },   // 4.9 · P2
     { route: 'mi-puesta-en-marcha', label: 'Mi puesta en marcha', roles: ['client'], ready: true },   // 4.9 · I56
