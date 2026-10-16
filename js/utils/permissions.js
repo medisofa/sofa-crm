@@ -28,7 +28,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja'];   // 4.9 · I59: + Mi bandeja // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
+export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -115,7 +115,11 @@ export const NAV = [
     { route: 'onboarding-30', label: 'Onboarding 30 días', roles: ['super_admin', 'admin', 'assistant', 'operations'], ready: true },
     { route: 'mis-30-dias', label: 'Mis primeros 30 días', roles: ['client'], ready: true },
     { route: 'tarifas-versiones', label: 'Versiones de tarifario', roles: ['super_admin', 'admin', 'operations', 'assistant', 'auditor', 'glosas'], ready: true },   // 4.9 · I57 (no Facturación)
-    { route: 'aplicar-pago', label: 'Aplicar pago de la ARS', roles: ['super_admin', 'admin', 'glosas'], ready: true }   // 4.9 · I58
+    { route: 'aplicar-pago', label: 'Aplicar pago de la ARS', roles: ['super_admin', 'admin', 'glosas'], ready: true },   // 4.9 · I58
+    // 5.0.0 · I60 a I62 (espejo de los permisos de las migraciones 192, 194 y 196)
+    { route: 'reconsideracion', label: 'Reconsideración de glosas', roles: ['super_admin', 'admin', 'glosas', 'billing', 'client'], ready: true },   // I60 (Facturación y Médico en solo lectura)
+    { route: 'calidad-captura', label: 'Calidad de captura', roles: ['super_admin', 'admin', 'operations', 'capturer'], ready: true },   // I61 (no Facturación)
+    { route: 'expediente', label: 'Expediente digital', roles: ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor', 'client', 'capturer'], ready: true }   // I62
   ]},
   { group: 'Habilitación', items: [
     { route: 'habilitacion', label: 'Habilitación MISPAS', roles: ['super_admin', 'admin', 'assistant', 'billing', 'auditor', 'client'], ready: true }
@@ -140,13 +144,16 @@ export const NAV = [
     { route: 'revision', label: 'Revisión del sistema', roles: ['super_admin'], ready: true },   // 2.6 · Iteración 36
     { route: 'planes', label: 'Planes de los clientes', roles: ['super_admin', 'admin'], ready: true },   // 4.8 · P1: asignar planes y bloqueo por plan
     { route: 'suscripciones', label: 'Suscripciones y pre-facturas', roles: ['super_admin', 'admin'], ready: true },   // 4.9 · P2
-    { route: 'puesta-en-marcha', label: 'Puesta en marcha de clientes', roles: ['super_admin', 'admin', 'operations'], ready: true }   // 4.9 · I56
+    { route: 'puesta-en-marcha', label: 'Puesta en marcha de clientes', roles: ['super_admin', 'admin', 'operations'], ready: true },   // 4.9 · I56
+    { route: 'cola-correos', label: 'Cola de correos', roles: ['super_admin', 'admin'], ready: true },   // 5.0 · I63
+    { route: 'rendimiento', label: 'Rendimiento y archivo', roles: ['super_admin', 'admin', 'operations'], ready: true }   // 5.0 · I64 (Operaciones solo consulta)
   ]},
   { group: 'Mi cuenta', items: [
     { route: 'mi-cuenta-sofa', label: 'Mi cuenta con SOFA', roles: ['client'], ready: true },   // 3.0 · Iteración 40
     { route: 'mi-plan', label: 'Mi plan', roles: ['client', 'super_admin', 'admin', 'operations', 'assistant'], ready: true },   // 4.8 · P1: consumo y límites del plan
     { route: 'mi-suscripcion', label: 'Mi suscripción', roles: ['client', 'super_admin', 'admin'], ready: true },   // 4.9 · P2
     { route: 'mi-puesta-en-marcha', label: 'Mi puesta en marcha', roles: ['client'], ready: true },   // 4.9 · I56
+    { route: 'mis-avisos', label: 'Mis avisos por correo', roles: ['client', 'super_admin', 'admin', 'operations', 'billing', 'glosas'], ready: true },   // 5.0 · I63
     { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer', 'prospect'], ready: true },
     { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer', 'prospect'], ready: true },   // 2.0 · MFA
     { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer', 'prospect'], ready: true },
@@ -172,12 +179,12 @@ NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route))
 export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'casos-exito', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
-  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'reclamaciones', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
-  { key: 'cobros', group: 'Cobros', routes: ['glosas', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
+  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
+  { key: 'cobros', group: 'Cobros', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
-  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
-  { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
+  { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
 
 export const allRoutes = () => NAV.flatMap((g) => g.items);

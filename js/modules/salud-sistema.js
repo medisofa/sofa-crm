@@ -10,8 +10,9 @@ export async function render(root) {
   const health = h('div', { 'aria-live': 'polite' });
   const review = h('div', { 'aria-live': 'polite' });
   const drill = h('div');
+  const perf = h('div', { 'aria-live': 'polite' });   // I64: tiempos de carga y tamaño de la base
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Seguridad y salud del sistema'),
-    h('p', { class: 'i18-sub' }, 'Lo que hay que revisar para crecer sin sustos: tareas que fallan, quién tiene acceso, respaldos probados y quién descarga datos.'), health, drill, review));
+    h('p', { class: 'i18-sub' }, 'Lo que hay que revisar para crecer sin sustos: tareas que fallan, quién tiene acceso, respaldos probados y quién descarga datos.'), health, perf, drill, review));
 
   async function loadHealth() {
     const d = await guarded(health, () => rpc('system_health'));
@@ -70,6 +71,17 @@ export async function render(root) {
   const table = (head, rows) => h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
     h('thead', {}, h('tr', {}, head.map((x) => h('th', {}, x)))), h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x) => h('td', {}, x)))))));
 
-  await loadHealth(); await loadReview();
+  // I64 · Rendimiento: p95 de carga y espacio de la base (si la migración 200 aún no está aplicada, la tarjeta no aparece y lo demás sigue igual)
+  async function loadPerf() {
+    try {
+      const [r, d] = await Promise.all([rpc('perf_report', { p_days: 7 }), rpc('perf_db_overview')]);
+      const p95 = r.overall && r.overall.n ? `${r.overall.p95} ms (meta ${r.target_ms} ms)` : 'sin mediciones todavía';
+      const malo = r.overall && r.overall.n && !r.overall.ok;
+      perf.replaceChildren(h('h3', {}, 'Rendimiento'), note(`Carga de pantallas (p95, 7 días): ${p95} · base de datos: ${d.used_pct} % del límite, se llena en ${d.days_to_limit == null ? 'más de lo medible' : d.days_to_limit + ' días'}.`, malo || d.state === 'critico' ? 'warn' : 'info'),
+        h('a', { class: 'i18-link', href: '#/rendimiento' }, 'Ver detalle en «Rendimiento y archivo»'));
+    } catch (_) { perf.replaceChildren(); }
+  }
+
+  await loadHealth(); await loadPerf(); await loadReview();
 }
 export default render;
