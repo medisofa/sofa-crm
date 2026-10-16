@@ -43,8 +43,8 @@ export async function filterBar(el, ctx, onChange, { period = true, months = 6 }
 
 /** Descarga filas como CSV (separador ; y BOM para Excel en español) */
 export function downloadCsv(name, head, rows) {
-  // 4.0: protección contra fórmulas (=, +, -, @) al abrir en Excel y registro de la exportación
-  const q = (v) => { let t = String(v ?? ''); if (/^[=+\-@]/.test(t) && isNaN(Number(t))) t = "'" + t; return `"${t.replace(/"/g, '""')}"`; };
+  // 4.0/4.7: protección contra fórmulas (=, +, -, @, tabulador y retorno de carro) al abrir en Excel y registro de la exportación
+  const q = (v) => { let t = String(v ?? ''); if (/^[\t\r]/.test(t) || (/^[=+\-@]/.test(t) && isNaN(Number(t)))) t = "'" + t; return `"${t.replace(/"/g, '""')}"`; };
   const csv = '\uFEFF' + [head, ...rows].map((r) => r.map(q).join(';')).join('\n');
   logExport(name, rows.length);
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = name; a.click();

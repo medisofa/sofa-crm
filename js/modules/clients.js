@@ -41,9 +41,11 @@ export async function render(main, ctx) {
   load();
 }
 export function pager(count, page, size = CONFIG.PAGE_SIZE) {
-  const pages = Math.max(1, Math.ceil((count || 0) / size));
+  // 4.7.0: si js/config.js no define PAGE_SIZE el tamaño no puede ser «undefined» (daba «página 1 de NaN»); los servicios usan 25 por defecto
+  const tam = Number(size) > 0 ? Number(size) : 25;
+  const pages = Math.max(1, Math.ceil((Number(count) || 0) / tam));
   if (pages <= 1) return html`<div class="pager">${num(count)} registros</div>`;
-  return html`<div class="pager"><span>${num(count)} registros · página ${page + 1} de ${pages}</span>
+  return html`<div class="pager"><span>${num(count || 0)} registros · página ${(Number(page) || 0) + 1} de ${pages}</span>
     <button class="btn sm" data-page="${page - 1}" ${page <= 0 ? 'disabled' : ''}>Anterior</button>
     <button class="btn sm" data-page="${page + 1}" ${page >= pages - 1 ? 'disabled' : ''}>Siguiente</button></div>`;
 }

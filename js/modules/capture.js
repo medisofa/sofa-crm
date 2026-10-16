@@ -15,6 +15,7 @@ import {
 } from '../services/claims.js';
 import { requiredDocsPreview, dossierStatus } from '../services/dossier.js';
 import { dossierPill } from './dossier-card.js';
+import { initCamara } from './captura-camara.js';
 
 /** Se conserva entre visitas dentro de la misma sesión: médico, ARS, fecha y clínica */
 const memory = { provider: '', ars: '', date: '', clinic: '', careMode: 'ambulatorio' };
@@ -57,6 +58,7 @@ export async function render(main, ctx) {
         <div class="field"><label for="c_notes">Observaciones</label><input id="c_notes" name="notes" maxlength="300"></div>
         <label class="check" style="margin:8px 0"><input type="checkbox" id="c_keep"> Mantener el mismo paciente para el siguiente registro (varios servicios del mismo paciente)</label>
         <div id="dupBox"></div>
+        <div id="camHost"></div>
         <div class="toolbar" style="margin-top:10px">
           <button class="btn primary" type="submit" id="save">Guardar y registrar siguiente</button>
           <button class="btn" type="button" id="clear">Limpiar</button>
@@ -72,6 +74,8 @@ export async function render(main, ctx) {
   const alive = () => document.body.contains(form);
   el('c_date').value = memory.date || todayISO();
   el('c_clinic').value = memory.clinic || '';
+  // 4.5.2: fotografiar documentos (autorización, receta, carnet, cédula, factura); las fotos suben al guardar la reclamación
+  const cam = initCamara({ host: el('camHost'), el, ars: () => S.ars, services: () => S.services });
 
   // ------------------------------------------------------------ catálogos
   try {
@@ -247,7 +251,7 @@ export async function render(main, ctx) {
   // ------------------------------------------------------------ guardar
   const clearPatient = () => {
     ['c_pat', 'c_nss', 'c_auth', 'c_authdate', 'c_doc', 'c_notes'].forEach((i) => { el(i).value = ''; fieldError(el(i), ''); });
-    el('c_qty').value = '1'; paint(el('dupBox'), html``);
+    el('c_qty').value = '1'; paint(el('dupBox'), html``); cam.limpiar();
   };
   function values() {
     return {
@@ -294,6 +298,12 @@ export async function render(main, ctx) {
     try {
       const r = await captureClaim(v);
       memory.clinic = v.clinic;
+      if (cam.hayPendientes()) {
+        const orgId = S.providers.find((p) => p.id === v.provider)?.organization_id;
+        const up = await cam.subirPendientes(r, orgId);
+        if (up.fallas.length) toast(`${r.folio} registrada, pero ${up.fallas.length === 1 ? 'una foto no se subió' : 'hubo fotos que no se subieron'}: ${up.fallas.join(' · ')} Abre la reclamación y súbelas desde su expediente.`, 'bad');
+        else if (up.subidas) toast(`${up.subidas} ${up.subidas === 1 ? 'foto agregada' : 'fotos agregadas'} al expediente de ${r.folio}`, 'ok');
+      }
       const authDate = el('c_authdate').value;
       if (authDate) { try { const { setClaimAuthorizationDate } = await import('../services/consultorio.js'); await setClaimAuthorizationDate(r.id, authDate); } catch (err) { toast(friendlyError(err), 'bad'); } }
       if (cita) {

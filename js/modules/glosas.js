@@ -126,7 +126,7 @@ async function renderDetail(main, ctx) {
         <div class="card"><h2>Historial</h2><div class="list">${hist.map((h) => html`<div class="li"><div class="b"><div class="t1" style="font-weight:500">${h.from_status ? `${glosaStatus(h.from_status)[0]} → ` : ''}${glosaStatus(h.to_status)[0]}</div><div class="t2">${dateTime(h.changed_at)}${names[h.changed_by] ? ` · ${names[h.changed_by]}` : ''}${h.comment ? ` · ${h.comment}` : ''}</div></div></div>`)}</div></div>
       </div>`);
     box.querySelectorAll('[data-acta-pdf]').forEach((b) => b.addEventListener('click', () => busy(b, async () => {
-      try { const { downloadActaPdf } = await import('../utils/pdf-invoice.js'); const st = await import('../services/admin.js').then((m) => m.getSettings()).catch(() => null);
+      try { const { downloadActaPdf } = await import('../utils/pdf-invoice.js'); const st = await import('../services/admin.js').then((m) => m.getPublicSettings()).catch(() => null);
         toast(`Descargado ${await downloadActaPdf({ act: actas.find((a) => a.id === b.dataset.actaPdf), glosa: g, items, normRef: st?.glosa_norm_reference })}`, 'ok'); }
       catch (err) { toast(friendlyError(err), 'bad'); }
     })));

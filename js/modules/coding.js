@@ -8,6 +8,7 @@ import { money, num, date, todayISO, rangeContains } from '../utils/formatters.j
 import { can, isStaff } from '../utils/permissions.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
+import { downloadCsv } from '../utils/filters.js';
 
 export async function render(main, ctx) {
   if (ctx.arg) { const m = await import('./coding-concept.js'); return m.render(main, ctx); }
@@ -92,9 +93,9 @@ export async function render(main, ctx) {
     $('#unc', main)?.addEventListener('change', (e) => { st.onlyUncoded = e.target.checked; st.page = 0; load(); });
     $('#ars', main)?.addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });
     $('#csvGap', main)?.addEventListener('click', () => {
-      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const csv = '\uFEFF' + [['Código', 'Concepto', 'ARS con tarifa', 'Mínimo', 'Máximo', 'Brecha %', 'Paga menos', 'Paga más', 'Detalle'], ...gapRows.map((g) => [g.internal_code, g.description, g.ars_count, g.min_amount, g.max_amount, g.gap_pct, g.lowest_ars, g.highest_ars, g.detail])].map((r) => r.map(q).join(';')).join('\n');
-      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'sofa-brechas-tarifarias.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      // 4.7.0 (SEG-30): exportación con protección contra fórmulas y registro de la descarga
+      downloadCsv('sofa-brechas-tarifarias.csv', ['Código', 'Concepto', 'ARS con tarifa', 'Mínimo', 'Máximo', 'Brecha %', 'Paga menos', 'Paga más', 'Detalle'],
+        gapRows.map((g) => [g.internal_code, g.description, g.ars_count, g.min_amount, g.max_amount, g.gap_pct, g.lowest_ars, g.highest_ars, g.detail]));
     });
   }
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (b) { st.tab = b.dataset.t; st.page = 0; st.q = ''; if (st.tab !== 'tarifario') st.arsId = ''; redraw(); } });

@@ -66,6 +66,9 @@ async function boot() {
   try { state.session = await getSession(); }
   catch (e) { fatal('No se pudo iniciar', friendlyError(e), html`<button class="btn primary" id="rt">Reintentar</button>`); $('#rt').onclick = () => location.reload(); return; }
   if (!state.session) { location.replace('login.html'); return; }
+  // 4.7.0 · Dos pasos al entrar (falla cerrado): con factor verificado se pide el código antes de cargar nada
+  try { const mfa = await import('./modules/entrada-mfa.js'); if (await mfa.pedirCodigo(app, { onSalir: () => signOut('salida') })) return; }
+  catch (e) { fatal('No se pudo comprobar la verificación en dos pasos', 'Por seguridad no se abre el sistema. Recargue la página; si sigue igual, avise al Administrador.', html`<button class="btn primary" id="rt">Reintentar</button> <button class="btn" id="out">Cerrar sesión</button>`); $('#rt').onclick = () => location.reload(); $('#out').onclick = () => signOut('salida'); return; }
 
   let ctx;
   try { ctx = await loadContext(); }
@@ -85,6 +88,9 @@ async function boot() {
     $('#out').onclick = () => signOut('sin-acceso'); return;
   }
   state.role = state.membership.role;
+  // 4.7.0 · Si SOFA exige dos pasos al personal y esta cuenta no tiene factor, se guía a inscribirlo (falla cerrado)
+  try { const mfa = await import('./modules/entrada-mfa.js'); if (await mfa.exigirInscripcion(app, state.role, { onSalir: () => signOut('salida') })) return; }
+  catch (e) { fatal('No se pudo comprobar la política de seguridad', 'Por seguridad no se abre el sistema. Recargue la página; si sigue igual, avise al Administrador.', html`<button class="btn primary" id="rt">Reintentar</button> <button class="btn" id="out">Cerrar sesión</button>`); $('#rt').onclick = () => location.reload(); $('#out').onclick = () => signOut('salida'); return; }
   if (await passwordGate()) return;   // 1.9 · cambio de clave obligatorio en el primer acceso
   // Organización operadora (SOFA) para crear registros del CRM; null para usuarios de clientes
   state.operatorId = (state.memberships.find((m) => m.kind === 'operator') || {}).organization_id || null;

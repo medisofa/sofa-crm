@@ -10,11 +10,24 @@ export async function listMemberships() {
 export async function setUserActive(userId, active) {
   return must(await sb().rpc('set_user_active', { p_user: userId, p_active: active }));
 }
+/** 4.7.0 (SEG-29) · La fila completa (meta de ingresos, costo por hora, datos bancarios…) solo la entrega app_settings_staff() al personal.
+ *  Si la migración 176 todavía no está aplicada (función inexistente), se lee como antes. */
 export async function getSettings() {
-  return must(await sb().from('app_settings').select('*').limit(1).maybeSingle());
+  const r = await sb().rpc('app_settings_staff');
+  if (!r.error) return (r.data || [])[0] || null;
+  if (r.error.code === 'PGRST202' || r.error.code === '42883') return must(await sb().from('app_settings').select('*').limit(1).maybeSingle());
+  throw r.error;
+}
+/** Solo lo que necesita cualquier usuario (plazos y texto de la normativa de glosas). */
+export async function getPublicSettings() {
+  const r = await sb().rpc('app_settings_public');
+  if (!r.error) return r.data || null;
+  if (r.error.code === 'PGRST202' || r.error.code === '42883') return must(await sb().from('app_settings').select('glosa_norm_reference, payment_term_days, alert_days').limit(1).maybeSingle());
+  throw r.error;
 }
 export async function updateSettings(operatorId, values) {
-  return must(await sb().from('app_settings').update(values).eq('operator_id', operatorId).select().single());
+  must(await sb().from('app_settings').update(values).eq('operator_id', operatorId));   // sin .select(): las columnas sensibles no se devuelven por la API
+  return getSettings();
 }
 export async function getProfile(userId) {
   return must(await sb().from('profiles').select('id, full_name, phone, is_active, created_at').eq('id', userId).single());

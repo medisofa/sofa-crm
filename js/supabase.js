@@ -1,5 +1,5 @@
 /**
- * SOFA · Cliente de Supabase (supabase-js 2.117.2, copia local en /vendor).
+ * SOFA · Cliente de Supabase (supabase-js 2.117.2, copia local en /vendor). 4.7.0: sesión en sessionStorage (SEG-22).
  * La librería se sirve desde el propio repositorio: no depende de un CDN
  * externo y la versión queda fija.
  */
@@ -40,6 +40,36 @@ export function configProblem() {
   return null;
 }
 
+/**
+ * 4.7.0 (SEG-22) · La sesión vive en sessionStorage: se borra al cerrar la pestaña o el navegador (antes quedaba en localStorage).
+ * Transición: si la pantalla de ingreso (login.html) todavía la guardó en localStorage, aquí se mueve a sessionStorage una sola vez
+ * y se borra de localStorage. Si el navegador no deja usar sessionStorage, la sesión queda en memoria (se pierde al recargar).
+ */
+const AUTH_KEY = 'sofa-auth';
+const memoria = new Map();
+export const sesionStorage = {
+  getItem(k) {
+    try {
+      const v = window.sessionStorage.getItem(k);
+      if (v != null) return v;
+      if (k === AUTH_KEY || k.startsWith(AUTH_KEY + '-')) {   // sesión que dejó el ingreso en localStorage
+        const viejo = window.localStorage.getItem(k);
+        if (viejo != null) { window.sessionStorage.setItem(k, viejo); window.localStorage.removeItem(k); return viejo; }
+      }
+      return null;
+    } catch (_) { return memoria.has(k) ? memoria.get(k) : null; }
+  },
+  setItem(k, v) {
+    try { window.sessionStorage.setItem(k, v); try { window.localStorage.removeItem(k); } catch (_) { /* sin efecto */ } }
+    catch (_) { memoria.set(k, v); }
+  },
+  removeItem(k) {
+    memoria.delete(k);
+    try { window.sessionStorage.removeItem(k); } catch (_) { /* sin efecto */ }
+    try { window.localStorage.removeItem(k); } catch (_) { /* sin efecto */ }
+  }
+};
+
 let client = null;
 /** Cliente único de Supabase (null si la configuración no es válida). */
 export function sb() {
@@ -49,7 +79,7 @@ export function sb() {
     throw new Error('No se cargó la librería de Supabase (vendor/supabase-js).');
   }
   client = window.supabase.createClient(projectUrl(), publishableKey(), {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'sofa-auth' },
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: AUTH_KEY, storage: sesionStorage },
     global: { headers: { 'x-sofa-client': `web/${APP_VERSION}` } }
   });
   return client;

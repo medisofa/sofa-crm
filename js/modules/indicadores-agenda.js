@@ -21,7 +21,7 @@ export async function render(root) {
   async function load() {
     const d = await guarded(out, () => rpc('agenda_indicators', { p_provider: sel.value, p_from: from.value, p_to: to.value }));
     if (!d) return;
-    const t = d.totals, r = d.rates, p = d.patients;
+    const t = d.totals || {}, r = d.rates || {}, p = d.patients || {};   // 4.7.0: sin datos no se imprime «null»
     out.replaceChildren(
       h('div', { class: 'i18-kpis' },
         kpi('Citas', num(t.citas)), kpi('Atendidas', num(t.atendidas)),
@@ -31,11 +31,11 @@ export async function render(root) {
         kpi('Atendidas por ARS', num(t.ars), r.ars_pct == null ? null : `${pct(r.ars_pct)} del total · ${num(t.privado)} privadas`)),
       t.sin_cerrar > 0 ? note(`Hay ${num(t.sin_cerrar)} cita(s) pasadas sin cerrar (programadas, confirmadas o en espera). Márquelas como atendidas, no asistió o canceladas para que los números sean exactos.`, 'error') : null,
       h('h3', {}, 'Atendidas por día de la semana'),
-      table([{ label: 'Día', get: (x) => DOW[x.dow] }, { label: 'Atendidas', right: true, get: (x) => num(x.atendidas) }], d.by_weekday),
+      table([{ label: 'Día', get: (x) => DOW[x.dow] || '—' }, { label: 'Atendidas', right: true, get: (x) => num(x.atendidas) }], d.by_weekday || []),
       h('h3', {}, 'Citas por hora'),
-      table([{ label: 'Hora', get: (x) => `${String(x.hour).padStart(2, '0')}:00` }, { label: 'Citas', right: true, get: (x) => num(x.citas) }], d.by_hour),
+      table([{ label: 'Hora', get: (x) => (x.hour == null ? 'Sin hora' : `${String(x.hour).padStart(2, '0')}:00`) }, { label: 'Citas', right: true, get: (x) => num(x.citas) }], d.by_hour || []),
       h('h3', {}, 'Motivos más frecuentes'),
-      table([{ label: 'Motivo', get: (x) => x.reason }, { label: 'Citas', right: true, get: (x) => num(x.citas) }], d.top_reasons));
+      table([{ label: 'Motivo', get: (x) => x.reason || 'Sin motivo' }, { label: 'Citas', right: true, get: (x) => num(x.citas) }], d.top_reasons || []));
   }
   go.addEventListener('click', load);
   sel.addEventListener('change', load);
