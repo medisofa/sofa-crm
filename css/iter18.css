@@ -588,3 +588,33 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .sol-descartada{background:#eceff3;color:#5b6674}
 .sol-dup{margin:12px 0 4px;padding:9px 12px;border-left:3px solid #8a5a00;background:#fdf3e0;
   color:#7a5200;border-radius:0 8px 8px 0;font-size:.9rem}
+
+/* 5.17.0 · I73 · Permisos y menús */
+.pm-roles{gap:8px}
+.pm-roles .i18-btn{font-size:.88rem;padding:7px 12px}
+.pm-fijo{opacity:.75;font-style:italic}
+.pm-vacio{border:1px dashed var(--border,#cfd6df);border-radius:10px;padding:22px;text-align:center}
+.pm-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0}
+.pm-col{border:1px solid var(--border,#e3e7ed);border-radius:10px;padding:12px 14px;background:var(--surface,#fff)}
+.pm-col h4{margin:0 0 2px}
+.pm-fam{margin-top:12px}
+.pm-fam-t{font-size:.76rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--text-muted,#5b6674);margin-bottom:5px}
+.pm-lista{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.pm-lista li{margin:0}
+.pm-chip{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--border,#cfd6df);
+  background:var(--surface,#fff);color:inherit;border-radius:999px;padding:5px 11px;
+  font:inherit;font-size:.84rem;cursor:pointer;line-height:1.3}
+.pm-chip:hover:not(:disabled){border-color:var(--primary,#1f6feb);color:var(--primary,#1f6feb)}
+.pm-chip:disabled{cursor:default;opacity:.7}
+.pm-chip-fijo{background:var(--surface-2,#f1f4f8);font-style:italic}
+.pm-chip-leer{cursor:default;background:var(--surface-2,#f1f4f8)}
+.pm-sig{font-weight:700;font-family:ui-monospace,Menlo,monospace}
+.pm-real,.pm-hist{margin-top:16px;border:1px solid var(--border,#e3e7ed);border-radius:10px;padding:10px 14px}
+.pm-real summary,.pm-hist summary{cursor:pointer;font-weight:600}
+.pm-real-lista{margin-top:10px}
+.pm-hist-lista{display:block;font-size:.88rem}
+.pm-hist-lista li{padding:7px 0;border-bottom:1px solid var(--border,#eef1f5)}
+.pm-hist-lista li:last-child{border-bottom:0}
+.pm-mini{padding:4px 10px;font-size:.8rem}
+@media (max-width:860px){ .pm-cols{grid-template-columns:1fr} }

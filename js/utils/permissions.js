@@ -144,6 +144,7 @@ export const NAV = [
   ]},
   { group: 'Configuración', items: [
     { route: 'usuarios', label: 'Usuarios y roles', roles: ['super_admin', 'admin', 'auditor'], ready: true },
+    { route: 'permisos', label: 'Permisos y menús', roles: ['super_admin', 'admin'], ready: true },   // 5.17.0 · I73
     { route: 'alta-usuarios', label: 'Crear o solicitar usuario', roles: ['super_admin', 'admin', 'client'], ready: true },   // 2.6.1: el consultorio solicita y el Super Admin aprueba   // 1.9 · el médico crea a sus secretarias
     { route: 'parametros', label: 'Parámetros', roles: ['super_admin', 'admin', 'auditor'], ready: true },
     { route: 'hc-control', label: 'Historia clínica: control', roles: ['super_admin'], ready: true },   // 2.0 · modo, MFA, bitácora
@@ -288,7 +289,7 @@ export const ESENCIALES = {
   // solo se acorta el menú diario. Todo lo demás sigue a un clic desde el buscador.
   admin: {
     menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
-           'usuarios', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
+           'usuarios', 'permisos', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
            'cola-correos', 'rendimiento', 'solicitudes', 'perfil', 'seguridad'],
     extra: '*'
   },
@@ -296,7 +297,7 @@ export const ESENCIALES = {
   // Super Admin · lo del Administrador más el control del sistema. También extra:'*'.
   super_admin: {
     menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
-           'usuarios', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
+           'usuarios', 'permisos', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
            'cola-correos', 'rendimiento', 'salud-sistema', 'revision', 'hc-control', 'solicitudes', 'perfil', 'seguridad'],
     extra: '*'
   },
@@ -317,8 +318,78 @@ Object.entries(ESENCIALES).forEach(([rol, def]) => {
   }));
 });
 
-/** 5.10.0 · ¿esta ruta va en el menú de este rol? (`extra` se abre por enlace, no se lista) */
-export const enMenu = (role, route) => !ESENCIALES[role] || ESENCIALES[role].menu.includes(route);
+/** 5.10.0 · ¿esta ruta va en el menú de este rol? (`extra` se abre por enlace, no se lista)
+ *  5.16.1 · Corrección: a los roles con `extra: '*'` —Administrador y Super Admin— se les acortó
+ *  el menú a 21 de 96 módulos, dejando 75 solo por el buscador. Nunca se les quitó un acceso,
+ *  pero el menú ES el mapa del sistema para quien tiene que supervisarlo todo, y sin él la
+ *  herramienta se siente rota. `extra: '*'` ya significaba «no le quites nada»: ahora también
+ *  significa «no le escondas nada». Su `menu` sigue sirviendo para destacar lo del día a día. */
+export const enMenu = (role, route) => {
+  const o = OVERRIDE[role] && OVERRIDE[role][route];
+  if (o) return o.en_menu !== false;      // 5.17.0 · lo que el Super Admin dejó configurado
+  const def = ESENCIALES[role];
+  if (!def) return true;
+  if (def.extra === '*') return true;
+  return def.menu.includes(route);
+};
+
+/* ── 5.17.0 · I73 · El menú configurable desde «Permisos y menús» ────────────────────────────────
+ *
+ *  ESTO SOLO DECIDE QUÉ SE LISTA. Es deliberado y es la propiedad que hace seguro el panel:
+ *  `OVERRIDE` alimenta ÚNICAMENTE a `enMenu()`, que dice si una ruta sale en la barra izquierda.
+ *  No lo tocan `canSee()` ni `canOpen()`, que son los que dejan entrar a una pantalla, ni tiene
+ *  nada que ver con las políticas RLS, que son las que de verdad protegen los datos.
+ *
+ *  Por construcción, lo peor que puede hacer una configuración equivocada aquí es ensuciar el
+ *  menú de alguien. No abre ni una fila de datos que la base no le abriría de todos modos.
+ *
+ *  Y si no se aplica nada —la base no responde, la tabla está vacía, el usuario no tiene
+ *  permiso para leerla— mandan los valores del código, que son los de siempre. */
+let OVERRIDE = {};
+
+/** La llama app.js al arrancar, con lo que devuelve role_menu_get(). Si algo viene raro,
+ *  no se aplica nada: es preferible el menú de siempre a un menú a medias. */
+export function aplicarMenu(config) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) { OVERRIDE = {}; return 0; }
+  const limpio = {};
+  let n = 0;
+  for (const [rol, rutas] of Object.entries(config)) {
+    if (!ROLES[rol] || !rutas || typeof rutas !== 'object') continue;
+    if (rol === 'super_admin') continue;   // su menú no se configura: siempre lo ve todo
+    const r = {};
+    for (const [ruta, def] of Object.entries(rutas)) {
+      // Una ruta que este rol no puede ver NO entra al menú por estar configurada aquí.
+      if (!findRoute(ruta) || !canSee(ruta, rol)) continue;
+      // Las obligatorias nunca se apagan, pase lo que pase en la configuración.
+      const obligatoria = OBLIGATORIAS.includes(ruta);
+      r[ruta] = { en_menu: obligatoria ? true : def.en_menu !== false,
+                  familia: def.familia || null,
+                  orden: Number.isFinite(Number(def.orden)) ? Number(def.orden) : 100 };
+      n += 1;
+    }
+    if (Object.keys(r).length) limpio[rol] = r;
+  }
+  OVERRIDE = limpio;
+  return n;
+}
+
+/** Sin red o sin permiso: se vuelve a los valores del código. */
+export const olvidarMenu = () => { OVERRIDE = {}; };
+
+/** Lo que el panel necesita saber sin consultar la base: qué puede ver cada rol de verdad. */
+export const rutasDelRol = (role) => allRoutes()
+  .filter((i) => i && !i.hidden && i.roles.includes(role))
+  .map((i) => ({ route: i.route, label: i.label, familia: familiaDe(i.route, role),
+                 en_menu: enMenu(role, i.route), obligatoria: OBLIGATORIAS.includes(i.route) }));
+
+const OBLIGATORIAS = ['perfil', 'seguridad'];
+
+/** En qué familia cae hoy una ruta, para ese rol. */
+function familiaDe(route, role) {
+  const fams = FAMILIAS_ROL[role] || FAMILIES;
+  const f = fams.find((x) => x.routes.includes(route));
+  return f ? f.key : null;
+}
 
 
 /**
@@ -333,7 +404,7 @@ export const FAMILIES = [
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
-  { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
 

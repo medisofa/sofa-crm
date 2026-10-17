@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
 import { resolve, parseHash, DEFAULT_ROUTE } from './router.js';
-import { visibleNav, extraNav, ROLES, homeRoute } from './utils/permissions.js';
+import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
@@ -94,6 +94,7 @@ async function boot() {
   if (await passwordGate()) return;   // 1.9 · cambio de clave obligatorio en el primer acceso
   // Organización operadora (SOFA) para crear registros del CRM; null para usuarios de clientes
   state.operatorId = (state.memberships.find((m) => m.kind === 'operator') || {}).organization_id || null;
+  await menuConfigurado();
   layout();
   watchAuth();
   startInactivityTimer();
@@ -101,6 +102,20 @@ async function boot() {
   if (!location.hash || (location.hash.replace(/^#\/?/, '') === DEFAULT_ROUTE && homeRoute(state.role) !== DEFAULT_ROUTE)) history.replaceState(null, '', `#/${homeRoute(state.role)}`);
   route();
   registerSW();
+}
+
+/** 5.17.0 · I73 · Trae el menú que el Super Admin dejó configurado en «Permisos y menús».
+ *  Si no se puede —sin red, sin permiso, la tabla vacía, la migración sin aplicar— no pasa nada:
+ *  se usan los valores del código, que son los de siempre. Nunca deja a nadie sin menú, y por eso
+ *  esto no bloquea el arranque ni muestra error: el menú de fábrica es una respuesta correcta. */
+async function menuConfigurado() {
+  try {
+    const c = sb();
+    if (!c) { olvidarMenu(); return; }
+    const { data, error } = await c.rpc('role_menu_get');
+    if (error || !data) { olvidarMenu(); return; }
+    aplicarMenu(data.config);
+  } catch (_) { olvidarMenu(); }
 }
 
 function layout() {

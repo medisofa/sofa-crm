@@ -61,6 +61,8 @@ export const MODULES = {
   'mi-productividad': 'mi-productividad.js',
   // 5.15.0 · I72 · bandeja de solicitudes del enlace público
   'solicitudes': 'solicitudes.js',
+  // 5.17.0 · I73 · permisos y menús por rol
+  'permisos': 'permisos.js',
   // 5.12.0 · médico · reporte para el contador
   'reporte-contador': 'reporte-contador.js'
 };
