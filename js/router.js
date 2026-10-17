@@ -59,6 +59,8 @@ export const MODULES = {
   'mi-dinero': 'mi-dinero.js', 'mis-glosas': 'mis-glosas.js',
   // 5.9.0 · médico · productividad
   'mi-productividad': 'mi-productividad.js',
+  // 5.15.0 · I72 · bandeja de solicitudes del enlace público
+  'solicitudes': 'solicitudes.js',
   // 5.12.0 · médico · reporte para el contador
   'reporte-contador': 'reporte-contador.js'
 };

@@ -83,6 +83,7 @@ export const NAV = [
   { group: 'CRM', items: [
     { route: 'oportunidades', label: 'Pipeline', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
     { route: 'prospectos', label: 'Prospectos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
+    { route: 'solicitudes', label: 'Solicitudes', roles: ['super_admin', 'admin', 'assistant', 'operations'], ready: true },   // 5.15.0 · I72: lo que entra por el enlace público
     { route: 'clientes', label: 'Clientes (ficha)', roles: ALL, ready: true },
     { route: 'salud-clientes', label: 'Salud de los clientes', roles: ['super_admin', 'admin', 'assistant', 'operations'], ready: true },   // 1.9 · Iteración 28
     { route: 'medicos', label: 'Médicos 360', roles: ALL, ready: true },
@@ -240,7 +241,7 @@ export const ESENCIALES = {
   // No opera la línea ARS; sí hace los documentos A–E y persigue los códigos con la ARS.
   assistant: {
     menu: ['mi-dashboard', 'hoy', 'tareas',
-           'oportunidades', 'prospectos', 'contactos', 'clientes', 'propuestas',
+           'solicitudes', 'oportunidades', 'prospectos', 'contactos', 'clientes', 'propuestas',
            'onboarding-30', 'salud-clientes', 'casos-exito', 'medicos', 'mercado',
            'habilitacion', 'codigos-ars', 'perfil', 'seguridad'],
     extra: ['inicio', 'mis-horas', 'casos-servicio', 'mi-habilitacion', 'radicaciones',
@@ -275,6 +276,7 @@ export const ESENCIALES = {
            'requisitos', 'reclamaciones', 'expediente', 'calidad-captura',
            'perfil', 'seguridad'],
     extra: ['inicio', 'captura',   // conserva claims.capture en la matriz de acciones
+            'solicitudes',             // 5.15.0: puede abrirla por enlace; no es su trabajo diario
             'medicos', 'casos-servicio', 'contratos', 'vencimientos',
             'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones',
             'causas-glosa', 'analitica-glosas', 'auditoria-expedientes', 'insumos',
@@ -287,7 +289,7 @@ export const ESENCIALES = {
   admin: {
     menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
            'usuarios', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
-           'cola-correos', 'rendimiento', 'perfil', 'seguridad'],
+           'cola-correos', 'rendimiento', 'solicitudes', 'perfil', 'seguridad'],
     extra: '*'
   },
 
@@ -295,7 +297,7 @@ export const ESENCIALES = {
   super_admin: {
     menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
            'usuarios', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
-           'cola-correos', 'rendimiento', 'salud-sistema', 'revision', 'hc-control', 'perfil', 'seguridad'],
+           'cola-correos', 'rendimiento', 'salud-sistema', 'revision', 'hc-control', 'solicitudes', 'perfil', 'seguridad'],
     extra: '*'
   },
 
@@ -326,7 +328,7 @@ export const enMenu = (role, route) => !ESENCIALES[role] || ESENCIALES[role].men
  */
 export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
-  { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'casos-exito', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
+  { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
   { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },

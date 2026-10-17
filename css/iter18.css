@@ -566,3 +566,25 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .nav-otros-t{margin:0 0 6px;padding:0 12px;font-size:.72rem;font-weight:700;letter-spacing:.05em;
   text-transform:uppercase;opacity:.65}
 .nav-hint{margin:14px 12px 4px;font-size:.74rem;line-height:1.5;opacity:.6}
+
+/* 5.15.0 · I72 · Bandeja de solicitudes del enlace público */
+.sol-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.sol-dato{border:1px solid var(--border,#e3e7ed);border-radius:8px;padding:9px 11px;background:var(--surface,#fff)}
+.sol-lista{margin:0;padding-left:20px}
+.sol-lista li{margin-bottom:4px}
+.sol-cita{margin:0;padding:10px 13px;border-left:3px solid var(--border,#cfd6df);
+  background:var(--surface-2,#f1f4f8);border-radius:0 8px 8px 0}
+.sol-acc{display:inline-flex;gap:6px}
+.sol-bit{list-style:none;margin:0;padding:0;font-size:.88rem}
+.sol-bit li{padding:6px 0;border-bottom:1px solid var(--border,#eef1f5)}
+.sol-bit li:last-child{border-bottom:0}
+.sol-tarde{color:#8a1c14;font-weight:600}
+.sol-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;
+  font-weight:600;background:var(--surface-2,#f1f4f8);color:var(--text-muted,#5b6674);white-space:nowrap}
+.sol-nueva{background:#e8f0fe;color:#17457f}
+.sol-documentos_pendientes{background:#fdf1dd;color:#7a5200}
+.sol-lista_{background:#e4f5ea;color:#0d5a2b}
+.sol-convertida{background:#e4f5ea;color:#0d5a2b}
+.sol-descartada{background:#eceff3;color:#5b6674}
+.sol-dup{margin:12px 0 4px;padding:9px 12px;border-left:3px solid #8a5a00;background:#fdf3e0;
+  color:#7a5200;border-radius:0 8px 8px 0;font-size:.9rem}
