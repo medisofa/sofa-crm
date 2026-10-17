@@ -170,6 +170,7 @@ export async function render(root, ctx = {}) {
       d.mensaje ? h('div', {}, h('h4', {}, 'Lo que nos escribió'), h('p', { class: 'sol-cita' }, d.mensaje)) : null,
 
       documentos(d, refrescar, decir),
+      pipeline(d, gente, refrescar, decir),
       acciones(d, cerrada, gente, refrescar, decir),
       consentimiento(d),
       bitacora(d));
@@ -221,6 +222,80 @@ export async function render(root, ctx = {}) {
         return h('span', { class: 'sol-acc' }, ok, no);
       } }
     ], docs));
+    return caja;
+  }
+
+  /* ── Pasarla al pipeline ────────────────────────────────────────────────── */
+  /* Esto NO crea el cliente. SOFA ya tiene su camino para eso: la oportunidad se trabaja en el
+     pipeline y «Convertir en cliente» pide razón social, RNC, tipo y honorarios, y la hace el
+     Super Admin o el Administrador. Aquí solo se abre la oportunidad, que es el paso que faltaba. */
+  function pipeline(d, gente, refrescar, decir) {
+    if (!puedeTrabajar) return null;
+    const caja = h('div', {}, h('h4', {}, 'Pasarla al pipeline'));
+    const cargando = note('Revisando si este prospecto ya está en el CRM…');
+    caja.append(cargando);
+
+    rpc('service_request_convert_info', { p_id: d.id }).then((info) => {
+      const partes = [];
+
+      // Ya es cliente: no hay nada que abrir.
+      if (info.ya_es_cliente) {
+        const ir = h('a', { class: 'i18-btn', href: '#/clientes/' + info.organizacion }, 'Abrir su ficha de cliente');
+        caja.replaceChildren(h('h4', {}, 'Pasarla al pipeline'),
+          note('Este prospecto ya es cliente de SOFA. No hace falta abrir nada más.', 'ok'),
+          h('div', { class: 'i18-bar' }, ir));
+        return;
+      }
+
+      // Ya tiene oportunidad: se enlaza, no se crea otra.
+      if (info.oportunidad) {
+        const ir = h('a', { class: 'i18-btn', href: '#/oportunidades/' + info.oportunidad }, 'Abrir su oportunidad');
+        partes.push(note('Este prospecto ya está en el pipeline. Ahí se le da seguimiento y, cuando toque, se convierte en cliente.'),
+          h('div', { class: 'i18-bar' }, ir));
+      } else if (!info.puede) {
+        partes.push(note('Pasarla al pipeline es de Comercial, el Administrador o el Super Admin.'));
+      } else {
+        const serv = h('select', { 'aria-label': 'Qué servicio se le va a vender' },
+          ...(info.catalogo || []).map((c) => h('option',
+            { value: c.code, selected: c.code === info.servicio_sugerido }, c.name)));
+        const valor = h('input', { type: 'number', min: '0', step: '500', placeholder: 'RD$ estimado',
+          'aria-label': 'Valor estimado al mes' });
+        const duen = h('select', { 'aria-label': 'Quién la trabaja' },
+          h('option', { value: '' }, 'Sin dueño por ahora'),
+          ...gente.map((p) => h('option', { value: p.id, selected: p.id === d.asignado_a }, p.nombre)));
+        const ir = h('button', { class: 'i18-btn', type: 'button' }, 'Abrir la oportunidad');
+        ir.addEventListener('click', async () => {
+          ir.disabled = true;
+          try {
+            const r = await rpc('service_request_to_opportunity', {
+              p_id: d.id, p_service: serv.value, p_owner: duen.value || null,
+              p_value: valor.value ? Number(valor.value) : 0 });
+            location.hash = '#/oportunidades/' + r.oportunidad;
+          } catch (e) { decir(e.message, 'error'); ir.disabled = false; }
+        });
+        partes.push(
+          h('p', { class: 'i18-sub' }, 'Se abre la oportunidad en el pipeline con el prospecto que ya existe. El alta como cliente se hace después, desde la oportunidad, con la razón social, el RNC y los honorarios.'),
+          h('div', { class: 'i18-bar' }, serv, valor, duen, ir));
+      }
+
+      // El formulario público crea un prospecto por solicitud: conviene mirar antes de abrir otra.
+      const dups = info.posibles_duplicados || [];
+      if (dups.length) {
+        partes.push(h('p', { class: 'sol-dup' },
+          dups.length === 1
+            ? 'Ojo: hay otra solicitud con el mismo teléfono o correo. Puede ser la misma persona escribiendo dos veces.'
+            : `Ojo: hay otras ${dups.length} solicitudes con el mismo teléfono o correo. Puede ser la misma persona escribiendo varias veces.`),
+          h('ul', { class: 'sol-lista' }, dups.map((x) => {
+            const b = h('button', { class: 'i18-link', type: 'button' }, x.folio);
+            b.addEventListener('click', () => { abierta = x.solicitud; pintar(); });
+            return h('li', {}, b, ' · ', x.nombre || 'sin nombre', ' · ', estado(x.estado),
+              x.oportunidad ? ' · ya está en el pipeline' : '');
+          })));
+      }
+
+      caja.replaceChildren(h('h4', {}, 'Pasarla al pipeline'), ...partes);
+    }, (e) => { caja.replaceChildren(h('h4', {}, 'Pasarla al pipeline'), note(e.message, 'error')); });
+
     return caja;
   }
 

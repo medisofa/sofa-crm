@@ -586,3 +586,5 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .sol-lista_{background:#e4f5ea;color:#0d5a2b}
 .sol-convertida{background:#e4f5ea;color:#0d5a2b}
 .sol-descartada{background:#eceff3;color:#5b6674}
+.sol-dup{margin:12px 0 4px;padding:9px 12px;border-left:3px solid #8a5a00;background:#fdf3e0;
+  color:#7a5200;border-radius:0 8px 8px 0;font-size:.9rem}
