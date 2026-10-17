@@ -1,47 +1,81 @@
 /**
  * SOFA · Service worker (PWA).
- * Solo guarda el "cascarón" de la aplicación (HTML, CSS, JS, íconos) para que
- * abra rápido e instalable. NUNCA intercepta ni guarda respuestas de Supabase:
- * los datos de pacientes y cobros no quedan en caché.
- * Al publicar una versión nueva, cambia VERSION para renovar la caché.
+ * Solo guarda el "cascarón" de la aplicación (HTML, CSS, JS, íconos) para que abra rápido
+ * e instalable. NUNCA intercepta ni guarda respuestas de Supabase: los datos de pacientes
+ * y cobros no quedan en caché.
+ *
+ * 5.11.1 · Reescrito. Qué cambió y por qué:
+ *
+ *   1. La instalación ya NO es atómica. Antes era `cache.addAll(SHELL)`, y addAll falla
+ *      entero si UNA sola de sus rutas devuelve 404. Con una lista de 103 rutas escrita a
+ *      mano, basta que se renombre un archivo para que el service worker no instale nada
+ *      y la aplicación se quede SIN modo sin conexión, en silencio y sin aviso.
+ *      Ahora cada archivo se guarda por separado: si uno falta, se anota y los demás entran.
+ *
+ *   2. SHELL ya no lista los módulos de pantalla. Esa lista era de la versión 1.7.5 y había
+ *      que acordarse de ampliarla en cada entrega; nadie lo hizo en decenas de pantallas.
+ *      Ahora SHELL es solo lo que hace falta para ARRANCAR, y las pantallas se guardan solas
+ *      la primera vez que se abren (lo hace el `fetch` de abajo). Así no hay lista que caducar.
+ *
+ *   3. `js/config.js` sale de la precarga. Lleva credenciales, está en .gitignore y puede no
+ *      estar publicado: si faltaba, tumbaba la instalación completa (punto 1). Se sigue
+ *      sirviendo de la red primero, y se guarda al vuelo para que la app arranque sin conexión.
+ *
+ * AL PUBLICAR UNA VERSIÓN NUEVA: cambia VERSION abajo para que se renueve la caché.
+ * Mantenlo igual al APP_VERSION de js/version.js.
  */
-const VERSION = 'sofa-shell-1.7.5';
+const VERSION = 'sofa-shell-5.11.1';
+
+/** Lo mínimo para que la aplicación arranque y pinte algo sin conexión. */
 const SHELL = [
-  './', './index.html', './login.html', './manifest.json',
-  './css/variables.css', './css/components.css', './css/app.css',
+  './', './index.html', './login.html', './portal.html', './manifest.json',
+  './css/variables.css', './css/components.css', './css/app.css', './css/iter18.css',
   './vendor/supabase-js-2.117.2.umd.js',
-  './js/boot-guard.js', './js/version.js', './js/config.js', './js/supabase.js', './js/auth.js', './js/router.js', './js/app.js', './js/login.js',
-  './js/utils/dom.js', './js/utils/ui.js', './js/utils/formatters.js', './js/utils/validation.js', './js/utils/permissions.js',
-  './js/services/stats.js', './js/services/catalog.js', './js/services/clients.js', './js/services/admin.js',
-  './js/modules/dossier-card.js', './js/modules/prerad.js', './js/modules/requirements.js', './js/services/dossier.js',
-  './assets/brand/sofa-logo.png', './assets/brand/sofa-logo-white.png', './assets/brand/sofa-symbol.png', './js/modules/fee-invoice.js', './js/modules/fees-admin.js', './js/modules/agenda.js', './js/modules/private-tariffs.js', './js/modules/practice.js', './js/services/consultorio.js', './js/modules/provider360.js', './js/modules/client-commercial.js', './js/utils/pdf-invoice.js', './vendor/jspdf-4.2.1.umd.min.js', './vendor/jspdf-autotable-5.0.8.min.js', './js/modules/capture.js', './js/modules/claims.js', './js/modules/claim.js', './js/modules/claim-dialogs.js', './js/modules/pickups.js', './js/modules/contracts.js', './js/services/claims.js',
-  './js/modules/home.js', './js/modules/clients.js', './js/modules/coding.js', './js/modules/ars.js', './js/modules/users.js',
-  './js/modules/settings.js', './js/modules/profile.js', './js/modules/diagnostics.js', './js/modules/placeholder.js',
-  './js/modules/client.js', './js/modules/contacts.js', './js/modules/crm-dialogs.js', './js/modules/leads.js', './js/modules/opportunity.js', './js/modules/partners.js', './js/modules/pipeline.js', './js/modules/tasks.js', './js/services/crm.js', './js/services/tasks.js', './js/utils/constants.js', './js/utils/whatsapp.js',
-  './js/services/submissions.js', './js/services/documents.js', './js/modules/submissions.js', './js/modules/submission.js', './js/modules/submission-dialogs.js', './js/modules/documents.js',
-  './js/services/finance.js', './js/modules/glosas.js', './js/modules/payments.js', './js/modules/fees.js', './js/modules/finance-dialogs.js',
-  './js/services/tariffs.js', './js/modules/tariff-dialogs.js', './js/modules/coding-concept.js',
-  './js/utils/charts.js', './js/utils/filters.js', './js/services/bi.js', './js/modules/dashboard.js', './js/modules/today.js', './js/modules/aging.js', './js/modules/reports.js',
-  './js/services/habilitation.js', './js/modules/habilitation.js', './js/modules/habilitation-case.js', './js/modules/habilitation-dialogs.js',
-  './js/services/intel.js', './js/modules/market.js', './js/modules/market-dialogs.js', './js/modules/guides.js',
+  './js/boot-guard.js', './js/anti-marcos.js', './js/version.js',
+  './js/supabase.js', './js/auth.js', './js/router.js', './js/app.js', './js/login.js', './js/portal.js',
+  './js/utils/dom.js', './js/utils/ui.js', './js/utils/formatters.js',
+  './js/utils/validation.js', './js/utils/permissions.js', './js/utils/constants.js',
+  './js/modules/home.js', './js/modules/placeholder.js', './js/modules/profile.js', './js/modules/diagnostics.js',
+  './assets/brand/sofa-logo.png', './assets/brand/sofa-logo-white.png', './assets/brand/sofa-symbol.png',
   './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/favicon-32.png'
 ];
 
+/** Guarda una por una: lo que falte se anota en la consola y no tumba a las demás. */
+async function guardarCascaron() {
+  const cache = await caches.open(VERSION);
+  const faltantes = [];
+  await Promise.all(SHELL.map((url) =>
+    cache.add(new Request(url, { cache: 'reload' })).catch(() => faltantes.push(url))
+  ));
+  if (faltantes.length) {
+    console.warn('SOFA · service worker: estos archivos del cascarón no se pudieron guardar y la app no funcionará sin conexión hasta que existan:', faltantes);
+  }
+  return faltantes;
+}
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(guardarCascaron().then(() => self.skipWaiting()));
 });
+
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
-  if (req.method !== 'GET' || url.origin !== self.location.origin) return; // Supabase y cualquier otro origen: siempre red
-  // Primero la red (siempre la versión publicada, incluido js/config.js);
-  // sin conexión, la copia guardada del cascarón
-  e.respondWith(fetch(req).then((res) => {
-    if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
-    return res;
-  }).catch(() => caches.match(req, { ignoreSearch: true })
-    .then((r) => r || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error()))));
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;   // Supabase y cualquier otro origen: siempre red
+  // Primero la red (siempre la versión publicada, incluido js/config.js).
+  // Toda respuesta buena se guarda, así una pantalla abierta una vez queda disponible sin conexión.
+  e.respondWith(
+    fetch(req).then((res) => {
+      if (res.ok) { const copia = res.clone(); caches.open(VERSION).then((c) => c.put(req, copia)); }
+      return res;
+    }).catch(() => caches.match(req, { ignoreSearch: true })
+      .then((r) => r || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
+  );
 });
