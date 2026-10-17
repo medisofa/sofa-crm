@@ -54,7 +54,11 @@ export const MODULES = {
   // 5.6.0 · I66 · modo clínica
   'clinica': 'clinica.js',
   // 5.7.0 · I68a · reporte de hospitalización del médico
-  'hospitalizacion': 'hospitalizacion.js'
+  'hospitalizacion': 'hospitalizacion.js',
+  // 5.8.0 · médico · paneles de síntesis
+  'mi-dinero': 'mi-dinero.js', 'mis-glosas': 'mis-glosas.js',
+  // 5.9.0 · médico · productividad
+  'mi-productividad': 'mi-productividad.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
@@ -74,6 +78,10 @@ export async function resolve(role) {
     const mod = await import('./modules/placeholder.js');
     return { kind: 'module', def, mod, arg };
   }
+  // 5.11.2 · Si la ruta está en el menú pero no en MODULES, antes se pedía «./modules/undefined»,
+  // que da 404 y el navegador lo reporta como «Failed to fetch dynamically imported module»:
+  // parecía un problema de red cuando en realidad faltaba actualizar este archivo.
+  if (!MODULES[route]) return { kind: 'sinmodulo', def };
   const mod = await import(`./modules/${MODULES[route]}`);
   return { kind: 'module', def, mod: conMedicion(route, mod), arg };
 }

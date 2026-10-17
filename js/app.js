@@ -227,6 +227,13 @@ async function route() {
   const setTitle = (t) => { title.textContent = t; document.title = `${t} · SOFA`; };
   const home = homeRoute(state.role);
   if (r.kind === 'forbidden' && r.def.route === DEFAULT_ROUTE && home !== DEFAULT_ROUTE) { location.replace(`#/${home}`); return; }
+  if (r.kind === 'sinmodulo') {
+    setTitle(r.def.label);
+    render(main, emptyView('Esta pantalla todavía no está instalada',
+      `"${r.def.label}" aparece en tu menú, pero su archivo no está en esta versión de SOFA. No es tu conexión. Avísanos: falta subir la versión nueva del enrutador.`,
+      html`<a class="btn primary" href="#/${home}">Volver al inicio</a>`));
+    return;
+  }
   if (r.kind === 'notfound') { setTitle('No encontrado'); render(main, emptyView('Página no encontrada', 'La dirección no existe.', html`<a class="btn primary" href="#/${home}">Ir al inicio</a>`)); return; }
   if (r.kind === 'forbidden') { setTitle(r.def.label); render(main, emptyView('Sin acceso a este módulo', `Tu rol (${ROLES[state.role]?.name}) no incluye "${r.def.label}". Si lo necesitas, pide al Super Admin que revise tus permisos.`, html`<a class="btn" href="#/${home}">Volver al inicio</a>`)); return; }
   setTitle(r.def.label);
