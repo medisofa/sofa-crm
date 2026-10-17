@@ -64,6 +64,7 @@ export const NAV = [
     { route: 'mi-dinero', label: 'Mi dinero', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
     { route: 'mis-glosas', label: 'Mis glosas', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
     { route: 'mi-productividad', label: 'Mi productividad', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.9
+    { route: 'reporte-contador', label: 'Reporte para mi contador', roles: ['client', 'super_admin', 'admin'], ready: true },   // 5.12 · espejo de accountant_report
     { route: 'estado-cuenta', label: 'Estado de cuenta (ROI)', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
     { route: 'calendario-cobros', label: 'Calendario de cobros', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'rentabilidad', label: 'Rentabilidad por ARS', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
@@ -198,7 +199,7 @@ export const ESENCIALES = {
   client: {
     menu: ['mi-dashboard', 'agenda', 'pacientes', 'historia-clinica', 'saldos-pacientes',
            'captura', 'hospitalizacion',
-           'mi-dinero', 'mis-glosas', 'mi-productividad',
+           'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador',
            'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'centros',
            'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'],
     extra: ['hoy', 'verificacion', 'reclamaciones', 'expediente', 'retiros',
@@ -329,7 +330,7 @@ export const FAMILIES = [
   { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
-  { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
+  { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
@@ -343,7 +344,7 @@ export const FAMILIAS_ROL = {
     { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda'] },
     { key: 'pacientes',   group: 'Mis pacientes', routes: ['pacientes', 'historia-clinica', 'saldos-pacientes'] },
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
-    { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad'] },
+    { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador'] },
     { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'centros', 'clinica'] },
     { key: 'cuenta',      group: 'Mi cuenta',     routes: ['mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
   ]

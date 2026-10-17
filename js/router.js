@@ -58,7 +58,9 @@ export const MODULES = {
   // 5.8.0 · médico · paneles de síntesis
   'mi-dinero': 'mi-dinero.js', 'mis-glosas': 'mis-glosas.js',
   // 5.9.0 · médico · productividad
-  'mi-productividad': 'mi-productividad.js'
+  'mi-productividad': 'mi-productividad.js',
+  // 5.12.0 · médico · reporte para el contador
+  'reporte-contador': 'reporte-contador.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
