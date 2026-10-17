@@ -61,6 +61,9 @@ export const NAV = [
     { route: 'centros', label: 'Centros de salud', roles: ['super_admin', 'admin', 'client'], ready: true }
   ]},
   { group: 'Mis resultados', items: [   // 1.9 · Iteraciones 18 y 26
+    { route: 'mi-dinero', label: 'Mi dinero', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
+    { route: 'mis-glosas', label: 'Mis glosas', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
+    { route: 'mi-productividad', label: 'Mi productividad', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.9
     { route: 'estado-cuenta', label: 'Estado de cuenta (ROI)', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
     { route: 'calendario-cobros', label: 'Calendario de cobros', roles: ['super_admin', 'admin', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'rentabilidad', label: 'Rentabilidad por ARS', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },
@@ -175,6 +178,147 @@ export const CLIENT_HIDDEN = ['clientes', 'medicos', 'radicaciones', 'codificaci
 NAV.forEach((g) => g.items.forEach((i) => { if (CLIENT_HIDDEN.includes(i.route)) i.roles = i.roles.filter((r) => r !== 'client'); }));
 
 /**
+ * 5.10.0 · Decisión 16/10/2026: el menú se arma desde las FUNCIONES de cada rol.
+ * Generaliza lo que ya hacían BILLING_ROUTES y CLIENT_HIDDEN, en una sola tabla.
+ *
+ *   menu  = lo que el rol usa para trabajar. Es lo único que se muestra en el menú.
+ *   extra = lo que puede abrir por enlace o por URL, pero no ocupa espacio en el menú:
+ *           configuración que se toca una vez, o el detalle al que se llega desde otra pantalla.
+ *
+ * Lo que no esté en ninguna de las dos listas se le RETIRA al rol: no lo ve y no lo puede abrir.
+ * Un rol que no aparezca en esta tabla conserva el menú completo (hoy: super_admin y admin).
+ *
+ * Recordatorio: esto es presentación y alcance de interfaz. El control real sigue en RLS.
+ */
+export const ESENCIALES = {
+
+  // Médico · atiende, registra lo que hizo, cobra al privado y sabe cuánto gana.
+  // 16/10/2026: ningún médico usaba las pantallas del equipo de facturación. Las sustituyen
+  // Mi dinero, Mis glosas y Mi productividad, que dicen lo mismo en su idioma.
+  client: {
+    menu: ['mi-dashboard', 'agenda', 'pacientes', 'historia-clinica', 'saldos-pacientes',
+           'captura', 'hospitalizacion',
+           'mi-dinero', 'mis-glosas', 'mi-productividad',
+           'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'centros',
+           'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'],
+    extra: ['hoy', 'verificacion', 'reclamaciones', 'expediente', 'retiros',
+            'mensajes', 'seguimiento', 'avisos-pacientes', 'indicadores-agenda', 'practica',
+            'insumos', 'clinica', 'habilitacion', 'mi-habilitacion', 'alta-usuarios',
+            'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias',
+            'recomendar', 'diagnostico', 'cambio-clave']
+  },
+
+  // Secretaria · agenda, captura y cobro al paciente privado. Ya estaba bien dimensionado.
+  capturer: {
+    menu: ['mi-dashboard', 'agenda', 'verificacion', 'pacientes', 'captura', 'reclamaciones',
+           'expediente', 'saldos-pacientes', 'mensajes', 'perfil', 'seguridad'],
+    extra: ['hoy', 'calidad-captura', 'insumos', 'novedades', 'diagnostico', 'cambio-clave']
+  },
+
+  // Facturación · perfil de referencia desde el 01/10/2026. BILLING_ROUTES sigue siendo su tope.
+  billing: {
+    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'captura', 'reclamaciones', 'expediente',
+           'retiros', 'reconsideracion', 'perfil', 'seguridad'],
+    extra: ['dashboard', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
+  },
+
+  // Cobros · aplicar el pago de la ARS, repartirlo, conciliar el banco y pelear la glosa.
+  // La pre-radicación y los catálogos son de Operaciones.
+  glosas: {
+    menu: ['mi-dashboard', 'hoy', 'reclamaciones',
+           'glosas', 'reconsideracion', 'causas-glosa', 'analitica-glosas',
+           'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros',
+           'perfil', 'seguridad'],
+    extra: ['inicio', 'expediente', 'contratos', 'radicaciones', 'preauditoria', 'tareas',
+            'mis-horas', 'documentos', 'clientes', 'medicos', 'casos-servicio', 'insumos',
+            'dashboard', 'reportes', 'informe-trimestral', 'auditoria-expedientes', 'guias',
+            'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
+  },
+
+  // Comercial · conseguir el cliente, proponerle, incorporarlo y mantenerlo sano.
+  // No opera la línea ARS; sí hace los documentos A–E y persigue los códigos con la ARS.
+  assistant: {
+    menu: ['mi-dashboard', 'hoy', 'tareas',
+           'oportunidades', 'prospectos', 'contactos', 'clientes', 'propuestas',
+           'onboarding-30', 'salud-clientes', 'casos-exito', 'medicos', 'mercado',
+           'habilitacion', 'codigos-ars', 'perfil', 'seguridad'],
+    extra: ['inicio', 'mis-horas', 'casos-servicio', 'mi-habilitacion', 'radicaciones',
+            'expediente', 'ecf',   // conserva dossier.upload y ecf.steps en la matriz de acciones
+            'mi-plan', 'guias', 'reportes', 'dashboard', 'informe-trimestral', 'documentos',
+            'novedades', 'diagnostico', 'cambio-clave']
+  },
+
+  // Auditor · decide si el expediente está completo y deja constancia.
+  // 16/10/2026: pierde Usuarios y roles y Parámetros — son del Administrador y del Super Admin.
+  // Su "consulta todo" se conserva en `extra`: puede abrirlo, pero no le llena el menú diario.
+  auditor: {
+    menu: ['mi-dashboard', 'hoy', 'auditoria-expedientes', 'expediente', 'reclamaciones',
+           'requisitos', 'preauditoria', 'glosas', 'reportes', 'perfil', 'seguridad'],
+    extra: ['inicio', 'tareas', 'mis-horas', 'contratos', 'causas-glosa', 'analitica-glosas',
+            'pagos', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'honorarios',
+            'estado-cuenta', 'rentabilidad', 'dashboard', 'informe-trimestral', 'guias',
+            'documentos', 'clientes', 'medicos', 'casos-servicio', 'radicaciones',
+            'codificacion', 'ars', 'preradicacion', 'ecf', 'retiros', 'vencimientos',
+            'brechas-tarifa', 'codigos-ars', 'tarifas-versiones', 'habilitacion',
+            'mi-habilitacion', 'insumos', 'mercado', 'oportunidades', 'prospectos',
+            'contactos', 'aliados', 'casos-exito', 'novedades', 'diagnostico', 'cambio-clave']
+  },
+
+  // Operaciones · retiro físico, validación, radicación, calidad de captura y puesta en marcha.
+  // 16/10/2026: es una función interna de SOFA. No ve información privada del cliente —
+  // ni su agenda, ni sus mensajes a pacientes, ni su dinero, ni su clínica.
+  operations: {
+    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'tareas',
+           'clientes', 'salud-clientes', 'puesta-en-marcha', 'onboarding-30',
+           'retiros', 'preradicacion', 'radicaciones', 'preauditoria', 'ecf',
+           'requisitos', 'reclamaciones', 'expediente', 'calidad-captura',
+           'perfil', 'seguridad'],
+    extra: ['inicio', 'captura',   // conserva claims.capture en la matriz de acciones
+            'medicos', 'casos-servicio', 'contratos', 'vencimientos',
+            'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones',
+            'causas-glosa', 'analitica-glosas', 'auditoria-expedientes', 'insumos',
+            'mi-habilitacion', 'documentos', 'rendimiento', 'informe-trimestral', 'reportes',
+            'mis-horas', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
+  },
+
+  // Administrador · administra SOFA como empresa. extra:'*' = NO se le retira nada;
+  // solo se acorta el menú diario. Todo lo demás sigue a un clic desde el buscador.
+  admin: {
+    menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
+           'usuarios', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
+           'cola-correos', 'rendimiento', 'perfil', 'seguridad'],
+    extra: '*'
+  },
+
+  // Super Admin · lo del Administrador más el control del sistema. También extra:'*'.
+  super_admin: {
+    menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
+           'usuarios', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
+           'cola-correos', 'rendimiento', 'salud-sistema', 'revision', 'hc-control', 'perfil', 'seguridad'],
+    extra: '*'
+  },
+
+  // Prospecto · solo el avance de su incorporación.
+  prospect: {
+    menu: ['mi-incorporacion', 'perfil', 'seguridad'],
+    extra: ['novedades', 'diagnostico', 'cambio-clave']
+  }
+};
+
+// 1) Alcance: lo que no está en menu+extra se le retira al rol (no lo ve y no lo puede abrir).
+Object.entries(ESENCIALES).forEach(([rol, def]) => {
+  if (def.extra === '*') return;   // 5.11.0: '*' significa «no le quites nada»; solo se acorta su menú
+  const permitido = new Set([...def.menu, ...def.extra]);
+  NAV.forEach((g) => g.items.forEach((i) => {
+    if (!permitido.has(i.route)) i.roles = i.roles.filter((r) => r !== rol);
+  }));
+});
+
+/** 5.10.0 · ¿esta ruta va en el menú de este rol? (`extra` se abre por enlace, no se lista) */
+export const enMenu = (role, route) => !ESENCIALES[role] || ESENCIALES[role].menu.includes(route);
+
+
+/**
  * 2.1 · Menú por FAMILIAS (decisión 08/10/2026): las mismas familias, en el mismo orden y con el mismo ícono para todos.
  * Cada rol ve solo las familias y módulos a los que tiene acceso (NAV.roles). Lo que un rol pueda abrir y no esté
  * en una familia aparece al final en «Más», para que nada se pierda.
@@ -184,23 +328,47 @@ export const FAMILIES = [
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'casos-exito', 'salud-clientes', 'oportunidades', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
   { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
-  { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'habilitacion', 'mi-habilitacion'] },
-  { key: 'resultados', group: 'Resultados', routes: ['direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
+  { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
+  { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
-  { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
+  { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
+
+/**
+ * 5.10.0 · Familias propias para los perfiles que no hablan el idioma interno de SOFA.
+ * Los roles que no estén aquí usan FAMILIES, que sigue siendo la estructura común del equipo.
+ */
+export const FAMILIAS_ROL = {
+  client: [
+    { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda'] },
+    { key: 'pacientes',   group: 'Mis pacientes', routes: ['pacientes', 'historia-clinica', 'saldos-pacientes'] },
+    { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
+    { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad'] },
+    { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'centros', 'clinica'] },
+    { key: 'cuenta',      group: 'Mi cuenta',     routes: ['mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
+  ]
+};
 
 export const allRoutes = () => NAV.flatMap((g) => g.items);
 export const findRoute = (r) => allRoutes().find((i) => i.route === r) || null;
 export const canSee = (route, role) => !!findRoute(route)?.roles.includes(role);
 export const visibleNav = (role) => {
-  const ok = (i) => i && !i.hidden && i.roles.includes(role);
+  const ok = (i) => i && !i.hidden && i.roles.includes(role) && enMenu(role, i.route);   // 5.10.0 · el menú solo lista lo esencial del rol
   const used = new Set();
-  const groups = FAMILIES.map((f) => ({ key: f.key, group: f.group, items: f.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
+  const groups = (FAMILIAS_ROL[role] || FAMILIES).map((f) => ({ key: f.key, group: f.group, items: f.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
   const rest = allRoutes().filter((i) => ok(i) && !used.has(i.route));
   if (rest.length) groups.push({ key: 'mas', group: 'Más', items: rest });
   return groups.filter((g) => g.items.length);
 };
+/**
+ * 5.11.0 · Lo que este rol PUEDE abrir pero no está en su menú.
+ * Es lo que alimenta el buscador: sin esto, `extra` sería accesible pero invisible.
+ * Respeta `hidden` igual que visibleNav (esas rutas se abren desde otra pantalla, no se listan).
+ */
+export const extraNav = (role) => allRoutes().filter(
+  (i) => i && !i.hidden && i.roles.includes(role) && !enMenu(role, i.route)
+);
+
 export const isStaff = (role) => !!ROLES[role]?.staff;
 /** ¿Puede este rol abrir el enlace? (#/radicaciones/123 → módulo "radicaciones"). Para no mostrar enlaces que llevan a "Sin acceso". */
 export const canOpen = (href, role) => canSee(String(href || '').replace(/^#\/?/, '').split('/')[0], role);
