@@ -215,7 +215,14 @@ async function route() {
   const main = $('#main'); const title = $('#pageTitle');
   let r;
   try { r = await resolve(state.role); }
-  catch (e) { render(main, errorView(e)); return; }
+  catch (e) {
+    // 5.11.1 · aquí solo se llega si el archivo del módulo no se pudo descargar. Recargar lo resuelve,
+    // así que se ofrece el botón en vez de dejar al usuario en un callejón sin salida.
+    console.error(e);
+    render(main, errorView(e, 'recargar'));
+    main.querySelector('[data-retry="recargar"]')?.addEventListener('click', () => location.reload());
+    return;
+  }
   if (my !== routeSeq) return;
   const setTitle = (t) => { title.textContent = t; document.title = `${t} · SOFA`; };
   const home = homeRoute(state.role);
