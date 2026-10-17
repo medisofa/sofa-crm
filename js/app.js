@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
 import { resolve, parseHash, DEFAULT_ROUTE } from './router.js';
-import { visibleNav, ROLES, homeRoute } from './utils/permissions.js';
+import { visibleNav, extraNav, ROLES, homeRoute } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
@@ -150,9 +150,18 @@ function renderNav() {
   const closed = closedGroups();
   const link = (i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`;
   const groups = visibleNav(state.role);
+  // 5.11.0 · la pista solo vale la pena cuando hay bastante fuera del menú. Con 2 o 4 módulos
+  // (Prospecto, Facturación, Secretaria) sería ruido para quien menos navega el sistema.
+  const nExtra = extraNav(state.role).length;
+  const mostrarPista = nExtra >= 10;
   if (q) {
     const hits = groups.flatMap((g) => g.items.filter((i) => norm(i.label).includes(q) || norm(g.group).includes(q)));
-    render(nav, hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : html`<p class="nav-empty">No hay módulos con «${$('#navSearch').value}». Borre la búsqueda para ver todo el menú.</p>`);
+    // 5.11.0 · el buscador también encuentra lo que el rol puede abrir aunque no esté en su menú.
+    const otros = extraNav(state.role).filter((i) => norm(i.label).includes(q));
+    render(nav, (hits.length || otros.length)
+      ? html`${hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : ''}
+             ${otros.length ? html`<div class="nav-otros"><p class="nav-otros-t">Otros módulos a los que tienes acceso</p><div class="nav-hits">${otros.map(link)}</div></div>` : ''}`
+      : html`<p class="nav-empty">No hay ningún módulo con «${$('#navSearch').value}» al que tengas acceso. Borra la búsqueda para ver tu menú.</p>`);
     return;
   }
   render(nav, html`${groups.map((g) => {
@@ -161,7 +170,8 @@ function renderNav() {
     return html`<div class="nav-group ${open ? 'open' : ''}">
       <button type="button" class="nav-group-btn fam-${g.key || 'mas'}" data-group="${g.group}" aria-expanded="${open ? 'true' : 'false'}"><span class="nav-ico">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}</span><span class="nav-gname">${g.group}</span><span class="nav-count">${g.items.length}</span></button>
       <div class="nav-items" ${open ? '' : raw('hidden')}>${g.items.map(link)}</div></div>`;
-  })}`);
+  })}
+  ${mostrarPista ? html`<p class="nav-hint">Tu menú muestra lo que usas a diario. Busca arriba para abrir otros ${nExtra} módulos a los que tienes acceso.</p>` : ''}`);
 }
 function bindNav() {
   $('#nav').addEventListener('click', (e) => {
