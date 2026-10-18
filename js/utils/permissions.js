@@ -114,6 +114,7 @@ export const NAV = [
     { route: 'salud-sistema', label: 'Seguridad y salud del sistema', roles: ['super_admin'], ready: true },
     // 4.1 a 4.5 · Iteraciones 51 a 55 (espejo de los permisos de las migraciones 160 a 168)
     { route: 'propuestas', label: 'Diagnóstico y propuestas', roles: ['super_admin', 'admin', 'assistant'], ready: true },
+    { route: 'fugas', label: 'Auditoría de Fugas', roles: ['super_admin', 'admin', 'assistant'], ready: true },
     { route: 'verificacion', label: 'Verificación de mañana', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },
     { route: 'informe-trimestral', label: 'Informe trimestral', roles: ['super_admin', 'admin', 'assistant', 'operations', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'casos-exito', label: 'Casos de éxito y referidos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
@@ -204,11 +205,16 @@ export const ESENCIALES = {
            'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador',
            'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'centros',
            'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'],
+    // 18/10/2026: estas cinco vuelven, pero SOLO en «extra»: alcanzables desde un botón de
+    // «Mi dinero» o «Mis glosas», sin llenarle el menú. Sin esto, el PDF del estado de cuenta
+    // y las fechas de cobro quedaban construidos y fuera del alcance del médico, y tres notas
+    // de la propia aplicación lo mandaban a «Sin acceso».
     extra: ['hoy', 'verificacion', 'reclamaciones', 'expediente', 'retiros',
             'mensajes', 'seguimiento', 'avisos-pacientes', 'indicadores-agenda', 'practica',
             'insumos', 'clinica', 'habilitacion', 'mi-habilitacion', 'alta-usuarios',
             'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias',
-            'recomendar', 'diagnostico', 'cambio-clave']
+            'recomendar', 'diagnostico', 'cambio-clave',
+            'estado-cuenta', 'calendario-cobros', 'rentabilidad', 'analitica-glosas', 'reconsideracion']
   },
 
   // Secretaria · agenda, captura y cobro al paciente privado. Ya estaba bien dimensionado.
@@ -242,7 +248,7 @@ export const ESENCIALES = {
   // No opera la línea ARS; sí hace los documentos A–E y persigue los códigos con la ARS.
   assistant: {
     menu: ['mi-dashboard', 'hoy', 'tareas',
-           'solicitudes', 'oportunidades', 'prospectos', 'contactos', 'clientes', 'propuestas',
+           'solicitudes', 'oportunidades', 'prospectos', 'contactos', 'clientes', 'propuestas', 'fugas',
            'onboarding-30', 'salud-clientes', 'casos-exito', 'medicos', 'mercado',
            'habilitacion', 'codigos-ars', 'perfil', 'seguridad'],
     extra: ['inicio', 'mis-horas', 'casos-servicio', 'mi-habilitacion', 'radicaciones',
@@ -399,7 +405,7 @@ function familiaDe(route, role) {
  */
 export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
-  { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
+  { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'fugas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
   { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
