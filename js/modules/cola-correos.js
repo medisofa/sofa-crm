@@ -77,24 +77,25 @@ export async function render(root, ctx = {}) {
   async function loadList() {
     const r = await guarded(list, () => rpc('email_queue_list', { p_status: filtro, p_limit: PAGE, p_offset: page * PAGE }));
     if (!r) return;
-    const rows = r.rows.map((m) => {
+    const rows = (Array.isArray(r.rows) ? r.rows : []).map((m) => {
       const ver = h('button', { class: 'i18-btn i18-sec', type: 'button', 'aria-label': `Ver correo para ${m.recipient_email}` }, 'Ver');
       ver.addEventListener('click', () => open(m.id));
       const acc = [ver];
       if (m.status === 'fallido') { const b = h('button', { class: 'i18-btn', type: 'button', 'data-act': 'reintentar' }, 'Reintentar'); b.addEventListener('click', () => act('email_queue_retry', m.id, b)); acc.push(b); }
       if (m.status === 'pendiente' || m.status === 'fallido') { const b = h('button', { class: 'i18-btn i18-sec', type: 'button', 'data-act': 'cancelar' }, 'Cancelar'); b.addEventListener('click', () => act('email_queue_cancel', m.id, b)); acc.push(b); }
-      return h('tr', {}, h('td', {}, dt(m.created_at)), h('td', {}, m.topic.replaceAll('_', ' ')), h('td', {}, m.recipient_email), h('td', {}, m.subject),
+      return h('tr', {}, h('td', {}, dt(m.created_at)), h('td', {}, String(m.topic || 'Sin tema').replaceAll('_', ' ')), h('td', {}, m.recipient_email), h('td', {}, m.subject),
         h('td', {}, h('span', { class: `cc-st cc-${m.status}` }, ETQ[m.status] || m.status), m.last_error ? h('small', { class: 'i18-sub' }, ` · ${m.last_error}`) : null),
         h('td', { class: 'i18-r' }, `${m.attempts}/${m.max_attempts}`), h('td', { class: 'cc-acts' }, acc));
     });
-    const pages = Math.max(1, Math.ceil(r.total / PAGE));
+    const total = Number(r.total) || 0;
+    const pages = Math.max(1, Math.ceil(total / PAGE));
     const prev = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: page === 0 }, 'Anterior');
     const next = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: page + 1 >= pages }, 'Siguiente');
     prev.addEventListener('click', () => { page--; loadList(); }); next.addEventListener('click', () => { page++; loadList(); });
     list.replaceChildren(h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
       h('thead', {}, h('tr', {}, ['Creado', 'Aviso', 'Destinatario', 'Asunto', 'Estado', 'Intentos', ''].map((x) => h('th', {}, x)))),
       h('tbody', {}, rows.length ? rows : h('tr', {}, h('td', { colspan: '7', class: 'i18-empty' }, 'No hay correos con ese estado.'))))),
-      h('div', { class: 'av-row' }, prev, h('span', { class: 'i18-sub' }, `Página ${page + 1} de ${pages} · ${r.total} correo(s)`), next));
+      h('div', { class: 'av-row' }, prev, h('span', { class: 'i18-sub' }, `Página ${page + 1} de ${pages} · ${total} correo(s)`), next));
   }
 
   async function act(fn, id, btn) {
@@ -112,21 +113,21 @@ export async function render(root, ctx = {}) {
       h('p', {}, h('strong', {}, 'Para: '), m.recipient_email, ' · ', h('strong', {}, 'Asunto: '), m.subject, ' · ', h('strong', {}, 'Plantilla: '), `v${m.template_version}`),
       fr,
       h('h4', {}, 'Bitácora de envío'),
-      h('ul', { class: 'cc-log' }, m.log.map((l) => h('li', {}, `${dt(l.at)} · ${l.event}${l.detail ? ' · ' + l.detail : ''}`)))));
+      h('ul', { class: 'cc-log' }, (Array.isArray(m.log) ? m.log : []).map((l) => h('li', {}, `${dt(l.at)} · ${l.event}${l.detail ? ' · ' + l.detail : ''}`)))));
   }
 
   async function loadTpl() {
     const t = await guarded(tpl, () => rpc('email_templates_list'));
     if (!t) return;
-    const cards = t.map((x) => {
+    const cards = (Array.isArray(t) ? t : []).map((x) => {
       const out = h('div', { 'aria-live': 'polite' });
-      const body = [h('p', {}, h('strong', {}, 'Asunto: '), x.subject), h('p', { class: 'i18-sub' }, `Variables: ${x.variables.map((v) => `{{${v}}}`).join(' ')}`), h('pre', { class: 'av-text' }, x.body_text)];
+      const body = [h('p', {}, h('strong', {}, 'Asunto: '), x.subject), h('p', { class: 'i18-sub' }, `Variables: ${(Array.isArray(x.variables) ? x.variables : []).map((v) => `{{${v}}}`).join(' ')}`), h('pre', { class: 'av-text' }, x.body_text)];
       if (isSuper && !x.is_active) {
         const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Volver a esta versión');
         b.addEventListener('click', async () => { b.disabled = true; try { await rpc('email_template_activate', { p_code: x.code, p_version: x.version }); await loadTpl(); } catch (e) { out.replaceChildren(note(e.message, 'error')); b.disabled = false; } });
         body.push(b);
       }
-      return h('details', { class: 'i18-card' }, h('summary', {}, `${x.code.replaceAll('_', ' ')} · versión ${x.version}${x.is_active ? ' (activa)' : ''}`), ...body, out);
+      return h('details', { class: 'i18-card' }, h('summary', {}, `${String(x.code || 'Sin código').replaceAll('_', ' ')} · versión ${x.version}${x.is_active ? ' (activa)' : ''}`), ...body, out);
     });
     tpl.replaceChildren(isSuper ? null : note('Las plantillas las cambia solo el Super Admin porque afectan a todos los operadores.'), ...cards);
   }
