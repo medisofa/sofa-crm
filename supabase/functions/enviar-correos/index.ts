@@ -71,6 +71,18 @@ class ProveedorResend implements ProveedorCorreo {
     return { ok: true, messageId: result.id };
   }
 }
+/** Codifica UTF-8 a base64 sin argumentos masivos en la pila. */
+function base64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return btoa(binary);
+}
+function safeEmail(value: string): boolean {
+  return /^[^\\s@\\r\\n]+@[^\\s@\\r\\n]+\\.[^\\s@\\r\\n]+$/.test(value);
+}
 /** Gmail API mediante OAuth 2.0; solo backend, sin contraseñas de aplicación.
  * Activación condicionada por CORREO_ENVIO_REAL_HABILITADO y CORREO_DESTINATARIOS_PRUEBA.
  */
@@ -84,6 +96,7 @@ class ProveedorGmail implements ProveedorCorreo {
     if (!clientId || !clientSecret || !refreshToken || sender !== "medicasofa@gmail.com") {
       return { ok: false, permanente: true, error: "La cuenta Gmail OAuth no está configurada." };
     }
+    if (!safeEmail(c.to) || /[\\r\\n]/.test(c.subject)) return { ok: false, permanente: true, error: "Datos de correo inválidos." };
     const allowlist = (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "")
       .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
     if (!allowlist.includes(c.to.trim().toLowerCase())) {
@@ -102,7 +115,7 @@ class ProveedorGmail implements ProveedorCorreo {
     if (!tokenResponse?.ok) return { ok: false, error: "No se pudo autenticar con Gmail." };
     const token = await tokenResponse.json().catch(() => ({}));
     if (!token.access_token) return { ok: false, error: "Gmail no devolvió credenciales temporales." };
-    const encodedSubject = `=?UTF-8?B?${btoa(String.fromCharCode(...new TextEncoder().encode(c.subject)))}?=`;
+    const encodedSubject = `=?UTF-8?B?${base64Utf8(c.subject)}?=`;
     const boundary = "sofa-" + crypto.randomUUID();
     const raw = [
       "From: SOFA <medicasofa@gmail.com>",
@@ -113,11 +126,11 @@ class ProveedorGmail implements ProveedorCorreo {
       "", `--${boundary}`,
       'Content-Type: text/plain; charset="UTF-8"',
       "Content-Transfer-Encoding: base64", "",
-      btoa(String.fromCharCode(...new TextEncoder().encode(c.text || ""))),
+      base64Utf8(c.text || ""),
       `--${boundary}`,
       'Content-Type: text/html; charset="UTF-8"',
       "Content-Transfer-Encoding: base64", "",
-      btoa(String.fromCharCode(...new TextEncoder().encode(c.html || ""))),
+      base64Utf8(c.html || ""),
       `--${boundary}--`, "",
     ].join("\r\n");
     const body = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -227,6 +240,10 @@ Deno.serve(async (req) => {
   const remitente = Deno.env.get("CORREO_REMITENTE") || "SOFA <avisos@dominio-por-definir.invalid>";
   const pixelUrl = Deno.env.get("PIXEL_URL") || "";
 
+  // La cola compartida no debe consumirse mientras se prepara Gmail OAuth.
+  if (Deno.env.get("CORREO_PROCESAR_COLA_HABILITADO") !== "true") {
+    return json({ error: "Procesamiento de cola deshabilitado hasta completar pruebas y revisión." }, 403);
+  }
   const lote = await db.rpc("email_claim_batch", { p_limit: limite });
   if (lote.error) return json({ error: "No se pudo tomar el lote de correos. Intente de nuevo en unos minutos." }, 500);
   const correos = (lote.data ?? []) as Correo[];
