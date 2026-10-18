@@ -53,7 +53,7 @@ export async function uploadDocument({ orgId, submissionId, lineId = null, docTy
 }
 
 export async function listDocuments({ submissionId = null, entityType = null, entityId = null, type = '', limit = 200 } = {}) {
-  let q = sb().from('documents').select('id, organization_id, entity_type, entity_id, service_line_id, document_type_code, storage_path, file_name, mime_type, size_bytes, uploaded_at, uploaded_by, document_types(name)');
+  let q = sb().from('documents').select('id, organization_id, entity_type, entity_id, service_line_id, document_type_code, storage_path, bucket, file_name, mime_type, size_bytes, uploaded_at, uploaded_by, document_types(name)');
   if (submissionId) q = q.eq('entity_type', 'submission').eq('entity_id', submissionId);
   if (entityType && entityId) q = q.eq('entity_type', entityType).eq('entity_id', entityId);
   if (type) q = q.eq('document_type_code', type);
