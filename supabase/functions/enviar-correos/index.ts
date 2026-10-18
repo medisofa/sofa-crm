@@ -81,7 +81,7 @@ function base64Utf8(value: string): string {
   return btoa(binary);
 }
 function safeEmail(value: string): boolean {
-  return /^[^\\s@\\r\\n]+@[^\\s@\\r\\n]+\\.[^\\s@\\r\\n]+$/.test(value);
+  return /^[^\s@\r\n]+@[^\s@\r\n]+\\.[^\s@\r\n]+$/.test(value);
 }
 /** Gmail API mediante OAuth 2.0; solo backend, sin contraseñas de aplicación.
  * Activación condicionada por CORREO_ENVIO_REAL_HABILITADO y CORREO_DESTINATARIOS_PRUEBA.
@@ -96,7 +96,7 @@ class ProveedorGmail implements ProveedorCorreo {
     if (!clientId || !clientSecret || !refreshToken || sender !== "medicasofa@gmail.com") {
       return { ok: false, permanente: true, error: "La cuenta Gmail OAuth no está configurada." };
     }
-    if (!safeEmail(c.to) || /[\\r\\n]/.test(c.subject)) return { ok: false, permanente: true, error: "Datos de correo inválidos." };
+    if (!safeEmail(c.to) || /[\r\n]/.test(c.subject)) return { ok: false, permanente: true, error: "Datos de correo inválidos." };
     const allowlist = (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "")
       .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
     if (!allowlist.includes(c.to.trim().toLowerCase())) {
@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
     const to = String(testRequest.destinatario || "").trim().toLowerCase();
     const allowed = (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "")
       .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
-    if (!allowed.includes(to) || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(to)) {
+    if (!allowed.includes(to) || !/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(to)) {
       return json({ error: "Destinatario de prueba no autorizado." }, 403);
     }
     const id = crypto.randomUUID();
