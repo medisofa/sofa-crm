@@ -65,7 +65,14 @@ export async function openDocument(doc) {
   if (!doc?.storage_path) throw new Error('El documento no tiene ruta de almacenamiento registrada. Solicita una revisión del expediente.');
   const win = window.open('', '_blank');
   const { data, error } = await sb().storage.from(doc.bucket || BUCKET).createSignedUrl(doc.storage_path, 300);
-  if (error || !data?.signedUrl) { win?.close(); throw error || new Error('No se pudo generar el enlace del documento.'); }
+  if (error || !data?.signedUrl) {
+    win?.close();
+    const message = String(error?.message || '');
+    if (/object not found|not found|404/i.test(message)) {
+      throw new Error('El archivo no se encuentra en el almacenamiento. El registro del documento sigue intacto; solicita al administrador verificar su ruta y recuperar el archivo.');
+    }
+    throw error || new Error('No se pudo generar el enlace del documento.');
+  }
   if (win) { win.opener = null; win.location.href = data.signedUrl; return null; }
   return data.signedUrl; // el navegador bloqueó la ventana: se muestra el enlace
 }
