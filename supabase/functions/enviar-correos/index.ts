@@ -7,11 +7,11 @@
 // Variables de la función (todas son secretos o configuración, ninguna va al repositorio):
 //   SUPABASE_URL y la clave de servicio: las inyecta Supabase.
 //   CORREOS_SECRETO       (obligatoria) texto largo y aleatorio; quien programa la función (pg_cron/pg_net o el programador de Supabase) lo manda en el encabezado x-sofa-secreto.
-//   CORREO_PROVEEDOR      (opcional) «simulado» por defecto.
+//   CORREO_PROVEEDOR      (opcional) «simulado» por defecto.\n//   RESEND_API_KEY       (requerida solo para resend; secreto del servidor).\n//   CORREO_ENVIO_REAL_HABILITADO (requerida para proveedor real; valor literal true).
 //   CORREO_REMITENTE      (opcional) «SOFA <avisos@dominio-por-definir>»: el dominio remitente todavía no está decidido.
 //   PIXEL_URL             (opcional) URL pública de esta función; solo se usa si el operador encendió el seguimiento de aperturas.
 //   ORIGEN_PERMITIDO      (opcional) origen exacto de la app para CORS; sin él, no se responde a navegadores.
-// Verify JWT: DESACTIVADO (la llaman un programador y el pixel de apertura, no un navegador con sesión); la protege el secreto de CORREOS_SECRETO.
+// DESPLIEGUE ACTUAL: verify_jwt=true. Conservarlo hasta probar la autenticación del programador.\n// El encabezado x-sofa-secreto es una segunda capa para POST; no sustituye al JWT del gateway.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 
 // ── Interfaz del proveedor ───────────────────────────────────────────────────────────────────────────────────────
