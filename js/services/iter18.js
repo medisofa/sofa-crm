@@ -75,8 +75,10 @@ export function kpi(label, value, hint) {
 export function table(cols, rows, foot) {
   return h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
     h('thead', {}, h('tr', {}, cols.map((c) => h('th', { class: c.right ? 'i18-r' : '' }, c.label)))),
-    h('tbody', {}, rows.length ? rows.map((r) => h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '' }, c.get(r))))) : h('tr', {}, h('td', { colspan: cols.length, class: 'i18-empty' }, 'Sin datos para mostrar.'))),
-    foot ? h('tfoot', {}, h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '' }, foot[c.key] ?? '')))) : null));
+    // data-l lleva el nombre de la columna a cada celda: en el teléfono la tabla se convierte en
+    // tarjetas y cada dato sale con su etiqueta al lado, sin arrastrar la pantalla a lo ancho.
+    h('tbody', {}, rows.length ? rows.map((r) => h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '', 'data-l': c.label }, c.get(r))))) : h('tr', {}, h('td', { colspan: cols.length, class: 'i18-empty' }, 'Sin datos para mostrar.'))),
+    foot ? h('tfoot', {}, h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '', 'data-l': c.label }, foot[c.key] ?? '')))) : null));
 }
 export const note = (text, kind = 'info') => h('p', { class: `i18-note i18-${kind}`, role: kind === 'error' ? 'alert' : 'status' }, text);
 

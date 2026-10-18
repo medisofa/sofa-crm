@@ -11,14 +11,15 @@ const mesLargo = (iso) => { if (!iso) return ''; const [y, m] = String(iso).slic
 export async function render(root) {
   root.replaceChildren();
   const out = h('div', { 'aria-live': 'polite' });
-  const clientSel = h('select', { 'aria-label': 'Cliente' });
+  const clientSel = h('select', { 'aria-label': 'Consultorio' });
+  const clientLbl = h('label', {}, 'Consultorio ', clientSel);   // 5.22.0: se esconde si hay uno solo
   const monthIn = h('input', { type: 'month', value: monthNow(), max: monthNow(), 'aria-label': 'Mes' });
   const btnCsv = h('button', { class: 'i18-btn', type: 'button', disabled: true }, 'Descargar para el contador (CSV)');
   let ultimo = null;
 
   async function load() {
     btnCsv.disabled = true;
-    if (!clientSel.value) { out.replaceChildren(note('No hay clientes disponibles para tu usuario.')); return; }
+    if (!clientSel.value) { out.replaceChildren(note('No hay consultorios disponibles para tu usuario.')); return; }
     const r = await guarded(out, () => rpc('accountant_report', { p_org: clientSel.value, p_period: monthToDate(monthIn.value) }));
     if (!r) return;
     ultimo = r;
@@ -32,10 +33,12 @@ export async function render(root) {
   root.append(h('div', { class: 'i18-wrap' },
     h('h2', {}, 'Reporte para mi contador'),
     h('p', { class: 'i18-sub' }, 'Todo lo que tu contador necesita del mes: lo que entró, de dónde vino y lo que SOFA te facturó. Sin datos de pacientes.'),
-    h('div', { class: 'i18-bar' }, h('label', {}, 'Cliente ', clientSel), h('label', {}, 'Mes ', monthIn), btnCsv),
+    h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Mes ', monthIn), btnCsv),
     out));
   try {
-    (await clientOptions()).forEach((c) => clientSel.append(h('option', { value: c.id }, clientName(c))));
+    const cl = await clientOptions();
+    cl.forEach((c) => clientSel.append(h('option', { value: c.id }, clientName(c))));
+    if (cl.length < 2) clientLbl.hidden = true;   // 5.22.0: no se le pide escogerse a sí mismo de una lista de uno
     await load();
   } catch (e) { out.replaceChildren(note(e.message, 'error')); }
 }

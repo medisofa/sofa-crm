@@ -16,6 +16,40 @@
 .i18-table tfoot td{font-weight:700;border-top:2px solid var(--border,#cfd6df)}
 .i18-r{text-align:right!important;font-variant-numeric:tabular-nums}
 .i18-empty{color:var(--text-muted,#5b6674);text-align:center!important;padding:18px!important}
+
+/* 5.22.0 · «Mi dinero»: una cifra manda y las fechas de cobro van enseguida. */
+.md-hero{border:1px solid var(--border,#d9dee5);border-radius:14px;padding:18px 20px;background:var(--surface,#fff);margin:4px 0 14px}
+.md-hero-l{font-size:.9rem;color:var(--text-muted,#5b6674)}
+.md-hero-v{font-size:2.3rem;line-height:1.1;font-weight:800;margin:4px 0 6px;font-variant-numeric:tabular-nums}
+.md-hero-w{font-size:.92rem;color:var(--warn-fg,#8a5a00)}
+.md-hero-ok{font-size:.92rem;color:var(--ok,#0f7b52)}
+.md-lista{list-style:none;margin:0 0 8px;padding:0;border:1px solid var(--border,#d9dee5);border-radius:12px;overflow:hidden}
+.md-fila{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:11px 15px;border-bottom:1px solid var(--border,#e3e7ed);margin:0}
+.md-fila:last-child{border-bottom:0}
+.md-cuando{color:var(--text-muted,#5b6674);font-size:.92rem}
+.md-tarde .md-cuando{color:var(--warn-fg,#8a5a00)}
+.md-resto{color:var(--text-muted,#5b6674)}
+.md-monto{font-variant-numeric:tabular-nums;white-space:nowrap}
+.md-nota{margin-top:0}
+.md-cierre{margin-top:16px;padding-top:12px;border-top:1px solid var(--border,#e3e7ed);color:var(--text-muted,#5b6674);font-size:.94rem}
+@media (max-width:640px){.md-hero-v{font-size:2rem}.md-fila{flex-wrap:wrap;gap:2px 14px}.md-fila>span{flex:1 1 100%}}
+
+/* 5.22.0 · En el teléfono las tablas se leen como tarjetas, no arrastrando a lo ancho.
+   Mismo patrón que ya usaban .ac-table y .ex-table; aquí sí con el nombre de la columna al lado
+   de cada dato (data-l, que estampa el ayudante table() de services/iter18.js).
+   Una tabla hecha a mano sin data-l se apila igual: solo se queda sin la etiqueta. */
+@media (max-width:640px){
+  .i18-table-wrap{overflow-x:visible}
+  .i18-table thead{display:none}
+  .i18-table,.i18-table tbody,.i18-table tfoot,.i18-table tr,.i18-table td{display:block;width:auto}
+  .i18-table tr{padding:10px 0;border-bottom:1px solid var(--border,#e3e7ed)}
+  .i18-table tbody tr:last-child{border-bottom:0}
+  .i18-table td{border:0;padding:3px 0;display:flex;justify-content:space-between;align-items:baseline;gap:14px;text-align:right}
+  .i18-table td::before{content:attr(data-l);flex:0 1 auto;text-align:left;font-size:.76rem;line-height:1.5;color:var(--text-muted,#5b6674);text-transform:uppercase;letter-spacing:.03em}
+  .i18-table td:not([data-l])::before{content:none}
+  .i18-table td.i18-empty{display:block;text-align:center!important}
+  .i18-table tfoot tr{border-top:2px solid var(--border,#cfd6df);border-bottom:0}
+}
 .i18-note{margin:0;padding:10px 12px;border-radius:8px;background:var(--surface-2,#f1f4f8)}
 .i18-note.i18-error{background:#fde8e6;color:#8a1c14}
 .i18-note.i18-ok{background:#e4f5ea;color:#0d5a2b}
