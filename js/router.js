@@ -38,7 +38,7 @@ export const MODULES = {
   'auditoria-expedientes': 'auditoria-expedientes.js', insumos: 'insumos.js', 'mi-habilitacion': 'mi-habilitacion.js', direccion: 'direccion.js',
   'mis-horas': 'mis-horas.js', 'salud-sistema': 'salud-sistema.js',
   // 4.1 a 4.5 · Iteraciones 51 a 55
-  propuestas: 'propuestas.js', verificacion: 'verificacion.js', 'informe-trimestral': 'informe-trimestral.js', 'casos-exito': 'referidos.js', recomendar: 'referidos.js',
+  propuestas: 'propuestas.js', fugas: 'propuestas.js', verificacion: 'verificacion.js', 'informe-trimestral': 'informe-trimestral.js', 'casos-exito': 'referidos.js', recomendar: 'referidos.js',
   'onboarding-30': 'onboarding-30.js', 'mis-30-dias': 'onboarding-30.js',
   // 4.8 · P1 · planes y bloqueo por plan
   'mi-plan': 'mi-plan.js', planes: 'planes-admin.js',
