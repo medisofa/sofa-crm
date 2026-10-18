@@ -42,7 +42,7 @@ export async function render(root, ctx = {}) {
 
   function drawCfg(s) {
     const out = cfgMsg;
-    const en = h('input', { type: 'checkbox', id: 'cc-enabled', checked: settings.enabled });
+    const en = h('input', { type: 'checkbox', id: 'cc-enabled', checked: s.enabled });
     const tr = h('input', { type: 'checkbox', id: 'cc-track', checked: s.track_opens });
     const dias = h('input', { type: 'number', id: 'cc-dias', min: '1', max: '14', value: String(s.glosa_days_ahead) });
     const int = h('input', { type: 'number', id: 'cc-int', min: '1', max: '10', value: String(s.max_attempts) });
