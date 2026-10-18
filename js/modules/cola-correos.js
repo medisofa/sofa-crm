@@ -25,21 +25,24 @@ export async function render(root, ctx = {}) {
   async function loadTop() {
     try {
       const [s, st, o] = await Promise.all([rpc('email_settings_get'), rpc('email_queue_stats'), rpc('email_open_rate')]);
-      const est = st.por_estado || {};
+      const settings = s && typeof s === 'object' ? s : {};
+      const stats = st && typeof st === 'object' ? st : {};
+      const openings = o && typeof o === 'object' ? o : {};
+      const est = stats.por_estado || {};
       top.replaceChildren(
-        note(s.nota_proveedor, 'warn'),
-        h('div', { class: 'i18-kpis' }, kpi('Avisos', s.enabled ? 'Encendidos' : 'Apagados', s.enabled ? 'Los generadores encolan' : 'No se encola nada (salvo seguridad)'),
-          kpi('Pendientes', String(est.pendiente || 0), st.pendiente_mas_viejo_min != null ? `El más viejo espera ${st.pendiente_mas_viejo_min} min` : 'Sin atraso'),
-          kpi('Fallidos (24 h)', String(st.fallidos_24h), st.fallidos_24h ? 'Revise y reintente' : 'Ninguno'),
-          kpi('Enviados (7 días)', String(st.enviados_7d)),
-          kpi('Médicos que abren el resumen', o.medido ? `${o.porcentaje} %` : 'Sin medición', o.medido ? `Meta ${o.meta} %` : 'Seguimiento de aperturas apagado')));
-      drawCfg(s);
+        note(settings.nota_proveedor || 'Estado del proveedor no disponible.', 'warn'),
+        h('div', { class: 'i18-kpis' }, kpi('Avisos', settings.enabled ? 'Encendidos' : 'Apagados', settings.enabled ? 'Los generadores encolan' : 'No se encola nada (salvo seguridad)'),
+          kpi('Pendientes', String(est.pendiente || 0), stats.pendiente_mas_viejo_min != null ? `El más viejo espera ${stats.pendiente_mas_viejo_min} min` : 'Sin atraso'),
+          kpi('Fallidos (24 h)', String(stats.fallidos_24h), stats.fallidos_24h ? 'Revise y reintente' : 'Ninguno'),
+          kpi('Enviados (7 días)', String(stats.enviados_7d)),
+          kpi('Médicos que abren el resumen', openings.medido ? `${openings.porcentaje} %` : 'Sin medición', openings.medido ? `Meta ${openings.meta} %` : 'Seguimiento de aperturas apagado')));
+      drawCfg(settings);
     } catch (e) { top.replaceChildren(note(e.message, 'error')); }
   }
 
   function drawCfg(s) {
     const out = cfgMsg;
-    const en = h('input', { type: 'checkbox', id: 'cc-enabled', checked: s.enabled });
+    const en = h('input', { type: 'checkbox', id: 'cc-enabled', checked: settings.enabled });
     const tr = h('input', { type: 'checkbox', id: 'cc-track', checked: s.track_opens });
     const dias = h('input', { type: 'number', id: 'cc-dias', min: '1', max: '14', value: String(s.glosa_days_ahead) });
     const int = h('input', { type: 'number', id: 'cc-int', min: '1', max: '10', value: String(s.max_attempts) });
