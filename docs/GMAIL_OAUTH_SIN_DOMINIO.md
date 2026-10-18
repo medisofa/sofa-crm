@@ -28,3 +28,10 @@ Se añadió modo `prueba_gmail` a `enviar-correos`. Está bloqueado salvo que `C
 
 ## Estado de secretos
 Este conector no dispone de una acción para escribir secretos de Edge Functions. El propietario debe configurarlos desde el panel privado de Supabase. No compartir los valores en chats, commits o capturas.
+
+## Iteración de endurecimiento
+- Se agregó `CORREO_PROCESAR_COLA_HABILITADO`, cuyo valor por defecto es distinto de `true`: no consume cola productiva aunque se invoque POST normal.
+- La prueba aislada `modo=prueba_gmail` continúa sujeta a `CORREO_PRUEBA_HABILITADA=true`, lista de destinatarios y autenticación.
+- Se reforzó codificación UTF-8 y validación de direcciones.
+- No confundir preparación con certificación: faltan tests automatizados y revisión de tipos/compilación de Deno, credenciales OAuth y validación de errores reales.
+- Para procesar la cola productiva se requiere autorización separada y `CORREO_PROCESAR_COLA_HABILITADO=true`; antes revisar los seis registros pendientes detectados y su legitimidad.
