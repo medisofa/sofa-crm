@@ -183,7 +183,38 @@ Deno.serve(async (req) => {
   if (!igualesSeguro(req.headers.get("x-sofa-secreto") || "", secreto)) return json({ error: "No autorizado." }, 401);
 
   let limite = 20;
-  try { const b = await req.json(); if (b && Number.isInteger(b.limite)) limite = Math.min(Math.max(b.limite, 1), 100); } catch { /* sin cuerpo: lote normal */ }
+  let payload: unknown = {};
+  try { payload = await req.json(); const b = payload as { limite?: number }; if (b && Number.isInteger(b.limite)) limite = Math.min(Math.max(b.limite!, 1), 100); } catch { /* sin cuerpo: lote normal */ }
+
+  // Prueba aislada: no reclama ni modifica la cola real.
+  // Requiere JWT válido del gateway, x-sofa-secreto y opt-in temporal del servidor.
+  // Nunca se utiliza el cuerpo/HTML suministrado por el solicitante.
+  let testRequest: { modo?: string; destinatario?: string } = {};
+  try {
+    // La petición normal ya fue parseada arriba; leer una segunda vez no es posible.
+    // Por eso se usa el cuerpo capturado en la sección anterior.
+    testRequest = typeof payload === "object" && payload !== null ? payload as typeof testRequest : {};
+  } catch { /* no prueba */ }
+  if (testRequest.modo === "prueba_gmail") {
+    if (Deno.env.get("CORREO_PRUEBA_HABILITADA") !== "true") {
+      return json({ error: "Pruebas Gmail deshabilitadas." }, 403);
+    }
+    const to = String(testRequest.destinatario || "").trim().toLowerCase();
+    const allowed = (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "")
+      .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (!allowed.includes(to) || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(to)) {
+      return json({ error: "Destinatario de prueba no autorizado." }, 403);
+    }
+    const id = crypto.randomUUID();
+    const result = await new ProveedorGmail().enviar({
+      id, to, name: null, subject: "SOFA · Prueba técnica Gmail",
+      html: "<p>Prueba técnica controlada de SOFA. No contiene datos de pacientes.</p>",
+      text: "Prueba técnica controlada de SOFA. No contiene datos de pacientes.",
+      attempt: 1, token: null, critical: false,
+    }, "SOFA <medicasofa@gmail.com>");
+    return json({ ok: result.ok, provider: "gmail", test: true, messageId: result.messageId || null,
+      error: result.ok ? null : result.error || "No se pudo enviar prueba." }, result.ok ? 200 : 502);
+  }
 
   const nombre = Deno.env.get("CORREO_PROVEEDOR") || "simulado";
   // Bloqueo explícito: un proveedor real exige autorización de activación separada.
