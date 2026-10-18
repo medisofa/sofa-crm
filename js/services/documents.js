@@ -62,6 +62,7 @@ export async function listDocuments({ submissionId = null, entityType = null, en
 
 /** Abre el documento con una URL firmada de 5 minutos */
 export async function openDocument(doc) {
+  if (!doc?.storage_path) throw new Error('El documento no tiene ruta de almacenamiento registrada. Solicita una revisión del expediente.');
   const win = window.open('', '_blank');
   const { data, error } = await sb().storage.from(doc.bucket || BUCKET).createSignedUrl(doc.storage_path, 300);
   if (error || !data?.signedUrl) { win?.close(); throw error || new Error('No se pudo generar el enlace del documento.'); }
