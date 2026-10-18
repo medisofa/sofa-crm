@@ -263,9 +263,13 @@ Deno.serve(async (req) => {
     try { r = await proveedor.enviar({ ...c, html }, remitente); }
     catch { r = { ok: false, error: "El proveedor no respondió." }; }   // el detalle técnico no se guarda ni se devuelve
     try {
-      if (r.ok) { await db.rpc("email_mark_sent", { p_id: c.id, p_provider: proveedor.nombre, p_message_id: r.messageId ?? "" }); enviados++; }
-      else {
+      if (r.ok) {
+        const m = await db.rpc("email_mark_sent", { p_id: c.id, p_provider: proveedor.nombre, p_message_id: r.messageId ?? "" });
+        if (m.error) throw new Error("No se pudo registrar la entrega.");
+        enviados++;
+      } else {
         const m = await db.rpc("email_mark_failed", { p_id: c.id, p_error: r.error ?? "El proveedor no pudo enviar el correo.", p_permanent: !!r.permanente });
+        if (m.error) throw new Error("No se pudo registrar el fallo.");
         if (m.data === "fallido") fallidos++; else reintentos++;
       }
     } catch { /* si el marcado falla, el correo vuelve a la cola a los 10 minutos (email_claim_batch) */ }
