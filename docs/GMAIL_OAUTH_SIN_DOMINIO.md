@@ -16,3 +16,15 @@ Remitente: `medicasofa@gmail.com`. No utilizar Resend como remitente Gmail no ve
 
 ## Estado
 Código preparado en rama de GitHub, sin credenciales, sin despliegue y sin envíos. El usuario debe autorizar OAuth y crear sus secretos en Google Cloud/Supabase. HemoCura no se modifica.
+
+## Prueba aislada nueva (sin consumir cola de producción)
+Se añadió modo `prueba_gmail` a `enviar-correos`. Está bloqueado salvo que `CORREO_PRUEBA_HABILITADA=true` y el destinatario esté en `CORREO_DESTINATARIOS_PRUEBA`.
+- POST JSON: `{"modo":"prueba_gmail","destinatario":"medicasofa@gmail.com"}`.
+- Requiere JWT válido en Authorization y encabezado `x-sofa-secreto`. Enviar desde un cliente de pruebas seguro, nunca desde el frontend público.
+- El cuerpo y asunto son fijos, sin información clínica. No se invoca `email_claim_batch` ni se cambia `email_queue`.
+- El envío de prueba es **real** si se habilita la bandera y las credenciales; solicitar autorización antes de ejecutar.
+- Después de una prueba aprobada, volver `CORREO_PRUEBA_HABILITADA=false`.
+- En el último corte de auditoría había **6 correos pendientes** en la cola de producción: no activar el procesamiento normal sobre ellos hasta revisarlos.
+
+## Estado de secretos
+Este conector no dispone de una acción para escribir secretos de Edge Functions. El propietario debe configurarlos desde el panel privado de Supabase. No compartir los valores en chats, commits o capturas.
