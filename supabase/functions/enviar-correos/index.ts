@@ -244,6 +244,10 @@ Deno.serve(async (req) => {
   if (Deno.env.get("CORREO_PROCESAR_COLA_HABILITADO") !== "true") {
     return json({ error: "Procesamiento de cola deshabilitado hasta completar pruebas y revisión." }, 403);
   }
+  // Protección por destinatarios: nunca procesar la cola compartida bajo allowlist de pruebas.
+  if (nombre === "gmail" && (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "").trim()) {
+    return json({ error: "Desactive la allowlist de pruebas antes de habilitar procesamiento de cola; requiere revisión operativa." }, 403);
+  }
   const lote = await db.rpc("email_claim_batch", { p_limit: limite });
   if (lote.error) return json({ error: "No se pudo tomar el lote de correos. Intente de nuevo en unos minutos." }, 500);
   const correos = (lote.data ?? []) as Correo[];
