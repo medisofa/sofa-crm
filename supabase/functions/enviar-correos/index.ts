@@ -71,9 +71,75 @@ class ProveedorResend implements ProveedorCorreo {
     return { ok: true, messageId: result.id };
   }
 }
+/** Gmail API mediante OAuth 2.0; solo backend, sin contraseñas de aplicación.
+ * Activación condicionada por CORREO_ENVIO_REAL_HABILITADO y CORREO_DESTINATARIOS_PRUEBA.
+ */
+class ProveedorGmail implements ProveedorCorreo {
+  nombre = "gmail";
+  async enviar(c: Correo, remitente: string): Promise<Resultado> {
+    const clientId = Deno.env.get("GMAIL_CLIENT_ID") || "";
+    const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET") || "";
+    const refreshToken = Deno.env.get("GMAIL_REFRESH_TOKEN") || "";
+    const sender = Deno.env.get("GMAIL_REMITENTE") || "";
+    if (!clientId || !clientSecret || !refreshToken || sender !== "medicasofa@gmail.com") {
+      return { ok: false, permanente: true, error: "La cuenta Gmail OAuth no está configurada." };
+    }
+    const allowlist = (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "")
+      .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (!allowlist.includes(c.to.trim().toLowerCase())) {
+      return { ok: false, permanente: true, error: "Destinatario no autorizado para pruebas." };
+    }
+    // El remitente se fija en la cuenta OAuth autorizada; no se toma de datos de la cola.
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId, client_secret: clientSecret,
+        refresh_token: refreshToken, grant_type: "refresh_token",
+      }),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => null);
+    if (!tokenResponse?.ok) return { ok: false, error: "No se pudo autenticar con Gmail." };
+    const token = await tokenResponse.json().catch(() => ({}));
+    if (!token.access_token) return { ok: false, error: "Gmail no devolvió credenciales temporales." };
+    const encodedSubject = `=?UTF-8?B?${btoa(String.fromCharCode(...new TextEncoder().encode(c.subject)))}?=`;
+    const boundary = "sofa-" + crypto.randomUUID();
+    const raw = [
+      "From: SOFA <medicasofa@gmail.com>",
+      `To: <${c.to}>`,
+      `Subject: ${encodedSubject}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "", `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64", "",
+      btoa(String.fromCharCode(...new TextEncoder().encode(c.text || ""))),
+      `--${boundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64", "",
+      btoa(String.fromCharCode(...new TextEncoder().encode(c.html || ""))),
+      `--${boundary}--`, "",
+    ].join("\r\n");
+    const body = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw: body }),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => null);
+    if (!response) return { ok: false, error: "No se pudo contactar Gmail." };
+    if (!response.ok) return {
+      ok: false, permanente: response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status),
+      error: `Gmail rechazó el envío (HTTP ${response.status}).`,
+    };
+    const result = await response.json().catch(() => ({}));
+    return result.id ? { ok: true, messageId: result.id } : { ok: false, error: "Gmail no confirmó el mensaje." };
+  }
+}
 const PROVEEDORES: Record<string, () => ProveedorCorreo> = {
   simulado: () => new ProveedorSimulado(),
   resend: () => new ProveedorResend(),
+  gmail: () => new ProveedorGmail(),
 };
 
 // ── Utilidades ───────────────────────────────────────────────────────────────────────────────────────────────────
