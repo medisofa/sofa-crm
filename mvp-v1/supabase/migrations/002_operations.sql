@@ -7,6 +7,7 @@ as $$
 declare
   c0 public.claims_v1;
   c public.claims_v1;
+  v_claim_id uuid;
   v_id uuid;
   v_period date;
   v_seq int;
@@ -23,8 +24,8 @@ begin
   select coalesce(max(sequence),0)+1 into v_seq from public.submissions_v1
    where organization_id=c0.organization_id and provider_id=c0.provider_id and ars_id=c0.ars_id and period=v_period;
 
-  foreach c.id in array p_claims loop
-    select * into c from public.claims_v1 where id=c.id for update;
+  foreach v_claim_id in array p_claims loop
+    select * into c from public.claims_v1 where id=v_claim_id for update;
     if c.id is null or c.organization_id<>c0.organization_id or c.provider_id<>c0.provider_id or c.ars_id<>c0.ars_id
        or date_trunc('month',c.service_date)::date<>v_period or c.status<>'validated' then
       raise exception 'Todas las reclamaciones deben ser validadas y pertenecer al mismo médico, ARS y período.' using errcode='23514';
