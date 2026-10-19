@@ -28,7 +28,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
+export const BILLING_ROUTES = ['autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -37,7 +37,8 @@ export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'r
  */
 export const NAV = [
   { group: 'Operación', items: [
-    { route: 'mi-dashboard', label: 'Inicio', roles: [...ALL, 'capturer'], ready: true },   // 1.9 · primera página según el rol · 2.0: se llama «Inicio»
+    { route: 'mi-dashboard', label: 'Inicio', roles: [...ALL, 'capturer'], ready: true },
+    { route: 'autoentrenamiento', label: 'Mi autoentrenamiento', roles: Object.keys(ROLES), ready: true },   // 1.9 · primera página según el rol · 2.0: se llama «Inicio»
     { route: 'inicio', label: 'Panel SOFA', roles: STAFF, ready: true },   // 2.0: el panel general queda para el personal de SOFA
     { route: 'hoy', label: 'Trabajo de hoy', roles: [...ALL, 'capturer'], ready: true },
     { route: 'mi-bandeja', label: 'Mi bandeja', roles: ['super_admin', 'admin', 'operations', 'billing'], ready: true },   // 4.9 · I59
@@ -315,6 +316,12 @@ export const ESENCIALES = {
   }
 };
 
+// Autoentrenamiento es personal y obligatorio para todos los roles. Se agrega aquí para que
+// los perfiles reducidos no lo pierdan cuando ESENCIALES recorta su alcance.
+Object.values(ESENCIALES).forEach((def) => {
+  if (Array.isArray(def.menu) && !def.menu.includes('autoentrenamiento')) def.menu.push('autoentrenamiento');
+});
+
 // 1) Alcance: lo que no está en menu+extra se le retira al rol (no lo ve y no lo puede abrir).
 Object.entries(ESENCIALES).forEach(([rol, def]) => {
   if (def.extra === '*') return;   // 5.11.0: '*' significa «no le quites nada»; solo se acorta su menú
@@ -411,7 +418,7 @@ export const FAMILIES = [
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
-  { key: 'cuenta', group: 'Mi cuenta', routes: ['mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
+  { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
 
 /**
@@ -425,7 +432,7 @@ export const FAMILIAS_ROL = {
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
     { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador'] },
     { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'centros', 'clinica'] },
-    { key: 'cuenta',      group: 'Mi cuenta',     routes: ['mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
+    { key: 'cuenta',      group: 'Mi cuenta',     routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
   ]
 };
 
@@ -544,3 +551,5 @@ const ACTIONS = {
   'onboarding.review': ['super_admin', 'admin', 'assistant', 'operations']                           // 4.5 · onboarding_review_add (168)
 };
 export const can = (action, role) => !!ACTIONS[action]?.includes(role);
+/** Funciones visibles para el autoentrenamiento y otras vistas por rol. */
+export const accionesDelRol = (role) => Object.entries(ACTIONS).filter(([, roles]) => roles.includes(role)).map(([action]) => action).sort();
