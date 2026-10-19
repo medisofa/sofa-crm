@@ -68,7 +68,10 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const fullName = String(body.full_name || '').trim().slice(0, 120);
   const role = String(body.role || '');
   const org = body.organization_id ? String(body.organization_id) : null;
-  const redirectTo = (d.authRedirectUrl || d.appUrl ? `${(d.authRedirectUrl || d.appUrl).replace(/\/+$/, '')}${d.authRedirectUrl ? '' : '/login'}` : 'https://staging.sofamedica.com/login').trim();
+  const configuredRedirect = (d.authRedirectUrl || '').trim();
+  const appBase = (d.appUrl || '').replace(/\/+$/, '');
+  const legacyStatic = /github\.io/i.test(appBase);
+  const redirectTo = configuredRedirect || (appBase ? `${appBase}${legacyStatic ? '/login.html' : '/login'}` : 'https://medisofa.github.io/sofa-crm/login.html');
 
   if (!['invite', 'resend', 'grant'].includes(action)) return reply(400, { ok: false, message: 'Acción desconocida' }, cors);
   if (!EMAIL.test(email)) return reply(400, { ok: false, message: 'Correo inválido' }, cors);
