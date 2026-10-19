@@ -7,12 +7,12 @@ export const ROLES = Object.freeze({   // nombres según la tabla de roles (audi
   super_admin: { name: 'Super Admin SOFA', staff: true, desc: 'Todo el sistema, incluidos usuarios, parámetros y datos fiscales.' },
   admin: { name: 'Administrador SOFA', staff: true, desc: 'Operación completa de SOFA: radicación, pagos, glosas, honorarios, tarifarios y usuarios.' },
   operations: { name: 'Operaciones SOFA', staff: true, desc: 'Retiro físico, validación, onboarding y bandejas; sin honorarios.' },
-  billing: { name: 'Facturación', staff: true, desc: 'Trabajo de hoy, Dashboard, Captura rápida, Reclamaciones y Retiros físicos.' },
-  glosas: { name: 'Cobros, conciliación y glosas', staff: true, desc: 'Pagos de las ARS, reparto por reclamación y gestión de glosas.' },
-  assistant: { name: 'Comercial', staff: true, desc: 'Prospectos, pipeline, documentos A–E, onboarding y CRM.' },
-  auditor: { name: 'Auditor', staff: true, desc: 'Valida expedientes (completo o incompleto) y consulta todo.' },
-  client: { name: 'Médico', staff: false, desc: 'Dueño de la práctica: su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA).' },
-  capturer: { name: 'Secretaria', staff: false, desc: 'Agenda, captura, cobros a privados y cuadre de los médicos que se le asignan; sin pagos de ARS, glosas ni honorarios.' },
+  billing: { name: 'Facturación y Radicación', staff: true, desc: 'Prepara y radica reclamaciones validadas; no registra pagos ARS ni gestiona glosas.' },
+  glosas: { name: 'Cobros, Conciliación y Glosas', staff: true, desc: 'Registra y aplica pagos ARS, concilia, gestiona glosas y recuperaciones.' },
+  assistant: { name: 'Comercial / Onboarding', staff: true, desc: 'Prospectos, CRM, propuestas, incorporación y seguimiento comercial; no opera pagos ARS.' },
+  auditor: { name: 'Auditor de Expedientes', staff: true, desc: 'Audita expedientes, trazabilidad y controles; preferentemente en solo lectura.' },
+  client: { name: 'Médico / Cliente', staff: false, desc: 'Dueño de la práctica: consulta su operación, reclamaciones, resultados y tareas del consultorio.' },
+  capturer: { name: 'Secretaria / Capturista', staff: false, desc: 'Agenda, pacientes y captura de reclamaciones de los médicos asignados; sin pagos ARS, glosas ni honorarios.' },
   prospect: { name: 'Prospecto', staff: false, desc: 'Futuro cliente: solo ve el avance de su incorporación. Al convertirse en cliente pasa a Médico.' }   // 2.1 · Iteración 30
 });
 /** ALL = roles con acceso general. El Capturador (D3, mínimo privilegio) NO está aquí: solo ve lo que se le asigna explícitamente. */
@@ -28,7 +28,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
+export const BILLING_ROUTES = ['mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -227,7 +227,7 @@ export const ESENCIALES = {
   // Facturación · perfil de referencia desde el 01/10/2026. BILLING_ROUTES sigue siendo su tope.
   billing: {
     menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'captura', 'reclamaciones', 'expediente',
-           'retiros', 'reconsideracion', 'perfil', 'seguridad'],
+           'retiros', 'radicaciones', 'reconsideracion', 'perfil', 'seguridad'],
     extra: ['dashboard', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
   },
 
@@ -475,7 +475,7 @@ const ACTIONS = {
   'docs.upload': ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'client'],
   'docs.delete': ['super_admin', 'admin'],
   'glosas.edit': ['super_admin', 'admin', 'glosas'],
-  'payments.create': ['super_admin', 'admin', 'billing'],
+  'payments.create': ['super_admin', 'admin', 'glosas'],
   'payments.void': ['super_admin'],
   'fees.manage': ['super_admin', 'admin'],
   'tariffs.edit': ['super_admin', 'admin', 'billing'],
