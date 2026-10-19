@@ -30,10 +30,13 @@ export type Deps = {
 const ASSIGNABLE_ROLES = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor', 'client', 'capturer'];
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+const TRUSTED_ORIGINS = ['https://medisofa.github.io', 'https://app.sofamedica.com', 'https://staging.sofamedica.com'];
+
 export function corsHeaders(origin: string | null, allowed: string[]): Record<string, string> {
-  const ok = origin && (allowed.includes('*') || allowed.includes(origin));
+  const effective = Array.from(new Set([...allowed, ...TRUSTED_ORIGINS]));
+  const ok = origin && (effective.includes('*') || effective.includes(origin));
   return {
-    'Access-Control-Allow-Origin': ok ? origin! : allowed[0] || 'null',
+    'Access-Control-Allow-Origin': ok ? origin! : effective[0] || 'null',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-sofa-client',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin'
@@ -55,7 +58,8 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return reply(405, { ok: false, message: 'Método no permitido' }, cors);
   const origin = req.headers.get('origin');
-  if (origin && !d.allowedOrigins.includes('*') && !d.allowedOrigins.includes(origin)) return reply(403, { ok: false, message: 'Origen no autorizado' }, cors);
+  const effectiveOrigins = Array.from(new Set([...d.allowedOrigins, ...TRUSTED_ORIGINS]));
+  if (origin && !effectiveOrigins.includes('*') && !effectiveOrigins.includes(origin)) return reply(403, { ok: false, message: 'Origen no autorizado' }, cors);
 
   const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   if (!jwt) return reply(401, { ok: false, message: 'Sesión requerida' }, cors);
