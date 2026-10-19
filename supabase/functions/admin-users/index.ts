@@ -8,8 +8,9 @@
  *
  * Variables (Supabase las agrega solas): SUPABASE_URL y las claves (SUPABASE_SECRET_KEYS / SUPABASE_PUBLISHABLE_KEYS,
  *   o las heredadas SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY)
- * Secretos que debes crear: APP_URL (p. ej. https://medisofa.github.io/sofa-crm)
- *                           ALLOWED_ORIGINS (p. ej. https://medisofa.github.io)
+ * Configuración: AUTH_REDIRECT_URL (recomendado, p. ej. https://staging.sofamedica.com/login)
+ *                APP_URL (fallback, p. ej. https://app.sofamedica.com)
+ *                ALLOWED_ORIGINS (p. ej. https://staging.sofamedica.com,https://app.sofamedica.com)
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
 
@@ -21,6 +22,7 @@ export type Deps = {
   getUser: (id: string) => Promise<{ id: string; email: string; last_sign_in_at?: string | null } | null>;
   sendRecovery: (email: string, redirectTo: string) => Promise<void>;
   appUrl: string;
+  authRedirectUrl?: string;
   allowedOrigins: string[];
 };
 
@@ -66,7 +68,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const fullName = String(body.full_name || '').trim().slice(0, 120);
   const role = String(body.role || '');
   const org = body.organization_id ? String(body.organization_id) : null;
-  const redirectTo = `${d.appUrl.replace(/\/+$/, '')}/login.html`;
+  const redirectTo = (d.authRedirectUrl || `${d.appUrl.replace(/\/+$/, '')}/login`).trim();
 
   if (!['invite', 'resend', 'grant'].includes(action)) return reply(400, { ok: false, message: 'Acción desconocida' }, cors);
   if (!EMAIL.test(email)) return reply(400, { ok: false, message: 'Correo inválido' }, cors);
@@ -122,6 +124,7 @@ const unwrap = <T>({ data, error }: { data: T; error: unknown }): T => { if (err
 
 Deno.serve((req) => handle(req, {
   appUrl: Deno.env.get('APP_URL') || '',
+  authRedirectUrl: Deno.env.get('AUTH_REDIRECT_URL') || undefined,
   allowedOrigins: (Deno.env.get('ALLOWED_ORIGINS') || '').split(',').map((s) => s.trim()).filter(Boolean),
   getCaller: async (jwt) => { const { data, error } = await admin.auth.getUser(jwt); return error || !data?.user ? null : { id: data.user.id, email: data.user.email }; },
   assignRole: async (actor, user, role, org, dryRun) => unwrap(await admin.rpc('admin_assign_role', { p_actor: actor, p_user: user, p_role: role, p_org: org, p_dry_run: dryRun })) as string,
