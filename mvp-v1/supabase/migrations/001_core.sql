@@ -429,7 +429,12 @@ using(organization_id in(select app.visible_org_ids_v1()) and
 
 create policy tariffs_v1_select on public.tariffs_v1 for select to authenticated
 using(organization_id in(select app.visible_org_ids_v1()) and
-      (app.role_for_org_v1(organization_id)<>'capturer' or exists(select 1 from public.capturer_scopes_v1 s where s.user_id=auth.uid() and s.provider_id=provider_id)));
+      (app.role_for_org_v1(organization_id)<>'capturer' or exists(
+        select 1 from public.capturer_scopes_v1 s
+        where s.user_id=auth.uid()
+          and s.provider_id=tariffs_v1.provider_id
+          and s.organization_id=tariffs_v1.organization_id
+      )));
 
 create policy ars_v1_read on public.ars_v1 for select to authenticated using(true);
 create policy procedures_v1_read on public.procedures_v1 for select to authenticated using(true);
@@ -442,4 +447,5 @@ with check(exists(select 1 from public.claims_v1 c where c.id=claim_id and c.org
 revoke all on public.external_access_home_v1,public.external_multi_org_exceptions_v1,public.staff_client_access_v1 from anon,authenticated;
 revoke update,delete on public.claims_v1 from authenticated;
 revoke all on function app.is_staff_v1(),app.staff_role_v1(),app.visible_org_ids_v1(),app.role_for_org_v1(uuid),app.can_claim_v1(uuid,uuid,boolean) from public,anon,authenticated;
+revoke all on function public.my_context_v1(),public.claim_create_v1(jsonb),public.claim_transition_v1(uuid,text,text) from public,anon;
 grant execute on function public.my_context_v1(),public.claim_create_v1(jsonb),public.claim_transition_v1(uuid,text,text) to authenticated;
