@@ -6,6 +6,7 @@ import { findRoute, canSee } from './utils/permissions.js';
 import { medirRuta } from './services/perf.js';   // 5.0.0 · I64: tiempos de carga por pantalla (indicador p95)
 
 export const MODULES = {
+  'autoentrenamiento': 'autoentrenamiento.js',
   inicio: 'home.js', clientes: 'clients.js', codificacion: 'coding.js', ars: 'ars.js',
   usuarios: 'users.js', parametros: 'settings.js', perfil: 'profile.js', diagnostico: 'diagnostics.js',
   oportunidades: 'pipeline.js', prospectos: 'leads.js', contactos: 'contacts.js', aliados: 'partners.js', tareas: 'tasks.js',
