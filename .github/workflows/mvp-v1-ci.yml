@@ -21,6 +21,10 @@ jobs:
           cache: npm
           cache-dependency-path: mvp-v1/package.json
       - run: npm install
+      - name: Security audit
+        run: npm audit --audit-level=high
+      - name: Validate role contract
+        run: node scripts/check-role-contract.mjs
       - run: npm run typecheck
       - run: npm run build
         env:
