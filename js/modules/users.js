@@ -102,8 +102,9 @@ export async function render(main, ctx) {
             ${manage && u.email ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${u.role_code}" data-user="${u.user_id}" data-org="${u.kind === 'client' ? u.organization_id : ''}">Cambiar rol</button>
               ${u.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-user="${u.user_id}" data-org="${u.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
               ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
-              <button class="btn sm" data-act="resend" data-email="${u.email}">${u.status === 'invitación pendiente' ? 'Reenviar invitación' : 'Enviar acceso'}</button>` : ''}
-            ${canToggle ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar' : 'Activar'}</button>` : ''}`}</td>` : ''}</tr>`;
+              <button class="btn sm" data-act="resend" data-email="${u.email}">${u.status === 'invitación pendiente' ? 'Reenviar invitación' : 'Enviar acceso'}</button>
+              <button class="btn sm" data-act="validate" data-user="${u.user_id}">Validar usuario</button>` : ''}
+            ${canToggle ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar' : 'Activar usuario'}</button>` : ''}`}</td>` : ''}</tr>`;
       })}</tbody></table></div>`);
   };
   const load = async () => {
@@ -132,12 +133,62 @@ export async function render(main, ctx) {
       if (b.dataset.act === 'scope') { if (await scopeDialog(b.dataset.user, b.dataset.org, b.dataset.name)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
       if (b.dataset.act === 'reset') { await resetPassword(b.dataset.user, b.dataset.name); return; }
       if (b.dataset.act === 'resend') { await busy(b, async () => { const r = await adminUsers({ action: 'resend', email: b.dataset.email }); toast(r.message, 'ok'); }); return; }
+      if (b.dataset.act === 'validate') { const u = rows.find((x) => x.user_id === b.dataset.user); if (u) await validateUser(u, load); return; }
       const activate = b.dataset.active === '1';
       if (!(await confirmDialog(activate ? 'Activar usuario' : 'Desactivar usuario', activate ? `${b.dataset.name} podrá volver a entrar a SOFA.` : `${b.dataset.name} no podrá ver ni modificar datos desde este momento. Sus registros y su historial se conservan.`, activate ? 'Activar' : 'Desactivar', !activate))) return;
       await setUserActive(b.dataset.user, activate); toast(activate ? 'Usuario activado' : 'Usuario desactivado', 'ok'); load();
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
   load();
+}
+
+/** Validación individual de usuario y activación segura. */
+async function validateUser(u, reload) {
+  const staff = SOFA_ROLES.includes(u.role_code);
+  const checks = [
+    { label: 'Correo registrado', ok: !!u.email, detail: u.email || 'Sin correo disponible' },
+    { label: 'Rol reconocido', ok: !!ROLES[u.role_code], detail: ROLES[u.role_code]?.name || u.role_code || 'Sin rol' },
+    { label: 'Organización asignada', ok: !!u.organization_id && !!u.organization, detail: u.organization || 'Sin organización' },
+    { label: 'Rol y tipo de organización', ok: staff ? u.kind === 'operator' : u.kind === 'client', detail: staff ? 'Debe pertenecer a SOFA' : 'Debe pertenecer a un cliente' }
+  ];
+
+  if (u.role_code === 'capturer') {
+    try {
+      const scopes = await capturerScopes(u.user_id);
+      checks.push({ label: 'Médicos asignados', ok: scopes.length > 0, detail: scopes.length ? `${scopes.length} médico(s) asignado(s)` : 'Sin médicos asignados' });
+    } catch (err) {
+      checks.push({ label: 'Médicos asignados', ok: false, detail: friendlyError(err) });
+    }
+  }
+
+  let findings = [];
+  try {
+    const { usersRolesReport } = await import('../services/admin.js');
+    const report = await usersRolesReport();
+    const email = String(u.email || '').toLowerCase();
+    findings = report.filter((r) => (r.users || []).some((x) => String(x.email || '').toLowerCase() === email));
+  } catch (_) { /* La validación básica sigue disponible si el reporte global no responde. */ }
+
+  const hardFail = checks.some((x) => !x.ok) || findings.some((x) => x.severity === 'alta');
+  const canActivateNow = !u.is_active && !hardFail;
+  const SEV = { alta: ['Corregir', 'bad'], media: ['Revisar', 'warn'], info: ['Info', 'info'], ok: ['Bien', 'ok'] };
+
+  await formDialog({
+    title: `Validar usuario · ${u.full_name || u.email || 'Usuario'}`,
+    submitLabel: canActivateNow ? 'Activar usuario' : 'Cerrar',
+    body: html`<p class="small">SOFA revisa identidad básica, rol, organización, alcance y hallazgos de gobierno antes de permitir la activación.</p>
+      <div class="list">${checks.map((x) => html`<div class="li"><span class="pill ${x.ok ? 'ok' : 'bad'}">${x.ok ? 'Correcto' : 'Revisar'}</span><div class="b"><div class="t1">${x.label}</div><div class="t2">${x.detail}</div></div></div>`)}</div>
+      ${findings.length ? html`<h3 style="margin-top:14px">Hallazgos relacionados</h3><div class="list">${findings.map((r) => { const [l, cls] = SEV[r.severity] || [r.severity, '']; return html`<div class="li"><span class="pill ${cls}">${l}</span><div class="b"><div class="t1">${r.title}</div><div class="t2">${r.detail}</div></div></div>`; })}</div>` : html`<p class="small muted" style="margin-top:12px">Sin hallazgos adicionales asociados a este usuario.</p>`}
+      <p class="small" style="margin-top:12px"><b>Estado actual:</b> ${u.is_active ? 'Activo' : 'Desactivado'} · <b>Resultado:</b> ${hardFail ? 'requiere corrección antes de activar' : 'validación satisfactoria'}.</p>`,
+    onSubmit: async () => {
+      if (!canActivateNow) return true;
+      if (!(await confirmDialog('Activar usuario', `${u.full_name || u.email} superó la validación y podrá volver a entrar a SOFA.`, 'Activar'))) return false;
+      await setUserActive(u.user_id, true);
+      toast('Usuario validado y activado', 'ok');
+      await reload();
+      return true;
+    }
+  });
 }
 
 /** D3 · Capturador: solo ve y registra reclamaciones de los médicos asignados aquí (mínimo privilegio, aplicado también por RLS) */
