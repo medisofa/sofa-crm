@@ -26,7 +26,8 @@ export type Deps = {
   allowedOrigins: string[];
 };
 
-// Prospecto NO es asignable aquí: vive en lead_users / incorporación y no en organization_users.\nconst ASSIGNABLE_ROLES = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor', 'client', 'capturer'];
+// Prospecto NO es asignable aquí: vive en lead_users / incorporación y no en organization_users.
+const ASSIGNABLE_ROLES = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor', 'client', 'capturer'];
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export function corsHeaders(origin: string | null, allowed: string[]): Record<string, string> {
