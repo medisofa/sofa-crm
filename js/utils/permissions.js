@@ -395,7 +395,7 @@ export const rutasDelRol = (role) => allRoutes()
   .map((i) => ({ route: i.route, label: i.label, familia: familiaDe(i.route, role),
                  en_menu: enMenu(role, i.route), obligatoria: OBLIGATORIAS.includes(i.route) }));
 
-const OBLIGATORIAS = ['perfil', 'seguridad'];
+const OBLIGATORIAS = ['autoentrenamiento', 'perfil', 'seguridad'];
 
 /** En qué familia cae hoy una ruta, para ese rol. */
 function familiaDe(route, role) {
