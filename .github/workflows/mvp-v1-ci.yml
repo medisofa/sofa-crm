@@ -1,0 +1,28 @@
+name: SOFA MVP v1 CI
+
+on:
+  pull_request:
+    paths: ["mvp-v1/**", ".github/workflows/mvp-v1-ci.yml"]
+  push:
+    branches: ["architecture/mvp-production-v1"]
+    paths: ["mvp-v1/**"]
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mvp-v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mvp-v1/package.json
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder

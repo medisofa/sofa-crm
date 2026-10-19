@@ -1,0 +1,278 @@
+// SOFA · Edge Function enviar-correos (5.3.0 · Iteración 63 · avisos por correo y resúmenes programados)
+// Consume la cola public.email_queue: toma un lote (email_claim_batch), lo entrega a un PROVEEDOR y marca cada correo como enviado o fallido.
+// HOY EL PROVEEDOR ES SIMULADO: no sale ningún correo real. Para conectar Resend, SMTP u otro:
+//   1) escriba una clase que implemente la interfaz ProveedorCorreo (más abajo) y regístrela en PROVEEDORES;
+//   2) ponga CORREO_PROVEEDOR=resend (o el nombre que le dé) y sus secretos con «supabase secrets set» o en Vault/variables de la función;
+//   3) NUNCA ponga claves en este archivo, en el repositorio ni en la base de datos.
+// Variables de la función (todas son secretos o configuración, ninguna va al repositorio):
+//   SUPABASE_URL y la clave de servicio: las inyecta Supabase.
+//   CORREOS_SECRETO       (obligatoria) texto largo y aleatorio; quien programa la función (pg_cron/pg_net o el programador de Supabase) lo manda en el encabezado x-sofa-secreto.
+//   CORREO_PROVEEDOR      (opcional) «simulado» por defecto.
+//   RESEND_API_KEY       (requerida solo para resend; secreto del servidor).
+//   CORREO_ENVIO_REAL_HABILITADO (requerida para proveedor real; valor literal true).
+//   CORREO_REMITENTE      (opcional) «SOFA <avisos@dominio-por-definir>»: el dominio remitente todavía no está decidido.
+//   PIXEL_URL             (opcional) URL pública de esta función; solo se usa si el operador encendió el seguimiento de aperturas.
+//   ORIGEN_PERMITIDO      (opcional) origen exacto de la app para CORS; sin él, no se responde a navegadores.
+// DESPLIEGUE ACTUAL: verify_jwt=true. Conservarlo hasta probar la autenticación del programador.
+// El encabezado x-sofa-secreto es una segunda capa para POST; no sustituye al JWT del gateway.
+import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+
+// ── Interfaz del proveedor ───────────────────────────────────────────────────────────────────────────────────────
+export interface Correo { id: string; to: string; name: string | null; subject: string; html: string; text: string; attempt: number; token: string | null; critical: boolean }
+export interface Resultado { ok: boolean; messageId?: string; permanente?: boolean; error?: string }
+export interface ProveedorCorreo { nombre: string; enviar(c: Correo, remitente: string): Promise<Resultado> }
+
+/** Proveedor simulado: valida lo básico y devuelve un id inventado. No abre ninguna conexión. */
+class ProveedorSimulado implements ProveedorCorreo {
+  nombre = "simulado";
+  async enviar(c: Correo): Promise<Resultado> {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c.to)) return { ok: false, permanente: true, error: "Dirección de destino no válida." };
+    return { ok: true, messageId: `sim-${crypto.randomUUID()}` };
+  }
+}
+/** Proveedor real: preparado pero inactivo hasta verificar dominio, secreto y pruebas. */
+class ProveedorResend implements ProveedorCorreo {
+  nombre = "resend";
+  async enviar(c: Correo, remitente: string): Promise<Resultado> {
+    const apiKey = Deno.env.get("RESEND_API_KEY") || "";
+    if (!apiKey || !remitente || /dominio-por-definir|\.invalid/i.test(remitente)) {
+      return { ok: false, permanente: true, error: "Dominio remitente o credenciales de correo sin configurar." };
+    }
+    const from = remitente.trim();
+    if (!/^.+<[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+>$/.test(from)) {
+      return { ok: false, permanente: true, error: "Formato de remitente inválido." };
+    }
+    let response: Response;
+    try {
+      response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": c.id,
+        },
+        body: JSON.stringify({ from, to: [c.to], subject: c.subject, html: c.html, text: c.text }),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      return { ok: false, error: "No se pudo conectar con el proveedor de correo." };
+    }
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        ok: false,
+        permanente: response.status >= 400 && response.status < 500 && ![408, 409, 429].includes(response.status),
+        error: `Proveedor rechazó el envío (HTTP ${response.status}).`,
+      };
+    }
+    if (typeof result?.id !== "string" || !result.id) {
+      return { ok: false, error: "Proveedor no confirmó el identificador del mensaje." };
+    }
+    return { ok: true, messageId: result.id };
+  }
+}
+/** Codifica UTF-8 a base64 sin argumentos masivos en la pila. */
+function base64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return btoa(binary);
+}
+function safeEmail(value: string): boolean {
+  return /^[^\s@\r\n]+@[^\s@\r\n]+\.[^\s@\r\n]+$/.test(value);
+}
+/** Gmail API mediante OAuth 2.0; solo backend, sin contraseñas de aplicación.
+ * Activación condicionada por CORREO_ENVIO_REAL_HABILITADO y CORREO_DESTINATARIOS_PRUEBA.
+ */
+class ProveedorGmail implements ProveedorCorreo {
+  nombre = "gmail";
+  async enviar(c: Correo, remitente: string): Promise<Resultado> {
+    const clientId = Deno.env.get("GMAIL_CLIENT_ID") || "";
+    const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET") || "";
+    const refreshToken = Deno.env.get("GMAIL_REFRESH_TOKEN") || "";
+    const sender = Deno.env.get("GMAIL_REMITENTE") || "";
+    if (!clientId || !clientSecret || !refreshToken || sender !== "medicasofa@gmail.com") {
+      return { ok: false, permanente: true, error: "La cuenta Gmail OAuth no está configurada." };
+    }
+    if (!safeEmail(c.to) || /[\r\n]/.test(c.subject)) return { ok: false, permanente: true, error: "Datos de correo inválidos." };
+    const allowlist = (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "")
+      .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (!allowlist.includes(c.to.trim().toLowerCase())) {
+      return { ok: false, permanente: true, error: "Destinatario no autorizado para pruebas." };
+    }
+    // El remitente se fija en la cuenta OAuth autorizada; no se toma de datos de la cola.
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId, client_secret: clientSecret,
+        refresh_token: refreshToken, grant_type: "refresh_token",
+      }),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => null);
+    if (!tokenResponse?.ok) return { ok: false, error: "No se pudo autenticar con Gmail." };
+    const token = await tokenResponse.json().catch(() => ({}));
+    if (!token.access_token) return { ok: false, error: "Gmail no devolvió credenciales temporales." };
+    const encodedSubject = `=?UTF-8?B?${base64Utf8(c.subject)}?=`;
+    const boundary = "sofa-" + crypto.randomUUID();
+    const raw = [
+      "From: SOFA <medicasofa@gmail.com>",
+      `To: <${c.to}>`,
+      `Subject: ${encodedSubject}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "", `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64", "",
+      base64Utf8(c.text || ""),
+      `--${boundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64", "",
+      base64Utf8(c.html || ""),
+      `--${boundary}--`, "",
+    ].join("\r\n");
+    const body = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw: body }),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => null);
+    if (!response) return { ok: false, error: "No se pudo contactar Gmail." };
+    if (!response.ok) return {
+      ok: false, permanente: response.status >= 400 && response.status < 500 && ![408, 429].includes(response.status),
+      error: `Gmail rechazó el envío (HTTP ${response.status}).`,
+    };
+    const result = await response.json().catch(() => ({}));
+    return result.id ? { ok: true, messageId: result.id } : { ok: false, error: "Gmail no confirmó el mensaje." };
+  }
+}
+const PROVEEDORES: Record<string, () => ProveedorCorreo> = {
+  simulado: () => new ProveedorSimulado(),
+  resend: () => new ProveedorResend(),
+  gmail: () => new ProveedorGmail(),
+};
+
+// ── Utilidades ───────────────────────────────────────────────────────────────────────────────────────────────────
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const GIF = Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"), (c) => c.charCodeAt(0));
+const keyFrom = (jsonVar: string, legacyVar: string): string => {
+  try { const k = JSON.parse(Deno.env.get(jsonVar) || "{}").default; if (k) return k; } catch { /* sin claves nuevas */ }
+  return Deno.env.get(legacyVar) || "";
+};
+function igualesSeguro(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let d = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) d |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return d === 0;
+}
+const cors = (): Record<string, string> => {
+  const o = Deno.env.get("ORIGEN_PERMITIDO") || "";
+  return o ? { "Access-Control-Allow-Origin": o, "Vary": "Origin", "Access-Control-Allow-Headers": "content-type, x-sofa-secreto", "Access-Control-Allow-Methods": "POST, GET, OPTIONS", "Access-Control-Max-Age": "600" } : {};
+};
+
+Deno.serve(async (req) => {
+  const CORS = cors();
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  const serviceKey = keyFrom("SUPABASE_SECRET_KEYS", "SUPABASE_SERVICE_ROLE_KEY");
+  const secreto = Deno.env.get("CORREOS_SECRETO") || "";
+  if (!url || !serviceKey || secreto.length < 24) return json({ error: "El servicio de correos no está configurado. Avise al Administrador para revisar «enviar-correos»." }, 500);
+  const db = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+  // Pixel de apertura (GET ?o=<token>): responde siempre el mismo GIF, haya o no correo, para no revelar qué tokens existen.
+  if (req.method === "GET") {
+    const o = new URL(req.url).searchParams.get("o") || "";
+    if (UUID.test(o)) { try { await db.rpc("email_register_open", { p_token: o }); } catch { /* el pixel nunca falla */ } }
+    return new Response(GIF, { status: 200, headers: { "Content-Type": "image/gif", "Cache-Control": "no-store, max-age=0" } });
+  }
+  if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
+
+  // Quien procesa la cola presenta el secreto (comparación en tiempo constante)
+  if (!igualesSeguro(req.headers.get("x-sofa-secreto") || "", secreto)) return json({ error: "No autorizado." }, 401);
+
+  let limite = 20;
+  let payload: unknown = {};
+  try { payload = await req.json(); const b = payload as { limite?: number }; if (b && Number.isInteger(b.limite)) limite = Math.min(Math.max(b.limite!, 1), 100); } catch { /* sin cuerpo: lote normal */ }
+
+  // Prueba aislada: no reclama ni modifica la cola real.
+  // Requiere JWT válido del gateway, x-sofa-secreto y opt-in temporal del servidor.
+  // Nunca se utiliza el cuerpo/HTML suministrado por el solicitante.
+  let testRequest: { modo?: string; destinatario?: string } = {};
+  try {
+    // La petición normal ya fue parseada arriba; leer una segunda vez no es posible.
+    // Por eso se usa el cuerpo capturado en la sección anterior.
+    testRequest = typeof payload === "object" && payload !== null ? payload as typeof testRequest : {};
+  } catch { /* no prueba */ }
+  if (testRequest.modo === "prueba_gmail") {
+    if (Deno.env.get("CORREO_PRUEBA_HABILITADA") !== "true") {
+      return json({ error: "Pruebas Gmail deshabilitadas." }, 403);
+    }
+    const to = String(testRequest.destinatario || "").trim().toLowerCase();
+    const allowed = (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "")
+      .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (!allowed.includes(to) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      return json({ error: "Destinatario de prueba no autorizado." }, 403);
+    }
+    const id = crypto.randomUUID();
+    const result = await new ProveedorGmail().enviar({
+      id, to, name: null, subject: "SOFA · Prueba técnica Gmail",
+      html: "<p>Prueba técnica controlada de SOFA. No contiene datos de pacientes.</p>",
+      text: "Prueba técnica controlada de SOFA. No contiene datos de pacientes.",
+      attempt: 1, token: null, critical: false,
+    }, "SOFA <medicasofa@gmail.com>");
+    return json({ ok: result.ok, provider: "gmail", test: true, messageId: result.messageId || null,
+      error: result.ok ? null : result.error || "No se pudo enviar prueba." }, result.ok ? 200 : 502);
+  }
+
+  const nombre = Deno.env.get("CORREO_PROVEEDOR") || "simulado";
+  // Bloqueo explícito: un proveedor real exige autorización de activación separada.
+  if (nombre !== "simulado" && Deno.env.get("CORREO_ENVIO_REAL_HABILITADO") !== "true") {
+    return json({ error: "El envío real aún no está habilitado." }, 503);
+  }
+  const fabrica = PROVEEDORES[nombre];
+  if (!fabrica) return json({ error: "El proveedor de correo configurado no está disponible. Avise al Administrador para revisar «enviar-correos»." }, 500);
+  const proveedor = fabrica();
+  const remitente = Deno.env.get("CORREO_REMITENTE") || "SOFA <avisos@dominio-por-definir.invalid>";
+  const pixelUrl = Deno.env.get("PIXEL_URL") || "";
+
+  // La cola compartida no debe consumirse mientras se prepara Gmail OAuth.
+  if (Deno.env.get("CORREO_PROCESAR_COLA_HABILITADO") !== "true") {
+    return json({ error: "Procesamiento de cola deshabilitado hasta completar pruebas y revisión." }, 403);
+  }
+  // Protección por destinatarios: nunca procesar la cola compartida bajo allowlist de pruebas.
+  if (nombre === "gmail" && (Deno.env.get("CORREO_DESTINATARIOS_PRUEBA") || "").trim()) {
+    return json({ error: "Desactive la allowlist de pruebas antes de habilitar procesamiento de cola; requiere revisión operativa." }, 403);
+  }
+  const lote = await db.rpc("email_claim_batch", { p_limit: limite });
+  if (lote.error) return json({ error: "No se pudo tomar el lote de correos. Intente de nuevo en unos minutos." }, 500);
+  const correos = (lote.data ?? []) as Correo[];
+
+  let enviados = 0, fallidos = 0, reintentos = 0;
+  for (const c of correos) {
+    let html = c.html;
+    // El pixel solo va si la base entregó token (seguimiento encendido) y existe PIXEL_URL; nunca en avisos críticos.
+    if (c.token && !c.critical && pixelUrl && UUID.test(c.token)) {
+      html = html.replace(`<!--sofa-pixel:${c.token}-->`, `<img src="${pixelUrl}?o=${c.token}" width="1" height="1" alt="" style="display:none">`);
+    }
+    let r: Resultado;
+    try { r = await proveedor.enviar({ ...c, html }, remitente); }
+    catch { r = { ok: false, error: "El proveedor no respondió." }; }   // el detalle técnico no se guarda ni se devuelve
+    try {
+      if (r.ok) {
+        const m = await db.rpc("email_mark_sent", { p_id: c.id, p_provider: proveedor.nombre, p_message_id: r.messageId ?? "" });
+        if (m.error) throw new Error("No se pudo registrar la entrega.");
+        enviados++;
+      } else {
+        const m = await db.rpc("email_mark_failed", { p_id: c.id, p_error: r.error ?? "El proveedor no pudo enviar el correo.", p_permanent: !!r.permanente });
+        if (m.error) throw new Error("No se pudo registrar el fallo.");
+        if (m.data === "fallido") fallidos++; else reintentos++;
+      }
+    } catch { /* si el marcado falla, el correo vuelve a la cola a los 10 minutos (email_claim_batch) */ }
+  }
+  return json({ tomados: correos.length, enviados, fallidos, reintentos, proveedor: proveedor.nombre });
+});
