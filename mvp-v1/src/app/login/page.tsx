@@ -17,7 +17,7 @@ export default function LoginPage() {
     const { error } = await supabaseBrowser().auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) { setError("No se pudo iniciar sesión."); return; }
-    router.replace("/");
+    router.replace("/mi-usuario?welcome=1");
     router.refresh();
   }
 
@@ -31,6 +31,7 @@ export default function LoginPage() {
         <button disabled={busy} type="submit">{busy ? "Entrando…" : "Entrar"}</button>
         {error && <p role="alert">{error}</p>}
       </form>
+      <p style={{ marginTop:18, fontSize:14, color:"#536171" }}>Después de iniciar sesión, SOFA te mostrará una guía breve adaptada a tu rol antes de entrar al panel.</p>
     </main>
   );
 }
