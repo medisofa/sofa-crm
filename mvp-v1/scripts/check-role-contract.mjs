@@ -28,6 +28,12 @@ assert(!/ASSIGNABLE_ROLES\s*=\s*\[[^\]]*'prospect'/.test(adminUsers),
   "prospect is not assignable as organization membership");
 assert(/Prospecto NO es asignable aquí/.test(adminUsers),
   "prospect onboarding rule is documented");
+assert(/AUTH_REDIRECT_URL/.test(adminUsers),
+  "admin-users supports configurable auth redirect");
+assert(!/\/login\.html/.test(adminUsers),
+  "admin-users no longer hardcodes legacy login.html");
+assert(/\/login/.test(adminUsers),
+  "admin-users falls back to the Next.js /login route");
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log("Role contract validated.");
