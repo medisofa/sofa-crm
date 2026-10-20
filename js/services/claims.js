@@ -221,3 +221,11 @@ export async function submissionClaimMoney(id) {
 export async function setSubmissionEcf(id, v) { must(await sb().rpc('set_submission_ecf', { p_submission: id, p_ncf: v.ncf, p_security_code: v.code, p_signed_on: v.signed, p_dgii_status: v.status })); return true; }
 export async function setClientEcf(orgId, v) { must(await sb().rpc('set_client_ecf', { p_org: orgId, p_status: v.status, p_provider: v.provider || null, p_required_from: v.from, p_ready_on: v.ready || null })); return true; }
 export async function ecfReadiness() { return must(await sb().from('v_ecf_readiness').select('*').order('days_left')); }
+
+// ---------------------------------------------------------------- Posibles duplicados antes de radicar
+export async function claimDuplicateCandidates(ids = null, submissionId = null) {
+  return must(await sb().rpc('claim_duplicate_candidates', { p_ids: ids?.length ? ids : null, p_submission: submissionId || null }));
+}
+export async function reviewClaimDuplicate(lineA, lineB, decision, reason) {
+  return must(await sb().rpc('review_claim_duplicate', { p_line_a: lineA, p_line_b: lineB, p_decision: decision, p_reason: reason }));
+}
