@@ -7,9 +7,9 @@ import { supabase, rpc, providerOptions, h, money, fmtDate, note, guarded, table
 const PDFJS_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
 const PDFJS_WORKER='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
 const num=(v)=>Number(String(v??'').replace(/,/g,'').replace(/[^0-9.-]/g,'')||0);
-const isoDate=(v)=>{const m=String(v??'').trim().match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);return m?`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`:'';};
-function rowsFromItems(items){const rows=[];for(const it of items.filter(x=>String(x.str||'').trim())){const y=Number(it.transform?.[5]||0),x=Number(it.transform?.[4]||0),s=String(it.str).trim();let r=rows.find(z=>Math.abs(z.y-y)<=2.5);if(!r){r={y,items:[]};rows.push(r);}r.items.push({x,s});}return rows.sort((a,b)=>b.y-a.y).map(r=>({y:r.y,items:r.items.sort((a,b)=>a.x-b.x),text:r.items.sort((a,b)=>a.x-b.x).map(x=>x.s).join(' ').replace(/\\s+/g,' ').trim()}));}
-function cellsByFractions(row,width,f){const out=Array.from({length:f.length-1},()=>[]);for(const it of row.items){const p=it.x/Math.max(width,1);let k=f.length-2;for(let i=0;i<f.length-1;i++){if(p>=f[i]&&p<f[i+1]){k=i;break;}}out[k].push(it.s);}return out.map(a=>a.join(' ').replace(/\\s+/g,' ').trim());}
+const isoDate=(v)=>{const m=String(v??'').trim().match(/^(\d{1,2})[\\/-](\d{1,2})[\\/-](\d{4})$/);return m?`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`:'';};
+function rowsFromItems(items){const rows=[];for(const it of items.filter(x=>String(x.str||'').trim())){const y=Number(it.transform?.[5]||0),x=Number(it.transform?.[4]||0),s=String(it.str).trim();let r=rows.find(z=>Math.abs(z.y-y)<=2.5);if(!r){r={y,items:[]};rows.push(r);}r.items.push({x,s});}return rows.sort((a,b)=>b.y-a.y).map(r=>({y:r.y,items:r.items.sort((a,b)=>a.x-b.x),text:r.items.sort((a,b)=>a.x-b.x).map(x=>x.s).join(' ').replace(/\s+/g,' ').trim()}));}
+function cellsByFractions(row,width,f){const out=Array.from({length:f.length-1},()=>[]);for(const it of row.items){const p=it.x/Math.max(width,1);let k=f.length-2;for(let i=0;i<f.length-1;i++){if(p>=f[i]&&p<f[i+1]){k=i;break;}}out[k].push(it.s);}return out.map(a=>a.join(' ').replace(/\s+/g,' ').trim());}
 async function parseSenasaPdf(file){
   const pdfjs=await import(PDFJS_URL); pdfjs.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;
   const pdf=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
@@ -20,23 +20,23 @@ async function parseSenasaPdf(file){
   const invoices=[],authorizations=[];
   for(const p of pages){for(const row of p.rows){
     const a=cellsByFractions(row,p.width,[0,.105,.235,.37,.485,.61,.75,.88,1]);
-    if(/^\\d{5,}/.test(a[0]||'')&&isoDate(a[2])&&isoDate(a[3])&&a.slice(4).filter(x=>/[0-9].*\\.\\d{2}/.test(x)).length>=4){
+    if(/^\d{5,}/.test(a[0]||'')&&isoDate(a[2])&&isoDate(a[3])&&a.slice(4).filter(x=>/[0-9].*\\.\d{2}/.test(x)).length>=4){
       const x={internal_number:a[0],ncf:a[1],receipt_date:isoDate(a[2]),invoice_date:isoDate(a[3]),invoice_amount:num(a[4]),invoice_objection_amount:num(a[5]),authorization_objection_amount:num(a[6]),amount_payable:num(a[7])};
       if(!invoices.some(z=>z.internal_number===x.internal_number&&z.ncf===x.ncf))invoices.push(x);
     }
     const b=cellsByFractions(row,p.width,[0,.075,.19,.275,.525,.65,.77,.89,1]);
-    if(/^\\d+/.test(b[0]||'')&&/^\\d{7,}/.test(b[1]||'')){
+    if(/^\d+/.test(b[0]||'')&&/^\d{7,}/.test(b[1]||'')){
       const x={invoice_number:b[0],authorization_number:b[1],authorization_date:isoDate(b[2]),affiliate_name:b[3],service_name:b[4],claimed_amount:num(b[5]),objected_amount:num(b[6]),paid_amount:num(b[7])};
       if(!authorizations.some(z=>z.authorization_number===x.authorization_number))authorizations.push(x);
     }
   }}
-  const amounts=(label)=>{const l=pages.flatMap(p=>p.rows).find(r=>new RegExp(label,'i').test(r.text));const m=l?.text.match(/-?[0-9][0-9,]*\\.\\d{2}/g)||[];return m.length?num(m.at(-1)):0;};
+  const amounts=(label)=>{const l=pages.flatMap(p=>p.rows).find(r=>new RegExp(label,'i').test(r.text));const m=l?.text.match(/-?[0-9][0-9,]*\\.\d{2}/g)||[];return m.length?num(m.at(-1)):0;};
   return {
-    providerCode:one(/C[ÓO]DIGO\\s+DEL\\s+PRESTADOR\\s*:\\s*([^\\n]+)/i).split(/\\s+/)[0]||'',
-    providerName:one(/NOMBRE\\s+DEL\\s+PRESTADOR\\s*:\\s*([^\\n]+)/i).replace(/\\s+RNC\\s*:.*$/i,'').trim(),
-    rnc:one(/RNC\\s*:\\s*([^\\n]*)/i).replace(/CERTIFICADO.*$/i,'').trim(),
-    ovp:one(/CERTIFICADO\\s+OVP\\s+NO\\.?\\s*:\\s*([0-9A-Za-z-]+)/i),
-    subtotal:amounts('SUB-?TOTAL'),invoiceObj:amounts('Objeciones\\s+en\\s+Facturas'),authObj:amounts('Objeciones\\s+en\\s+Autorizaciones'),total:amounts('TOTAL\\s+A\\s+PAGAR'),
+    providerCode:one(/C[ÓO]DIGO\s+DEL\s+PRESTADOR\s*:\s*([^\\n]+)/i).split(/\s+/)[0]||'',
+    providerName:one(/NOMBRE\s+DEL\s+PRESTADOR\s*:\s*([^\\n]+)/i).replace(/\s+RNC\s*:.*$/i,'').trim(),
+    rnc:one(/RNC\s*:\s*([^\\n]*)/i).replace(/CERTIFICADO.*$/i,'').trim(),
+    ovp:one(/CERTIFICADO\s+OVP\s+NO\\.?\s*:\s*([0-9A-Za-z-]+)/i),
+    subtotal:amounts('SUB-?TOTAL'),invoiceObj:amounts('Objeciones\s+en\s+Facturas'),authObj:amounts('Objeciones\s+en\s+Autorizaciones'),total:amounts('TOTAL\s+A\s+PAGAR'),
     invoices,authorizations,pages:pdf.numPages
   };
 }
