@@ -26,19 +26,21 @@ const roleOpts = (ctx, sel) => html`<optgroup label="Equipo SOFA">${SOFA_ROLES.f
 async function roleDialog(ctx, preset = {}) {
   const clients = await clientOptions().catch(() => []);
   const invite = !preset.email;
+  const directActive = invite && preset.directActive === true && ctx.role === 'super_admin';
   let provs = [];
   return formDialog({
-    title: invite ? (preset.role === 'client' ? 'Invitar médico' : preset.role === 'capturer' ? 'Invitar secretaria' : 'Invitar usuario') : `Cambiar rol · ${preset.email}`,
-    submitLabel: invite ? 'Enviar invitación' : 'Guardar rol', wide: true,
+    title: directActive ? 'Crear usuario activo' : invite ? (preset.role === 'client' ? 'Invitar médico' : preset.role === 'capturer' ? 'Invitar secretaria' : 'Invitar usuario') : `Cambiar rol · ${preset.email}`,
+    submitLabel: directActive ? 'Crear y activar' : invite ? 'Enviar invitación' : 'Guardar rol', wide: true,
     body: html`<div class="form-grid">
       ${invite ? html`${f('email', 'Correo *', html`<input id="f_email" name="email" type="email" required autocomplete="off">`)}
-        ${f('full_name', 'Nombre completo *', html`<input id="f_full_name" name="full_name" required maxlength="120">`)}` : ''}
+        ${f('full_name', 'Nombre completo *', html`<input id="f_full_name" name="full_name" required maxlength="120">`)}
+        ${directActive ? f('password', 'Contraseña temporal *', html`<input id="f_password" name="password" type="password" required minlength="12" autocomplete="new-password">`, 'Mínimo 12 caracteres. No se enviará correo; entrégala al usuario por un canal seguro.') : ''}` : ''}
       ${f('role', 'Rol *', html`<select id="f_role" name="role">${roleOpts(ctx, preset.role || 'billing')}</select>`)}
       ${f('org', 'Consultorio o clínica (cliente) *', html`<select id="f_org" name="org"><option value="">Seleccione…</option>${clients.map((c) => opt(c.id, c.legal_name, preset.orgId))}</select>`)}
       </div>
       <p class="small" id="f_rdesc" aria-live="polite"></p>
       <fieldset id="f_provs" style="border:0;padding:0;display:none"><legend class="small" style="font-weight:600">Médicos que atiende esta secretaria *</legend><div id="f_plist" class="list"></div></fieldset>
-      ${invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}`,
+      ${directActive ? html`<p class="small muted"><b>Alta directa por Super Admin:</b> la cuenta se confirma y activa sin enviar correo. El usuario deberá cambiar la contraseña temporal en el primer acceso.</p>` : invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}`,
     onOpen: (form) => {
       const sync = async () => {
         const r = form.elements.role.value; const orgRole = ORG_ROLES.includes(r);
@@ -56,13 +58,15 @@ async function roleDialog(ctx, preset = {}) {
     },
     onSubmit: async (d, form) => {
       if (invite) {
-        if (!requireFields(form, ['email', 'full_name'])) return false;
+        const required = directActive ? ['email', 'full_name', 'password'] : ['email', 'full_name'];
+        if (!requireFields(form, required)) return false;
         if (!isEmail(d.email)) { fieldError(form.elements.email, 'Correo inválido.'); return false; }
+        if (directActive && String(d.password || '').length < 12) { fieldError(form.elements.password, 'Usa al menos 12 caracteres.'); return false; }
       }
       if (ORG_ROLES.includes(d.role) && !form.elements.org.value) { fieldError(form.elements.org, 'Elige el consultorio o clínica.'); return false; }
       const chosen = d.role === 'capturer' ? provs.filter((p) => d[`pv_${p.id}`]).map((p) => p.id) : [];
       if (d.role === 'capturer' && !chosen.length) { toast('Marca al menos un médico para la secretaria', 'bad'); return false; }
-      const r = await adminUsers({ action: invite ? 'invite' : 'grant', email: invite ? d.email.trim() : preset.email, full_name: d.full_name || '', role: d.role, organization_id: ORG_ROLES.includes(d.role) ? form.elements.org.value : null });
+      const r = await adminUsers({ action: directActive ? 'create_active' : invite ? 'invite' : 'grant', email: invite ? d.email.trim() : preset.email, full_name: d.full_name || '', password: directActive ? d.password : undefined, role: d.role, organization_id: ORG_ROLES.includes(d.role) ? form.elements.org.value : null });
       if (d.role === 'capturer' && r?.user_id) await setCapturerScope(r.user_id, chosen);
       return r;
     }
@@ -74,7 +78,7 @@ export async function render(main, ctx) {
   let rows = []; let filter = '';
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Usuarios y roles</h2><p>Quién tiene acceso, con qué rol y cuándo entró por última vez. Revísalo cada trimestre y desactiva lo que ya no se usa.</p></div>
-      <div class="toolbar" style="margin:0">${manage ? html`<button class="btn primary" id="invite">+ Invitar usuario</button><button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
+      <div class="toolbar" style="margin:0">${manage ? html`<button class="btn primary" id="invite">+ Invitar usuario</button>${ctx.role === 'super_admin' ? html`<button class="btn" id="createActive">+ Crear usuario activo</button>` : ''}<button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
     <div class="tabs" id="kinds" role="group" aria-label="Tipo de usuario" style="margin-bottom:6px"></div>
     <div class="tabs" id="tabs" role="group" aria-label="Estado"></div><div id="l"></div>
     ${ctx.role === 'super_admin' ? html`<div class="card" style="margin-top:14px"><h2>Validación de usuarios y roles</h2>
@@ -124,6 +128,7 @@ export async function render(main, ctx) {
   $('#inviteMed', main)?.addEventListener('click', () => invitePreset('client'));
   $('#inviteSec', main)?.addEventListener('click', () => invitePreset('capturer'));
   $('#invite', main)?.addEventListener('click', async () => { try { const r = await roleDialog(ctx); if (r) { toast(r.message, 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
+  $('#createActive', main)?.addEventListener('click', async () => { try { const r = await roleDialog(ctx, { directActive: true }); if (r) { toast(r.message, 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
   $('#csv', main).addEventListener('click', () => downloadCsv(`sofa-revision-accesos-${todayISO()}.csv`, ['Nombre', 'Correo', 'Rol', 'Organización', 'Estado', 'Invitado', 'Último ingreso'],
     rows.map((u) => [u.full_name, u.email, u.role_name, u.organization, u.status, String(u.invited_at || '').slice(0, 10), String(u.last_sign_in_at || '').slice(0, 16).replace('T', ' ')])));
   box.addEventListener('click', async (e) => {
@@ -145,7 +150,17 @@ export async function render(main, ctx) {
 /** Validación individual de usuario y activación segura. */
 async function validateUser(u, reload) {
   const staff = SOFA_ROLES.includes(u.role_code);
+  let readiness = null;
+  try {
+    const all = await rpc('users_access_readiness');
+    readiness = (Array.isArray(all) ? all : []).find((x) => x.user_id === u.user_id && x.role_code === u.role_code) || null;
+  } catch (_) { /* compatibilidad mientras se despliega la migración RBAC */ }
   const checks = [
+    ...(readiness ? [
+      { label: 'Correo confirmado', ok: readiness.email_confirmed, detail: readiness.email_confirmed ? 'Confirmado' : 'Pendiente de confirmación' },
+      { label: 'Perfil activo', ok: readiness.profile_active, detail: readiness.profile_active ? 'Activo' : 'Desactivado' },
+      { label: 'Membresía activa', ok: readiness.membership_active, detail: readiness.membership_active ? 'Activa' : 'Desactivada' }
+    ] : []),
     { label: 'Correo registrado', ok: !!u.email, detail: u.email || 'Sin correo disponible' },
     { label: 'Rol reconocido', ok: !!ROLES[u.role_code], detail: ROLES[u.role_code]?.name || u.role_code || 'Sin rol' },
     { label: 'Organización asignada', ok: !!u.organization_id && !!u.organization, detail: u.organization || 'Sin organización' },
