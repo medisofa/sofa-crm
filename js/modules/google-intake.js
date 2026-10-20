@@ -6,7 +6,7 @@ import { html, render as paint, $ } from '../utils/dom.js';
 import { toast, friendlyError, busy, confirmDialog, formDialog, opt, requireFields } from '../utils/ui.js';
 import { money } from '../utils/formatters.js';
 import { captureProviders, activeArs, contractedServices } from '../services/claims.js';
-import { capturarConDiagnostico } from '../services/calidad-dato.js';
+import { capturarConDiagnostico, cie10Suggestions } from '../services/calidad-dato.js';
 import { rpc } from '../services/iter18.js';
 
 const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1VeUb9RQ_jGBN9chr6QCiV-8Gp-2b2JKaj159qo6a-ps/edit';
@@ -181,7 +181,7 @@ export async function render(main, ctx){
           <div class="field"><label>No. autorización</label><input name="authorization" value="${r['No. autorización']||''}"></div>
           <div class="field"><label>Fecha autorización</label><input name="auth_date" type="date" value="${parseDate(r['Fecha autorización'])}"></div>
           <div class="field"><label>Cédula paciente</label><input name="patient_doc" value="${r['Cédula paciente']||''}"></div>
-          <div class="field"><label>Diagnóstico CIE-10</label><input name="diagnosis" value="${r['Diagnóstico CIE-10']||''}"></div>
+          <div class="field"><label>Diagnóstico CIE-10</label><input name="diagnosis" value="${r['Diagnóstico CIE-10']||''}" placeholder="Escribe o selecciona una sugerencia"><div class="hint">SOFA sugiere según servicio, SIMON y CUPS; puedes cambiarlo.</div><div id="gie_dx_sugs" class="small" style="margin-top:6px"></div></div>
           <div class="field"><label>Centro / clínica</label><input name="clinic" value="${r['Centro / clínica']||''}"></div>
           <div class="field" style="grid-column:1/-1"><label>Servicio / Procedimiento *</label><select name="service" required><option value="">Seleccione médico, ARS y fecha</option></select><div class="hint">Solo se muestran servicios contratados para la combinación seleccionada.</div></div>
           <div class="field"><label>Cantidad</label><input name="quantity" type="number" min="1" step="1" value="${num(r['Cantidad'])||1}"></div>
@@ -189,6 +189,17 @@ export async function render(main, ctx){
           <div class="field" style="grid-column:1/-1"><label>Observaciones</label><textarea name="notes" rows="2">${r['Observaciones']||''}</textarea></div>
         </div>`,
       onOpen:(form)=>{
+        const loadDx=async()=>{
+          const box=form.querySelector('#gie_dx_sugs'); if(!box)return;
+          const procedure=form.elements.service.value;
+          if(!procedure){paint(box,html``);return;}
+          try{
+            const rows=await cie10Suggestions(procedure,null,8);
+            if(!rows.length){paint(box,html`<span class="muted">Sin sugerencia automática. Escribe el código documentado.</span>`);return;}
+            paint(box,html`<div class="toolbar" style="gap:6px;flex-wrap:wrap">${rows.map((x)=>html`<button class="btn sm" type="button" data-gdx="${x.code}" title="${x.rationale||''}">${x.code} · ${x.title_es}</button>`)}</div><div class="small muted">Sugerencias administrativas; confirma el diagnóstico documentado.</div>`);
+            box.querySelectorAll('[data-gdx]').forEach((b)=>b.addEventListener('click',()=>{form.elements.diagnosis.value=b.dataset.gdx;}));
+          }catch(_){paint(box,html`<span class="muted">Puedes escribir el CIE-10 manualmente.</span>`);}
+        };
         const loadServices=async()=>{
           const p=form.elements.provider.value,a=form.elements.ars.value,d=form.elements.service_date.value,s=form.elements.service;
           paint(s,html`<option value="">Cargando…</option>`);
@@ -198,8 +209,10 @@ export async function render(main, ctx){
             const current=norm(r['Servicio / Procedimiento *']);
             paint(s,html`<option value="">Seleccione…</option>${rows.map((x)=>html`<option value="${x.procedure_id}" data-name="${x.name}" ${[x.name,x.cups,x.simon,x.internal_code,x.ars_service_code].some((y)=>norm(y)===current)?'selected':''}>${x.name}${x.cups?` · CUPS ${x.cups}`:''}${x.simon?` · SIMON ${x.simon}`:''} · ${money(x.amount)}</option>`) }`);
           }catch(e){paint(s,html`<option value="">No se pudieron cargar los servicios</option>`);}
+          await loadDx();
         };
         ['provider','ars','service_date'].forEach((n)=>form.elements[n].addEventListener('change',loadServices));
+        form.elements.service.addEventListener('change',loadDx);
         loadServices();
       },
       onSubmit:async(d,form)=>{
