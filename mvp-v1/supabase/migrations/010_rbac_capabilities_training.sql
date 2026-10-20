@@ -6,7 +6,7 @@ create schema if not exists app;
 create or replace function app.rbac_admin_ok(p_roles text[] default array['super_admin','admin'])
 returns boolean
 language sql stable security definer set search_path=''
-as $
+as $$
   select exists (
     select 1
     from public.organization_users ou
@@ -17,7 +17,7 @@ as $
       and ou.role_code=any(p_roles)
       and coalesce(auth.jwt()->>'aal','aal1')='aal2'
   )
-$;
+$$;
 
 revoke all on function app.rbac_admin_ok(text[]) from public,anon;
 grant execute on function app.rbac_admin_ok(text[]) to authenticated;
