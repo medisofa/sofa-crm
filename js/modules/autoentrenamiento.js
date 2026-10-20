@@ -6,6 +6,7 @@
 import { html, render as paint, $ } from '../utils/dom.js';
 import { NAV, ROLES, accionesDelRol } from '../utils/permissions.js';
 import { APP_VERSION } from '../version.js';
+import { supabase, rpc } from '../services/iter18.js';
 
 const KEY_PREFIX = 'sofa.autoentrenamiento.v1';
 const GUIDE = {
@@ -68,9 +69,22 @@ export async function render(main, ctx) {
   const role = ctx.role;
   const roleName = ROLES[role]?.name || role;
   const routes = routeCatalog(role);
-  const actions = accionesDelRol(role);
+  const localActions = accionesDelRol(role);
+  let governed = [];
+  try { governed = await rpc('my_role_capabilities'); } catch (_) { /* fallback al contrato local mientras se despliega RBAC */ }
+  const governedActions = (Array.isArray(governed) ? governed : []).filter((x) => x.can_view).map((x) => x.capability_code);
+  const actions = [...new Set([...localActions, ...governedActions])].sort();
   const key = `${KEY_PREFIX}:${ctx.session.user.id}:${role}`;
   const state = readState(key);
+  try {
+    const { data, error } = await supabase.from('user_training_progress')
+      .select('training_key,training_version,status,completed_at,metadata')
+      .eq('user_id', ctx.session.user.id).eq('role_code', role);
+    if (!error && Array.isArray(data)) {
+      state.completed = state.completed || {};
+      data.forEach((x) => { if (String(x.training_key).startsWith('route:')) state.completed[String(x.training_key).slice(6)] = x.status === 'completed'; });
+    }
+  } catch (_) { /* localStorage sigue siendo fallback */ }
   state.completed = state.completed || {};
   state.seenRoutes = Array.isArray(state.seenRoutes) ? state.seenRoutes : [];
   state.seenActions = Array.isArray(state.seenActions) ? state.seenActions : [];
@@ -133,7 +147,7 @@ export async function render(main, ctx) {
 
     <div class="card" style="margin-top:14px">
       <h2>Funciones de tu rol</h2>
-      <p class="sub">Estas funciones se derivan de la misma matriz que controla la interfaz. Una función nueva aparecerá aquí al incorporarse al rol.</p>
+      <p class="sub">Estas funciones combinan el contrato local con la matriz gobernada <span class="mono">role_capabilities</span>. Una capacidad nueva aparece al asignarse al rol.</p>
       <div class="list">${actions.map((a) => html`<div class="li"><div class="b"><div class="t1">${prettyAction(a)}</div><div class="t2 mono">${a}</div></div>${newActions.includes(a) ? html`<span class="pill warn">Nueva</span>` : html`<span class="pill ok">Habilitada</span>`}</div>`)}</div>
     </div>
 
@@ -157,11 +171,23 @@ export async function render(main, ctx) {
     location.reload();
   });
 
-  $('#trainingList', main).addEventListener('click', (e) => {
+  $('#trainingList', main).addEventListener('click', async (e) => {
     const b = e.target.closest('[data-train]'); if (!b) return;
     const route = b.dataset.train;
     state.completed[route] = !state.completed[route];
     persistSeen();
+    try {
+      await supabase.from('user_training_progress').upsert({
+        user_id: ctx.session.user.id,
+        role_code: role,
+        training_key: `route:${route}`,
+        training_version: 1,
+        status: state.completed[route] ? 'completed' : 'pending',
+        last_seen_at: new Date().toISOString(),
+        completed_at: state.completed[route] ? new Date().toISOString() : null,
+        metadata: { app_version: APP_VERSION }
+      }, { onConflict: 'user_id,role_code,training_key' });
+    } catch (_) { /* la experiencia continúa con localStorage */ }
     location.hash = '#/autoentrenamiento';
     location.reload();
   });
