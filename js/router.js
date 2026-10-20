@@ -11,7 +11,7 @@ export const MODULES = {
   usuarios: 'users.js', parametros: 'settings.js', perfil: 'profile.js', diagnostico: 'diagnostics.js',
   oportunidades: 'pipeline.js', prospectos: 'leads.js', contactos: 'contacts.js', aliados: 'partners.js', tareas: 'tasks.js',
   radicaciones: 'submissions.js', documentos: 'documents.js',
-  glosas: 'glosas.js', pagos: 'payments.js', honorarios: 'fees.js', medicos: 'provider360.js', agenda: 'agenda.js', practica: 'practice.js', 'tarifas-privadas': 'private-tariffs.js',
+  glosas: 'glosas.js', pagos: 'payments.js', 'senasa-certificados': 'senasa-certificados.js', honorarios: 'fees.js', medicos: 'provider360.js', agenda: 'agenda.js', practica: 'practice.js', 'tarifas-privadas': 'private-tariffs.js',
   hoy: 'today.js', dashboard: 'dashboard.js', aging: 'aging.js', reportes: 'reports.js',
   habilitacion: 'habilitation.js', mercado: 'market.js', guias: 'guides.js',
   captura: 'capture.js', reclamaciones: 'claims.js', retiros: 'pickups.js', contratos: 'contracts.js', 'carga-google': 'google-intake.js',
