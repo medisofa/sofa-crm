@@ -32,7 +32,7 @@ function crearFormularioSOFA() {
   form.addTextItem().setTitle('No. autorización').setRequired(false);
   form.addDateItem().setTitle('Fecha autorización').setRequired(false);
   form.addTextItem().setTitle('Cédula paciente').setRequired(false);
-  form.addTextItem().setTitle('Diagnóstico CIE-10').setRequired(false);
+  form.addTextItem().setTitle('Diagnóstico CIE-10').setHelpText('Opcional. Si no conoce el código, déjelo vacío: SOFA sugerirá CIE-10 según servicio, SIMON y CUPS antes de importar. La selección final debe corresponder al diagnóstico documentado.').setRequired(false);
   form.addTextItem().setTitle('Centro / clínica').setRequired(false);
   form.addTextItem().setTitle('Servicio / Procedimiento *').setRequired(true);
   form.addTextItem().setTitle('Cantidad').setRequired(false);
