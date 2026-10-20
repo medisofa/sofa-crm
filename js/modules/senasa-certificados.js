@@ -71,7 +71,8 @@ export async function render(root,ctx){
   const source=h('input',{placeholder:'Nombre del PDF / archivo de origen'});
   const pdfFile=h('input',{type:'file',accept:'application/pdf,.pdf'});
   const parseBtn=h('button',{class:'i18-btn i18-sec',type:'button'},'Leer PDF SeNaSa');
-  const invBox=h('div'); const authBox=h('div'); const preview=h('div',{'aria-live':'polite'}); const reconcile=h('div',{'aria-live':'polite'});
+  const invBox=h('div'); const authBox=h('div');
+  const previewBox=h('div',{'aria-live':'polite'}); const preview=h('div',{'aria-live':'polite'}); const reconcile=h('div',{'aria-live':'polite'});
   const invoices=[]; const auths=[];
 
   function addInvoice(x={}){
@@ -107,6 +108,34 @@ export async function render(root,ctx){
     };
     auths.push(row); drawAuths();
   }
+  function drawPreview(meta={}){
+    const inv=invoices.filter(r=>r.ncf.value||r.internal.value).map(r=>({
+      ncf:r.ncf.value,invoice_amount:num(r.invoiceAmount.value),invoice_objection_amount:num(r.invoiceObj.value),
+      authorization_objection_amount:num(r.authObj.value),amount_payable:num(r.payable.value)
+    }));
+    const au=auths.filter(r=>r.authorization.value).map(r=>({
+      authorization:r.authorization.value,affiliate:r.affiliate.value,service:r.service.value,
+      claimed:num(r.claimed.value),objected:num(r.objected.value),paid:num(r.paid.value),date:r.date.value
+    }));
+    const claimed=au.reduce((s,x)=>s+x.claimed,0), objected=au.reduce((s,x)=>s+x.objected,0), paid=au.reduce((s,x)=>s+x.paid,0);
+    const suspicious=au.filter(x=>String(x.date||'').startsWith('1969-')).length;
+    const expected=num(total.value||subtotal.value), delta=Math.abs(expected-paid);
+    previewBox.replaceChildren(h('section',{class:'i18-card'},
+      h('h3',{},'Previsualización antes de conciliar'),
+      h('div',{class:'grid kpis'},
+        h('div',{class:'kpi'},h('div',{class:'l'},'OVP'),h('div',{class:'v'},ovp.value||'—')),
+        h('div',{class:'kpi'},h('div',{class:'l'},'Facturas'),h('div',{class:'v'},String(inv.length))),
+        h('div',{class:'kpi'},h('div',{class:'l'},'Autorizaciones'),h('div',{class:'v'},String(au.length))),
+        h('div',{class:'kpi'},h('div',{class:'l'},'Pagado extraído'),h('div',{class:'v'},money(paid)))
+      ),
+      h('div',{class:'note '+(delta<0.01?'ok':'warn')},
+        `Reclamado por autorizaciones: ${money(claimed)} · Objetado: ${money(objected)} · Pagado: ${money(paid)} · Total certificado: ${money(expected)}${delta>=0.01?` · Diferencia: ${money(delta)}`:''}`
+      ),
+      suspicious?h('div',{class:'note warn'},`${suspicious} fecha(s) de autorización parecen atípicas (1969). Revísalas antes de conciliar.`):null,
+      meta.pages?h('p',{class:'small muted'},`Extracción desde PDF: ${meta.pages} página(s). Todos los campos permanecen editables antes de Guardar y conciliar.`):null
+    ));
+  }
+
   function drawAuths(){
     const wrap=h('div',{class:'table-wrap'}); const t=h('table',{class:'t cards'});
     t.append(h('thead',{},h('tr',{},['Factura','Autorización','Fecha auth.','Afiliado','Servicio','Valor reclamado','Valor objetado','Valor pagado'].map(x=>h('th',{},x)))));
@@ -189,6 +218,7 @@ export async function render(root,ctx){
       h('label',{},'PDF SeNaSa',pdfFile),h('div',{class:'i18-actions'},parseBtn),
       h('label',{},'Archivo de origen',source)),
     preview,
+    previewBox,
     h('h4',{},'Detalle de las facturas'),invBox,
     h('div',{class:'i18-actions'},h('button',{class:'i18-btn i18-sec',type:'button',onclick:()=>addInvoice()},'+ Agregar factura')),
     h('div',{class:'i18-form'},
@@ -201,6 +231,7 @@ export async function render(root,ctx){
   );
 
   provider.addEventListener('change',()=>{const p=providers.find(x=>x.id===provider.value); if(p)pname.value=p.full_name||'';});
+  [ovp,subtotal,invObj,authObj,total].forEach(x=>x.addEventListener('change',()=>drawPreview()));
 
   async function loadList(){
     const org=provider.selectedOptions[0]?.dataset.org;
