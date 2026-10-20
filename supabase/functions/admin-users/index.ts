@@ -20,6 +20,7 @@ export type Deps = {
   userIdByEmail: (email: string) => Promise<string | null>;
   inviteUser: (email: string, fullName: string, redirectTo: string) => Promise<{ id: string }>;
   createActiveUser: (email: string, fullName: string, password: string) => Promise<{ id: string }>;
+  deleteUser: (id: string) => Promise<void>;
   getUser: (id: string) => Promise<{ id: string; email: string; last_sign_in_at?: string | null } | null>;
   sendRecovery: (email: string, redirectTo: string) => Promise<void>;
   appUrl: string;
@@ -95,8 +96,13 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       if (existing) return reply(409, { ok: false, message: 'Ese correo ya tiene una cuenta. Use Cambiar rol, Activar usuario o Restablecer contraseña.' }, cors);
       await d.assignRole(caller.id, null, role, org, true);
       const u = await d.createActiveUser(email, fullName, password);
-      const msg = await d.assignRole(caller.id, u.id, role, org, false);
-      return reply(200, { ok: true, user_id: u.id, email_sent: false, must_change_password: true, message: `Usuario creado y activado sin correo. ${msg}. Debe cambiar la contraseña temporal al iniciar sesión.` }, cors);
+      try {
+        const msg = await d.assignRole(caller.id, u.id, role, org, false);
+        return reply(200, { ok: true, user_id: u.id, email_sent: false, must_change_password: true, message: `Usuario creado y activado sin correo. ${msg}. Debe cambiar la contraseña temporal al iniciar sesión.` }, cors);
+      } catch (err) {
+        await d.deleteUser(u.id).catch(() => undefined);
+        throw err;
+      }
     }
     if (action === 'invite') {
       await d.assignRole(caller.id, null, role, org, true);
@@ -163,6 +169,7 @@ Deno.serve((req) => handle(req, {
     if (pe) throw pe;
     return { id };
   },
+  deleteUser: async (id) => { const { error } = await admin.auth.admin.deleteUser(id); if (error) throw error; },
   getUser: async (id) => { const { data, error } = await admin.auth.admin.getUserById(id); if (error) throw error; return data.user as { id: string; email: string; last_sign_in_at?: string | null }; },
   sendRecovery: async (email, redirectTo) => { const { error } = await publicClient.auth.resetPasswordForEmail(email, { redirectTo }); if (error) throw error; }
 }));
