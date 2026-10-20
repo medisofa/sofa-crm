@@ -19,6 +19,7 @@ export type Deps = {
   assignRole: (actor: string, user: string | null, role: string, org: string | null, dryRun: boolean) => Promise<string>;
   userIdByEmail: (email: string) => Promise<string | null>;
   inviteUser: (email: string, fullName: string, redirectTo: string) => Promise<{ id: string }>;
+  createActiveUser: (email: string, fullName: string, password: string) => Promise<{ id: string }>;
   getUser: (id: string) => Promise<{ id: string; email: string; last_sign_in_at?: string | null } | null>;
   sendRecovery: (email: string, redirectTo: string) => Promise<void>;
   appUrl: string;
@@ -72,18 +73,31 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const email = String(body.email || '').trim().toLowerCase();
   const fullName = String(body.full_name || '').trim().slice(0, 120);
   const role = String(body.role || '');
+  const password = String(body.password || '');
   const org = body.organization_id ? String(body.organization_id) : null;
   const configuredRedirect = (d.authRedirectUrl || '').trim();
   const appBase = (d.appUrl || '').replace(/\/+$/, '');
   const legacyStatic = /github\.io/i.test(appBase);
   const redirectTo = configuredRedirect || (appBase ? `${appBase}${legacyStatic ? '/login.html' : '/login'}` : 'https://medisofa.github.io/sofa-crm/login.html');
 
-  if (!['invite', 'resend', 'grant'].includes(action)) return reply(400, { ok: false, message: 'Acción desconocida' }, cors);
+  if (!['invite', 'resend', 'grant', 'create_active'].includes(action)) return reply(400, { ok: false, message: 'Acción desconocida' }, cors);
   if (!EMAIL.test(email)) return reply(400, { ok: false, message: 'Correo inválido' }, cors);
   if (action !== 'resend' && !ASSIGNABLE_ROLES.includes(role)) return reply(400, { ok: false, message: 'Rol inválido. Elija uno de la lista de roles.' }, cors);
-  if (action === 'invite' && fullName.length < 3) return reply(400, { ok: false, message: 'Escribe el nombre completo' }, cors);
+  if ((action === 'invite' || action === 'create_active') && fullName.length < 3) return reply(400, { ok: false, message: 'Escribe el nombre completo' }, cors);
+  if (action === 'create_active' && password.length < 12) return reply(400, { ok: false, message: 'La contraseña temporal debe tener al menos 12 caracteres' }, cors);
 
   try {
+    if (action === 'create_active') {
+      // Solo Super Admin: alta inmediata, sin correo de invitación. La cuenta queda confirmada
+      // pero obligada a cambiar la contraseña temporal en el primer acceso.
+      await d.assignRole(caller.id, null, 'super_admin', null, true);
+      const existing = await d.userIdByEmail(email);
+      if (existing) return reply(409, { ok: false, message: 'Ese correo ya tiene una cuenta. Use Cambiar rol, Activar usuario o Restablecer contraseña.' }, cors);
+      await d.assignRole(caller.id, null, role, org, true);
+      const u = await d.createActiveUser(email, fullName, password);
+      const msg = await d.assignRole(caller.id, u.id, role, org, false);
+      return reply(200, { ok: true, user_id: u.id, email_sent: false, must_change_password: true, message: `Usuario creado y activado sin correo. ${msg}. Debe cambiar la contraseña temporal al iniciar sesión.` }, cors);
+    }
     if (action === 'invite') {
       await d.assignRole(caller.id, null, role, org, true);
       const existing = await d.userIdByEmail(email);
@@ -140,6 +154,14 @@ Deno.serve((req) => handle(req, {
   inviteUser: async (email, fullName, redirectTo) => {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName }, redirectTo });
     if (error) throw error; return { id: data.user!.id };
+  },
+  createActiveUser: async (email, fullName, password) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName } });
+    if (error) throw error;
+    const id = data.user!.id;
+    const { error: pe } = await admin.from('profiles').upsert({ id, full_name: fullName, is_active: true, must_change_password: true }, { onConflict: 'id' });
+    if (pe) throw pe;
+    return { id };
   },
   getUser: async (id) => { const { data, error } = await admin.auth.admin.getUserById(id); if (error) throw error; return data.user as { id: string; email: string; last_sign_in_at?: string | null }; },
   sendRecovery: async (email, redirectTo) => { const { error } = await publicClient.auth.resetPasswordForEmail(email, { redirectTo }); if (error) throw error; }
