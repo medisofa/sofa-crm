@@ -42,7 +42,7 @@ export async function render(main, ctx) {
       : [[], []];
     const [fiscal, fcheck, dist, delivery, family, money_, duplicates] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
       sub.submitted_on && can('claims.money', ctx.role) ? submissionLineAllocations(id).catch(() => []) : Promise.resolve([]), getDelivery(id).catch(() => null),
-      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([]), claimDuplicateCandidates(null, id).catch(() => [])]);
+      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([]), claimDuplicateCandidates({ submissionId: id }).catch(() => [])]);
     const names = await profileNames([...hist.map((h) => h.changed_by), ...docs.map((d) => d.uploaded_by), fiscal?.fiscal_exception_by].filter(Boolean)).catch(() => ({}));
     return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_, duplicates };
   }
@@ -78,7 +78,7 @@ export async function render(main, ctx) {
         <div class="b">
           <div class="t1"><a href="#/reclamaciones/${d.line_id}">${d.folio || 'Reclamación'}</a> ↔ <a href="#/reclamaciones/${d.other_line_id}">${d.other_folio || 'Posible duplicado'}</a></div>
           <div class="t2">${d.patient_name} · NSS ${d.member_number} · ${date(d.service_date)}${d.authorization_date ? ` · Fecha auth. ${date(d.authorization_date)}` : ''}</div>
-          <div class="small"><b>Coincide:</b> ${d.matched_fields.join(' · ')}</div>
+          <div class="small"><b>Coincide:</b> ${(d.matched_fields || []).join(' · ')}</div>
           <div class="small"><b>Solución sugerida:</b> ${d.suggested_solution}</div>
           ${d.review_decision ? html`<div class="small"><b>Decisión registrada:</b> ${d.review_decision}</div>` : ''}
           <div class="toolbar" style="margin-top:6px"><button class="btn sm" data-dup-review="${d.line_id}" data-dup-other="${d.other_line_id}">Revisar coincidencia</button></div>
@@ -93,7 +93,7 @@ export async function render(main, ctx) {
     const { formDialog } = await import('../utils/ui.js');
     const ok = await formDialog({
       title: 'Resolver posible duplicado', submitLabel: 'Guardar decisión', wide: true,
-      body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}"><b>${d.matched_fields.join(' · ')}</b><br>${d.suggested_solution}</div>
+      body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}"><b>${(d.matched_fields || []).join(' · ')}</b><br>${d.suggested_solution}</div>
         <div class="form-grid">
           <div class="field"><label for="sdup_dec">Decisión *</label><select id="sdup_dec" name="decision">
             <option value="">Seleccione…</option>
@@ -257,7 +257,7 @@ export async function render(main, ctx) {
         const r = await commentDialog(to === 'rechazada' ? 'Rechazada por la ARS' : 'Cerrar radicación', to === 'rechazada'); if (!r) return; opts.comment = r.comment;
       }
       if (['lista_para_radicar','radicada'].includes(to)) {
-        const ds = await claimDuplicateCandidates(null, id);
+        const ds = await claimDuplicateCandidates({ submissionId: id });
         const blockers = uniqueDuplicates(ds).filter((d) => d.blocks_radicacion);
         if (blockers.length) {
           toast(`Hay ${blockers.length} posible(s) duplicado(s) de alto riesgo. Revise NSS y fechas antes de radicar.`, 'bad');
@@ -316,6 +316,12 @@ export async function render(main, ctx) {
       const { formDialog, opt } = await import('../utils/ui.js');
       const { DELIVERY_METHODS } = await import('../utils/constants.js');
       const fc = S.fcheck;
+      const duplicateBlockers = uniqueDuplicates(S.duplicates || []).filter((d) => d.blocks_radicacion);
+      if (duplicateBlockers.length) {
+        toast(`Hay ${duplicateBlockers.length} posible(s) duplicado(s) de alto riesgo sin resolver. Revísalos antes de enviar.`, 'bad');
+        document.getElementById('duplicateCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       if (fc && !fc.ok) { toast('La factura fiscal no cuadra con las reclamaciones: corríjala o solicite la excepción antes de enviar.', 'bad'); document.getElementById('fisc')?.scrollIntoView({ behavior: 'smooth' }); return; }
       const dv = S.delivery || {};
       const n = await formDialog({ title: `Enviar ${S.sub.folio} a ${S.sub.ars_name}`, submitLabel: 'Registrar envío',
