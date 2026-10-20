@@ -87,7 +87,7 @@ export async function render(main, ctx) {
   const list = $('#l', main);
   const load = () => loadInto(list, async () => {
     const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE });
-    const dups = res.data.length ? await claimDuplicateCandidates({ ids: res.data.map((x) => x.id) }).catch(() => []) : [];
+    const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null).catch(() => []) : [];
     return { ...res, dups };
   }, (res) => {
     rows = res.data; dupMap = new Map();
