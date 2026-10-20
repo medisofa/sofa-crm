@@ -13,6 +13,7 @@ import { invoke, rpc, supabase } from '../services/iter18.js';
 const ORG_ROLES = ['client', 'capturer'];   // roles de la organización del cliente (no SOFA)
 
 const STATUS = { activo: ['Activo', 'ok'], 'invitación pendiente': ['Invitación pendiente', 'warn'], 'sin ingreso en 90 días': ['Sin ingreso en 90 días', 'warn'], desactivado: ['Desactivado', ''] };
+const READINESS = { ready: ['Listo para operar', 'ok'], email_pending: ['Correo pendiente', 'warn'], profile_inactive: ['Perfil desactivado', 'bad'], no_membership: ['Sin membresía', 'bad'], membership_inactive: ['Membresía desactivada', 'bad'], invalid_role: ['Rol inválido', 'bad'], role_org_mismatch: ['Rol/organización inconsistente', 'bad'] };
 const f = (name, label, input, hint = '') => html`<div class="field"><label for="f_${name}">${label}</label>${input}${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
 
 const SOFA_ROLES = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor'];
@@ -100,7 +101,7 @@ export async function render(main, ctx) {
         return html`<tr>
           <td data-l="Usuario"><b>${u.full_name || '—'}</b>${self ? html` <span class="pill info">Tú</span>` : ''}<div class="small muted">${u.email}</div></td>
           <td data-l="Rol">${u.role_name}</td><td data-l="Organización">${u.organization}</td>
-          <td data-l="Estado"><span class="pill ${sc}">${sl}</span><div class="small muted">Invitado ${date(u.invited_at)}</div></td>
+          <td data-l="Estado"><span class="pill ${sc}">${sl}</span>${u.access_readiness ? (() => { const [rl, rc] = READINESS[u.access_readiness] || [u.access_readiness, '']; return html` <span class="pill ${rc}">${rl}</span>`; })() : ''}<div class="small muted">Invitado ${date(u.invited_at)}</div></td>
           <td data-l="Último ingreso">${u.last_sign_in_at ? dateTime(u.last_sign_in_at) : '—'}</td>
           ${manage || canToggle ? html`<td data-l="">${self || protectedRow ? '' : html`
             ${manage && u.email ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${u.role_code}" data-user="${u.user_id}" data-org="${u.kind === 'client' ? u.organization_id : ''}">Cambiar rol</button>
@@ -112,7 +113,14 @@ export async function render(main, ctx) {
       })}</tbody></table></div>`);
   };
   const load = async () => {
-    try { rows = await usersOverview(); }
+    try {
+      rows = await usersOverview();
+      try {
+        const readiness = await rpc('users_access_readiness');
+        const map = new Map((Array.isArray(readiness) ? readiness : []).map((x) => [`${x.user_id}:${x.role_code || ''}:${x.organization_id || ''}`, x]));
+        rows = rows.map((u) => ({ ...u, access_readiness: map.get(`${u.user_id}:${u.role_code || ''}:${u.organization_id || ''}`)?.readiness || null }));
+      } catch (_) { /* compatibilidad si aún no existe el RPC */ }
+    }
     catch (err) {
       // Sin el script 022: lista básica, sin correos ni último ingreso
       const basic = await listMemberships().catch(() => []);
