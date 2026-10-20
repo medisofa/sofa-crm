@@ -91,7 +91,7 @@ export const NAV = [
     { route: 'contactos', label: 'Contactos', roles: ['super_admin', 'admin', 'assistant', 'auditor'], ready: true },
     { route: 'aliados', label: 'Aliados referidores', roles: ['super_admin', 'admin', 'auditor'], ready: true }
   ]},
-  { group: 'Facturación', items: [
+  { group: 'Facturación y Radicación', items: [
     { route: 'carga-google', label: 'Carga Google Sheets / Form', roles: ['super_admin','admin','operations','billing'], ready: true },
     { route: 'radicaciones', label: 'Radicaciones', roles: ALL, ready: true },
     { route: 'codificacion', label: 'Codificación y tarifas', roles: ALL, ready: true },
@@ -228,8 +228,8 @@ export const ESENCIALES = {
 
   // Facturación · perfil de referencia desde el 01/10/2026. BILLING_ROUTES sigue siendo su tope.
   billing: {
-    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'captura', 'reclamaciones', 'expediente',
-           'retiros', 'reconsideracion', 'perfil', 'seguridad'],
+    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'captura', 'carga-google', 'reclamaciones', 'expediente',
+           'retiros', 'radicaciones', 'reconsideracion', 'perfil', 'seguridad'],
     extra: ['dashboard', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
   },
 
@@ -414,7 +414,7 @@ function familiaDe(route, role) {
 export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'fugas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
-  { key: 'facturacion', group: 'Facturación ARS', routes: ['captura', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
+  { key: 'facturacion', group: 'Facturación y Radicación', routes: ['captura', 'carga-google', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
