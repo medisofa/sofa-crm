@@ -15,7 +15,7 @@ import { downloadCsv } from '../utils/filters.js';
 import { lineDialog, importDialog, checklistDialog, radicarDialog, overrideDialog, commentDialog } from './submission-dialogs.js';
 import { listGlosas, submissionPayments } from '../services/finance.js';
 import { glosaStatus, claimStatus, DELIVERY_METHODS } from '../utils/constants.js';
-import { getFiscal, fiscalCheck, saveFiscal, authorizeFiscalDifference, submissionLineAllocations, submissionFamily, submissionClaimMoney } from '../services/claims.js';
+import { getFiscal, fiscalCheck, saveFiscal, authorizeFiscalDifference, submissionLineAllocations, submissionFamily, submissionClaimMoney, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 import { getDelivery, markSubmissionSent } from '../services/dossier.js';
 
 const EDITABLE = ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'];
@@ -40,11 +40,11 @@ export async function render(main, ctx) {
     const [glosas, pays] = sub.submitted_on
       ? await Promise.all([listGlosas({ group: 'todas', submissionId: id, size: 50 }).then((r) => r.data).catch(() => []), submissionPayments(id).catch(() => [])])
       : [[], []];
-    const [fiscal, fcheck, dist, delivery, family, money_] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
+    const [fiscal, fcheck, dist, delivery, family, money_, duplicates] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
       sub.submitted_on && can('claims.money', ctx.role) ? submissionLineAllocations(id).catch(() => []) : Promise.resolve([]), getDelivery(id).catch(() => null),
-      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([])]);
+      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([]), claimDuplicateCandidates(null, id).catch(() => [])]);
     const names = await profileNames([...hist.map((h) => h.changed_by), ...docs.map((d) => d.uploaded_by), fiscal?.fiscal_exception_by].filter(Boolean)).catch(() => ({}));
-    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_ };
+    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_, duplicates };
   }
 
   async function refresh() {
@@ -55,8 +55,67 @@ export async function render(main, ctx) {
     } catch (err) { console.error(err); paint(box, errorView(err, 'rs')); box.querySelector('[data-retry]')?.addEventListener('click', refresh); }
   }
 
+  function uniqueDuplicates(rows = []) {
+    const seen = new Set();
+    return rows.filter((d) => {
+      const k = [d.line_id, d.other_line_id].sort().join(':');
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+  }
+
+  function duplicateCard(rows = []) {
+    const dups = uniqueDuplicates(rows);
+    if (!dups.length) return html`<div class="card" id="duplicateCard"><h2>Filtro de duplicados</h2><p class="small"><span class="pill ok">Sin coincidencias</span> No se detectaron reclamaciones con NSS y fecha de servicio coincidentes.</p></div>`;
+    const blockers = dups.filter((d) => d.blocks_radicacion);
+    return html`<div class="card" id="duplicateCard">
+      <div class="page-head"><div class="t"><h2>Filtro de duplicados · ${dups.length}</h2>
+        <p>SOFA compara NSS, fecha de servicio, fecha de autorización, número de autorización y servicio antes de radicar.</p></div>
+        <span class="pill ${blockers.length ? 'bad' : 'ok'}">${blockers.length ? `${blockers.length} bloquean radicación` : 'Revisados / no bloqueantes'}</span>
+      </div>
+      <div class="list">${dups.map((d) => html`<div class="li" style="align-items:flex-start">
+        <span class="pill ${d.blocks_radicacion ? 'bad' : d.review_decision ? 'ok' : 'warn'}">${d.risk}</span>
+        <div class="b">
+          <div class="t1"><a href="#/reclamaciones/${d.line_id}">${d.folio || 'Reclamación'}</a> ↔ <a href="#/reclamaciones/${d.other_line_id}">${d.other_folio || 'Posible duplicado'}</a></div>
+          <div class="t2">${d.patient_name} · NSS ${d.member_number} · ${date(d.service_date)}${d.authorization_date ? ` · Fecha auth. ${date(d.authorization_date)}` : ''}</div>
+          <div class="small"><b>Coincide:</b> ${d.matched_fields.join(' · ')}</div>
+          <div class="small"><b>Solución sugerida:</b> ${d.suggested_solution}</div>
+          ${d.review_decision ? html`<div class="small"><b>Decisión registrada:</b> ${d.review_decision}</div>` : ''}
+          <div class="toolbar" style="margin-top:6px"><button class="btn sm" data-dup-review="${d.line_id}" data-dup-other="${d.other_line_id}">Revisar coincidencia</button></div>
+        </div>
+      </div>`)}</div>
+    </div>`;
+  }
+
+  async function reviewDuplicate(lineA, lineB) {
+    const d = uniqueDuplicates(S.duplicates || []).find((x) => [x.line_id,x.other_line_id].includes(lineA) && [x.line_id,x.other_line_id].includes(lineB));
+    if (!d) return;
+    const { formDialog } = await import('../utils/ui.js');
+    const ok = await formDialog({
+      title: 'Resolver posible duplicado', submitLabel: 'Guardar decisión', wide: true,
+      body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}"><b>${d.matched_fields.join(' · ')}</b><br>${d.suggested_solution}</div>
+        <div class="form-grid">
+          <div class="field"><label for="sdup_dec">Decisión *</label><select id="sdup_dec" name="decision">
+            <option value="">Seleccione…</option>
+            <option value="ambas_validas">Ambas reclamaciones son válidas</option>
+            <option value="duplicado_confirmado">Duplicado confirmado</option>
+            <option value="dato_corregido">Dato corregido</option>
+            <option value="no_duplicado">No es duplicado</option>
+          </select></div>
+          <div class="field" style="grid-column:1/-1"><label for="sdup_reason">Justificación *</label><textarea id="sdup_reason" name="reason" rows="3" maxlength="500"></textarea></div>
+        </div>`,
+      onSubmit: async (data, form) => {
+        if (!data.decision) { fieldError(form.elements.decision, 'Seleccione una decisión.'); return false; }
+        if (String(data.reason || '').trim().length < 5) { fieldError(form.elements.reason, 'Explique la decisión.'); return false; }
+        await reviewClaimDuplicate(lineA, lineB, data.decision, data.reason.trim());
+        return true;
+      }
+    });
+    if (ok) { toast('Revisión registrada en bitácora', 'ok'); await refresh(); }
+  }
+
   function draw() {
-    const { sub, lines, lineCk, docs, trans, hist, val, types, org, names, glosas, pays, fiscal, fcheck, dist, family, money_ } = S;
+    const { sub, lines, lineCk, docs, trans, hist, val, types, org, names, glosas, pays, fiscal, fcheck, dist, family, money_, duplicates = [] } = S;
     const canGlosa = can('glosas.edit', ctx.role) && !!sub.submitted_on && !['cerrada', 'rechazada'].includes(sub.status);
     const canPay = can('payments.create', ctx.role) && Number(sub.balance) > 0 && ['radicada', 'en_auditoria_ars'].includes(sub.status);
     ctx.setTitle(sub.folio);
@@ -90,6 +149,7 @@ export async function render(main, ctx) {
     ${sub.provider_code_status !== 'codificado' ? html`<div class="note warn">Código del prestador en ${sub.ars_name}: <b>${codeLbl}</b>. Sin código asignado, la ARS no paga. Regístralo en la ficha del cliente.</div>` : ''}
     ${role === 'client' && sub.status === 'borrador' ? html`<div class="note">Agrega los servicios del mes y sus documentos. Cuando termines, pulsa <b>Enviar a SOFA</b>: el equipo la revisará y la radicará ante la ARS.</div>` : ''}
 
+    <div style="margin-bottom:14px">${duplicateCard(duplicates)}</div>
     <div class="grid two">
       <div class="card"><h2>Factura y radicación</h2>
         ${editable ? html`<form id="ff" novalidate class="form-grid">
@@ -196,6 +256,15 @@ export async function render(main, ctx) {
       if (to === 'rechazada' || to === 'cerrada') {
         const r = await commentDialog(to === 'rechazada' ? 'Rechazada por la ARS' : 'Cerrar radicación', to === 'rechazada'); if (!r) return; opts.comment = r.comment;
       }
+      if (['lista_para_radicar','radicada'].includes(to)) {
+        const ds = await claimDuplicateCandidates(null, id);
+        const blockers = uniqueDuplicates(ds).filter((d) => d.blocks_radicacion);
+        if (blockers.length) {
+          toast(`Hay ${blockers.length} posible(s) duplicado(s) de alto riesgo. Revise NSS y fechas antes de radicar.`, 'bad');
+          document.getElementById('duplicateCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
       if (trans.find((t) => t.to_code === to)?.requires_validation) {
         const v = await validateSubmission(id, false);
         if (!v.critical_ok) {
@@ -211,6 +280,7 @@ export async function render(main, ctx) {
 
   function bind(editable) {
     box.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', () => busy(b, () => doMove(b.dataset.to))));
+    box.querySelectorAll('[data-dup-review]').forEach((b) => b.addEventListener('click', () => reviewDuplicate(b.dataset.dupReview, b.dataset.dupOther).catch((e) => toast(friendlyError(e), 'bad'))));
     $('#csv', box)?.addEventListener('click', exportCsv);
     $('#fiscForm', box)?.addEventListener('submit', async (e) => {
       e.preventDefault(); const f = e.target;
