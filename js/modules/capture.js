@@ -43,7 +43,7 @@ export async function render(main, ctx) {
           <div class="field"><label for="c_nss">NSS / No. afiliado *</label><input id="c_nss" name="member" required maxlength="40" inputmode="numeric"></div>
           <div class="field"><label for="c_auth">No. de autorización <span id="authReq">*</span></label><input id="c_auth" name="authorization" maxlength="60"></div>
           <div class="field"><label for="c_authdate">Fecha de la autorización</label><input id="c_authdate" name="authdate" type="date" max="${todayISO()}"><span class="hint">Avisa a los 150 días si no se ha radicado</span></div>
-          <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div>
+          <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div><div id="globalPatientMatch" style="grid-column:1/-1"></div>
           <div class="field"><label for="c_dx">Diagnóstico (CIE-10)</label><input id="c_dx" name="diagnosis" maxlength="60" autocomplete="off" placeholder="Ej.: I10, E11.9"><span class="hint">SOFA sugiere códigos según servicio, SIMON y CUPS. Confirma el diagnóstico documentado; puedes escribir otro código.</span><div id="dxSuggest" class="small" style="margin-top:6px"></div></div>
           <div class="field"><label for="c_clinic">Centro / clínica</label><input id="c_clinic" name="clinic" maxlength="120"></div>
           <div class="field" style="grid-column:1/-1"><label for="c_srv">5 · Servicio contratado *</label>
@@ -311,6 +311,40 @@ export async function render(main, ctx) {
   }
   ['c_doc', 'c_nss', 'c_dx'].forEach((i) => el(i).addEventListener('change', revisarDato));
   el('c_srv').addEventListener('change', () => { if (el('c_dx').value.trim()) revisarDato(); });
+
+  // ------------------------------------------------------------ Registro Universal de Pacientes
+  let globalSeq = 0;
+  async function checkUniversalPatient() {
+    const box = el('globalPatientMatch'); if (!box) return;
+    const cedula = el('c_doc').value.trim(), nss = el('c_nss').value.trim();
+    if (!cedula && !nss) { paint(box, html``); return; }
+    const my = ++globalSeq;
+    try {
+      const r = await import('../services/iter18.js').then((m) => m.rpc('global_patient_lookup', {
+        p_cedula: cedula || null, p_nss: nss || null, p_name: el('c_pat').value.trim() || null, p_birth: null, p_phone: null
+      }));
+      if (my !== globalSeq || !alive()) return;
+      if (r?.match === 'exact' && r.patient) {
+        paint(box, html`<div class="note info"><b>Paciente encontrado</b> · ${r.patient.full_name}. SOFA puede reutilizar solo sus datos administrativos; no traerá consultas, diagnósticos ni notas anteriores.
+          <div class="toolbar" style="margin-top:6px"><button type="button" class="btn sm" id="useGlobalPatient">Usar datos del paciente</button></div></div>`);
+        el('useGlobalPatient')?.addEventListener('click', async () => {
+          el('c_pat').value = r.patient.full_name || el('c_pat').value;
+          el('c_doc').value = r.patient.cedula || el('c_doc').value;
+          el('c_nss').value = r.patient.nss || r.patient.member_number || el('c_nss').value;
+          if (r.patient.ars_id && S.ars.some((a) => a.id === r.patient.ars_id)) { el('c_ars').value = r.patient.ars_id; await onArs(); }
+          const orgId = S.providers.find((p) => p.id === el('c_prov').value)?.organization_id;
+          if (orgId) {
+            try { const { rpc } = await import('../services/iter18.js'); await rpc('attach_global_patient', { p_global: r.patient.id, p_org: orgId }); } catch (_) {}
+          }
+          paint(box, html`<div class="note ok">Datos administrativos reutilizados. La nueva consulta continúa limpia.</div>`);
+        });
+      } else if (r?.match === 'conflict') {
+        paint(box, html`<div class="note bad">La cédula y el NSS apuntan a registros diferentes. Revise los identificadores antes de continuar.</div>`);
+      } else paint(box, html``);
+    } catch (_) { paint(box, html``); }
+  }
+  el('c_doc').addEventListener('change', checkUniversalPatient);
+  el('c_nss').addEventListener('change', checkUniversalPatient);
 
   // ------------------------------------------------------------ guardar
   const clearPatient = () => {
