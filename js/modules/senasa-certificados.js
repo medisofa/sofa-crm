@@ -71,7 +71,7 @@ export async function render(root,ctx){
   const source=h('input',{placeholder:'Nombre del PDF / archivo de origen'});
   const pdfFile=h('input',{type:'file',accept:'application/pdf,.pdf'});
   const parseBtn=h('button',{class:'i18-btn i18-sec',type:'button'},'Leer PDF SeNaSa');
-  const invBox=h('div'); const authBox=h('div');
+  const invBox=h('div'); const authBox=h('div'); const preview=h('div',{'aria-live':'polite'}); const reconcile=h('div',{'aria-live':'polite'});
   const invoices=[]; const auths=[];
 
   function addInvoice(x={}){
@@ -125,12 +125,23 @@ export async function render(root,ctx){
       subtotal.value=String(x.subtotal||0); invObj.value=String(x.invoiceObj||0); authObj.value=String(x.authObj||0); total.value=String(x.total||x.subtotal||0); source.value=file.name;
       invoices.length=0;auths.length=0; x.invoices.forEach(addInvoice);x.authorizations.forEach(addAuth); if(!invoices.length)addInvoice();if(!auths.length)addAuth();
       const suspicious=x.authorizations.filter(a=>String(a.authorization_date||'').startsWith('1969-')).length;
-      msg.replaceChildren(note(`PDF leído: ${x.pages} página(s), ${x.invoices.length} factura(s), ${x.authorizations.length} autorización(es).${suspicious?` ${suspicious} fecha(s) de autorización parecen atípicas (1969) y requieren revisión.`:''}`,suspicious?'warn':'ok'));
+      const invTotal=x.invoices.reduce((s,r)=>s+num(r.invoice_amount),0), authClaimed=x.authorizations.reduce((s,r)=>s+num(r.claimed_amount),0), authPaid=x.authorizations.reduce((s,r)=>s+num(r.paid_amount),0), authObjected=x.authorizations.reduce((s,r)=>s+num(r.objected_amount),0);
+      preview.replaceChildren(h('section',{class:'i18-card'},
+        h('h3',{},'Previsualización extraída del PDF'),
+        h('div',{class:'grid kpis'},
+          h('div',{class:'kpi'},h('div',{class:'l'},'OVP'),h('div',{class:'v'},x.ovp||'—')),
+          h('div',{class:'kpi'},h('div',{class:'l'},'Facturas'),h('div',{class:'v'},String(x.invoices.length)),h('div',{class:'h'},money(invTotal))),
+          h('div',{class:'kpi'},h('div',{class:'l'},'Autorizaciones'),h('div',{class:'v'},String(x.authorizations.length)),h('div',{class:'h'},money(authClaimed))),
+          h('div',{class:'kpi'},h('div',{class:'l'},'Pagado / Objetado'),h('div',{class:'v'},money(authPaid)),h('div',{class:'h'},`Objetado ${money(authObjected)}`))
+        ),
+        suspicious ? note(`${suspicious} fecha(s) de autorización parecen atípicas (1969). Corríjalas antes de conciliar.`,'warn') : note('Revise los datos extraídos. Puede editar cualquier campo antes de guardar y conciliar.','ok')
+      ));
+      msg.replaceChildren(note(`PDF leído: ${x.pages} página(s), ${x.invoices.length} factura(s), ${x.authorizations.length} autorización(es). Revise la previsualización antes de conciliar.`,suspicious?'warn':'ok'));
     }catch(e){msg.replaceChildren(note('No se pudo leer automáticamente el PDF. Puede completar el formulario manualmente. '+e.message,'error'));}
     finally{parseBtn.disabled=false;}
   });
 
-  const save=h('button',{class:'i18-btn',type:'button'},'Guardar y conciliar');
+  const save=h('button',{class:'i18-btn',type:'button'},'Guardar y conciliar todo');
   save.addEventListener('click',async()=>{
     if(!provider.value||!arsSel.value||!pcode.value.trim()||!pname.value.trim()||!ovp.value.trim()){msg.replaceChildren(note('Complete prestador, régimen SeNaSa, código, nombre y OVP.','error'));return;}
     const org=provider.selectedOptions[0]?.dataset.org;
@@ -146,12 +157,25 @@ export async function render(root,ctx){
     }));
     save.disabled=true;
     try{
-      await rpc('save_senasa_payment_certificate',{
+      const certId=await rpc('save_senasa_payment_certificate',{
         p_org:org,p_provider:provider.value,p_ars:arsSel.value,p_provider_code:pcode.value,p_provider_name:pname.value,
         p_rnc:rnc.value||null,p_ovp:ovp.value,p_subtotal:num(subtotal.value),p_invoice_obj:num(invObj.value),
         p_auth_obj:num(authObj.value),p_total:num(total.value),p_source_file:source.value||null,p_invoices:inv,p_authorizations:au
       });
-      msg.replaceChildren(note('Certificado SeNaSa guardado. SOFA comparó autorizaciones y montos con las reclamaciones existentes.','ok'));
+      const rr=await rpc('senasa_certificate_reconciliation',{p_certificate:certId});
+      reconcile.replaceChildren(h('section',{class:'i18-card'},
+        h('h3',{},`Resultado de conciliación · OVP ${rr?.ovp||ovp.value}`),
+        h('div',{class:'grid kpis'},
+          h('div',{class:'kpi'},h('div',{class:'l'},'Coincidencias'),h('div',{class:'v'},String(rr?.matched||0))),
+          h('div',{class:'kpi'},h('div',{class:'l'},'Diferencias'),h('div',{class:'v'},String(rr?.differences||0))),
+          h('div',{class:'kpi'},h('div',{class:'l'},'No encontradas'),h('div',{class:'v'},String(rr?.not_found||0))),
+          h('div',{class:'kpi'},h('div',{class:'l'},'Objetado'),h('div',{class:'v'},money(rr?.objected_total||0)),h('div',{class:'h'},`Pagado ${money(rr?.paid_total||0)}`))
+        ),
+        rr?.ready_to_apply
+          ? note('Conciliación completa: todas las autorizaciones fueron encontradas y sus montos coinciden. El pago queda listo para el flujo de aplicación.','ok')
+          : note('Conciliación con diferencias: revise autorizaciones no encontradas o montos distintos antes de aplicar el pago o registrar glosa.','warn')
+      ));
+      msg.replaceChildren(note('Certificado SeNaSa guardado y conciliado contra las reclamaciones de SOFA.','ok'));
       await loadList();
     }catch(e){msg.replaceChildren(note(e.message,'error'));}finally{save.disabled=false;}
   });
@@ -164,6 +188,7 @@ export async function render(root,ctx){
       h('label',{},'RNC',rnc),h('label',{},'Certificado OVP No.',ovp),
       h('label',{},'PDF SeNaSa',pdfFile),h('div',{class:'i18-actions'},parseBtn),
       h('label',{},'Archivo de origen',source)),
+    preview,
     h('h4',{},'Detalle de las facturas'),invBox,
     h('div',{class:'i18-actions'},h('button',{class:'i18-btn i18-sec',type:'button',onclick:()=>addInvoice()},'+ Agregar factura')),
     h('div',{class:'i18-form'},
@@ -171,7 +196,8 @@ export async function render(root,ctx){
       h('label',{},'Objeciones en autorizaciones',authObj),h('label',{},'Total a pagar',total)),
     h('h4',{},'Detalle de autorizaciones por factura'),authBox,
     h('div',{class:'i18-actions'},h('button',{class:'i18-btn i18-sec',type:'button',onclick:()=>addAuth()},'+ Agregar autorización')),
-    h('div',{class:'i18-actions'},save)
+    h('div',{class:'i18-actions'},save),
+    reconcile
   );
 
   provider.addEventListener('change',()=>{const p=providers.find(x=>x.id===provider.value); if(p)pname.value=p.full_name||'';});
