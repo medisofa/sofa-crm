@@ -75,3 +75,8 @@ export const indicadorSecretarias = async (desde, hasta, org) => must(await sb()
 export const opcionesArs = async () => must(await sb().from('ars').select('id, name').eq('is_active', true).order('name'));
 export const opcionesServicios = async () => must(await sb().from('procedures').select('id, internal_code, description').eq('is_active', true).order('description').limit(1000));
 export const opcionesClientes = async () => must(await sb().from('organizations').select('id, legal_name, trade_name').eq('kind', 'client').order('legal_name'));
+
+/** CIE-10 sugerido por servicio/SIMON/CUPS o búsqueda manual. La selección final siempre la confirma el usuario. */
+export async function cie10Suggestions(procedureId = null, query = null, limit = 12) {
+  return must(await sb().rpc('cie10_suggest', { p_procedure: procedureId || null, p_query: query || null, p_limit: limit }));
+}
