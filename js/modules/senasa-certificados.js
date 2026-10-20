@@ -4,7 +4,42 @@
  */
 import { supabase, rpc, providerOptions, h, money, fmtDate, note, guarded, table } from '../services/iter18.js';
 
-const num=(v)=>Number(String(v??'').replace(/,/g,'')||0);
+const PDFJS_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+const PDFJS_WORKER='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+const num=(v)=>Number(String(v??'').replace(/,/g,'').replace(/[^0-9.-]/g,'')||0);
+const isoDate=(v)=>{const m=String(v??'').trim().match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);return m?`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`:'';};
+function rowsFromItems(items){const rows=[];for(const it of items.filter(x=>String(x.str||'').trim())){const y=Number(it.transform?.[5]||0),x=Number(it.transform?.[4]||0),s=String(it.str).trim();let r=rows.find(z=>Math.abs(z.y-y)<=2.5);if(!r){r={y,items:[]};rows.push(r);}r.items.push({x,s});}return rows.sort((a,b)=>b.y-a.y).map(r=>({y:r.y,items:r.items.sort((a,b)=>a.x-b.x),text:r.items.sort((a,b)=>a.x-b.x).map(x=>x.s).join(' ').replace(/\\s+/g,' ').trim()}));}
+function cellsByFractions(row,width,f){const out=Array.from({length:f.length-1},()=>[]);for(const it of row.items){const p=it.x/Math.max(width,1);let k=f.length-2;for(let i=0;i<f.length-1;i++){if(p>=f[i]&&p<f[i+1]){k=i;break;}}out[k].push(it.s);}return out.map(a=>a.join(' ').replace(/\\s+/g,' ').trim());}
+async function parseSenasaPdf(file){
+  const pdfjs=await import(PDFJS_URL); pdfjs.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;
+  const pdf=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const pages=[];
+  for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),tc=await p.getTextContent();pages.push({width:Number(p.view?.[2]||1),rows:rowsFromItems(tc.items)});}
+  const all=pages.flatMap(p=>p.rows.map(r=>r.text)).join('\\n');
+  const one=(re)=>all.match(re)?.[1]?.trim()||'';
+  const invoices=[],authorizations=[];
+  for(const p of pages){for(const row of p.rows){
+    const a=cellsByFractions(row,p.width,[0,.105,.235,.37,.485,.61,.75,.88,1]);
+    if(/^\\d{5,}/.test(a[0]||'')&&isoDate(a[2])&&isoDate(a[3])&&a.slice(4).filter(x=>/[0-9].*\\.\\d{2}/.test(x)).length>=4){
+      const x={internal_number:a[0],ncf:a[1],receipt_date:isoDate(a[2]),invoice_date:isoDate(a[3]),invoice_amount:num(a[4]),invoice_objection_amount:num(a[5]),authorization_objection_amount:num(a[6]),amount_payable:num(a[7])};
+      if(!invoices.some(z=>z.internal_number===x.internal_number&&z.ncf===x.ncf))invoices.push(x);
+    }
+    const b=cellsByFractions(row,p.width,[0,.075,.19,.275,.525,.65,.77,.89,1]);
+    if(/^\\d+/.test(b[0]||'')&&/^\\d{7,}/.test(b[1]||'')){
+      const x={invoice_number:b[0],authorization_number:b[1],authorization_date:isoDate(b[2]),affiliate_name:b[3],service_name:b[4],claimed_amount:num(b[5]),objected_amount:num(b[6]),paid_amount:num(b[7])};
+      if(!authorizations.some(z=>z.authorization_number===x.authorization_number))authorizations.push(x);
+    }
+  }}
+  const amounts=(label)=>{const l=pages.flatMap(p=>p.rows).find(r=>new RegExp(label,'i').test(r.text));const m=l?.text.match(/-?[0-9][0-9,]*\\.\\d{2}/g)||[];return m.length?num(m.at(-1)):0;};
+  return {
+    providerCode:one(/C[ÓO]DIGO\\s+DEL\\s+PRESTADOR\\s*:\\s*([^\\n]+)/i).split(/\\s+/)[0]||'',
+    providerName:one(/NOMBRE\\s+DEL\\s+PRESTADOR\\s*:\\s*([^\\n]+)/i).replace(/\\s+RNC\\s*:.*$/i,'').trim(),
+    rnc:one(/RNC\\s*:\\s*([^\\n]*)/i).replace(/CERTIFICADO.*$/i,'').trim(),
+    ovp:one(/CERTIFICADO\\s+OVP\\s+NO\\.?\\s*:\\s*([0-9A-Za-z-]+)/i),
+    subtotal:amounts('SUB-?TOTAL'),invoiceObj:amounts('Objeciones\\s+en\\s+Facturas'),authObj:amounts('Objeciones\\s+en\\s+Autorizaciones'),total:amounts('TOTAL\\s+A\\s+PAGAR'),
+    invoices,authorizations,pages:pdf.numPages
+  };
+}
 const fld=(label,type='text',value='')=>h('label',{},label,h('input',{type,value,style:'width:100%'}));
 
 export async function render(root,ctx){
@@ -34,6 +69,8 @@ export async function render(root,ctx){
   const authObj=h('input',{type:'number',step:'0.01',value:'0'});
   const total=h('input',{type:'number',step:'0.01',value:'0'});
   const source=h('input',{placeholder:'Nombre del PDF / archivo de origen'});
+  const pdfFile=h('input',{type:'file',accept:'application/pdf,.pdf'});
+  const parseBtn=h('button',{class:'i18-btn i18-sec',type:'button'},'Leer PDF SeNaSa');
   const invBox=h('div'); const authBox=h('div');
   const invoices=[]; const auths=[];
 
@@ -78,6 +115,20 @@ export async function render(root,ctx){
   }
 
   addInvoice(); addAuth();
+  parseBtn.addEventListener('click',async()=>{
+    const file=pdfFile.files?.[0];
+    if(!file){msg.replaceChildren(note('Seleccione un PDF de SeNaSa.','error'));return;}
+    parseBtn.disabled=true; msg.replaceChildren(note('Leyendo certificado SeNaSa…'));
+    try{
+      const x=await parseSenasaPdf(file);
+      pcode.value=x.providerCode||''; pname.value=x.providerName||''; rnc.value=x.rnc||''; ovp.value=x.ovp||'';
+      subtotal.value=String(x.subtotal||0); invObj.value=String(x.invoiceObj||0); authObj.value=String(x.authObj||0); total.value=String(x.total||x.subtotal||0); source.value=file.name;
+      invoices.length=0;auths.length=0; x.invoices.forEach(addInvoice);x.authorizations.forEach(addAuth); if(!invoices.length)addInvoice();if(!auths.length)addAuth();
+      const suspicious=x.authorizations.filter(a=>String(a.authorization_date||'').startsWith('1969-')).length;
+      msg.replaceChildren(note(`PDF leído: ${x.pages} página(s), ${x.invoices.length} factura(s), ${x.authorizations.length} autorización(es).${suspicious?` ${suspicious} fecha(s) de autorización parecen atípicas (1969) y requieren revisión.`:''}`,suspicious?'warn':'ok'));
+    }catch(e){msg.replaceChildren(note('No se pudo leer automáticamente el PDF. Puede completar el formulario manualmente. '+e.message,'error'));}
+    finally{parseBtn.disabled=false;}
+  });
 
   const save=h('button',{class:'i18-btn',type:'button'},'Guardar y conciliar');
   save.addEventListener('click',async()=>{
@@ -111,6 +162,7 @@ export async function render(root,ctx){
       h('label',{},'Prestador SOFA',provider),h('label',{},'Régimen SeNaSa',arsSel),
       h('label',{},'Código del prestador',pcode),h('label',{},'Nombre del prestador',pname),
       h('label',{},'RNC',rnc),h('label',{},'Certificado OVP No.',ovp),
+      h('label',{},'PDF SeNaSa',pdfFile),h('div',{class:'i18-actions'},parseBtn),
       h('label',{},'Archivo de origen',source)),
     h('h4',{},'Detalle de las facturas'),invBox,
     h('div',{class:'i18-actions'},h('button',{class:'i18-btn i18-sec',type:'button',onclick:()=>addInvoice()},'+ Agregar factura')),
