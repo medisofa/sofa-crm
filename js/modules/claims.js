@@ -87,7 +87,7 @@ export async function render(main, ctx) {
   const list = $('#l', main);
   const load = () => loadInto(list, async () => {
     const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE });
-    const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null).catch(() => []) : [];
+    const dups = res.data.length ? await claimDuplicateCandidates({ ids: res.data.map((x) => x.id) }).catch(() => []) : [];
     return { ...res, dups };
   }, (res) => {
     rows = res.data; dupMap = new Map();
@@ -106,7 +106,7 @@ export async function render(main, ctx) {
         const cls = d.blocks_radicacion ? 'bad' : d.review_decision ? 'ok' : 'warn';
         const label = d.review_decision ? 'Revisado' : d.risk === 'critico' ? 'Crítico' : d.risk === 'alto' ? 'Alto' : 'Posible';
         return html`<span class="pill ${cls}">${label}</span>
-          <div class="small muted">${d.matched_fields.join(' · ')}</div>
+          <div class="small muted">${(d.matched_fields || []).join(' · ')}</div>
           <div class="small">${d.suggested_solution}</div>
           <button class="btn sm" data-review-dup="${d.line_id}" data-other="${d.other_line_id}">Revisar</button>`;
       })()}</td>
@@ -125,7 +125,7 @@ export async function render(main, ctx) {
     const r = await formDialog({
       title: 'Revisar posible reclamación duplicada', submitLabel: 'Guardar decisión', wide: true,
       body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}">
-        <b>Coincidencias:</b> ${d.matched_fields.join(' · ')}<br>
+        <b>Coincidencias:</b> ${(d.matched_fields || []).join(' · ')}<br>
         <b>Reclamaciones:</b> ${d.folio || d.line_id} ↔ ${d.other_folio || d.other_line_id}<br>
         <b>Paciente:</b> ${d.patient_name} · NSS ${d.member_number}<br>
         <b>Sugerencia SOFA:</b> ${d.suggested_solution}
