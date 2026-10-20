@@ -11,9 +11,9 @@ import { supabase, rpc } from '../services/iter18.js';
 const KEY_PREFIX = 'sofa.autoentrenamiento.v1';
 const GUIDE = {
   'mi-dashboard': ['Identifica tus pendientes y alertas.', 'Abre el módulo que requiere acción.', 'Confirma que el estado se actualizó al terminar.'],
-  agenda: ['Ubica la fecha y el profesional correcto.', 'Registra o modifica la cita según tu alcance.', 'Confirma paciente, hora y estado antes de salir.'],
-  pacientes: ['Busca al paciente antes de crear uno nuevo.', 'Revisa datos de identificación y contacto.', 'Guarda solo información necesaria y correcta.'],
-  captura: ['Selecciona médico, ARS, paciente y servicio.', 'Revisa las sugerencias CIE-10 por servicio, SIMON y CUPS y confirma el diagnóstico documentado.', 'Valida autorización, fecha y tarifa contractual.', 'Revisa el resumen antes de crear la reclamación.'],
+  agenda: ['Ubica la fecha y el profesional correcto.', 'Busca por cédula o NSS y confirma si SOFA encuentra al paciente universal.', 'Reutiliza solo datos administrativos; motivo, autorización y datos clínicos de la cita permanecen nuevos.', 'Confirma paciente, hora y estado antes de salir.'],
+  pacientes: ['Busca al paciente por cédula o NSS antes de crear uno nuevo.', 'Si existe en el Registro Universal, usa sus datos administrativos sin ver consultas de otros clientes.', 'Justifica cualquier cambio de cédula, NSS, ARS o afiliación.', 'Guarda solo información necesaria y correcta.'],
+  captura: ['Selecciona médico, ARS, paciente y servicio.', 'Busca por cédula o NSS y confirma el paciente universal; solo se cargan datos administrativos.', 'Revisa las sugerencias CIE-10 por servicio, SIMON y CUPS y confirma el diagnóstico documentado.', 'Valida autorización, fecha y tarifa contractual.', 'Revisa el resumen antes de crear la reclamación.'],
   'carga-google': ['Descarga la pestaña Capturas de Google Sheets como CSV.', 'Prevalida médico, ARS, servicio, autorización y tarifa.', 'Revisa las sugerencias CIE-10 generadas por servicio, SIMON y CUPS y confirma el diagnóstico documentado.', 'Usa Completar / editar para corregir datos faltantes; cada cambio queda en bitácora.', 'Importa solo las filas válidas y revisa los errores restantes.'],
   reclamaciones: ['Filtra por estado y prioridad.', 'Abre la reclamación y revisa expediente/trazabilidad.', 'Ejecuta solo la transición permitida para tu rol.'],
   retiros: ['Identifica las reclamaciones a retirar.', 'Registra recepción física y evidencia.', 'Confirma que quedaron listas para validación.'],
