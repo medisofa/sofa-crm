@@ -73,6 +73,7 @@ export const NAV = [
   ]},
   { group: 'Reclamaciones', items: [
     { route: 'captura', label: 'Captura rápida', roles: CAPTURE, ready: true },
+    { route: 'carga-google', label: 'Carga Google Sheets / Form', roles: ['super_admin','admin','operations','billing'], ready: true },
     { route: 'reclamaciones', label: 'Reclamaciones', roles: CLAIMS, ready: true },
     { route: 'retiros', label: 'Retiros físicos', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'auditor', 'client'], ready: true },
     { route: 'preradicacion', label: 'Pre-radicación', roles: ['super_admin', 'admin', 'billing', 'operations', 'auditor', 'assistant'], ready: true },
@@ -493,6 +494,7 @@ const ACTIONS = {
   'intel.admin': ['super_admin', 'admin'],
   // Iteración 12 · reclamaciones (espejo de 026_reclamaciones.sql)
   'claims.capture': CAPTURE,
+  'claims.google_import': ['super_admin','admin','operations','billing'],
   'claims.money': ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'],          // ver pagado/saldo por reclamación
   'claims.move': ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'glosas', 'auditor', 'client', 'capturer'],
   'claims.audit': ['super_admin', 'admin', 'auditor'],
