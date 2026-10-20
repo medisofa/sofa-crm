@@ -1,6 +1,27 @@
 -- SOFA RBAC + autoentrenamiento persistente
 -- Safe additive migration. No destructive data changes.
 
+create schema if not exists app;
+
+create or replace function app.rbac_admin_ok(p_roles text[] default array['super_admin','admin'])
+returns boolean
+language sql stable security definer set search_path=''
+as $
+  select exists (
+    select 1
+    from public.organization_users ou
+    join public.organizations o on o.id=ou.organization_id and o.kind='operator'
+    join public.profiles p on p.id=ou.user_id and p.is_active
+    where ou.user_id=auth.uid()
+      and ou.is_active
+      and ou.role_code=any(p_roles)
+      and coalesce(auth.jwt()->>'aal','aal1')='aal2'
+  )
+$;
+
+revoke all on function app.rbac_admin_ok(text[]) from public,anon;
+grant execute on function app.rbac_admin_ok(text[]) to authenticated;
+
 create table if not exists public.role_capabilities (
   role_code text not null references public.roles(code) on update cascade on delete cascade,
   capability_code text not null,
@@ -26,8 +47,8 @@ for select to authenticated using (true);
 drop policy if exists role_capabilities_manage on public.role_capabilities;
 create policy role_capabilities_manage on public.role_capabilities
 for all to authenticated
-using (app.is_staff(array['super_admin','admin']))
-with check (app.is_staff(array['super_admin','admin']));
+using (app.rbac_admin_ok(array['super_admin','admin']))
+with check (app.rbac_admin_ok(array['super_admin','admin']));
 
 grant select on public.role_capabilities to authenticated;
 grant insert,update,delete on public.role_capabilities to authenticated;
@@ -61,7 +82,7 @@ for update to authenticated using (user_id = auth.uid()) with check (user_id = a
 
 drop policy if exists training_staff_read on public.user_training_progress;
 create policy training_staff_read on public.user_training_progress
-for select to authenticated using (app.is_staff(array['super_admin','admin','auditor']));
+for select to authenticated using (app.rbac_admin_ok(array['super_admin','admin','auditor']));
 
 grant select,insert,update on public.user_training_progress to authenticated;
 
@@ -171,7 +192,7 @@ returns table(
 language plpgsql stable security definer set search_path=''
 as $$
 begin
-  if not app.is_staff(array['super_admin','admin']) then
+  if not app.rbac_admin_ok(array['super_admin','admin']) then
     raise exception 'Solo Super Admin o Administrador pueden revisar accesos' using errcode='42501';
   end if;
 
