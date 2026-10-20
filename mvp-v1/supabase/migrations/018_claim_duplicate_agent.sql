@@ -79,7 +79,7 @@ pairs as (
     a.patient_name,b.patient_name other_patient_name,
     a.member_number,a.service_date,a.authorization_date,
     a.authorization_number,b.authorization_number other_authorization_number,
-    a.service_name,b.service_name other_service_name,
+    a.service_name,coalesce(b.service_name_snapshot,pb.description) other_service_name,
     case
       when a.authorization_date is not null
        and b.authorization_date=a.authorization_date
@@ -120,6 +120,7 @@ pairs as (
     and lower(trim(b.member_number))=lower(trim(a.member_number))
     and b.service_date=a.service_date
   join public.submissions sb on sb.id=b.submission_id and sb.ars_id=a.ars_id
+  left join public.procedures pb on pb.id=b.procedure_id
   left join public.claim_duplicate_reviews r
     on r.line_a=least(a.id,b.id) and r.line_b=greatest(a.id,b.id)
   where b.claim_status not in ('cerrada','devuelta')
