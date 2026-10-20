@@ -252,10 +252,22 @@ async function recoveryLink(userId, name, email) {
       if (!requireFields(form, ['reason'])) return false;
       const reason = String(d.reason || '').trim();
       if (reason.length < 10) { fieldError(form.elements.reason, 'Escriba el motivo con al menos 10 caracteres.'); return false; }
-      await rpc('record_recovery_link', { p_user: userId, p_reason: reason });
+      // Primero pedir el correo: nunca auditar un envío que Supabase rechazó.
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/login.html` });
-      if (error) throw new Error(`El motivo quedó registrado, pero Supabase no pudo enviar el correo (${error.message}). Espere unos minutos y vuelva a intentarlo.`);
-      toast(`Enlace de recuperación enviado a ${email}`, 'ok');
+      if (error) {
+        const limited = error.status === 429 || /rate.limit|too many requests|demasiados intentos/i.test(String(error.message || ''));
+        throw new Error(limited
+          ? 'Supabase limitó temporalmente los correos (429). No se envió un enlace nuevo. Espere antes de reintentar.'
+          : `No se pudo solicitar el correo de recuperación: ${error.message}. No se registró como enviado.`);
+      }
+      // El éxito de API indica solicitud aceptada, NO entrega al buzón.
+      try {
+        await rpc('record_recovery_link', { p_user: userId, p_reason: reason });
+        toast(`Supabase aceptó la solicitud de recuperación para ${email}. Compruebe la bandeja y spam.`, 'ok');
+      } catch (auditError) {
+        console.error('SOFA: solicitud de recuperación aceptada; falló registro de auditoría', auditError);
+        toast('Supabase aceptó la solicitud, pero falló el registro en bitácora. No vuelva a enviar; contacte soporte.', 'bad');
+      }
       return true;
     }
   });
