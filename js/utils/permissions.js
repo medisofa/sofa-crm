@@ -97,6 +97,7 @@ export const NAV = [
     { route: 'codificacion', label: 'Codificación y tarifas', roles: ALL, ready: true },
     { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], ready: true },
     { route: 'pagos', label: 'Pagos y conciliación', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
+    { route: 'senasa-certificados', label: 'SeNaSa: certificados de pago', roles: ['super_admin','admin','glosas'], ready: true },
     { route: 'honorarios', label: 'Honorarios SOFA', roles: ['super_admin', 'admin', 'auditor', 'client'], ready: true },   // nunca operations ni capturer
     { route: 'aging', label: 'Aging', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'client'], ready: true },
     { route: 'conciliacion', label: 'Conciliación bancaria', roles: ['super_admin', 'admin', 'glosas', 'auditor'], ready: true },   // 2.7 · Iteración 37
@@ -238,7 +239,7 @@ export const ESENCIALES = {
   glosas: {
     menu: ['mi-dashboard', 'hoy', 'reclamaciones',
            'glosas', 'reconsideracion', 'causas-glosa', 'analitica-glosas',
-           'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros',
+           'pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros',
            'perfil', 'seguridad'],
     extra: ['inicio', 'expediente', 'contratos', 'radicaciones', 'preauditoria', 'tareas',
             'mis-horas', 'documentos', 'clientes', 'medicos', 'casos-servicio', 'insumos',
@@ -415,7 +416,7 @@ export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
   { key: 'clientes', group: 'Clientes y ventas', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'fugas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado'] },
   { key: 'facturacion', group: 'Facturación y Radicación', routes: ['captura', 'carga-google', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
-  { key: 'cobros', group: 'Cobros, Conciliación y Glosas', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
+  { key: 'cobros', group: 'Cobros, Conciliación y Glosas', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas', 'honorarios'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'planes', 'suscripciones', 'puesta-en-marcha'] },
