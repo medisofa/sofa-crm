@@ -180,7 +180,7 @@ export async function render(main, ctx){
           <div class="field"><label>NSS / No. afiliado *</label><input name="member" required value="${r['NSS / No. afiliado *']||''}"></div>
           <div class="field"><label>No. autorización</label><input name="authorization" value="${r['No. autorización']||''}"></div>
           <div class="field"><label>Fecha autorización</label><input name="auth_date" type="date" value="${parseDate(r['Fecha autorización'])}"></div>
-          <div class="field"><label>Cédula paciente</label><input name="patient_doc" value="${r['Cédula paciente']||''}"></div>
+          <div class="field"><label>Cédula paciente</label><input name="patient_doc" value="${r['Cédula paciente']||''}"></div><div id="gie_global" style="grid-column:1/-1"></div>
           <div class="field"><label>Diagnóstico CIE-10</label><input name="diagnosis" value="${r['Diagnóstico CIE-10']||''}" placeholder="Escribe o selecciona una sugerencia"><div class="hint">SOFA sugiere según servicio, SIMON y CUPS; puedes cambiarlo.</div><div id="gie_dx_sugs" class="small" style="margin-top:6px"></div></div>
           <div class="field"><label>Centro / clínica</label><input name="clinic" value="${r['Centro / clínica']||''}"></div>
           <div class="field" style="grid-column:1/-1"><label>Servicio / Procedimiento *</label><select name="service" required><option value="">Seleccione médico, ARS y fecha</option></select><div class="hint">Solo se muestran servicios contratados para la combinación seleccionada.</div></div>
@@ -189,6 +189,35 @@ export async function render(main, ctx){
           <div class="field" style="grid-column:1/-1"><label>Observaciones</label><textarea name="notes" rows="2">${r['Observaciones']||''}</textarea></div>
         </div>`,
       onOpen:(form)=>{
+        const globalBox=form.querySelector('#gie_global');
+        let gseq=0;
+        const checkGlobal=async()=>{
+          const ced=form.elements.patient_doc.value.trim(), nss=form.elements.member.value.trim();
+          if(!ced&&!nss){paint(globalBox,html``);return;}
+          const my=++gseq;
+          try{
+            const r0=await rpc('global_patient_lookup',{p_cedula:ced||null,p_nss:nss||null,p_name:form.elements.patient.value.trim()||null,p_birth:null,p_phone:null});
+            if(my!==gseq)return;
+            if(r0?.match==='exact'&&r0.patient){
+              paint(globalBox,html`<div class="note info"><b>Paciente universal encontrado:</b> ${r0.patient.full_name}. Solo se reutilizarán datos administrativos.
+                <div class="toolbar" style="margin-top:6px"><button type="button" class="btn sm" data-use-gp>Usar datos</button></div></div>`);
+              globalBox.querySelector('[data-use-gp]')?.addEventListener('click',async()=>{
+                form.elements.patient.value=r0.patient.full_name||form.elements.patient.value;
+                form.elements.patient_doc.value=r0.patient.cedula||form.elements.patient_doc.value;
+                form.elements.member.value=r0.patient.nss||r0.patient.member_number||form.elements.member.value;
+                if(r0.patient.ars_id&&S.ars.some((a)=>a.id===r0.patient.ars_id)){form.elements.ars.value=r0.patient.ars_id;}
+                const provider=S.providers.find((p)=>p.id===form.elements.provider.value);
+                if(provider?.organization_id) await rpc('attach_global_patient',{p_global:r0.patient.id,p_org:provider.organization_id});
+                paint(globalBox,html`<div class="note ok">Datos administrativos cargados. No se copiaron consultas ni diagnósticos previos.</div>`);
+                await loadServices();
+              });
+            }else if(r0?.match==='conflict') paint(globalBox,html`<div class="note bad">La cédula y el NSS pertenecen a registros distintos. Revise antes de continuar.</div>`);
+            else paint(globalBox,html``);
+          }catch(_){paint(globalBox,html``);}
+        };
+        form.elements.patient_doc.addEventListener('change',checkGlobal);
+        form.elements.member.addEventListener('change',checkGlobal);
+
         const loadDx=async()=>{
           const box=form.querySelector('#gie_dx_sugs'); if(!box)return;
           const procedure=form.elements.service.value;
