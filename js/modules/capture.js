@@ -16,7 +16,7 @@ import {
 import { requiredDocsPreview, dossierStatus } from '../services/dossier.js';
 import { dossierPill } from './dossier-card.js';
 import { initCamara } from './captura-camara.js';
-import { revisarCaptura, capturarConDiagnostico, mostrarAviso, limpiarAvisos, pistaCedula } from '../services/calidad-dato.js';   // I61: calidad del dato
+import { revisarCaptura, capturarConDiagnostico, mostrarAviso, limpiarAvisos, pistaCedula, cie10Suggestions } from '../services/calidad-dato.js';   // I61: calidad del dato
 
 /** Se conserva entre visitas dentro de la misma sesión: médico, ARS, fecha y clínica */
 const memory = { provider: '', ars: '', date: '', clinic: '', careMode: 'ambulatorio' };
@@ -44,7 +44,7 @@ export async function render(main, ctx) {
           <div class="field"><label for="c_auth">No. de autorización <span id="authReq">*</span></label><input id="c_auth" name="authorization" maxlength="60"></div>
           <div class="field"><label for="c_authdate">Fecha de la autorización</label><input id="c_authdate" name="authdate" type="date" max="${todayISO()}"><span class="hint">Avisa a los 150 días si no se ha radicado</span></div>
           <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div>
-          <div class="field"><label for="c_dx">Diagnóstico (CIE-10)</label><input id="c_dx" name="diagnosis" maxlength="60" autocomplete="off" placeholder="Ej.: I10, E11.9"><span class="hint">Opcional; algunas ARS lo exigen para ciertos servicios</span></div>
+          <div class="field"><label for="c_dx">Diagnóstico (CIE-10)</label><input id="c_dx" name="diagnosis" maxlength="60" autocomplete="off" placeholder="Ej.: I10, E11.9"><span class="hint">SOFA sugiere códigos según servicio, SIMON y CUPS. Confirma el diagnóstico documentado; puedes escribir otro código.</span><div id="dxSuggest" class="small" style="margin-top:6px"></div></div>
           <div class="field"><label for="c_clinic">Centro / clínica</label><input id="c_clinic" name="clinic" maxlength="120"></div>
           <div class="field" style="grid-column:1/-1"><label for="c_srv">5 · Servicio contratado *</label>
             <select id="c_srv" name="procedure" required disabled><option value="">Seleccione médico, ARS y fecha</option></select>
@@ -136,7 +136,7 @@ export async function render(main, ctx) {
       SIMON <b class="mono">${s.simon || '—'}</b> · CUPS <b class="mono">${s.cups || '—'}</b>${s.internal_code ? html` · Interno <span class="mono">${s.internal_code}</span>` : ''}${s.ars_service_code ? html` · Código ARS <span class="mono">${s.ars_service_code}</span>` : ''}<br>
       Tarifa contractual <b>${money(s.amount)}</b> · vigente ${date(s.valid_from)}${s.valid_to ? ` al ${date(s.valid_to)}` : ' en adelante'}${s.contract_ref ? html` · contrato <span class="mono">${s.contract_ref}</span>` : ''}
       <div class="small" style="margin-top:4px" id="reqDocs"></div></div>` : html``);
-    if (s) loadReqDocs();
+    if (s) { loadReqDocs(); loadDxSuggestions(); } else paint(el('dxSuggest'), html``);
     drawDiff();
   }
 
@@ -182,6 +182,45 @@ export async function render(main, ctx) {
     el('nc_mode').addEventListener('change', (e) => { el('nc_rs').hidden = e.target.value !== 'excepcion'; });
     el('c_amt').focus();
   }
+
+  // ------------------------------------------------------------ CIE-10 sugerido
+  let dxSeq = 0;
+  async function loadDxSuggestions(query = '') {
+    const box = el('dxSuggest'); if (!box) return;
+    const procedure = S.service?.procedure_id || S.catalogPick?.id || null;
+    if (!procedure && !query) { paint(box, html``); return; }
+    const my = ++dxSeq;
+    try {
+      const rows = await cie10Suggestions(procedure, query || null, 10);
+      if (my !== dxSeq || !alive()) return;
+      if (!rows.length) {
+        paint(box, query ? html`Sin coincidencias en el catálogo CIE-10 de referencia.` : html`Sin sugerencia automática. Escribe el CIE-10 documentado.`);
+        return;
+      }
+      paint(box, html`<div class="note info" style="margin:0">
+        <b>${query ? 'Resultados CIE-10' : 'CIE-10 sugeridos'}</b>
+        <div class="small muted">Sugerencia administrativa; no sustituye el diagnóstico documentado por el profesional.</div>
+        <div class="toolbar" style="margin-top:6px;gap:6px;flex-wrap:wrap">
+          ${rows.map((r) => html`<button type="button" class="btn sm" data-dx="${r.code}" title="${r.rationale || ''}">${r.code} · ${r.title_es}${r.confidence && r.confidence !== 'manual' ? ` · ${r.confidence}` : ''}</button>`)}
+        </div>
+        ${!query ? html`<div class="small muted" style="margin-top:6px">Basado en: ${[rows[0]?.matched_by, rows[0]?.simon && `SIMON ${rows[0].simon}`, rows[0]?.cups && `CUPS ${rows[0].cups}`].filter(Boolean).join(' · ') || 'tipo de servicio'}.</div>` : ''}
+      </div>`);
+      box.querySelectorAll('[data-dx]').forEach((b) => b.addEventListener('click', () => {
+        el('c_dx').value = b.dataset.dx;
+        revisarDato();
+        toast(`CIE-10 ${b.dataset.dx} seleccionado. Confirma que coincide con el diagnóstico documentado.`);
+      }));
+    } catch (_) { paint(box, html`<span class="muted">No se pudieron cargar sugerencias CIE-10; puedes escribir el código manualmente.</span>`); }
+  }
+
+  let dxTimer;
+  el('c_dx').addEventListener('input', () => {
+    clearTimeout(dxTimer);
+    const q = el('c_dx').value.trim();
+    dxTimer = setTimeout(() => {
+      if (q.length >= 2) loadDxSuggestions(q); else if (S.service || S.catalogPick) loadDxSuggestions();
+    }, 300);
+  });
 
   /** Documentos del expediente según servicio + ARS + modalidad (Iteración 13) */
   let reqSeq = 0;
