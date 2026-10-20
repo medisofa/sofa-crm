@@ -73,7 +73,6 @@ export const NAV = [
   ]},
   { group: 'Reclamaciones', items: [
     { route: 'captura', label: 'Captura rápida', roles: CAPTURE, ready: true },
-    { route: 'carga-google', label: 'Carga Google Sheets / Form', roles: ['super_admin','admin','operations','billing'], ready: true },
     { route: 'reclamaciones', label: 'Reclamaciones', roles: CLAIMS, ready: true },
     { route: 'retiros', label: 'Retiros físicos', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'auditor', 'client'], ready: true },
     { route: 'preradicacion', label: 'Pre-radicación', roles: ['super_admin', 'admin', 'billing', 'operations', 'auditor', 'assistant'], ready: true },
@@ -93,6 +92,7 @@ export const NAV = [
     { route: 'aliados', label: 'Aliados referidores', roles: ['super_admin', 'admin', 'auditor'], ready: true }
   ]},
   { group: 'Facturación', items: [
+    { route: 'carga-google', label: 'Carga Google Sheets / Form', roles: ['super_admin','admin','operations','billing'], ready: true },
     { route: 'radicaciones', label: 'Radicaciones', roles: ALL, ready: true },
     { route: 'codificacion', label: 'Codificación y tarifas', roles: ALL, ready: true },
     { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], ready: true },
