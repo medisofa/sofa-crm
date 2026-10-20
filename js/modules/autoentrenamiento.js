@@ -14,6 +14,7 @@ const GUIDE = {
   agenda: ['Ubica la fecha y el profesional correcto.', 'Registra o modifica la cita según tu alcance.', 'Confirma paciente, hora y estado antes de salir.'],
   pacientes: ['Busca al paciente antes de crear uno nuevo.', 'Revisa datos de identificación y contacto.', 'Guarda solo información necesaria y correcta.'],
   captura: ['Selecciona médico, ARS, paciente y servicio.', 'Valida autorización, fecha y tarifa contractual.', 'Revisa el resumen antes de crear la reclamación.'],
+  'carga-google': ['Descarga la pestaña Capturas de Google Sheets como CSV.', 'Prevalida médico, ARS, servicio, autorización y tarifa.', 'Importa solo las filas válidas y revisa los errores restantes.'],
   reclamaciones: ['Filtra por estado y prioridad.', 'Abre la reclamación y revisa expediente/trazabilidad.', 'Ejecuta solo la transición permitida para tu rol.'],
   retiros: ['Identifica las reclamaciones a retirar.', 'Registra recepción física y evidencia.', 'Confirma que quedaron listas para validación.'],
   preradicacion: ['Revisa expediente, tarifa y requisitos.', 'Corrige bloqueos antes de radicar.', 'No avances casos incompletos.'],
