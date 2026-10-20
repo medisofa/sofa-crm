@@ -4,14 +4,14 @@
  * (mover de estado con ubicación y responsable, auditar) y exportación CSV.
  */
 import { html, render as paint, $, $$ } from '../utils/dom.js';
-import { loadInto, emptyView, toast, friendlyError, opt, busy } from '../utils/ui.js';
+import { loadInto, emptyView, toast, friendlyError, opt, busy, formDialog, fieldError } from '../utils/ui.js';
 import { money, num, date, dateTime, todayISO } from '../utils/formatters.js';
 import { claimStatus, CLAIM_GROUPS, CLAIM_STATUS, CLAIM_MOVE_LABELS, DISCREPANCY_STATUS } from '../utils/constants.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
-import { listClaims, claimCounts, claimLocations, claimTransitions, captureProviders, activeArs } from '../services/claims.js';
+import { listClaims, claimCounts, claimLocations, claimTransitions, captureProviders, activeArs, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 
 export async function render(main, ctx) {
   if (ctx.arg) { const m = await import('./claim.js'); return m.render(main, ctx); }
@@ -20,7 +20,7 @@ export async function render(main, ctx) {
   const money_ = can('claims.money', role);
   const st = { dossier: '', group: role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas', status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
   const sel = new Set();
-  let rows = []; let transitions = []; let locations = [];
+  let rows = []; let transitions = []; let locations = []; let dupMap = new Map();
 
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Reclamaciones</h2>
@@ -85,16 +85,31 @@ export async function render(main, ctx) {
   }
 
   const list = $('#l', main);
-  const load = () => loadInto(list, () => listClaims({ ...st, size: CONFIG.PAGE_SIZE }), (res) => {
-    rows = res.data; [...sel].forEach((id) => { if (!rows.some((r) => r.id === id)) sel.delete(id); }); drawBulk();
+  const load = () => loadInto(list, async () => {
+    const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE });
+    const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null).catch(() => []) : [];
+    return { ...res, dups };
+  }, (res) => {
+    rows = res.data; dupMap = new Map();
+    (res.dups || []).forEach((d) => { const a = dupMap.get(d.line_id) || []; a.push(d); dupMap.set(d.line_id, a); }); [...sel].forEach((id) => { if (!rows.some((r) => r.id === id)) sel.delete(id); }); drawBulk();
     return html`<div class="table-wrap"><table class="t cards"><thead><tr>
       <th><label class="sr-only" for="all">Seleccionar todas</label><input type="checkbox" id="all"></th>
-      <th>Folio</th><th>Servicio</th><th>Paciente</th>${staff || rows.some((r) => r.provider_name) ? html`<th>Médico · ARS</th>` : ''}<th class="n">Reclamado</th><th>Estado</th><th>Expediente</th><th>Dónde está · responsable</th>${money_ ? html`<th class="n">Saldo</th>` : ''}</tr></thead>
+      <th>Folio</th><th>Servicio</th><th>Paciente</th><th>Duplicado</th>${staff || rows.some((r) => r.provider_name) ? html`<th>Médico · ARS</th>` : ''}<th class="n">Reclamado</th><th>Estado</th><th>Expediente</th><th>Dónde está · responsable</th>${money_ ? html`<th class="n">Saldo</th>` : ''}</tr></thead>
     <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer">
       <td data-l="Seleccionar"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Seleccionar ${c.folio}"></td>
       <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
       <td data-l="Servicio">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
       <td data-l="Paciente">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
+      <td data-l="Duplicado">${(() => {
+        const d = (dupMap.get(c.id) || [])[0];
+        if (!d) return html`<span class="pill ok">Sin coincidencias</span>`;
+        const cls = d.blocks_radicacion ? 'bad' : d.review_decision ? 'ok' : 'warn';
+        const label = d.review_decision ? 'Revisado' : d.risk === 'critico' ? 'Crítico' : d.risk === 'alto' ? 'Alto' : 'Posible';
+        return html`<span class="pill ${cls}">${label}</span>
+          <div class="small muted">${d.matched_fields.join(' · ')}</div>
+          <div class="small">${d.suggested_solution}</div>
+          <button class="btn sm" data-review-dup="${d.line_id}" data-other="${d.other_line_id}">Revisar</button>`;
+      })()}</td>
       <td data-l="Médico · ARS">${c.provider_name}<div class="small muted">${c.ars_name}</div></td>
       <td data-l="Reclamado" class="n">${money(c.claimed)}${c.tariff_amount != null && Math.abs(Number(c.claimed) - Number(c.tariff_amount) * 1) > 0.005 && c.discrepancy_status ? html`<div><span class="pill ${DISCREPANCY_STATUS[c.discrepancy_status]?.[1] || ''}" title="Tarifa contractual ${money(c.tariff_amount)}">${DISCREPANCY_STATUS[c.discrepancy_status]?.[0] || ''}</span></div>` : ''}${!c.contracted ? html`<div><span class="pill bad">No contratado</span></div>` : ''}</td>
       <td data-l="Estado"><span class="pill ${cl}">${l}</span><div class="small muted">${dateTime(c.status_changed_at)}</div></td>
@@ -103,6 +118,37 @@ export async function render(main, ctx) {
       ${money_ ? html`<td data-l="Saldo" class="n">${['radicada', 'en_proceso_ars', 'pago_parcial', 'glosada', 'pagada', 'cerrada', 'devuelta'].includes(c.claim_status) ? money(c.balance) : '—'}${Number(c.glosado) > 0 ? html`<div class="small" style="color:var(--bad)">Glosado ${money(c.glosado)}</div>` : ''}</td>` : ''}
     </tr>`; })}</tbody></table></div>${pager(res.count, st.page)}`;
   }, { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin reclamaciones', 'No hay reclamaciones con estos filtros.', can('claims.capture', role) ? html`<a class="btn primary" href="#/captura">Ir a Captura rápida</a>` : '') });
+
+  async function reviewDuplicateDialog(lineA, lineB) {
+    const d = [...dupMap.values()].flat().find((x) => x.line_id === lineA && x.other_line_id === lineB);
+    if (!d) return;
+    const r = await formDialog({
+      title: 'Revisar posible reclamación duplicada', submitLabel: 'Guardar decisión', wide: true,
+      body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}">
+        <b>Coincidencias:</b> ${d.matched_fields.join(' · ')}<br>
+        <b>Reclamaciones:</b> ${d.folio || d.line_id} ↔ ${d.other_folio || d.other_line_id}<br>
+        <b>Paciente:</b> ${d.patient_name} · NSS ${d.member_number}<br>
+        <b>Sugerencia SOFA:</b> ${d.suggested_solution}
+      </div>
+      <div class="form-grid">
+        <div class="field"><label for="dup_dec">Decisión *</label><select id="dup_dec" name="decision">
+          <option value="">Seleccione…</option>
+          <option value="ambas_validas">Ambas reclamaciones son válidas</option>
+          <option value="duplicado_confirmado">Duplicado confirmado</option>
+          <option value="dato_corregido">Dato corregido</option>
+          <option value="no_duplicado">No es duplicado</option>
+        </select></div>
+        <div class="field" style="grid-column:1/-1"><label for="dup_reason">Justificación *</label><textarea id="dup_reason" name="reason" rows="3" maxlength="500" placeholder="Explique por qué se conserva, corrige o descarta la coincidencia."></textarea></div>
+      </div>`,
+      onSubmit: async (data, form) => {
+        if (!data.decision) { fieldError(form.elements.decision, 'Seleccione una decisión.'); return false; }
+        if (String(data.reason || '').trim().length < 5) { fieldError(form.elements.reason, 'Escriba una justificación de al menos 5 caracteres.'); return false; }
+        await reviewClaimDuplicate(lineA, lineB, data.decision, data.reason.trim());
+        return true;
+      }
+    });
+    if (r) { toast('Revisión de posible duplicado registrada en bitácora', 'ok'); load(); }
+  }
 
   // ------------------------------------------------------------ eventos
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (!b) return; st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0; drawTabs(); load(); });
@@ -115,7 +161,9 @@ export async function render(main, ctx) {
   });
   list.addEventListener('click', (e) => {
     const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); load(); return; }
-    if (e.target.closest('input,a,label')) return;
+    const dup = e.target.closest('[data-review-dup]');
+    if (dup) { reviewDuplicateDialog(dup.dataset.reviewDup, dup.dataset.other).catch((err) => toast(friendlyError(err), 'bad')); return; }
+    if (e.target.closest('input,a,label,button')) return;
     const row = e.target.closest('tr[data-id]'); if (row) location.hash = `#/reclamaciones/${row.dataset.id}`;
   });
   $('#bulk', main).addEventListener('click', async (e) => {
