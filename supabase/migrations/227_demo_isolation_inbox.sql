@@ -79,8 +79,7 @@ AS $function$
               when (select today from d) - s.due::date >= -prm.soon or s.amt >= prm.high then 2 else 3 end,
          res.r_assignment, res.r_assigned_to, res.r_effective, res.r_substituted, res.r_reason
     from src s join cli on cli.id = s.oid join prm on prm.operator_id = cli.operator_id join res on res.oid = s.oid and res.tt = s.tt;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.inbox_assignments_list()
  RETURNS jsonb
@@ -111,8 +110,7 @@ begin
                            from public.organization_users ou join public.profiles p on p.id = ou.user_id and p.is_active
                            join public.organizations o on o.id = ou.organization_id and o.kind = 'operator'
                           where ou.role_code = 'billing' and ou.is_active and ou.organization_id in (select app.my_operator_ids())), '[]'::jsonb));
-end $function$
-
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.inbox_assignment_save(p_org uuid, p_assignee uuid, p_type text DEFAULT NULL::text, p_note text DEFAULT NULL::text)
  RETURNS jsonb
@@ -146,8 +144,7 @@ begin
   end if;
   insert into public.inbox_assignments (id, organization_id, task_type, assignee_id, note) values (v_new, p_org, p_type, p_assignee, v_note);
   return jsonb_build_object('id', v_new, 'organization_id', p_org, 'task_type', p_type, 'assignee_id', p_assignee, 'previous_assignee', v_prev.assignee_id);
-end $function$
-
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.inbox_overdue_report(p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
  RETURNS jsonb
