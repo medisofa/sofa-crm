@@ -14,9 +14,7 @@ async function realOrgIds() {
   realOrgIdsCache = must(await sb().from('sofa_real_client_organizations').select('id')).map((r) => r.id);
   return realOrgIdsCache;
 }
-async function restrictToReal(query, enabled) {
-  if (!enabled) return query;
-  const ids = await realOrgIds();
+function applyRealScope(query, ids) {
   return ids.length ? query.in('organization_id', ids) : query.eq('organization_id', '00000000-0000-0000-0000-000000000000');
 }
 
@@ -24,7 +22,7 @@ async function restrictToReal(query, enabled) {
 /** Médicos visibles para el usuario (el Capturador solo ve los que tiene asignados, por RLS) */
 export async function captureProviders({ realOnly = false } = {}) {
   let q = sb().from('providers').select('id, full_name, organization_id, organizations(legal_name)').eq('is_active', true);
-  q = await restrictToReal(q, realOnly);
+  if (realOnly) q = applyRealScope(q, await realOrgIds());
   return must(await q.order('full_name').limit(1000));
 }
 export async function activeArs() { return must(await sb().from('ars').select('id, code, name').eq('is_active', true).order('name')); }
@@ -68,7 +66,7 @@ export async function myRecentClaims(limit = 15) {
 const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, discrepancy_status, paid, glosado, balance, next_step, last_action_at, status_changed_at, dossier_ok, dossier_missing';
 export async function listClaims({ group = 'todas', status = '', location = '', providerId = '', arsId = '', q = '', from = '', to = '', dossier = '', page = 0, size = 25, realOnly = false } = {}) {
   let query = sb().from('v_claims').select(LIST_COLS, { count: 'exact' });
-  query = await restrictToReal(query, realOnly);
+  if (realOnly) query = applyRealScope(query, await realOrgIds());
   const g = CLAIM_GROUPS[group];
   if (status) query = query.eq('claim_status', status); else if (g?.statuses) query = query.in('claim_status', g.statuses);
   if (location) query = query.eq('location_code', location);
@@ -85,7 +83,7 @@ export async function listClaims({ group = 'todas', status = '', location = '', 
 }
 export async function claimCounts({ realOnly = false } = {}) {
   let q = sb().from('v_claims').select('claim_status, organization_id');
-  q = await restrictToReal(q, realOnly);
+  if (realOnly) q = applyRealScope(q, await realOrgIds());
   return must(await q.limit(20000));
 }
 export async function getClaim(id) { return must(await sb().from('v_claims').select('*').eq('id', id).maybeSingle()); }
