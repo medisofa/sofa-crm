@@ -8,7 +8,7 @@ import { dateTime } from '../utils/formatters.js';
 import { COMMERCIAL_DOCS, COMMERCIAL_DOC_STATUS, COMMERCIAL_DOC_TYPE } from '../utils/constants.js';
 import { can } from '../utils/permissions.js';
 import { onboardingStatus, setOnboardingStep, activateClient } from '../services/crm.js';
-import { uploadDocument, listDocuments, openDocument, sizeLabel, listClientDocumentReviews, reviewClientDocument } from '../services/documents.js';
+import { uploadDocument, listDocuments, openDocument, sizeLabel, listClientDocumentReviews, reviewClientDocument, clientDocumentArsOptions, listClientDocumentArs, linkClientDocumentArs } from '../services/documents.js';
 
 const SRC = { automatico: ['Automático', 'ok'], manual: ['Marcado a mano', 'info'], pendiente: ['Pendiente', 'warn'] };
 
@@ -56,16 +56,17 @@ export function renderOnboarding(box, org, ctx, onChange = () => {}) {
   return { reload: load };
 }
 
-/** Documentos A–E: modelo editable + carga del documento completado por el médico. */
+/** Documentos A–E: modelos editables, carga del médico y revisión SOFA. */
 const escDoc = (v) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
-const modelName = (code) => `SOFA_Modelo_${code}_${COMMERCIAL_DOCS[code].replace(/[^A-Za-z0-9]+/g,'_')}.doc`;
+const modelName = (code, arsName = '') => `SOFA_Modelo_${code}_${COMMERCIAL_DOCS[code].replace(/[^A-Za-z0-9]+/g,'_')}${arsName ? '_' + arsName.replace(/[^A-Za-z0-9]+/g,'_') : ''}.doc`;
 
-function modelHtml(code, org) {
+function modelHtml(code, org, arsName = '') {
   const name = escDoc(org.legal_name || org.trade_name || '________________');
   const tax = escDoc(org.tax_id || '________________');
   const address = escDoc([org.address, org.city].filter(Boolean).join(', ') || '________________');
   const email = escDoc(org.email || '________________');
   const phone = escDoc(org.phone || org.whatsapp || '________________');
+  const ars = escDoc(arsName || '________________');
   const legal = ['A','B'].includes(code)
     ? '<p style="border:2px solid #8B0000;padding:10px"><b>MODELO DE TRABAJO — REQUIERE REVISIÓN LEGAL ANTES DE FIRMA O USO.</b></p>'
     : '<p style="border:1px solid #999;padding:10px"><b>MODELO OPERATIVO.</b> Revise y complete los campos pendientes antes de utilizarlo.</p>';
@@ -100,7 +101,7 @@ function modelHtml(code, org) {
     D: `
       <h1>Carta de representación ante ARS</h1>
       <p>Fecha: ____/____/______</p>
-      <p>Señores<br><b>ARS ________________________________</b></p>
+      <p>Señores<br><b>${ars}</b></p>
       <p>Por medio de la presente, ${name}, RNC/Cédula ${tax}, comunica que SOFA · Soluciones de Facturación Médica ha sido autorizada para apoyar las gestiones administrativas vinculadas a facturación, codificación, radicación y seguimiento de reclamaciones, dentro del alcance expresamente autorizado por el cliente.</p>
       <p><b>Código de prestador:</b> ____________________ &nbsp; <b>Especialidad:</b> ____________________</p>
       <p><b>Contacto autorizado:</b> ________________________________.</p>
@@ -129,58 +130,99 @@ function modelHtml(code, org) {
     </head><body>${legal}${blocks[code] || ''}<hr><p style="font-size:9pt;color:#666">SOFA · Soluciones de Facturación Médica · Modelo ${code}. Complete y revise antes de usar.</p></body></html>`;
 }
 
-function downloadModel(code, org) {
-  const blob = new Blob([modelHtml(code, org)], { type: 'application/msword;charset=utf-8' });
+function downloadModel(code, org, arsName = '') {
+  const blob = new Blob([modelHtml(code, org, arsName)], { type: 'application/msword;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = modelName(code); document.body.appendChild(a); a.click(); a.remove();
+  a.href = url; a.download = modelName(code, arsName); document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function renderCommercialDocs(box, org, ctx, providers = []) {
   const canUpload = can('docs.upload', ctx.role);
   const canReview = ['super_admin','admin','assistant','operations'].includes(ctx.role);
-  let docs = []; let reviews = [];
+  let docs = []; let reviews = []; let arsOptions = []; let arsLinks = [];
+
+  const reviewState = (latest) => {
+    const review = latest ? reviews.find((r) => r.document_id === latest.id) : null;
+    const status = !latest ? ['Pendiente','warn']
+      : !review ? ['Cargado por cliente','info']
+      : review.status === 'aprobado' ? ['Aprobado','ok']
+      : review.status === 'requiere_correccion' ? ['Requiere corrección','bad']
+      : ['En revisión SOFA','warn'];
+    return { review, status };
+  };
+
+  const standardCard = (code, title, list) => {
+    const type = COMMERCIAL_DOC_TYPE[code];
+    const files = list.filter((d) => d.document_type_code === type);
+    const latest = files[0] || null;
+    const { review, status } = reviewState(latest);
+    const legal = ['A','B'].includes(code);
+    return html`<div class="li" style="align-items:flex-start">
+      <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:800">${code}</div>
+      <div class="b">
+        <div class="t1">${title}</div>
+        <div class="t2">${legal ? 'Modelo de trabajo · requiere revisión legal antes de firma/uso.' : 'Modelo operativo editable.'}</div>
+        <div class="small" style="margin-top:5px"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${sizeLabel(latest.size_bytes)} · ${dateTime(latest.uploaded_at)}` : ''}</div>
+        ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:6px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
+      </div>
+      <div class="toolbar" style="margin:0">
+        <button class="btn sm" data-model="${code}" type="button">Descargar modelo</button>
+        ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
+        ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Subir nueva versión' : 'Subir documento'}<input type="file" data-upload-doc="${code}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
+        ${canReview && latest ? html`<button class="btn sm" data-review-doc="${latest.id}" data-review-code="${code}" type="button">Revisar</button>` : ''}
+      </div>
+    </div>`;
+  };
+
+  const documentD = (list) => html`<div class="li" style="align-items:flex-start">
+    <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:800">D</div>
+    <div class="b">
+      <div class="t1">Carta de representación ante ARS</div>
+      <div class="t2">Se gestiona una carta independiente por cada ARS vinculada al cliente.</div>
+      ${arsOptions.length ? html`<div class="list" style="margin-top:8px">
+        ${arsOptions.map((a) => {
+          const ids = new Set(arsLinks.filter((x) => x.ars_id === a.ars_id).map((x) => x.document_id));
+          const latest = list.find((d) => d.document_type_code === 'carta_ars' && ids.has(d.id)) || null;
+          const { review, status } = reviewState(latest);
+          return html`<div class="li" style="align-items:flex-start">
+            <div class="b">
+              <div class="t1">${a.ars_name}</div>
+              <div class="small"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${dateTime(latest.uploaded_at)}` : ''}</div>
+              ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:5px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
+            </div>
+            <div class="toolbar" style="margin:0">
+              <button class="btn sm" data-model="D" data-model-ars="${a.ars_name}" type="button">Descargar modelo</button>
+              ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
+              ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Nueva versión' : 'Subir carta'}<input type="file" data-upload-doc="D" data-upload-ars="${a.ars_id}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
+              ${canReview && latest ? html`<button class="btn sm" data-review-doc="${latest.id}" data-review-code="D" data-review-ars="${a.ars_name}" type="button">Revisar</button>` : ''}
+            </div>
+          </div>`;
+        })}
+      </div>` : html`<div class="note warn small" style="margin-top:8px">Este cliente todavía no tiene ARS vinculadas en tarifarios o radicaciones. Cuando se configure una ARS, aparecerá aquí automáticamente.</div>`}
+    </div>
+  </div>`;
 
   const load = () => loadInto(box, async () => {
-    [docs, reviews] = await Promise.all([
+    [docs, reviews, arsOptions, arsLinks] = await Promise.all([
       listDocuments({ entityType: 'organization', entityId: org.id, limit: 200 }),
-      listClientDocumentReviews(org.id).catch(() => [])
+      listClientDocumentReviews(org.id).catch(() => []),
+      clientDocumentArsOptions(org.id).catch(() => []),
+      listClientDocumentArs(org.id).catch(() => [])
     ]);
     return docs;
   }, (list) => html`
     <div class="note info" style="margin-bottom:10px">
       <b>Cómo usar esta sección</b><br>
-      1. Descarga el modelo. 2. Complétalo y fírmalo cuando corresponda. 3. Súbelo aquí. SOFA conservará el archivo en el expediente privado del cliente.
+      1. Descarga el modelo. 2. Complétalo y fírmalo cuando corresponda. 3. Súbelo aquí. 4. SOFA lo revisa y te indica si fue aprobado o requiere corrección.
     </div>
     <div class="list">
-      ${Object.entries(COMMERCIAL_DOCS).map(([code, title]) => {
-        const type = COMMERCIAL_DOC_TYPE[code];
-        const files = list.filter((d) => d.document_type_code === type);
-        const latest = files[0] || null;
-        const review = latest ? reviews.find((r) => r.document_id === latest.id) : null;
-        const legal = ['A','B'].includes(code);
-        const status = !latest ? ['Pendiente','warn']
-          : !review ? ['Cargado por cliente','info']
-          : review.status === 'aprobado' ? ['Aprobado','ok']
-          : review.status === 'requiere_correccion' ? ['Requiere corrección','bad']
-          : ['En revisión SOFA','warn'];
-        return html`<div class="li" style="align-items:flex-start">
-          <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:800">${code}</div>
-          <div class="b">
-            <div class="t1">${title}</div>
-            <div class="t2">${legal ? 'Modelo de trabajo · requiere revisión legal antes de firma/uso.' : 'Modelo operativo editable.'}</div>
-            <div class="small" style="margin-top:5px"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${sizeLabel(latest.size_bytes)} · ${dateTime(latest.uploaded_at)}` : ''}</div>
-            ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:6px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
-          </div>
-          <div class="toolbar" style="margin:0">
-            <button class="btn sm" data-model="${code}" type="button">Descargar modelo</button>
-            ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
-            ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Subir nueva versión' : 'Subir documento'}<input type="file" data-upload-doc="${code}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
-            ${canReview && latest ? html`<button class="btn sm" data-review-doc="${latest.id}" data-review-code="${code}" type="button">Revisar</button>` : ''}
-          </div>
-        </div>`;
-      })}
+      ${standardCard('A', COMMERCIAL_DOCS.A, list)}
+      ${standardCard('B', COMMERCIAL_DOCS.B, list)}
+      ${standardCard('C', COMMERCIAL_DOCS.C, list)}
+      ${documentD(list)}
+      ${standardCard('E', COMMERCIAL_DOCS.E, list)}
     </div>
     <p class="small muted">Formatos aceptados al subir: PDF, JPG o PNG, máximo 10 MB. Los modelos son ayudas de gestión; A y B deben ser revisados y aprobados legalmente antes de su uso definitivo.</p>
   `, { isEmpty: () => false });
@@ -190,7 +232,7 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
     const open = e.target.closest('[data-open-doc]');
     const reviewBtn = e.target.closest('[data-review-doc]');
     try {
-      if (model) downloadModel(model.dataset.model, org);
+      if (model) downloadModel(model.dataset.model, org, model.dataset.modelArs || '');
       if (open) {
         const doc = docs.find((d) => d.id === open.dataset.openDoc);
         if (doc) {
@@ -200,8 +242,9 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
       }
       if (reviewBtn) {
         const current = reviews.find((r) => r.document_id === reviewBtn.dataset.reviewDoc);
+        const label = reviewBtn.dataset.reviewArs ? `D · ${reviewBtn.dataset.reviewArs}` : `${reviewBtn.dataset.reviewCode} · ${COMMERCIAL_DOCS[reviewBtn.dataset.reviewCode]}`;
         const ok = await formDialog({
-          title: `Revisar ${reviewBtn.dataset.reviewCode} · ${COMMERCIAL_DOCS[reviewBtn.dataset.reviewCode]}`,
+          title: `Revisar ${label}`,
           submitLabel: 'Guardar revisión',
           body: html`<div class="field"><label for="cdr_status">Resultado *</label>
             <select id="cdr_status" name="status">
@@ -232,7 +275,7 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
     try {
       input.disabled = true;
       toast('Subiendo documento…');
-      await uploadDocument({
+      const up = await uploadDocument({
         orgId: org.id,
         file,
         entityType: 'organization',
@@ -240,7 +283,11 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
         docType: COMMERCIAL_DOC_TYPE[code],
         bucket: 'contracts'
       });
-      toast(`${code} · ${COMMERCIAL_DOCS[code]} guardado. Queda pendiente de revisión SOFA.`, 'ok');
+      if (code === 'D') {
+        if (!input.dataset.uploadArs) throw new Error('Seleccione la ARS correspondiente a la carta.');
+        await linkClientDocumentArs(up.id, input.dataset.uploadArs);
+      }
+      toast(`${code} · ${code === 'D' ? 'Carta ante ARS' : COMMERCIAL_DOCS[code]} guardado. Queda pendiente de revisión SOFA.`, 'ok');
       load();
     } catch (err) {
       toast(friendlyError(err), 'bad');
@@ -251,3 +298,4 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
   load();
   return { reload: load };
 }
+
