@@ -652,3 +652,50 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .pm-hist-lista li:last-child{border-bottom:0}
 .pm-mini{padding:4px 10px;font-size:.8rem}
 @media (max-width:860px){ .pm-cols{grid-template-columns:1fr} }
+
+
+/* ===== 5.23 · Ajustes móviles de ficha y documentos A–E ===== */
+.commercial-doc-row{align-items:flex-start}
+.commercial-doc-code{width:32px;height:32px;border-radius:8px;background:var(--surface-2,#eef2f7);display:grid;place-items:center;font-weight:800;flex:none}
+.commercial-doc-actions{margin:0;justify-content:flex-end;flex:none}
+.commercial-doc-ars-row{align-items:flex-start}
+@media (max-width:640px){
+  .ct-tabs{scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding-bottom:2px}
+  .ct-tabs::-webkit-scrollbar{display:none}
+  .ct-tabs [role=tab]{flex:0 0 auto;padding:9px 10px}
+
+  .commercial-doc-row{
+    display:grid;
+    grid-template-columns:40px minmax(0,1fr);
+    gap:8px 10px;
+    padding:14px 0;
+  }
+  .commercial-doc-row>.b{min-width:0}
+  .commercial-doc-row>.commercial-doc-actions{
+    grid-column:1/-1;
+    width:100%;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+    margin:4px 0 0;
+  }
+  .commercial-doc-actions .btn,
+  .commercial-doc-actions>label.btn{width:100%;min-height:42px;white-space:normal;text-align:center}
+  .commercial-doc-ars-row{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+    padding:10px 0;
+  }
+  .commercial-doc-ars-row>.commercial-doc-actions{width:100%;display:grid;grid-template-columns:1fr;gap:8px;margin:2px 0 0}
+  .commercial-doc-row .t1,.commercial-doc-ars-row .t1{overflow-wrap:anywhere}
+
+  .hosp-detail{min-width:0}
+  .hosp-detail table{min-width:640px}
+  .hosp-detail{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .hosp-form{grid-template-columns:1fr!important}
+  .i18-wrap,.card{min-width:0}
+
+  .page-head .t{min-width:0}
+  .page-head h2{overflow-wrap:anywhere}
+}
