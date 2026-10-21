@@ -51,7 +51,8 @@ export const NAV = [
   { group: 'Mi consultorio', items: [   // 1.9 · Iteraciones 19 a 27
     { route: 'pacientes', label: 'Pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
     { route: 'historia-clinica', label: 'Historia clínica', roles: ['client', 'super_admin'], ready: true },
-    { route: 'mi-ficha', label: 'Mi ficha (ARS y tarifas)', roles: ['client'], ready: true },   // 2.1 · Iteración 31
+    { route: 'mi-ficha', label: 'Mi ficha (ARS y tarifas)', roles: ['client'], ready: true },
+    { route: 'documentos-consultorio', label: 'Documentos del consultorio', roles: ['capturer'], ready: true },   // 2.1 · Iteración 31
     { route: 'mi-incorporacion', label: 'Mi incorporación', roles: ['prospect'], ready: true },   // 2.1 · Iteración 30   // 2.0 · Iteración 29 (Super Admin solo con acceso de emergencia)
     { route: 'saldos-pacientes', label: 'Saldos de pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
     { route: 'mensajes', label: 'Mensajes (WhatsApp)', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },
@@ -482,6 +483,7 @@ const ACTIONS = {
   'subs.edit': ['super_admin', 'admin', 'billing', 'assistant', 'client'],
   'subs.delete': ['super_admin', 'admin'],
   'docs.upload': ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'client'],
+  'clientdocs.upload': ['client', 'capturer'],
   'docs.delete': ['super_admin', 'admin'],
   'glosas.edit': ['super_admin', 'admin', 'glosas'],
   'payments.create': ['super_admin', 'admin', 'glosas'],
