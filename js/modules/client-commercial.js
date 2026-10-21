@@ -59,49 +59,28 @@ export function renderOnboarding(box, org, ctx, onChange = () => {}) {
 
 /** Documentos A–E: generar, PDF con membrete, estado y copia firmada */
 export function renderCommercialDocs(box, org, ctx, providers = []) {
-  const manage = can('onboarding.manage', ctx.role);
-  let rows = [];
-  const load = () => loadInto(box, async () => { rows = await listCommercialDocs(org.id); return rows; }, (list) => html`
-    ${manage ? html`<div class="toolbar" style="margin:0 0 8px">${Object.entries(COMMERCIAL_DOCS).map(([k, l]) => html`<button class="btn sm" data-gen="${k}" title="${l}">+ ${k} · ${l}</button>`)}</div>` : ''}
-    ${list.length ? html`<div class="list">${list.map((d) => { const [l, c] = COMMERCIAL_DOC_STATUS[d.status] || [d.status, '']; return html`<div class="li">
-      <div class="b"><div class="t1"><b>${d.template_code}</b> · ${COMMERCIAL_DOCS[d.template_code]}${d.ars?.name ? ` · ${d.ars.name}` : ''}${d.providers?.full_name ? ` · ${d.providers.full_name}` : ''}</div>
-        <div class="t2">Generado ${dateTime(d.created_at)} · plantilla v${d.template_version}${d.status !== 'generado' ? ` · ${l.toLowerCase()} ${dateTime(d.status_changed_at)}` : ''}</div></div>
-      <span class="pill ${c}">${l}</span>
-      <button class="btn sm" data-pdf="${d.id}">PDF</button>
-      ${manage && d.status !== 'anulado' && d.status !== 'firmado' ? html`<select class="input" data-st="${d.id}" style="width:auto;min-height:32px" aria-label="Cambiar estado">
-        <option value="">Estado…</option>${['enviado', 'entregado', 'anulado'].map((s) => opt(s, COMMERCIAL_DOC_STATUS[s][0]))}</select>
-        <label class="btn sm" style="cursor:pointer">Subir firmada<input type="file" data-sign="${d.id}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}</div>`; })}</div>`
-      : html`<p class="small muted">Aún no se han generado documentos para este cliente.</p>`}
-    <p class="small muted">Los textos de A (contrato) y B (autorización) deben estar revisados por un abogado. SOFA los llena con los datos del cliente, pero no sustituye esa revisión.</p>`, { isEmpty: () => false });   // sin documentos todavía: igual se muestran los botones para generarlos
-  box.addEventListener('click', async (e) => {
-    const g = e.target.closest('[data-gen]'); const p = e.target.closest('[data-pdf]');
-    try {
-      if (g) {
-        const code = g.dataset.gen; const ars = code === 'D' ? await listArs().catch(() => []) : [];
-        const r = await formDialog({ title: `Generar ${code} · ${COMMERCIAL_DOCS[code]}`, submitLabel: 'Generar',
-          body: html`${providers.length > 1 ? html`<div class="field"><label for="cg_p">Médico</label><select id="cg_p" name="provider">${providers.map((x) => opt(x.id, x.full_name))}</select></div>` : ''}
-            ${code === 'D' ? html`<div class="field"><label for="cg_a">ARS *</label><select id="cg_a" name="ars"><option value="">Seleccione…</option>${ars.map((a) => opt(a.id, a.name))}</select><span class="hint">Se genera una carta por ARS.</span></div>` : ''}
-            <p class="small">El documento se llena con los datos actuales del cliente. Lo que falte queda como "______" para completarlo a mano.</p>`,
-          onSubmit: async (d, f) => { if (code === 'D' && !d.ars) { fieldError(f.elements.ars, 'Seleccione la ARS'); return false; } return generateCommercialDoc(org.id, code, d.provider || null, d.ars || null); } });
-        if (r) { toast('Documento generado', 'ok'); load(); }
-      } else if (p) {
-        p.disabled = true; const { downloadLetterPdf } = await import('../utils/pdf-invoice.js');
-        toast(`Descargado ${await downloadLetterPdf(await getCommercialDoc(p.dataset.pdf))}`, 'ok'); p.disabled = false;
-      }
-    } catch (err) { toast(friendlyError(err), 'bad'); if (p) p.disabled = false; }
-  });
-  box.addEventListener('change', async (e) => {
-    const s = e.target.closest('[data-st]'); const f = e.target.closest('[data-sign]');
-    try {
-      if (s && s.value) { await setCommercialDocStatus(s.dataset.st, s.value); toast(`Marcado como ${COMMERCIAL_DOC_STATUS[s.value][0].toLowerCase()}`, 'ok'); load(); }
-      if (f && f.files[0]) {
-        const d = rows.find((x) => x.id === f.dataset.sign);
-        toast('Subiendo copia firmada…');
-        const up = await uploadDocument({ orgId: org.id, file: f.files[0], entityType: 'organization', entityId: org.id, docType: COMMERCIAL_DOC_TYPE[d.template_code], bucket: 'contracts' });
-        await setCommercialDocStatus(d.id, 'firmado', up.id); toast('Documento firmado guardado en el expediente', 'ok'); load();
-      }
-    } catch (err) { toast(friendlyError(err), 'bad'); }
-  });
+  const load = () => loadInto(box, async () => {
+    try { return await listCommercialDocs(org.id); } catch { return []; }
+  }, (list) => html`
+    <div class="note warn" style="margin-bottom:10px">
+      <b>Documentos A–E en preparación.</b><br>
+      Las plantillas todavía no están aprobadas para uso operativo. La generación, descarga, cambio de estado y carga de firmas permanecen deshabilitados hasta completar la revisión documental y legal.
+    </div>
+    <div class="list">
+      ${Object.entries(COMMERCIAL_DOCS).map(([code, title]) => {
+        const latest = list.find((d) => d.template_code === code);
+        return html`<div class="li">
+          <div class="b">
+            <div class="t1"><b>${code}</b> · ${title}</div>
+            <div class="t2">${latest ? `Existe un borrador histórico generado ${dateTime(latest.created_at)}; no debe utilizarse.` : 'Plantilla pendiente de validación.'}</div>
+          </div>
+          <span class="pill warn">No disponible</span>
+          <button class="btn sm" disabled title="Pendiente de aprobación documental y legal">Usar documento</button>
+        </div>`;
+      })}
+    </div>
+    <p class="small muted">Cuando cada plantilla sea aprobada, se habilitará individualmente con versión, fecha de vigencia y responsable de aprobación. Los documentos ya generados antes de esta corrección se consideran borradores históricos.</p>
+  `, { isEmpty: () => false });
   load();
   return { reload: load };
 }
