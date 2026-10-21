@@ -14,7 +14,8 @@ export async function render(main, ctx) {
       <div class="toolbar no-print" style="margin:0"><button class="btn" id="csv">Exportar CSV</button><button class="btn" id="print">Imprimir</button></div></div>
     ${staff ? html`<div class="tabs no-print" id="tabs" role="group" aria-label="Agrupar"><button data-b="ars" aria-pressed="true">Por ARS</button><button data-b="cliente" aria-pressed="false">Por cliente</button></div>` : ''}
     <div id="fb"></div><div id="m">${loadingView(5)}</div><div id="d" style="margin-top:14px"></div>`);
-  let f = await filterBar($('#fb', main), ctx, (nf) => { f = nf; load(); }, { period: false });
+  let f = await filterBar($('#fb', main), ctx, (nf) => { f = { ...nf, realOnly: staff }; load(); }, { period: false });
+  f.realOnly = staff;
   const key = (r) => (by === 'ars' ? r.ars_name : r.client_name);
   const draw = () => {
     if (!rows.length) { paint($('#m', main), emptyView('Sin saldos pendientes', 'No hay radicaciones enviadas con saldo por cobrar.')); paint($('#d', main), html``); return; }
