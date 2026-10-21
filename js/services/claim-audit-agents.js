@@ -4,7 +4,7 @@
  * No reemplaza validate_submission ni una consulta oficial de cobertura.
  */
 const trim = value => String(value ?? '').trim();
-const isDate = value => /^\d{4}-\d{2}-\d{2}$/.test(trim(value)) && !Number.isNaN(Date.parse(trim(value)));
+const isDate = value => { const v = trim(value); if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false; const d = new Date(v + 'T00:00:00Z'); return !Number.isNaN(d.valueOf()) && d.toISOString().slice(0, 10) === v; };
 const result = (code, status, detail, source = 'local_rule') => ({ code, status, detail, source });
 
 /**
