@@ -65,4 +65,4 @@ export async function pipelineTotals() { return must(await sb().from('v_pipeline
 export async function growthTargets() { return must(await sb().from('growth_targets').select('*').order('ends_on')); }
 export async function settings() { const { getSettings } = await import('./admin.js'); return getSettings(); }   // 4.7.0 (SEG-29): por app_settings_staff()
 export async function glosaPareto(f = {}) { const q = await scoped(sb().from('v_glosa_pareto').select('*'), f); return must(await q.limit(5000)); }
-export async function feeSummaryAll() { return must(await sb().from('v_fee_summary').select('*').order('client_name')); }
+export async function feeSummaryAll({ realOnly = false } = {}) { let q = sb().from('v_fee_summary').select('*'); if (realOnly) { const ids = await realClientIds(); q = ids.length ? q.in('organization_id', ids) : q.eq('organization_id', '00000000-0000-0000-0000-000000000000'); } return must(await q.order('client_name')); }

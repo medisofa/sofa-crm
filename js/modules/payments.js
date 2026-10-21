@@ -14,6 +14,7 @@ const METHOD = Object.fromEntries(PAYMENT_METHODS);
 const daysTo = (iso) => (iso ? Math.round((new Date(`${iso}T00:00:00`) - new Date(`${todayISO()}T00:00:00`)) / 86400000) : null);
 
 export async function render(main, ctx) {
+  const staff = isStaff(ctx.role);
   const st = { tab: 'pagos', arsId: '', q: '', page: 0 };
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Pagos y conciliación</h2><p>Pagos recibidos de las ARS, repartidos entre radicaciones. El saldo se calcula solo: radicado − pagado − glosa aceptada.</p></div>
@@ -31,7 +32,7 @@ export async function render(main, ctx) {
 
   const load = () => {
     $('#q', main).style.display = st.tab === 'conciliacion' ? 'none' : '';
-    if (st.tab === 'pagos') return loadInto(list, () => listPayments({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
+    if (st.tab === 'pagos') return loadInto(list, () => listPayments({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff }), ({ data, count }) => html`
       <div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th>${isStaff(ctx.role) ? html`<th>Cliente</th>` : ''}<th>ARS</th><th>Folio · referencia</th><th>Aplicado a</th><th class="n">Monto</th>${showFee ? html`<th class="n">Honorario SOFA</th>` : ''}${can('payments.void', ctx.role) ? html`<th></th>` : ''}</tr></thead>
       <tbody>${data.map((p) => html`<tr><td data-l="Fecha">${date(p.paid_on)}</td>${isStaff(ctx.role) ? html`<td data-l="Cliente">${p.client_name}</td>` : ''}<td data-l="ARS">${p.ars_name}</td>
         <td data-l="Referencia">${p.payment_folio ? html`<b class="mono">${p.payment_folio}</b><br>` : ''}<span class="mono">${p.reference}</span><div class="small muted">${METHOD[p.method] || p.method}</div></td>
@@ -40,7 +41,7 @@ export async function render(main, ctx) {
         ${can('payments.void', ctx.role) ? html`<td data-l=""><button class="btn sm danger" data-void="${p.id}" data-ref="${p.reference}">Anular</button></td>` : ''}</tr>`)}</tbody></table></div>${pager(count, st.page)}`,
     { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin pagos registrados', 'Registra el primer pago de una ARS y repártelo entre sus radicaciones.') });
 
-    if (st.tab === 'conciliacion') return loadInto(list, async () => (await arsReconciliation()).filter((r) => !st.arsId || r.ars_id === st.arsId), (rows) => {
+    if (st.tab === 'conciliacion') return loadInto(list, async () => (await arsReconciliation({ realOnly: staff })).filter((r) => !st.arsId || r.ars_id === st.arsId), (rows) => {
       const by = {}; rows.forEach((r) => { const k = r.ars_id; by[k] = by[k] || { ars: r.ars, radicado: 0, pagado: 0, glosa: 0, saldo: 0 }; by[k].radicado += Number(r.radicado || 0); by[k].pagado += Number(r.pagado || 0); by[k].glosa += Number(r.glosa_aceptada || 0); by[k].saldo += Number(r.saldo || 0); });
       const list2 = Object.values(by).filter((x) => x.radicado > 0).sort((a, b) => b.saldo - a.saldo);
       const tot = list2.reduce((t, x) => ({ radicado: t.radicado + x.radicado, pagado: t.pagado + x.pagado, glosa: t.glosa + x.glosa, saldo: t.saldo + x.saldo }), { radicado: 0, pagado: 0, glosa: 0, saldo: 0 });
@@ -49,7 +50,7 @@ export async function render(main, ctx) {
         <tr><td data-l="ARS"><b>Total</b></td><td data-l="Radicado" class="n"><b>${money(tot.radicado)}</b></td><td data-l="Pagado" class="n"><b>${money(tot.pagado)}</b></td><td data-l="Glosa aceptada" class="n"><b>${money(tot.glosa)}</b></td><td data-l="Saldo" class="n"><b>${money(tot.saldo)}</b></td><td data-l="% cobrado" class="n"><b>${tot.radicado ? Math.round((1000 * tot.pagado) / tot.radicado) / 10 : 0}%</b></td></tr></tbody></table></div>` : emptyView('Sin radicaciones enviadas', 'La conciliación aparece cuando hay radicaciones radicadas.');
     }, { isEmpty: () => false });
 
-    return loadInto(list, () => listSubmissions({ group: 'radicadas', arsId: st.arsId, q: st.q, page: st.page, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
+    return loadInto(list, () => listSubmissions({ group: 'radicadas', arsId: st.arsId, q: st.q, page: st.page, size: CONFIG.PAGE_SIZE, realOnly: staff }), ({ data, count }) => html`
       <div class="table-wrap"><table class="t cards"><thead><tr><th>Radicación</th><th>Prestador</th><th>ARS</th><th>Radicada</th><th class="n">Saldo</th><th>Plazo</th>${can('payments.create', ctx.role) ? html`<th></th>` : ''}</tr></thead>
       <tbody>${data.map((s) => { const d = daysTo(s.payment_deadline); return html`<tr><td data-l="Radicación"><a href="#/radicaciones/${s.id}" class="mono"><b>${s.folio}</b></a><div class="small muted">${period(s.period)}</div></td>
         <td data-l="Prestador">${s.provider_name}</td><td data-l="ARS">${s.ars_name}</td><td data-l="Radicada">${date(s.submitted_on)}</td><td data-l="Saldo" class="n"><b>${money(s.balance)}</b></td>
