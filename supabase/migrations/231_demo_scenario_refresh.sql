@@ -77,11 +77,7 @@ declare v_job bigint;
 begin
   select jobid into v_job from cron.job where jobname='sofa_demo_refresco' limit 1;
   if v_job is not null then perform cron.unschedule(v_job); end if;
-  perform cron.schedule(
-    'sofa_demo_refresco',
-    '15 8 * * *',
-    'select app.refresh_demo_scenario(current_date)'
-  );
+  perform cron.schedule('sofa_demo_refresco','15 8 * * *','select app.refresh_demo_scenario(current_date)');
 end
 $$;
 
@@ -177,83 +173,7 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-17 · El DEMO tiene honorario sintético no fiscal para mostrar ROI','ok',
       exists(select 1 from public.sofa_fees where organization_id = v_org and period = v_per and source_type='manual'
              and description ilike 'DEMO%NO FISCAL%' and amount > 0),'d',
-      (select 'RD
-
-    -- ── Y lo que de verdad se enseña: que las pantallas traigan cifras ──────────────────────────
-    select ou.user_id into v_u from public.organization_users ou
-      join public.organizations o on o.id = ou.organization_id and o.kind = 'operator'
-     where ou.role_code = 'super_admin' and ou.is_active limit 1;
-    perform set_config('request.jwt.claims',
-      json_build_object('sub', v_u, 'role','authenticated','aal','aal2')::text, true);
-
-    begin
-      v_r := public.account_statement(v_org, v_per);
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-18 · «Mi dinero» muestra caja cobrada, no RD$ 0.00','ok',
-        (v_r->'roi'->>'collected')::numeric > 0,'d', 'RD$'||(v_r->'roi'->>'collected')));
-
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-19 · El ROI es creíble: entre 4 y 20 veces','ok',
-        (v_r->'roi'->>'return_x')::numeric between 4 and 20,'d', (v_r->'roi'->>'return_x')||'x · honorarios '||(v_r->'roi'->>'fee_pct_of_collected')||'% de lo cobrado'));
-    exception when others then
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-18/19 · «Mi dinero»','ok',false,'d',left(sqlerrm,120)));
-    end;
-
-    begin
-      v_r := public.glosa_analytics(v_org, v_per - 120, current_date);
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-20 · «Mis glosas» muestra una tasa baja y recuperación','ok',
-        (v_r->'rates'->>'glosa_pct')::numeric between 0.1 and 10
-        and (v_r->'rates'->>'recuperacion_pct')::numeric > 50,'d',
-        'glosa '||(v_r->'rates'->>'glosa_pct')||'% · recuperado '||(v_r->'rates'->>'recuperacion_pct')||'%'));
-    exception when others then
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-20 · «Mis glosas»','ok',false,'d',left(sqlerrm,120)));
-    end;
-
-    begin
-      v_r := public.collection_calendar(v_org);
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-21 · «Calendario de cobros» tiene algo por cobrar','ok',
-        (v_r->'totals'->>'balance')::numeric > 0,'d', 'RD$'||(v_r->'totals'->>'balance')));
-    exception when others then
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-21 · «Calendario de cobros»','ok',false,'d',left(sqlerrm,120)));
-    end;
-
-    begin
-      v_r := public.accountant_report(v_org, v_per);
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-22 · «Reporte para mi contador» cuadra con lo cobrado','ok',
-        (v_r->'summary'->>'income_ars')::numeric > 0,'d', 'RD$'||(v_r->'summary'->>'income_ars')));
-    exception when others then
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-22 · «Reporte contador»','ok',false,'d',left(sqlerrm,120)));
-    end;
-    perform set_config('request.jwt.claims','',true);
-
-    -- ── Que se pueda borrar entero ──────────────────────────────────────────────────────────────
-    -- Todo cuelga del mismo id, que es lo que hace exacto al revertir.
-    select count(*) into v_n from (
-      select 1 from public.service_lines   where organization_id = v_org union all
-      select 1 from public.payments        where organization_id = v_org union all
-      select 1 from public.appointments    where organization_id = v_org union all
-      select 1 from public.private_charges where organization_id = v_org union all
-      select 1 from public.patients        where organization_id = v_org) q;
-    v_res := v_res || jsonb_build_array(jsonb_build_object('p','DE-23 · Todo lo sembrado cuelga de la organización demo','ok',
-      v_n > 100,'d', v_n||' filas, todas borrables de una'));
-
-    raise exception using errcode = 'P0001', message = 'sofa_qa_rollback';
-  exception when others then
-    if sqlerrm <> 'sofa_qa_rollback' then
-      v_res := v_res || jsonb_build_array(jsonb_build_object('p','Error inesperado (las pruebas se detuvieron aquí)','ok',false,'d',left(sqlerrm, 300)));
-    end if;
-  end;
-  perform set_config('role','none',true);
-  perform set_config('request.jwt.claims','',true);
-  return query
-    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,
-           format('%s de %s pruebas aprobadas', count(*) filter (where coalesce((e->>'ok')::boolean, false)), count(*)), null::text
-      from jsonb_array_elements(v_res) e
-    union all
-    select x.i::int, case when coalesce((x.e->>'ok')::boolean, false) then 'APROBADA' else 'FALLÓ' end, x.e->>'p', x.e->>'d'
-      from jsonb_array_elements(v_res) with ordinality as x(e, i)
-    order by 1;
-end
-$function$
-||to_char(amount,'FM999,999.00')||' · NO FISCAL'
+      (select 'RD$'||to_char(amount,'FM999,999.00')||' · NO FISCAL'
          from public.sofa_fees where organization_id = v_org and period = v_per and source_type='manual'
          order by calculated_at desc limit 1)));
 
