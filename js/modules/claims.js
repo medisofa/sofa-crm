@@ -208,6 +208,12 @@ export async function render(main, ctx) {
   }
 
   // ------------------------------------------------------------ eventos
+  $('#coreDup', main)?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-core-review]');
+    if (!b) return;
+    reviewDuplicateDialog(b.dataset.coreReview, b.dataset.coreOther)
+      .catch((err) => toast(friendlyError(err), 'bad'));
+  });
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (!b) return; st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0; drawTabs(); load(); });
   let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
   [['#fx', 'dossier'], ['#fs', 'status'], ['#fl', 'location'], ['#fp', 'providerId'], ['#fa', 'arsId'], ['#ff', 'from'], ['#ft', 'to']].forEach(([s, k]) =>
