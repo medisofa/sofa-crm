@@ -25,3 +25,10 @@ Estado: núcleo aislado en rama; no desplegado ni conectado al portal.
 
 ## Entrega parcial
 js/services/claim-audit-agents.js implementa una función pura sin I/O ni LLM que devuelve chequeos y exige revisión humana. No está importada en la aplicación; requiere pruebas y conexión backend antes de uso operativo.
+
+## Verificación RLS de solo lectura (2026-10-21)
+- La vista v_claims y sofa_real_client_organizations tienen security_invoker=true.
+- authenticated tiene SELECT con políticas por organización para service_lines y organizations; no tiene INSERT directo en claim_audits. anon tampoco lo tiene.
+- claim_duplicate_candidates limita el origen a app.visible_org_ids y las parejas a la misma organización/ARS. review_claim_duplicate exige autorización app.can en la organización.
+- Se observó la distribución estable 40 reclamaciones REAL y 240 DEMO, sin modificar registros.
+- CI (SOFA Claims Preaudit) pasó las validaciones de sintaxis y pruebas sintéticas; prueba E2E autenticada/multiusuario aún pendiente. Estas comprobaciones de metadatos no son evidencia de una prueba dinámica entre dos identidades.
