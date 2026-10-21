@@ -11,6 +11,7 @@ import { claimStatus, CLAIM_MOVE_LABELS, DISCREPANCY_STATUS, CARE_MODES } from '
 import { can, isStaff, canOpen } from '../utils/permissions.js';
 import { profileNames } from '../services/submissions.js';
 import { renderDossier } from './dossier-card.js';
+import { runClaimPreaudit } from '../services/claim-agent-runner.js';
 import {
   getClaim, claimHistory, claimAudits, claimDiscrepancies, claimChecks, claimLocations, claimTransitions,
   claimPaymentLines, claimGlosaItems, recheckContract, claimTimeline, claimResubmissions, resubmitClaims
@@ -73,13 +74,14 @@ export async function render(main, ctx) {
       <p>${c.service_name} · ${c.patient_name} · ${c.provider_name} · ${c.ars_name} · ${date(c.service_date)}</p></div>
       <div class="toolbar no-print" style="margin:0">
         ${moves.map((t) => html`<button class="btn ${['retirada', 'lista_para_radicar', 'en_validacion'].includes(t.to_code) ? 'primary' : ''}" data-to="${t.to_code}">${CLAIM_MOVE_LABELS[t.to_code] || claimStatus(t.to_code)[0]}</button>`)}
-        ${canAudit ? html`<button class="btn primary" id="audit">Auditar expediente</button>` : ''}
+        ${canAudit ? html`<button class="btn primary" id="audit">Auditar expediente</button><button class="btn" id="preaudit-agent">Preauditoría asistida</button>` : ''}
         ${c.claim_status === 'pendiente_configuracion' && can('claims.recheck', role) ? html`<button class="btn" id="recheck">Volver a buscar contrato</button>` : ''}
         ${can('claims.override', role) ? html`<button class="btn" id="force">Cambio excepcional…</button>` : ''}
         ${canResubmit ? html`<button class="btn primary" id="resubmit">Reenviar en radicación complementaria</button>` : ''}
         <button class="btn" id="print">Imprimir</button>
       </div></div>
 
+    <div id="preaudit-agent-result" aria-live="polite"></div>
     ${c.claim_status === 'pendiente_configuracion' ? html`<div class="note bad">Este servicio no está contratado para ${c.provider_name} con ${c.ars_name} en la fecha del servicio. Configure la tarifa en ${lnk('#/contratos', role, 'Tarifario contractual')} y pulse “Volver a buscar contrato”, o autorice la excepción.</div>` : ''}
     ${pendingDisc ? html`<div class="note warn">Diferencia tarifaria pendiente de autorizar: registrado ${money(pendingDisc.registered_amount)} vs. contrato ${money(pendingDisc.tariff_amount)} (${money(pendingDisc.diff_amount)}).
       ${can('claims.discrepancy', role) ? html` <button class="btn" data-decide="${pendingDisc.id}">Decidir</button>` : ''}</div>` : ''}
@@ -175,6 +177,23 @@ export async function render(main, ctx) {
         if (ok) { toast('Fecha de autorización guardada', 'ok'); refresh(); }
       } catch (err) { toast(friendlyError(err), 'bad'); }
     });
+    $('#preaudit-agent', box)?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const output = $('#preaudit-agent-result', box);
+      button.disabled = true;
+      paint(output, html`<div class="note">Consultando reglas y coincidencias…</div>`);
+      try {
+        const report = await runClaimPreaudit(S.c);
+        const label = report.decision === 'correction_required' ? 'Correcciones necesarias' : 'Revisión humana requerida';
+        paint(output, html`<div class="card" style="margin:12px 0"><h3>Preauditoría asistida · ${report.isDemo ? 'DEMO' : 'REAL'}</h3>
+          <p class="note ${report.decision === 'correction_required' ? 'bad' : 'warn'}">${label}. Este análisis no autoriza radicación ni verifica cobertura ARS.</p>
+          <ul>${report.checks.map((check) => html`<li><b>${check.status === 'pass' ? '✓' : check.status === 'block' ? '✕' : '…'} ${check.code}</b>: ${check.detail}</li>`)}</ul>
+          <p class="small muted">Resultado solo de lectura, no guardado como auditoría formal. Las comprobaciones externas pendientes requieren evidencia y validación por personal autorizado.</p></div>`);
+      } catch (err) {
+        paint(output, html`<div class="note bad">No fue posible completar la preauditoría: ${friendlyError(err)}. No se registró aprobación.</div>`);
+      } finally { button.disabled = false; }
+    });
+
     $('#audit', box)?.addEventListener('click', async () => {
       const { auditDialog } = await import('./claim-dialogs.js');
       try { const n = await auditDialog([id], { missing: S.checks?.missing_documents || [] }); if (n != null) { toast('Auditoría registrada', 'ok'); refresh(); } }
