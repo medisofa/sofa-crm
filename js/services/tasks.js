@@ -7,14 +7,12 @@ async function realOrgIds() {
   realIdsCache = must(await sb().from('sofa_real_client_organizations').select('id')).map((r) => r.id);
   return realIdsCache;
 }
-async function restrictTasks(q, realOnly) {
-  if (!realOnly) return q;
-  const ids = await realOrgIds();
+function applyTaskScope(q, ids) {
   return ids.length ? q.or(`organization_id.is.null,organization_id.in.(${ids.join(',')})`) : q.is('organization_id', null);
 }
 export async function listTasks({ bucket = '', assignee = '', entityType = '', entityId = '', realOnly = false } = {}) {
   let q = sb().from('v_tasks').select('*');
-  q = await restrictTasks(q, realOnly);
+  if (realOnly) q = applyTaskScope(q, await realOrgIds());
   if (bucket) q = q.eq('bucket', bucket);
   if (assignee) q = q.eq('assignee_id', assignee);
   if (entityType) q = q.eq('entity_type', entityType).eq('entity_id', entityId);
@@ -22,7 +20,7 @@ export async function listTasks({ bucket = '', assignee = '', entityType = '', e
 }
 export async function taskCounts(assignee = '', { realOnly = false } = {}) {
   let q = sb().from('v_tasks').select('bucket, organization_id');
-  q = await restrictTasks(q, realOnly);
+  if (realOnly) q = applyTaskScope(q, await realOrgIds());
   if (assignee) q = q.eq('assignee_id', assignee);
   const rows = must(await q.limit(2000));
   return rows.reduce((m, r) => { m[r.bucket] = (m[r.bucket] || 0) + 1; return m; }, { hoy: 0, vencidas: 0, proximas: 0, completadas: 0 });
