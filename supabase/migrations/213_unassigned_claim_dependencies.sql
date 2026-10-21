@@ -65,6 +65,9 @@ begin
                           is distinct from (old.service_date, old.patient_name, old.patient_doc, old.member_number, old.authorization_number, old.procedure_id,
                                             old.quantity, old.unit_amount, old.notes, old.care_mode, old.clinic_name, old.submission_id, old.plan_id);
   if tg_op = 'UPDATE' and not v_content then
+    if (new.provider_id,new.ars_id) is distinct from (old.provider_id,old.ars_id) then
+      raise exception 'El médico y la ARS de una reclamación no se cambian después de capturarla' using errcode='42501';
+    end if;
     if (new.tariff_id, new.tariff_amount, new.contracted, new.amount_ok, new.service_name_snapshot, new.simon_code_snapshot, new.cups_code_snapshot,
         new.contract_ref_snapshot, new.tariff_valid_from, new.tariff_valid_to, new.captured_via, new.organization_id, new.created_by)
        is distinct from (old.tariff_id, old.tariff_amount, old.contracted, old.amount_ok, old.service_name_snapshot, old.simon_code_snapshot, old.cups_code_snapshot,
