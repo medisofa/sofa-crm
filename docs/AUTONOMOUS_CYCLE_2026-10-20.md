@@ -8,46 +8,128 @@ Base: `main@bd6d8ee9e8ba45fb896fe1ba2f7edda415011cef`
 
 - GitHub repository: `medisofa/sofa-crm`; default branch `main`.
 - Supabase production project: `bpwjhgpzhzhiocoxrvzq`.
-- Supabase preview branch: `mvp-v1-sprint-e2e` / `bvivlsrixbrczzrmodki`; current status reports `MIGRATIONS_FAILED`.
+- Supabase preview branch: `mvp-v1-sprint-e2e` / `bvivlsrixbrczzrmodki`.
 - Google Drive artifacts: external ARS capture sheet and Radar SOFA Santiago.
-- Current main head fixes recovery-flow handling for Supabase 429 responses.
-- Supabase contains 1 DEMO client organization and 4 non-DEMO client organizations.
-- Current database counts at audit time: 240 DEMO service lines vs 40 non-DEMO service lines; 2 DEMO submissions vs 9 non-DEMO submissions; 2 DEMO payments vs 0 non-DEMO payments.
+- Production contains 1 DEMO client organization and 4 non-DEMO client organizations.
 
 ## Current stage
 
-Stage 4 — business/product with real client organizations and operating workflows, but validation of paid/repeatable economics is not yet evidenced.
+Stage 4 — product with real client organizations and operating workflows, but paid/repeatable economics are not yet validated.
+
+## Validation executed: isolation + E2E + paid client + margin
+
+### 1. DEMO isolation — PARTIAL PASS
+
+Production read-only counts:
+
+- Real clients: 4
+- DEMO clients: 1
+- Real service lines: 40, claimed RD$34,000.00
+- DEMO service lines: 240, claimed RD$352,800.00
+- Real submissions: 9
+- DEMO submissions: 2
+- Real ARS payments: 0
+- DEMO ARS payments: 2, amount RD$238,904.40
+
+`public.sofa_real_financial_summary` correctly excludes DEMO data and reports only 4 real clients, RD$34,000 claimed, RD$0 paid and 40 service lines.
+
+However, multiple general views that consume service_lines/payments/submissions do not explicitly reference `organizations.is_demo`. These require classification because some may be organization-scoped and safe, while production-wide KPI/report views must explicitly exclude DEMO.
+
+Conclusion: the dedicated production financial summary passes; global isolation is not yet proven.
+
+### 2. End-to-end technical flow — STAGING PASS / REAL CLIENT NOT YET PASS
+
+The Supabase preview environment is accessible for read-only validation. Its synthetic RCM dataset contains two closed claims with full downstream outcomes:
+
+- Claim A: created → status changes → submitted → payment_applied → closed.
+- Claim B: created → status changes → submitted → denial_created → closed.
+
+Both claims are linked to a submission. One has a payment allocation and the other has a denial.
+
+This proves the technical lifecycle can represent both payment and denial outcomes in staging.
+
+Production real-client data does not yet prove the same lifecycle:
+- 40 real claims total.
+- 10 have reached validation / list-to-radicate.
+- 0 have reached radication.
+- 0 have payment allocation.
+- 0 have glosa.
+
+Conclusion: synthetic E2E is demonstrated; real-client E2E remains pending.
+
+### 3. Paid client — FAIL / NOT YET EVIDENCED
+
+Across all 4 non-DEMO client organizations:
+
+- SOFA invoices: 0
+- SOFA invoice payments: RD$0
+- Subscription invoices: 0
+- Subscription amount paid: RD$0
+- Service contracts: 0
+
+Therefore there is no database evidence yet of a paying SOFA client.
+
+### 4. Margin — FAIL / NOT MEASURABLE YET
+
+The cost model exists technically:
+- `app_settings.staff_hour_cost`
+- `staff_time_entries.hours`
+
+But current production values are:
+- staff_hour_cost = RD$0.00
+- tracked hours for real clients = 0
+- collected SOFA revenue = RD$0.00
+
+This produces a mathematical contribution of RD$0.00 but not an economically meaningful margin.
+
+To validate margin, SOFA must record:
+1. actual collected client revenue,
+2. staff hourly cost,
+3. time spent by client,
+4. any other direct variable costs.
+
+### Security note from staging
+
+The staging advisor reports 5 legacy/public tables with RLS disabled:
+- roles
+- organizations
+- profiles
+- organization_users
+- clinical_settings
+
+This does not affect the evidence that the synthetic RCM lifecycle exists, but it blocks treating the preview environment as production-equivalent until the intended policies are defined and tested. No automatic remediation was applied.
+
+## Current readiness verdict
+
+| Criterion | Verdict |
+|---|---|
+| DEMO isolation in dedicated real financial summary | PASS |
+| DEMO isolation across all production aggregates | PARTIAL / PENDING |
+| Synthetic technical E2E | PASS |
+| Real-client E2E through radication/payment/glosa | FAIL / PENDING |
+| Paying real client evidenced in system | FAIL |
+| Gross/contribution margin evidenced | FAIL |
 
 ## Primary blocker
 
-Reliable production metrics and operational decisions cannot be trusted until DEMO isolation is proven across every production-facing aggregate, report, notification and automated process. A dedicated financial summary already excludes DEMO data, but several general views touching organizations do not explicitly reference `is_demo`.
+The next stage is not additional feature development. The missing evidence is commercial-operational:
 
-## Cycle priority
+**one real client must complete the workflow, be invoiced, pay SOFA, and have actual delivery time/cost recorded.**
 
-1. Prove DEMO isolation across KPIs/reports/jobs.
-2. Restore a healthy development/staging path; current Supabase preview branch reports failed migrations.
-3. Complete real-user invitation/recovery/login verification.
-4. Validate the core paid workflow end-to-end: capture → validation → radication → payment/glosa.
-5. Measure willingness to pay and unit economics with actual clients.
+## Acceptance criteria for the next gate
 
-## Executed in this cycle
+The project advances when all of these are true:
 
-- Created isolated GitHub branch for reversible work.
-- Added `qa/demo_isolation_regression.sql`, a read-only regression audit.
-- No production data, Supabase schema, DNS, emails or deployments were modified.
+1. Every production-wide KPI/report excludes `is_demo=true`.
+2. At least one real non-DEMO claim reaches radication and payment or glosa without manual DB intervention.
+3. At least one non-DEMO client has a SOFA invoice and a recorded payment.
+4. `staff_hour_cost > 0` and delivery hours are recorded for that client.
+5. Contribution margin is positive:
+   `collected SOFA revenue - direct labor cost - variable direct costs > 0`.
+6. The client confirms continuation/renewal after the pilot.
 
-## Acceptance criteria for next technical gate
+## Changes performed
 
-- Staging branch migrations succeed.
-- Demo-regression audit classifies every production-facing aggregate and shows no cross-contamination.
-- Auth invitation/recovery/first-login succeeds with an authorized test account and the UI reports accepted/delivered states accurately.
-- One real non-DEMO claim completes the main workflow without manual database intervention.
-- CI/security harness passes on the candidate commit.
-
-## Commercial hypothesis
-
-Primary ICP: Dominican specialist physician / independent practice with ARS billing handled by a secretary or small admin team. Main value: fewer rejected/delayed claims, less admin time and clearer cash-flow visibility. Evidence of willingness to pay is still incomplete; current commercial documents define fixed-per-claim and percentage-of-collected models but do not establish validated price points.
-
-## Next experiment
-
-Run a 30-day paid pilot offer with a narrowly defined claim-management package. Measure activation time, claims processed, rejection/glosa rate, days-to-radication, collections recovered, admin hours saved, gross margin and renewal intent. Do not contact prospects or launch campaigns until separately authorized.
+- Read-only validation queries were executed in production and staging.
+- No production rows, schema, emails, DNS or deployments were modified.
+- Results recorded in this existing cycle document instead of creating a duplicate report.
