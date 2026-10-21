@@ -8,11 +8,24 @@ import { CLAIM_GROUPS } from '../utils/constants.js';
 
 const must = ({ data, error }) => { if (error) throw error; return data; };
 const clean = (q) => String(q || '').replace(/[%*,()\\]/g, ' ').trim();
+let realOrgIdsCache = null;
+async function realOrgIds() {
+  if (realOrgIdsCache) return realOrgIdsCache;
+  realOrgIdsCache = must(await sb().from('sofa_real_client_organizations').select('id')).map((r) => r.id);
+  return realOrgIdsCache;
+}
+async function restrictToReal(query, enabled) {
+  if (!enabled) return query;
+  const ids = await realOrgIds();
+  return ids.length ? query.in('organization_id', ids) : query.eq('organization_id', '00000000-0000-0000-0000-000000000000');
+}
 
 // ---------------------------------------------------------------- Captura rápida
 /** Médicos visibles para el usuario (el Capturador solo ve los que tiene asignados, por RLS) */
-export async function captureProviders() {
-  return must(await sb().from('providers').select('id, full_name, organization_id, organizations(legal_name)').eq('is_active', true).order('full_name').limit(1000));
+export async function captureProviders({ realOnly = false } = {}) {
+  let q = sb().from('providers').select('id, full_name, organization_id, organizations(legal_name)').eq('is_active', true);
+  q = await restrictToReal(q, realOnly);
+  return must(await q.order('full_name').limit(1000));
 }
 export async function activeArs() { return must(await sb().from('ars').select('id, code, name').eq('is_active', true).order('name')); }
 /** Servicios contratados para Médico + ARS vigentes en la fecha del servicio (con SIMON, CUPS y tarifa) */
@@ -53,8 +66,9 @@ export async function myRecentClaims(limit = 15) {
 
 // ---------------------------------------------------------------- Reclamaciones
 const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, discrepancy_status, paid, glosado, balance, next_step, last_action_at, status_changed_at, dossier_ok, dossier_missing';
-export async function listClaims({ group = 'todas', status = '', location = '', providerId = '', arsId = '', q = '', from = '', to = '', dossier = '', page = 0, size = 25 } = {}) {
+export async function listClaims({ group = 'todas', status = '', location = '', providerId = '', arsId = '', q = '', from = '', to = '', dossier = '', page = 0, size = 25, realOnly = false } = {}) {
   let query = sb().from('v_claims').select(LIST_COLS, { count: 'exact' });
+  query = await restrictToReal(query, realOnly);
   const g = CLAIM_GROUPS[group];
   if (status) query = query.eq('claim_status', status); else if (g?.statuses) query = query.in('claim_status', g.statuses);
   if (location) query = query.eq('location_code', location);
@@ -69,7 +83,11 @@ export async function listClaims({ group = 'todas', status = '', location = '', 
   if (error) throw error;
   return { data, count: count ?? data.length };
 }
-export async function claimCounts() { return must(await sb().from('v_claims').select('claim_status').limit(20000)); }
+export async function claimCounts({ realOnly = false } = {}) {
+  let q = sb().from('v_claims').select('claim_status, organization_id');
+  q = await restrictToReal(q, realOnly);
+  return must(await q.limit(20000));
+}
 export async function getClaim(id) { return must(await sb().from('v_claims').select('*').eq('id', id).maybeSingle()); }
 export async function claimHistory(id) {
   return must(await sb().from('claim_status_history').select('id, from_status, to_status, from_location, to_location, custodian_label, comment, is_override, evidence_document_id, changed_by, changed_at')
@@ -205,7 +223,7 @@ export async function claimResubmissions(id) {
   return must(await sb().from('claim_resubmissions').select('id, reason, created_at, created_by, from:from_submission_id(id, folio), to:to_submission_id(id, folio)').eq('service_line_id', id).order('created_at'));
 }
 /** Tiempos por etapa (días) por ARS y total */
-export async function stageTimes() { return must(await sb().from('v_stage_times').select('*')); }
+export async function stageTimes({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_stage_times_real' : 'v_stage_times').select('*')); }
 /** Lote original y complementarios de una radicación */
 export async function submissionFamily(id) {
   const self = must(await sb().from('submissions').select('id, parent_submission_id, is_complementary, parent:parent_submission_id(id, folio, status)').eq('id', id).maybeSingle());
@@ -220,7 +238,14 @@ export async function submissionClaimMoney(id) {
 // ---- 1.7 · B4: e-CF del lote y preparación e-CF del cliente
 export async function setSubmissionEcf(id, v) { must(await sb().rpc('set_submission_ecf', { p_submission: id, p_ncf: v.ncf, p_security_code: v.code, p_signed_on: v.signed, p_dgii_status: v.status })); return true; }
 export async function setClientEcf(orgId, v) { must(await sb().rpc('set_client_ecf', { p_org: orgId, p_status: v.status, p_provider: v.provider || null, p_required_from: v.from, p_ready_on: v.ready || null })); return true; }
-export async function ecfReadiness() { return must(await sb().from('v_ecf_readiness').select('*').order('days_left')); }
+export async function ecfReadiness({ realOnly = false } = {}) {
+  let q = sb().from('v_ecf_readiness').select('*');
+  if (realOnly) {
+    const ids = await realOrgIds();
+    q = ids.length ? q.in('id', ids) : q.eq('id', '00000000-0000-0000-0000-000000000000');
+  }
+  return must(await q.order('days_left'));
+}
 
 // ---------------------------------------------------------------- Posibles duplicados antes de radicar
 export async function claimDuplicateCandidates(ids = null, submissionId = null) {
