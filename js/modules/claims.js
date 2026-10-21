@@ -143,13 +143,16 @@ export async function render(main, ctx) {
     return { ...res, dups };
   }, (res) => {
     rows = res.data; dupMap = new Map();
-    (res.dups || []).forEach((d) => { const a = dupMap.get(d.line_id) || []; a.push(d); dupMap.set(d.line_id, a); }); [...sel].forEach((id) => { if (!rows.some((r) => r.id === id)) sel.delete(id); }); drawBulk();
+    (res.dups || []).forEach((d) => { const a = dupMap.get(d.line_id) || []; a.push(d); dupMap.set(d.line_id, a); });
+    const coreIds = new Set();
+    (res.dups || []).filter(coreMatch).forEach((d) => { coreIds.add(d.line_id); coreIds.add(d.other_line_id); });
+    [...sel].forEach((id) => { if (!rows.some((r) => r.id === id)) sel.delete(id); }); drawBulk();
     return html`<div class="table-wrap"><table class="t cards"><thead><tr>
       <th><label class="sr-only" for="all">Seleccionar todas</label><input type="checkbox" id="all"></th>
       <th>Folio</th><th>Servicio</th><th>Paciente</th><th>Duplicado</th>${staff || rows.some((r) => r.provider_name) ? html`<th>Médico · ARS</th>` : ''}<th class="n">Reclamado</th><th>Estado</th><th>Expediente</th><th>Dónde está · responsable</th>${money_ ? html`<th class="n">Saldo</th>` : ''}</tr></thead>
-    <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer">
+    <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); const core = coreIds.has(c.id); return html`<tr data-id="${c.id}" style="cursor:pointer;${core ? 'outline:2px solid var(--bad);outline-offset:-2px;background:color-mix(in srgb,var(--bad) 8%,transparent)' : ''}">
       <td data-l="Seleccionar"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Seleccionar ${c.folio}"></td>
-      <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
+      <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a>${core ? html`<div style="margin-top:4px"><span class="pill bad">COINCIDENCIA EXACTA</span></div><div class="small" style="color:var(--bad);font-weight:600">NSS + fecha servicio + fecha autorización</div>` : ''}<div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
       <td data-l="Servicio">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
       <td data-l="Paciente">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
       <td data-l="Duplicado">${(() => {
@@ -205,6 +208,12 @@ export async function render(main, ctx) {
   }
 
   // ------------------------------------------------------------ eventos
+  $('#coreDup', main)?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-core-review]');
+    if (!b) return;
+    reviewDuplicateDialog(b.dataset.coreReview, b.dataset.coreOther)
+      .catch((err) => toast(friendlyError(err), 'bad'));
+  });
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (!b) return; st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0; drawTabs(); load(); });
   let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
   [['#fx', 'dossier'], ['#fs', 'status'], ['#fl', 'location'], ['#fp', 'providerId'], ['#fa', 'arsId'], ['#ff', 'from'], ['#ft', 'to']].forEach(([s, k]) =>

@@ -2,13 +2,17 @@ name: SOFA Static App CI
 
 on:
   push:
-    branches: ["main", "architecture/mvp-production-v1"]
+    branches: ["main", "architecture/mvp-production-v1", "feature/radicacion-ciclos-sugeridos"]
     paths:
       - "js/**/*.js"
+      - "supabase/migrations/*.sql"
+      - "qa/*.sql"
       - ".github/workflows/static-app-ci.yml"
   pull_request:
     paths:
       - "js/**/*.js"
+      - "supabase/migrations/*.sql"
+      - "qa/*.sql"
       - ".github/workflows/static-app-ci.yml"
 
 jobs:

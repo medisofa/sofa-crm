@@ -36,12 +36,12 @@ export async function patientLookup(provider, q) {
  *  - notContracted: 'bloquear' (defecto) | 'pendiente' | 'excepcion' (admin, exceptionReason ≥ 10)
  */
 export async function captureClaim(v) {
-  return must(await sb().rpc('capture_claim', {
+  return must(await sb().rpc('capture_claim_unassigned', {
     p_provider: v.provider, p_ars: v.ars, p_procedure: v.procedure, p_service_date: v.serviceDate,
     p_patient_name: v.patientName, p_member: v.member, p_authorization: v.authorization || null, p_patient_doc: v.patientDoc || null,
     p_amount: v.amount ?? null, p_quantity: v.quantity || 1, p_care_mode: v.careMode || null, p_clinic: v.clinic || null, p_notes: v.notes || null,
     p_discrepancy_reason: v.discrepancyReason || null, p_not_contracted: v.notContracted || 'bloquear', p_exception_reason: v.exceptionReason || null,
-    p_allow_duplicate: !!v.allowDuplicate
+    p_allow_duplicate: !!v.allowDuplicate, p_center: v.center || null, p_diagnosis: v.diagnosis || null
   }));
 }
 /** Reclamaciones del día del usuario en la captura (para la lista lateral) */

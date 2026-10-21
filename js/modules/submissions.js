@@ -13,6 +13,9 @@ const daysTo = (iso) => (iso ? Math.round((new Date(`${iso}T00:00:00`) - new Dat
 
 export async function render(main, ctx) {
   if (ctx.arg) { const m = await import('./submission.js'); return m.render(main, ctx); }
+  const cycles = await import('./radication-cycles.js');
+  return cycles.render(main, ctx);
+  /* Flujo legado conservado debajo durante la transición; queda inaccesible sin ctx.arg. */
   const staff = isStaff(ctx.role);
   const st = { group: staff && ctx.role !== 'auditor' ? 'preparacion' : 'todas', arsId: '', period: '', q: '', page: 0 };
   paint(main, html`
