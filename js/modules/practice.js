@@ -5,6 +5,7 @@ import { money, num, date } from '../utils/formatters.js';
 import { captureProviders } from '../services/claims.js';
 import { practiceDashboard } from '../services/consultorio.js';
 import { getDashboardPreference, setDashboardPreference } from '../services/dashboard-preferences.js';
+import { visibleNav } from '../utils/permissions.js';
 
 export async function render(main, ctx) {
   paint(main, html`<div class="page-head"><div class="t"><h2>Mi práctica</h2><p>Lo que cobraste, lo que te deben las ARS y lo que falta para cobrarlo.</p></div></div>
@@ -15,7 +16,7 @@ export async function render(main, ctx) {
       <button type="button" data-view="compacto" aria-pressed="false">Compacto</button>
     </div>
     <div class="small muted" id="dashHint" style="margin-bottom:12px">Vista financiera y de decisiones.</div>
-    <div id="d"></div>`);
+    <div id="d"></div><div id="modules" style="margin-top:18px"></div>`);
   const provs = await captureProviders().catch(() => []);
   if (!$('#d', main)) return;
   if (!provs.length) { paint($('#d', main), emptyView('Sin médicos', 'No hay médicos visibles para tu usuario.')); return; }
@@ -59,6 +60,13 @@ export async function render(main, ctx) {
       </div>`);
   }
   $('#dashViews', main)?.addEventListener('click', async (e) => { const b = e.target.closest('[data-view]'); if (!b) return; const id = $('#pr_p', main)?.value || provs[0].id; const provider = provs.find((p) => p.id === id) || provs[0]; dashboardView = b.dataset.view; syncViewButtons(); try { await setDashboardPreference(provider.organization_id, dashboardView); await load(); } catch (err) { toast(friendlyError(err), 'bad'); } });
+  const modulesBox = $('#modules', main);
+  if (modulesBox) {
+    const groups = visibleNav(ctx.role).filter((g) => g.group !== 'Mi cuenta')
+      .map((g) => ({ ...g, items: g.items.filter((i) => !['mi-dashboard','practica'].includes(i.route)) }))
+      .filter((g) => g.items.length);
+    paint(modulesBox, html`<h2 style="margin-bottom:10px">Mis módulos</h2><div class="grid two">${groups.map((g) => html`<div class="card"><div class="small muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">${g.group}</div><div class="list" style="margin-top:6px">${g.items.map((i) => html`<a class="li" href="#/${i.route}" style="text-decoration:none;color:inherit"><div class="b"><div class="t1">${i.label}</div></div><span>›</span></a>`)}</div></div>`)}</div>`);
+  }
   $('#pr_p', main)?.addEventListener('change', load);
   load();
 }
