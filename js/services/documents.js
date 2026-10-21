@@ -83,3 +83,19 @@ export async function deleteDocument(doc) {
   await sb().storage.from(doc.bucket || BUCKET).remove([doc.storage_path]).catch(() => {});
 }
 export const sizeLabel = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+
+/** Revisión SOFA de documentos A–E */
+export async function listClientDocumentReviews(orgId) {
+  return must(await sb().from('client_document_reviews')
+    .select('document_id, organization_id, status, notes, reviewed_by, reviewed_at, updated_at')
+    .eq('organization_id', orgId)
+    .order('updated_at', { ascending: false }));
+}
+export async function reviewClientDocument(documentId, status, notes = '') {
+  return must(await sb().rpc('review_client_document', {
+    p_document: documentId,
+    p_status: status,
+    p_notes: notes || null
+  }));
+}
