@@ -2,7 +2,7 @@
  *  Una sola cola, en orden, con lo que hay que hacer hoy: capturas incompletas, lotes por radicar, glosas por responder y cobros por escalar.
  *  Facturación ve solo lo suyo; Super Admin, Administrador y Operaciones ven todo lo que su acceso permite y administran asignaciones y ausencias.
  *  La cola se calcula en la base de datos desde las tablas existentes (no guarda copias) y el servidor vuelve a verificar el rol en cada función. */
-import { rpc, h, money, fmtDate, note, kpi, table, guarded, clientOptions, clientName } from '../services/iter18.js';
+import { rpc, h, money, fmtDate, note, kpi, table, guarded, realClientOptions, clientName } from '../services/iter18.js';
 import { canOpen } from '../utils/permissions.js';
 
 const TYPES = { captura_incompleta: 'Capturas incompletas', lote_por_radicar: 'Lotes por radicar', glosa_responder: 'Glosas por responder', cobro_escalar: 'Cobros por escalar' };
@@ -109,7 +109,7 @@ export async function render(root, ctx = {}) {
     const d = await guarded(box, () => rpc('inbox_assignments_list'));
     if (!d) return;
     let clients = [];
-    try { clients = await clientOptions(); } catch (e) { box.append(note(e.message, 'error')); }
+    try { clients = await realClientOptions(); } catch (e) { box.append(note(e.message, 'error')); }
     const org = h('select', { id: 'mb-as-org' }, h('option', { value: '' }, 'Elija un cliente…'), clients.map((c) => h('option', { value: c.id }, clientName(c))));
     const who = h('select', { id: 'mb-as-who' }, h('option', { value: '' }, 'Elija a la persona…'), d.billers.map((b) => h('option', { value: b.user_id }, b.name)));
     const typ = h('select', { id: 'mb-as-type' }, h('option', { value: '' }, 'Todos los tipos de tarea'), d.types.map((t) => h('option', { value: t.code }, t.label)));

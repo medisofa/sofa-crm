@@ -4,7 +4,7 @@ import { loadInto, emptyView } from '../utils/ui.js';
 import { listTasks, taskCounts } from '../services/tasks.js';
 import { PRIORITIES } from '../utils/constants.js';
 import { date } from '../utils/formatters.js';
-import { can } from '../utils/permissions.js';
+import { can, isStaff } from '../utils/permissions.js';
 import { taskDialog } from './crm-dialogs.js';
 import { taskAction } from './opportunity.js';
 
@@ -12,7 +12,7 @@ const TABS = [['hoy', 'Hoy'], ['vencidas', 'Vencidas'], ['proximas', 'Próximas'
 const link = (t) => (t.entity_type === 'opportunity' ? `#/oportunidades/${t.entity_id}` : t.entity_type === 'organization' ? `#/clientes/${t.entity_id}` : null);
 
 export async function render(main, ctx) {
-  const edit = can('tasks.edit', ctx.role);
+  const edit = can('tasks.edit', ctx.role); const staff = isStaff(ctx.role);
   const st = { bucket: 'hoy', mine: true };
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Tareas</h2><p>Lo que hay que hacer, ligado a oportunidades, clientes y más adelante a radicaciones y glosas.</p></div>
@@ -23,10 +23,10 @@ export async function render(main, ctx) {
   const box = $('#l', main);
   const drawTabs = async () => {
     let c = { hoy: 0, vencidas: 0, proximas: 0, completadas: 0 };
-    try { c = await taskCounts(st.mine ? ctx.session.user.id : ''); } catch { /* sin conteo */ }
+    try { c = await taskCounts(st.mine ? ctx.session.user.id : '', { realOnly: staff }); } catch { /* sin conteo */ }
     paint($('#tabs', main), html`${TABS.map(([k, l]) => html`<button data-b="${k}" aria-pressed="${st.bucket === k}">${l}<span class="c" style="${k === 'vencidas' && c[k] ? 'color:var(--bad)' : ''}">${c[k]}</span></button>`)}`);
   };
-  const load = () => { drawTabs(); return loadInto(box, () => listTasks({ bucket: st.bucket, assignee: st.mine ? ctx.session.user.id : '' }), (list) => html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Tarea</th><th>Sobre</th><th>Vence</th><th>Responsable</th><th></th></tr></thead>
+  const load = () => { drawTabs(); return loadInto(box, () => listTasks({ bucket: st.bucket, assignee: st.mine ? ctx.session.user.id : '', realOnly: staff }), (list) => html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Tarea</th><th>Sobre</th><th>Vence</th><th>Responsable</th><th></th></tr></thead>
     <tbody>${list.map((t) => html`<tr>
       <td data-l="Tarea"><b>${t.title}</b> <span class="pill ${(PRIORITIES[t.priority] || ['', ''])[1]}">${(PRIORITIES[t.priority] || [t.priority])[0]}</span>${t.notes ? html`<div class="small muted">${t.notes}</div>` : ''}</td>
       <td data-l="Sobre">${link(t) ? html`<a href="${link(t)}">${t.entity_label || 'Ver'}</a>` : (t.entity_label || '—')}</td>

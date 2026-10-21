@@ -28,6 +28,7 @@ async function read(query) {
   return data || [];
 }
 export const clientOptions = () => read(supabase.from('organizations').select('id, legal_name, trade_name').eq('kind', 'client').order('legal_name'));
+export const realClientOptions = () => read(supabase.from('sofa_real_client_organizations').select('id, legal_name').order('legal_name'));
 export const providerOptions = () => read(supabase.from('providers').select('id, full_name, organization_id').eq('is_active', true).order('full_name'));
 export const pendingMessages = () => read(supabase.from('message_queue').select('id, kind, provider_id, organization_id, to_phone, subject, body, scheduled_for, status, patient_id').eq('status', 'pendiente').order('scheduled_for').limit(300));
 export const recentSummaries = () => read(supabase.from('message_queue').select('id, provider_id, organization_id, subject, body, scheduled_for, status').eq('kind', 'resumen_semanal').order('scheduled_for', { ascending: false }).limit(40));
