@@ -13,7 +13,12 @@ const ROUTE = { agenda: 'agenda', captura_rapida: 'captura', reclamaciones: 'rec
   nueva_cita: 'agenda', retiros_fisicos: 'retiros', radicacion: 'radicaciones' };
 const goTo = (c) => { location.hash = `#/${ROUTE[c] || c}`; };
 
-export async function render(root, { onOpen = goTo, role = null } = {}) {
+export async function render(root, ctx = {}) {
+  const { onOpen = goTo, role = null } = ctx;
+  if (role === 'client') {
+    const m = await import('./practice.js');
+    return m.render(root, ctx);
+  }
   root.replaceChildren();
   const box = h('div', { 'aria-live': 'polite' });
   root.append(box);   // el título «Mi dashboard» ya lo muestra la barra superior
