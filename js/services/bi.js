@@ -58,9 +58,14 @@ export async function feesInRange(f) {
   return must(await q.gte('period', first(f.from)).lte('period', first(f.to)).limit(20000));
 }
 export async function clientOptions() { return must(await sb().from('sofa_real_client_organizations').select('id, legal_name').order('legal_name').limit(2000)); }
-export async function workQueue() { return must(await sb().rpc('work_queue')); }
-export async function growthMonthly() { return must(await sb().from('v_growth_monthly').select('*').order('month')); }
-export async function mrr() { return must(await sb().from('v_mrr').select('*').limit(1).maybeSingle()); }
+export async function workQueue({ realOnly = false } = {}) {
+  const rows = must(await sb().rpc('work_queue'));
+  if (!realOnly) return rows;
+  const ids = new Set(await realClientIds());
+  return rows.filter((r) => !r.organization_id || ids.has(r.organization_id));
+}
+export async function growthMonthly({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_growth_monthly_real' : 'v_growth_monthly').select('*').order('month')); }
+export async function mrr({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_mrr_real' : 'v_mrr').select('*').limit(1).maybeSingle()); }
 export async function pipelineTotals() { return must(await sb().from('v_pipeline').select('stage, opportunities, monthly_value, weighted_value')); }
 export async function growthTargets() { return must(await sb().from('growth_targets').select('*').order('ends_on')); }
 export async function settings() { const { getSettings } = await import('./admin.js'); return getSettings(); }   // 4.7.0 (SEG-29): por app_settings_staff()
