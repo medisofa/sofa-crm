@@ -39,7 +39,7 @@ export async function render(main, ctx) {
     const tb = $('#today', main);
     loadInto(tb, async () => {
       const me = ctx.session.user.id;
-      const [late, today, opps] = await Promise.all([listTasks({ bucket: 'vencidas', assignee: me }), listTasks({ bucket: 'hoy', assignee: me }),
+      const [late, today, opps] = await Promise.all([listTasks({ bucket: 'vencidas', assignee: me, realOnly: true }), listTasks({ bucket: 'hoy', assignee: me, realOnly: true }),
         canSee('oportunidades', ctx.role) ? listOpportunities({}).then((r) => r.filter((o) => o.overdue)) : Promise.resolve([])]);
       return { tasks: [...late, ...today], opps };
     }, ({ tasks, opps }) => html`<div class="list">
