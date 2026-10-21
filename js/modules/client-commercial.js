@@ -159,15 +159,15 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
     const latest = files[0] || null;
     const { review, status } = reviewState(latest);
     const legal = ['A','B'].includes(code);
-    return html`<div class="li" style="align-items:flex-start">
-      <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:800">${code}</div>
+    return html`<div class="li commercial-doc-row">
+      <div class="commercial-doc-code">${code}</div>
       <div class="b">
         <div class="t1">${title}</div>
         <div class="t2">${legal ? 'Modelo de trabajo · requiere revisión legal antes de firma/uso.' : 'Modelo operativo editable.'}</div>
         <div class="small" style="margin-top:5px"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${sizeLabel(latest.size_bytes)} · ${dateTime(latest.uploaded_at)}` : ''}</div>
         ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:6px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
       </div>
-      <div class="toolbar" style="margin:0">
+      <div class="toolbar commercial-doc-actions">
         <button class="btn sm" data-model="${code}" type="button">Descargar modelo</button>
         ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
         ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Subir nueva versión' : 'Subir documento'}<input type="file" data-upload-doc="${code}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
@@ -176,8 +176,8 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
     </div>`;
   };
 
-  const documentD = (list) => html`<div class="li" style="align-items:flex-start">
-    <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:800">D</div>
+  const documentD = (list) => html`<div class="li commercial-doc-row">
+    <div class="commercial-doc-code">D</div>
     <div class="b">
       <div class="t1">Carta de representación ante ARS</div>
       <div class="t2">Se gestiona una carta independiente por cada ARS vinculada al cliente.</div>
@@ -186,13 +186,13 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
           const ids = new Set(arsLinks.filter((x) => x.ars_id === a.ars_id).map((x) => x.document_id));
           const latest = list.find((d) => d.document_type_code === 'carta_ars' && ids.has(d.id)) || null;
           const { review, status } = reviewState(latest);
-          return html`<div class="li" style="align-items:flex-start">
+          return html`<div class="li commercial-doc-ars-row">
             <div class="b">
               <div class="t1">${a.ars_name}</div>
               <div class="small"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${dateTime(latest.uploaded_at)}` : ''}</div>
               ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:5px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
             </div>
-            <div class="toolbar" style="margin:0">
+            <div class="toolbar commercial-doc-actions">
               <button class="btn sm" data-model="D" data-model-ars="${a.ars_name}" type="button">Descargar modelo</button>
               ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
               ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Nueva versión' : 'Subir carta'}<input type="file" data-upload-doc="D" data-upload-ars="${a.ars_id}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
