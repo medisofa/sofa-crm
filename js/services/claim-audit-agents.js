@@ -12,7 +12,7 @@ const result = (code, status, detail, source = 'local_rule') => ({ code, status,
  * @param {object} context
  * @param {boolean} context.isDemo Bandera obtenida del servidor, no del navegador.
  * @param {Array<object>} context.duplicateCandidates Respuesta autorizada de claim_duplicate_candidates.
- * @param {object|null} context.arsCoverage Evidencia de una integración ARS autorizada.
+ * La cobertura ARS no se acepta como dato autoafirmado por el cliente.
  * @returns {{decision:string,checks:Array<object>,requiresHumanReview:boolean,externalVerified:boolean,isDemo:boolean}}
  */
 export function preauditClaim(claim, context = {}) {
@@ -35,6 +35,24 @@ export function preauditClaim(claim, context = {}) {
   } else {
     checks.push(result('amount', 'pass', 'Monto administrativo válido; tarifa contractual no verificada'));
   }
+  // La tarifa proviene de la fotografía contractual de SOFA, no de la validación ARS.
+  if (claim.contracted === false) {
+    checks.push(result('contract', 'pending', 'Servicio no contratado: requiere configuración o excepción autorizada'));
+  } else if (claim.contracted === true) {
+    checks.push(result('contract', 'pass', 'Servicio marcado como contratado; verificar vigencia y soporte documental'));
+  } else {
+    checks.push(result('contract', 'pending', 'No hay evidencia suficiente del contrato aplicable'));
+  }
+  const charged = Number(claim.amount);
+  const tariff = Number(claim.tariff_amount);
+  if (claim.contracted === true && claim.tariff_amount != null &&
+      Number.isFinite(charged) && Number.isFinite(tariff) && charged > 0 && tariff > 0) {
+    const delta = Math.abs(charged - tariff);
+    checks.push(result('tariff', delta < 0.01 ? 'pass' : 'pending',
+      delta < 0.01 ? 'Monto coincide con tarifa registrada' : 'Diferencia con tarifa: revisar justificación o autorización'));
+  } else {
+    checks.push(result('tariff', 'pending', 'Comparación contractual no disponible'));
+  }
   if (context.duplicateCandidates == null) {
     checks.push(result('duplicate', 'pending', 'No se ha consultado claim_duplicate_candidates'));
   } else if (!Array.isArray(context.duplicateCandidates)) {
@@ -44,12 +62,8 @@ export function preauditClaim(claim, context = {}) {
   } else {
     checks.push(result('duplicate', 'pass', 'Sin bloqueos devueltos por el detector de duplicados', 'claim_duplicate_candidates'));
   }
-  // No interpretar un objeto libre de terceros como validación oficial de afiliación.
-  if (context.arsCoverage?.verified === true && context.arsCoverage?.source === 'authorized_ars_api' && context.arsCoverage?.verifiedAt) {
-    checks.push(result('ars_coverage', context.arsCoverage.active === true ? 'pass' : 'block', 'Respuesta registrada de integración ARS autorizada', 'authorized_ars_api'));
-  } else {
-    checks.push(result('ars_coverage', 'pending', 'Afiliación y cobertura no verificadas con la ARS'));
-  }
+  // Ninguna respuesta ARS enviada desde el navegador cuenta como prueba oficial.
+  checks.push(result('ars_coverage', 'pending', 'Afiliación y cobertura requieren consulta oficial autenticada desde backend'));
   checks.push(result('coding', 'pending', 'Codificación/PDSS, diagnóstico y contrato requieren reglas vigentes verificadas'));
   checks.push(result('fiscal', 'pending', 'NCF/e-CF y documentos fiscales requieren verificación específica'));
   const decision = checks.some(c => c.status === 'block') ? 'correction_required' : 'human_review_required';
@@ -57,7 +71,7 @@ export function preauditClaim(claim, context = {}) {
     decision,
     checks,
     requiresHumanReview: true,
-    externalVerified: checks.some(c => c.code === 'ars_coverage' && c.source === 'authorized_ars_api' && c.status === 'pass'),
+    externalVerified: false,
     isDemo: context.isDemo,
   };
 }
