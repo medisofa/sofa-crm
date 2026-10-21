@@ -2,7 +2,7 @@
  *  Sin proveedor externo: el mensaje se abre en WhatsApp (wa.me) con un clic y se marca como enviado.
  *  2.9 · Iteración 39: los mensajes al paciente pueden llevar su enlace al portal ({enlace}). El enlace se crea
  *  en el momento de enviar (nunca se guarda en el mensaje) y la pantalla muestra los pedidos que llegan desde el portal. */
-import { rpc, pendingMessages, recentSummaries, h, num, fmtDate, note, guarded } from '../services/iter18.js';
+import { rpc, realPendingMessages, realRecentSummaries, h, num, fmtDate, note, guarded } from '../services/iter18.js';
 
 const KIND = { recordatorio_cita: 'Recordatorio de cita', seguimiento_cita: 'Seguimiento después de la cita', control_pendiente: 'Consulta de control', reprogramar_cita: 'Reprogramar cita (no asistió)', cobro_pendiente: 'Recordatorio de pago', resumen_semanal: 'Resumen semanal' };
 // RD: números locales de 10 dígitos (809/829/849) -> prefijo 1. Si ya trae código de país, se respeta.
@@ -38,7 +38,7 @@ export async function render(root) {
   genSum.addEventListener('click', () => act(genSum, () => rpc('generate_weekly_summaries', {}), (n) => `${num(n)} resumen(es) nuevo(s). Cada médico también recibe una notificación en SOFA.`));
 
   async function load() {
-    const q = await guarded(out, async () => ({ pend: await pendingMessages(), sums: await recentSummaries() }));
+    const q = await guarded(out, async () => ({ pend: await realPendingMessages(), sums: await realRecentSummaries() }));
     if (!q) return;
     loadRequests();
     out.replaceChildren(

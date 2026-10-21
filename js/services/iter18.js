@@ -32,6 +32,15 @@ export const realClientOptions = () => read(supabase.from('sofa_real_client_orga
 export const providerOptions = () => read(supabase.from('providers').select('id, full_name, organization_id').eq('is_active', true).order('full_name'));
 export const pendingMessages = () => read(supabase.from('message_queue').select('id, kind, provider_id, organization_id, to_phone, subject, body, scheduled_for, status, patient_id').eq('status', 'pendiente').order('scheduled_for').limit(300));
 export const recentSummaries = () => read(supabase.from('message_queue').select('id, provider_id, organization_id, subject, body, scheduled_for, status').eq('kind', 'resumen_semanal').order('scheduled_for', { ascending: false }).limit(40));
+async function realClientIds() { return (await read(supabase.from('sofa_real_client_organizations').select('id'))).map((r) => r.id); }
+export async function realPendingMessages() {
+  const ids = await realClientIds(); if (!ids.length) return [];
+  return read(supabase.from('message_queue').select('id, kind, provider_id, organization_id, to_phone, subject, body, scheduled_for, status, patient_id').eq('status', 'pendiente').in('organization_id', ids).order('scheduled_for').limit(300));
+}
+export async function realRecentSummaries() {
+  const ids = await realClientIds(); if (!ids.length) return [];
+  return read(supabase.from('message_queue').select('id, provider_id, organization_id, subject, body, scheduled_for, status').eq('kind', 'resumen_semanal').in('organization_id', ids).order('scheduled_for', { ascending: false }).limit(40));
+}
 
 /** 4.7.0 · «null» visible en pantalla: replaceChildren/append/prepend convierten null, undefined y false en TEXTO («null», «false»).
  *  Varias pantallas arman sus hijos con `cond ? nodo : null`; aquí se ignoran esos valores, igual que hace h(). Se aplica una sola vez. */
