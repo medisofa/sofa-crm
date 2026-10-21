@@ -46,7 +46,7 @@ export async function render(main, ctx) {
 
   const drawTabs = () => $('#tabs', main) && paint($('#tabs', main), html`${Object.entries(CLAIM_GROUPS).map(([k, g]) => html`<button data-g="${k}" aria-pressed="${st.group === k && !st.status}">${g.label}</button>`)}`);
   drawTabs();
-  Promise.all([claimLocations(), claimTransitions(), captureProviders(), activeArs()]).then(([locs, trans, provs, ars]) => {
+  Promise.all([claimLocations(), claimTransitions(), captureProviders({ realOnly: staff }), activeArs()]).then(([locs, trans, provs, ars]) => {
     locations = locs; transitions = trans;
     if (!$('#fl', main)) return;   // el usuario ya salió de la pantalla
     paint($('#fl', main), html`<option value="">Todas las ubicaciones</option>${locs.map((l) => opt(l.code, l.name))}`);
@@ -55,7 +55,7 @@ export async function render(main, ctx) {
     drawBulk();
   }).catch((e) => toast(friendlyError(e), 'bad'));
 
-  claimCounts().then((all) => {
+  claimCounts({ realOnly: staff }).then((all) => {
     if (!$('#k', main)) return;
     const c = (list) => all.filter((r) => list.includes(r.claim_status)).length;
     paint($('#k', main), html`
@@ -130,7 +130,12 @@ export async function render(main, ctx) {
   }
 
   async function loadCoreDuplicates() {
-    try { coreDupPairs = await claimDuplicateCandidates(null, null); }
+    try {
+      if (staff) {
+        const real = await listClaims({ realOnly: true, page: 0, size: 1000 });
+        coreDupPairs = real.data.length ? await claimDuplicateCandidates(real.data.map((x) => x.id), null) : [];
+      } else coreDupPairs = await claimDuplicateCandidates(null, null);
+    }
     catch (_) { coreDupPairs = []; }
     drawCoreDuplicates();
   }
@@ -138,7 +143,7 @@ export async function render(main, ctx) {
   const list = $('#l', main);
   loadCoreDuplicates();
   const load = () => loadInto(list, async () => {
-    const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE });
+    const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff });
     const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null).catch(() => []) : [];
     return { ...res, dups };
   }, (res) => {
@@ -245,7 +250,7 @@ export async function render(main, ctx) {
   });
   $('#csv', main).addEventListener('click', (e) => busy(e.currentTarget, async () => {
     const all = []; let page = 0;
-    for (;;) { const r = await listClaims({ ...st, page, size: 1000 }); all.push(...r.data); if (r.data.length < 1000 || all.length >= 20000) break; page += 1; }
+    for (;;) { const r = await listClaims({ ...st, page, size: 1000, realOnly: staff }); all.push(...r.data); if (r.data.length < 1000 || all.length >= 20000) break; page += 1; }
     const head = ['Folio', 'Fecha servicio', 'Médico', 'ARS', 'Radicación', 'Paciente', 'NSS', 'Autorización', 'Servicio', 'SIMON', 'CUPS', 'Tarifa contractual', 'Reclamado', 'Expediente', 'Estado', 'Ubicación', 'Responsable', 'Próximo paso'];
     if (money_) head.push('Pagado', 'Glosado', 'Saldo');
     downloadCsv(`reclamaciones_${todayISO()}.csv`, head, all.map((c) => {
