@@ -189,7 +189,7 @@ begin
                        from allr a group by a.assignee_id) z), '[]'::jsonb))
     into v_rows;
   return v_rows;
-end $function$
+end $function$;
 
 
 commit;
