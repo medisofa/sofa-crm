@@ -123,7 +123,7 @@ export async function render(main, ctx) {
   }
 
   async function drawGrowth() {
-    const [gm, m, pipe, targets, st] = await Promise.all([growthMonthly(), mrr().catch(() => null), pipelineTotals().catch(() => []), growthTargets().catch(() => []), settings().catch(() => null)]);
+    const [gm, m, pipe, targets, st] = await Promise.all([growthMonthly({ realOnly: true }), mrr({ realOnly: true }).catch(() => null), pipelineTotals().catch(() => []), growthTargets().catch(() => []), settings().catch(() => null)]);
     const target = Number(st?.target_mrr || 0); const current = Number(m?.fixed_monthly || 0) + Number(m?.success_monthly_avg || 0);
     const open = pipe.filter((p) => !['cliente', 'perdido'].includes(p.stage));
     const weighted = sum(open, 'weighted_value'); const oppCount = sum(open, 'opportunities');
