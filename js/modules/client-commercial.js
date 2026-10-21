@@ -8,7 +8,7 @@ import { dateTime } from '../utils/formatters.js';
 import { COMMERCIAL_DOCS, COMMERCIAL_DOC_STATUS, COMMERCIAL_DOC_TYPE } from '../utils/constants.js';
 import { can } from '../utils/permissions.js';
 import { onboardingStatus, setOnboardingStep, activateClient } from '../services/crm.js';
-import { uploadDocument, listDocuments, openDocument, sizeLabel } from '../services/documents.js';
+import { uploadDocument, listDocuments, openDocument, sizeLabel, listClientDocumentReviews, reviewClientDocument } from '../services/documents.js';
 
 const SRC = { automatico: ['Automático', 'ok'], manual: ['Marcado a mano', 'info'], pendiente: ['Pendiente', 'warn'] };
 
@@ -139,10 +139,14 @@ function downloadModel(code, org) {
 
 export function renderCommercialDocs(box, org, ctx, providers = []) {
   const canUpload = can('docs.upload', ctx.role);
-  let docs = [];
+  const canReview = ['super_admin','admin','assistant','operations'].includes(ctx.role);
+  let docs = []; let reviews = [];
 
   const load = () => loadInto(box, async () => {
-    docs = await listDocuments({ entityType: 'organization', entityId: org.id, limit: 200 });
+    [docs, reviews] = await Promise.all([
+      listDocuments({ entityType: 'organization', entityId: org.id, limit: 200 }),
+      listClientDocumentReviews(org.id).catch(() => [])
+    ]);
     return docs;
   }, (list) => html`
     <div class="note info" style="margin-bottom:10px">
@@ -154,19 +158,26 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
         const type = COMMERCIAL_DOC_TYPE[code];
         const files = list.filter((d) => d.document_type_code === type);
         const latest = files[0] || null;
+        const review = latest ? reviews.find((r) => r.document_id === latest.id) : null;
         const legal = ['A','B'].includes(code);
+        const status = !latest ? ['Pendiente','warn']
+          : !review ? ['Cargado por cliente','info']
+          : review.status === 'aprobado' ? ['Aprobado','ok']
+          : review.status === 'requiere_correccion' ? ['Requiere corrección','bad']
+          : ['En revisión SOFA','warn'];
         return html`<div class="li" style="align-items:flex-start">
           <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:800">${code}</div>
           <div class="b">
             <div class="t1">${title}</div>
             <div class="t2">${legal ? 'Modelo de trabajo · requiere revisión legal antes de firma/uso.' : 'Modelo operativo editable.'}</div>
-            ${latest ? html`<div class="small" style="margin-top:5px"><span class="pill ok">Cargado</span> ${latest.file_name} · ${sizeLabel(latest.size_bytes)} · ${dateTime(latest.uploaded_at)}</div>`
-              : html`<div class="small muted" style="margin-top:5px">Aún no se ha cargado este documento.</div>`}
+            <div class="small" style="margin-top:5px"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${sizeLabel(latest.size_bytes)} · ${dateTime(latest.uploaded_at)}` : ''}</div>
+            ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:6px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
           </div>
           <div class="toolbar" style="margin:0">
             <button class="btn sm" data-model="${code}" type="button">Descargar modelo</button>
             ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
-            ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Reemplazar' : 'Subir documento'}<input type="file" data-upload-doc="${code}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
+            ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Subir nueva versión' : 'Subir documento'}<input type="file" data-upload-doc="${code}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
+            ${canReview && latest ? html`<button class="btn sm" data-review-doc="${latest.id}" data-review-code="${code}" type="button">Revisar</button>` : ''}
           </div>
         </div>`;
       })}
@@ -177,6 +188,7 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
   box.addEventListener('click', async (e) => {
     const model = e.target.closest('[data-model]');
     const open = e.target.closest('[data-open-doc]');
+    const reviewBtn = e.target.closest('[data-review-doc]');
     try {
       if (model) downloadModel(model.dataset.model, org);
       if (open) {
@@ -185,6 +197,29 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
           const fallback = await openDocument(doc);
           if (fallback) window.open(fallback, '_blank', 'noopener');
         }
+      }
+      if (reviewBtn) {
+        const current = reviews.find((r) => r.document_id === reviewBtn.dataset.reviewDoc);
+        const ok = await formDialog({
+          title: `Revisar ${reviewBtn.dataset.reviewCode} · ${COMMERCIAL_DOCS[reviewBtn.dataset.reviewCode]}`,
+          submitLabel: 'Guardar revisión',
+          body: html`<div class="field"><label for="cdr_status">Resultado *</label>
+            <select id="cdr_status" name="status">
+              <option value="en_revision" ${current?.status === 'en_revision' ? 'selected' : ''}>En revisión SOFA</option>
+              <option value="aprobado" ${current?.status === 'aprobado' ? 'selected' : ''}>Aprobado</option>
+              <option value="requiere_correccion" ${current?.status === 'requiere_correccion' ? 'selected' : ''}>Requiere corrección</option>
+            </select></div>
+            <div class="field"><label for="cdr_notes">Observaciones</label><textarea id="cdr_notes" name="notes" rows="3" maxlength="600" placeholder="Indique qué debe corregirse o deje una nota de aprobación.">${current?.notes || ''}</textarea></div>`,
+          onSubmit: async (d, form) => {
+            if (d.status === 'requiere_correccion' && String(d.notes || '').trim().length < 5) {
+              fieldError(form.elements.notes, 'Indique qué debe corregir el cliente.');
+              return false;
+            }
+            await reviewClientDocument(reviewBtn.dataset.reviewDoc, d.status, String(d.notes || '').trim());
+            return true;
+          }
+        });
+        if (ok) { toast('Revisión documental guardada', 'ok'); load(); }
       }
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
@@ -205,7 +240,7 @@ export function renderCommercialDocs(box, org, ctx, providers = []) {
         docType: COMMERCIAL_DOC_TYPE[code],
         bucket: 'contracts'
       });
-      toast(`${code} · ${COMMERCIAL_DOCS[code]} guardado en el expediente`, 'ok');
+      toast(`${code} · ${COMMERCIAL_DOCS[code]} guardado. Queda pendiente de revisión SOFA.`, 'ok');
       load();
     } catch (err) {
       toast(friendlyError(err), 'bad');
