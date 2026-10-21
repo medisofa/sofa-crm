@@ -59,7 +59,7 @@ export async function render(main, ctx) {
   };
   const load = async () => {
     paint($('#l', main), loadingView(5));
-    try { items = await workQueue(); drawTabs(); draw(); }
+    try { items = await workQueue({ realOnly: isStaff(ctx.role) }); drawTabs(); draw(); }
     catch (err) { paint($('#l', main), errorView(err)); }
   };
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b) { mode = b.dataset.m; drawTabs(); draw(); } });
