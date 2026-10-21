@@ -7,9 +7,8 @@ import { loadInto, toast, friendlyError, opt, formDialog, fieldError } from '../
 import { dateTime } from '../utils/formatters.js';
 import { COMMERCIAL_DOCS, COMMERCIAL_DOC_STATUS, COMMERCIAL_DOC_TYPE } from '../utils/constants.js';
 import { can } from '../utils/permissions.js';
-import { onboardingStatus, setOnboardingStep, activateClient, listCommercialDocs, getCommercialDoc, generateCommercialDoc, setCommercialDocStatus } from '../services/crm.js';
-import { uploadDocument } from '../services/documents.js';
-import { listArs } from '../services/catalog.js';
+import { onboardingStatus, setOnboardingStep, activateClient } from '../services/crm.js';
+import { uploadDocument, listDocuments, openDocument, sizeLabel } from '../services/documents.js';
 
 const SRC = { automatico: ['Automático', 'ok'], manual: ['Marcado a mano', 'info'], pendiente: ['Pendiente', 'warn'] };
 
@@ -57,31 +56,163 @@ export function renderOnboarding(box, org, ctx, onChange = () => {}) {
   return { reload: load };
 }
 
-/** Documentos A–E: generar, PDF con membrete, estado y copia firmada */
+/** Documentos A–E: modelo editable + carga del documento completado por el médico. */
+const escDoc = (v) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
+const modelName = (code) => `SOFA_Modelo_${code}_${COMMERCIAL_DOCS[code].replace(/[^A-Za-z0-9]+/g,'_')}.doc`;
+
+function modelHtml(code, org) {
+  const name = escDoc(org.legal_name || org.trade_name || '________________');
+  const tax = escDoc(org.tax_id || '________________');
+  const address = escDoc([org.address, org.city].filter(Boolean).join(', ') || '________________');
+  const email = escDoc(org.email || '________________');
+  const phone = escDoc(org.phone || org.whatsapp || '________________');
+  const legal = ['A','B'].includes(code)
+    ? '<p style="border:2px solid #8B0000;padding:10px"><b>MODELO DE TRABAJO — REQUIERE REVISIÓN LEGAL ANTES DE FIRMA O USO.</b></p>'
+    : '<p style="border:1px solid #999;padding:10px"><b>MODELO OPERATIVO.</b> Revise y complete los campos pendientes antes de utilizarlo.</p>';
+
+  const blocks = {
+    A: `
+      <h1>Contrato de servicios SOFA</h1>
+      <p><b>Entre:</b> ${name}, RNC/Cédula ${tax}, con domicilio en ${address}, en adelante “EL CLIENTE”; y SOFA · Soluciones de Facturación Médica, en adelante “SOFA”.</p>
+      <h2>1. Objeto</h2><p>Definir los servicios administrativos y de gestión contratados: ________________________________.</p>
+      <h2>2. Alcance</h2><p>ARS / centros / especialidades incluidas: ________________________________.</p>
+      <h2>3. Honorarios y forma de pago</h2><p>Modalidad y monto: ________________________________.</p>
+      <h2>4. Obligaciones del cliente</h2><p>Entrega oportuna de información, autorizaciones y documentos necesarios para la gestión.</p>
+      <h2>5. Obligaciones de SOFA</h2><p>Gestión diligente, trazabilidad, confidencialidad y reporte del estado de los procesos contratados.</p>
+      <h2>6. Confidencialidad y protección de información</h2><p>Condiciones aplicables: ________________________________.</p>
+      <h2>7. Vigencia, terminación y jurisdicción</h2><p>_______________________________.</p>
+      <p>Firma EL CLIENTE: ____________________ &nbsp;&nbsp; Firma SOFA: ____________________</p>`,
+    B: `
+      <h1>Autorización de representación</h1>
+      <p>Yo, __________________________________, actuando en nombre de ${name}, RNC/Cédula ${tax}, autorizo a SOFA · Soluciones de Facturación Médica a realizar, dentro del alcance contratado, gestiones administrativas relacionadas con facturación, codificación, reclamaciones, radicación, seguimiento y comunicación ante los centros de salud y/o ARS indicados por el cliente.</p>
+      <p><b>Alcance específico autorizado:</b> ________________________________________________.</p>
+      <p><b>ARS / centros aplicables:</b> ________________________________________________.</p>
+      <p><b>Vigencia:</b> desde ____/____/______ hasta ____/____/______ o hasta revocación escrita conforme a lo contratado.</p>
+      <p>Firma: ____________________ &nbsp; Cédula: ____________________ &nbsp; Fecha: ____/____/______</p>`,
+    C: `
+      <h1>Carta de presentación a la clínica / centro de salud</h1>
+      <p>Fecha: ____/____/______</p>
+      <p>Señores<br><b>________________________________</b><br>Ciudad</p>
+      <p>Por medio de la presente, ${name} informa que SOFA · Soluciones de Facturación Médica apoyará la gestión administrativa de sus reclamaciones y procesos de facturación conforme a la autorización otorgada por el cliente.</p>
+      <p>Solicitamos facilitar la coordinación operativa necesaria con el personal autorizado de SOFA para los procesos correspondientes.</p>
+      <p>Contacto del cliente: ${phone} · ${email}</p>
+      <p>Atentamente,</p><p>________________________________<br>Nombre / firma / sello</p>`,
+    D: `
+      <h1>Carta de representación ante ARS</h1>
+      <p>Fecha: ____/____/______</p>
+      <p>Señores<br><b>ARS ________________________________</b></p>
+      <p>Por medio de la presente, ${name}, RNC/Cédula ${tax}, comunica que SOFA · Soluciones de Facturación Médica ha sido autorizada para apoyar las gestiones administrativas vinculadas a facturación, codificación, radicación y seguimiento de reclamaciones, dentro del alcance expresamente autorizado por el cliente.</p>
+      <p><b>Código de prestador:</b> ____________________ &nbsp; <b>Especialidad:</b> ____________________</p>
+      <p><b>Contacto autorizado:</b> ________________________________.</p>
+      <p>Atentamente,</p><p>________________________________<br>Nombre / firma / sello</p>`,
+    E: `
+      <h1>Formulario de implementación SOFA</h1>
+      <table border="1" cellspacing="0" cellpadding="6" width="100%">
+        <tr><td><b>Cliente</b></td><td>${name}</td></tr>
+        <tr><td><b>RNC/Cédula</b></td><td>${tax}</td></tr>
+        <tr><td><b>Dirección</b></td><td>${address}</td></tr>
+        <tr><td><b>Teléfono</b></td><td>${phone}</td></tr>
+        <tr><td><b>Correo</b></td><td>${email}</td></tr>
+        <tr><td><b>Prestador principal</b></td><td>____________________________</td></tr>
+        <tr><td><b>Especialidad</b></td><td>____________________________</td></tr>
+        <tr><td><b>ARS contratadas</b></td><td>____________________________</td></tr>
+        <tr><td><b>Códigos de prestador</b></td><td>____________________________</td></tr>
+        <tr><td><b>Centros / clínicas</b></td><td>____________________________</td></tr>
+        <tr><td><b>Contacto operativo</b></td><td>____________________________</td></tr>
+        <tr><td><b>Frecuencia de retiro / entrega</b></td><td>____________________________</td></tr>
+        <tr><td><b>Observaciones</b></td><td><br><br><br></td></tr>
+      </table>`
+  };
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escDoc(COMMERCIAL_DOCS[code])}</title>
+    <style>body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.45;margin:40px;color:#222}h1{color:#1A365D}h2{font-size:13pt;color:#1A365D}table{border-collapse:collapse}td{vertical-align:top}</style>
+    </head><body>${legal}${blocks[code] || ''}<hr><p style="font-size:9pt;color:#666">SOFA · Soluciones de Facturación Médica · Modelo ${code}. Complete y revise antes de usar.</p></body></html>`;
+}
+
+function downloadModel(code, org) {
+  const blob = new Blob([modelHtml(code, org)], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = modelName(code); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function renderCommercialDocs(box, org, ctx, providers = []) {
+  const canUpload = can('docs.upload', ctx.role);
+  let docs = [];
+
   const load = () => loadInto(box, async () => {
-    try { return await listCommercialDocs(org.id); } catch { return []; }
+    docs = await listDocuments({ entityType: 'organization', entityId: org.id, limit: 200 });
+    return docs;
   }, (list) => html`
-    <div class="note warn" style="margin-bottom:10px">
-      <b>Documentos A–E en preparación.</b><br>
-      Las plantillas todavía no están aprobadas para uso operativo. La generación, descarga, cambio de estado y carga de firmas permanecen deshabilitados hasta completar la revisión documental y legal.
+    <div class="note info" style="margin-bottom:10px">
+      <b>Cómo usar esta sección</b><br>
+      1. Descarga el modelo. 2. Complétalo y fírmalo cuando corresponda. 3. Súbelo aquí. SOFA conservará el archivo en el expediente privado del cliente.
     </div>
     <div class="list">
       ${Object.entries(COMMERCIAL_DOCS).map(([code, title]) => {
-        const latest = list.find((d) => d.template_code === code);
-        return html`<div class="li">
+        const type = COMMERCIAL_DOC_TYPE[code];
+        const files = list.filter((d) => d.document_type_code === type);
+        const latest = files[0] || null;
+        const legal = ['A','B'].includes(code);
+        return html`<div class="li" style="align-items:flex-start">
+          <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:800">${code}</div>
           <div class="b">
-            <div class="t1"><b>${code}</b> · ${title}</div>
-            <div class="t2">${latest ? `Existe un borrador histórico generado ${dateTime(latest.created_at)}; no debe utilizarse.` : 'Plantilla pendiente de validación.'}</div>
+            <div class="t1">${title}</div>
+            <div class="t2">${legal ? 'Modelo de trabajo · requiere revisión legal antes de firma/uso.' : 'Modelo operativo editable.'}</div>
+            ${latest ? html`<div class="small" style="margin-top:5px"><span class="pill ok">Cargado</span> ${latest.file_name} · ${sizeLabel(latest.size_bytes)} · ${dateTime(latest.uploaded_at)}</div>`
+              : html`<div class="small muted" style="margin-top:5px">Aún no se ha cargado este documento.</div>`}
           </div>
-          <span class="pill warn">No disponible</span>
-          <button class="btn sm" disabled title="Pendiente de aprobación documental y legal">Usar documento</button>
+          <div class="toolbar" style="margin:0">
+            <button class="btn sm" data-model="${code}" type="button">Descargar modelo</button>
+            ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
+            ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Reemplazar' : 'Subir documento'}<input type="file" data-upload-doc="${code}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
+          </div>
         </div>`;
       })}
     </div>
-    <p class="small muted">Cuando cada plantilla sea aprobada, se habilitará individualmente con versión, fecha de vigencia y responsable de aprobación. Los documentos ya generados antes de esta corrección se consideran borradores históricos.</p>
+    <p class="small muted">Formatos aceptados al subir: PDF, JPG o PNG, máximo 10 MB. Los modelos son ayudas de gestión; A y B deben ser revisados y aprobados legalmente antes de su uso definitivo.</p>
   `, { isEmpty: () => false });
+
+  box.addEventListener('click', async (e) => {
+    const model = e.target.closest('[data-model]');
+    const open = e.target.closest('[data-open-doc]');
+    try {
+      if (model) downloadModel(model.dataset.model, org);
+      if (open) {
+        const doc = docs.find((d) => d.id === open.dataset.openDoc);
+        if (doc) {
+          const fallback = await openDocument(doc);
+          if (fallback) window.open(fallback, '_blank', 'noopener');
+        }
+      }
+    } catch (err) { toast(friendlyError(err), 'bad'); }
+  });
+
+  box.addEventListener('change', async (e) => {
+    const input = e.target.closest('[data-upload-doc]');
+    if (!input || !input.files?.[0]) return;
+    const code = input.dataset.uploadDoc;
+    const file = input.files[0];
+    try {
+      input.disabled = true;
+      toast('Subiendo documento…');
+      await uploadDocument({
+        orgId: org.id,
+        file,
+        entityType: 'organization',
+        entityId: org.id,
+        docType: COMMERCIAL_DOC_TYPE[code],
+        bucket: 'contracts'
+      });
+      toast(`${code} · ${COMMERCIAL_DOCS[code]} guardado en el expediente`, 'ok');
+      load();
+    } catch (err) {
+      toast(friendlyError(err), 'bad');
+      input.disabled = false;
+    }
+  });
+
   load();
   return { reload: load };
 }
-
