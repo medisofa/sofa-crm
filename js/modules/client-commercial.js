@@ -139,7 +139,7 @@ function downloadModel(code, org, arsName = '') {
 }
 
 export function renderCommercialDocs(box, org, ctx, providers = []) {
-  const canUpload = can('docs.upload', ctx.role);
+  const canUpload = can('docs.upload', ctx.role) || can('clientdocs.upload', ctx.role);
   const canReview = ['super_admin','admin','assistant','operations'].includes(ctx.role);
   let docs = []; let reviews = []; let arsOptions = []; let arsLinks = [];
 
