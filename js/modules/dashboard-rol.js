@@ -2,19 +2,47 @@
  *  Muestra una sección por cada rol del usuario (lo decide la base con my_dashboard) y accesos a sus módulos.
  *  onOpen(code) lo provee el router para abrir un módulo desde un acceso directo. */
 import { rpc, h, money, num, note, guarded } from '../services/iter18.js';
-import { visibleNav } from '../utils/permissions.js';
+import { visibleNav, canSee } from '../utils/permissions.js';
 
 const LABEL = { agenda: 'Agenda', captura_rapida: 'Captura rápida', reclamaciones: 'Reclamaciones', trabajo_hoy: 'Trabajo de hoy',
   nueva_cita: 'Nueva cita', retiros_fisicos: 'Retiros físicos', radicacion: 'Radicación' };
 const fmt = (k) => (k.unit === 'RD$' ? money(k.value) : num(k.value));
 
-const KPI_ROUTE = [
-  [/cartera radicada por cobrar/i, ['cartera', 'Abrir Cartera']],
-  [/honorarios de sofa vencidos/i, ['honorarios', 'Abrir Honorarios SOFA']],
-  [/clientes activos/i, ['clientes', 'Abrir Clientes']],
-  [/alertas abiertas/i, ['mi-bandeja', 'Abrir Mi bandeja']]
-];
-const kpiRoute = (label = '') => (KPI_ROUTE.find(([re]) => re.test(String(label))) || [null, null])[1];
+const KPI_ROUTE = {
+  citas_hoy: ['agenda', 'Abrir Agenda'],
+  atendidas_mes: ['pacientes', 'Abrir Pacientes'],
+  reclamado_mes: ['reclamaciones', 'Abrir Reclamaciones'],
+  por_cobrar: ['mi-dinero', 'Abrir Mi dinero'],
+  deuda_sofa: ['mi-cuenta-sofa', 'Abrir Mi cuenta con SOFA'],
+
+  citas_manana: ['agenda', 'Abrir Agenda'],
+  sin_confirmar: ['verificacion', 'Abrir Verificación de mañana'],
+  whatsapp_pendientes: ['mensajes', 'Abrir Mensajes'],
+
+  borradores: ['radicaciones', 'Abrir Radicaciones'],
+  en_depuracion: ['reclamaciones', 'Abrir Reclamaciones'],
+  pendiente_documentos: ['expediente', 'Abrir Expediente digital'],
+  listos_radicar: ['radicaciones', 'Abrir Radicaciones'],
+
+  abiertas: ['glosas', 'Abrir Glosas'],
+  vencen_7d: ['reconsideracion', 'Abrir Reconsideración de glosas'],
+  vencidas: ['reconsideracion', 'Abrir Reconsideración de glosas'],
+  arbitraje: ['glosas', 'Abrir Glosas'],
+
+  oportunidades: ['oportunidades', 'Abrir Oportunidades'],
+  pipeline_ponderado: ['oportunidades', 'Abrir Oportunidades'],
+  acciones_vencidas: ['oportunidades', 'Abrir Oportunidades'],
+  prospectos_30d: ['prospectos', 'Abrir Prospectos'],
+
+  cartera_ars: ['cartera', 'Abrir Cartera'],
+  honorarios_vencidos: ['honorarios', 'Abrir Honorarios SOFA'],
+  clientes_activos: ['clientes', 'Abrir Clientes'],
+  alertas_abiertas: ['mi-bandeja', 'Abrir Mi bandeja']
+};
+const kpiRoute = (k, role) => {
+  const nav = KPI_ROUTE[k?.code];
+  return nav && canSee(nav[0], role) ? nav : null;
+};
 
 // Código del módulo (base de datos) → ruta del menú (js/router.js)
 const ROUTE = { agenda: 'agenda', captura_rapida: 'captura', reclamaciones: 'reclamaciones', trabajo_hoy: 'hoy',
@@ -35,13 +63,17 @@ export async function render(root, { onOpen = goTo, role = null } = {}) {
     const card = h('section', { class: 'i18-card', 'aria-label': s.title }, h('h3', {}, s.title));
     if (s.alert) card.append(note(s.alert.message, s.alert.level === 'vencido' ? 'error' : 'info'));
     card.append(h('div', { class: 'i18-kpis' }, s.kpis.map((k) => {
-      const nav = kpiRoute(k.label);
+      const nav = kpiRoute(k, role);
       const route = nav?.[0];
       const title = nav?.[1];
-      return h('div', { class: `i18-kpi i18-lvl-${k.level} dashboard-kpi` },
-        route ? h('a', { class: 'dashboard-kpi-go', href: `#/${route}`, title, 'aria-label': title }, '↗') : null,
+      const children = [
+        route ? h('span', { class: 'dashboard-kpi-go', 'aria-hidden': 'true' }, '↗') : null,
         h('div', { class: 'i18-kpi-v' }, fmt(k)),
-        h('div', { class: 'i18-kpi-l' }, k.label));
+        h('div', { class: 'i18-kpi-l' }, k.label)
+      ];
+      return route
+        ? h('a', { class: `i18-kpi i18-lvl-${k.level} dashboard-kpi dashboard-kpi-link`, href: `#/${route}`, title, 'aria-label': `${k.label}. ${title}` }, ...children)
+        : h('div', { class: `i18-kpi i18-lvl-${k.level} dashboard-kpi` }, ...children);
     })));
     if (s.shortcuts && s.shortcuts.length && typeof onOpen === 'function') {
       card.append(h('div', { class: 'i18-actions', role: 'group', 'aria-label': 'Accesos directos' }, s.shortcuts.map((c) =>
