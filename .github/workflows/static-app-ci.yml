@@ -21,6 +21,10 @@ jobs:
           node-version: 22
       - name: Check JavaScript syntax
         run: find js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Validate dashboard module integrity
+        run: |
+          node --check js/modules/dashboard-rol.js
+          node -e "const fs=require('fs');const s=fs.readFileSync('js/modules/dashboard-rol.js','utf8');if((s.match(/export async function render/g)||[]).length!==1)process.exit(1);if(!s.includes('const KPI_ROUTE'))process.exit(1);"
       - name: Validate auto-training wiring
         run: |
           grep -q "'autoentrenamiento': 'autoentrenamiento.js'" js/router.js
