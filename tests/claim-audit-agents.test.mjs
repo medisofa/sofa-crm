@@ -44,3 +44,27 @@ test('no interpreta una respuesta arbitraria como evidencia oficial de la ARS', 
   const r = preauditClaim(valid, { ...ctx, arsCoverage: { verified: true, active: true, source: 'mock' } });
   assert.equal(r.externalVerified, false);
 });
+
+test('no acepta un objeto ARS autoafirmado como prueba de afiliación', () => {
+  const r = preauditClaim(valid, { ...ctx, arsCoverage: { verified: true, active: true, source: 'authorized_ars_api', verifiedAt: '2026-10-21' } });
+  assert.equal(r.externalVerified, false);
+  assert.equal(r.checks.find(x => x.code === 'ars_coverage').status, 'pending');
+});
+
+test('compara el monto con la tarifa contractual sin aprobar cobertura ARS', () => {
+  const r = preauditClaim({ ...valid, contracted: true, tariff_amount: 1200 }, ctx);
+  assert.equal(r.checks.find(x => x.code === 'contract').status, 'pass');
+  assert.equal(r.checks.find(x => x.code === 'tariff').status, 'pass');
+  assert.equal(r.requiresHumanReview, true);
+});
+
+test('diferencia tarifaria exige revisión aunque no cambie el estado de la reclamación', () => {
+  const r = preauditClaim({ ...valid, contracted: true, tariff_amount: 1000 }, ctx);
+  assert.equal(r.checks.find(x => x.code === 'tariff').status, 'pending');
+  assert.equal(r.decision, 'human_review_required');
+});
+
+test('servicio no contratado no se declara automáticamente aprobado', () => {
+  const r = preauditClaim({ ...valid, contracted: false }, ctx);
+  assert.equal(r.checks.find(x => x.code === 'contract').status, 'pending');
+});
