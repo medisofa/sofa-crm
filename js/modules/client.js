@@ -151,6 +151,16 @@ export async function render(main, ctx) {
   $('#addContact', main)?.addEventListener('click', async () => { if (await contactDialog(ctx, { organizationId: org.id, label: org.legal_name, providers })) loadContacts(); });
 
   loadProv(); loadCodes(); loadContacts();
+
+  // ---- Implementación y documentos A–E también para el Médico / Cliente.
+  // Antes estaban después de "if (!staff) return" y por eso la tarjeta quedaba vacía.
+  if ($('#onb', main)) {
+    const cc = await import('./client-commercial.js');
+    cc.renderOnboarding($('#onb', main), org, ctx, (activated) => { if (activated) location.reload(); });
+    listProviders(org.id).then((pv) => cc.renderCommercialDocs($('#cdocs', main), org, ctx, pv))
+      .catch(() => cc.renderCommercialDocs($('#cdocs', main), org, ctx, []));
+  }
+
   if (!staff) return;
 
   // ---- Oportunidades (venta cruzada)
@@ -197,12 +207,6 @@ export async function render(main, ctx) {
       if (ok) { toast('Preparación e-CF guardada', 'ok'); drawEcf(org); }
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
-  // ---- 1.5 · Implementación y documentos A–E (se cargan cuando ya se conocen los prestadores)
-  if ($('#onb', main)) {
-    const cc = await import('./client-commercial.js');
-    cc.renderOnboarding($('#onb', main), org, ctx, (activated) => { if (activated) location.reload(); });
-    listProviders(org.id).then((pv) => cc.renderCommercialDocs($('#cdocs', main), org, ctx, pv)).catch(() => cc.renderCommercialDocs($('#cdocs', main), org, ctx, []));
-  }
   $('#fullAct', main)?.addEventListener('click', async () => {
     try { if (await interactionDialog(ctx, { entityType: 'organization', entityId: org.id, organizationId: org.id })) { toast('Interacción registrada', 'ok'); loadActs(); } }
     catch (err) { toast(friendlyError(err), 'bad'); }

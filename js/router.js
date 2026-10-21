@@ -26,7 +26,7 @@ export const MODULES = {
   // 2.0 · Iteración 29
   'historia-clinica': 'historia-clinica.js', 'hc-control': 'hc-control.js', seguridad: 'seguridad.js',
   // 2.1 · Iteraciones 30 y 31
-  'mi-ficha': 'mi-ficha.js', 'mi-incorporacion': 'mi-incorporacion.js',
+  'mi-ficha': 'mi-ficha.js', 'documentos-consultorio': 'documentos-consultorio.js', 'mi-incorporacion': 'mi-incorporacion.js',
   // 2.2 a 2.6 · Iteraciones 32 a 36
   vencimientos: 'vencimientos.js', 'codigos-ars': 'codigos-ars.js', revision: 'revision.js',
   // 2.7 · Iteración 37
