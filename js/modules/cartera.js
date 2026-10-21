@@ -1,7 +1,7 @@
 /** SOFA · 3.4 · Iteración 44 · Cartera escalonada por ARS.
  *  0–30 días seguimiento · 31–60 reclamación formal · 61–90 escalamiento · más de 90 queja ante la SISALRIL.
  *  Cartas modelo para imprimir o guardar en PDF y bitácora de gestión de cobro. */
-import { rpc, h, money, fmtDate, note, guarded, kpi, clientOptions, clientName } from '../services/iter18.js';
+import { rpc, h, money, fmtDate, note, guarded, kpi, realClientOptions, clientName } from '../services/iter18.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 const KIND = { llamada: 'Llamada', correo: 'Correo', carta: 'Carta', reclamacion_formal: 'Reclamación formal', escalamiento: 'Escalamiento', queja_sisalril: 'Queja SISALRIL',
@@ -17,7 +17,7 @@ export async function render(root, ctx = {}) {
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, client ? 'Mi cartera con las ARS' : 'Cartera escalonada por ARS'),
     h('p', { class: 'i18-sub' }, 'Que ningún lote pase de 90 días sin acción formal: 31–60 reclamación escrita, 61–90 escalamiento a la gerencia de red, más de 90 queja ante la SISALRIL.'),
     client ? null : h('div', { class: 'i18-bar' }, h('label', { for: 'ca-org' }, 'Cliente', sel)), box, side));
-  if (!client) { try { (await clientOptions()).forEach((c) => sel.append(h('option', { value: c.id }, clientName(c)))); } catch (e) { box.replaceChildren(note(e.message, 'error')); } }
+  if (!client) { try { (await realClientOptions()).forEach((c) => sel.append(h('option', { value: c.id }, clientName(c)))); } catch (e) { box.replaceChildren(note(e.message, 'error')); } }
   const org = () => (client ? ctx.membership?.organization_id || null : sel.value || null);
 
   async function load() {
