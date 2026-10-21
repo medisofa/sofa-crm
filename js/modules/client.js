@@ -14,6 +14,7 @@ import { waLink, phoneFmt } from '../utils/whatsapp.js';
 import { can, isStaff, canOpen } from '../utils/permissions.js';
 import { isTaxId, isEmail, isPhone } from '../utils/validation.js';
 import { contactDialog, taskDialog, interactionDialog, activityExtra } from './crm-dialogs.js';
+import { clientRequestDialog } from './client-requests.js';
 import { setupClientTabs } from './client-tabs.js';
 import { mountArsCodes } from './ars-codes.js';
 import { taskList, taskAction, contactList } from './opportunity.js';
@@ -61,7 +62,7 @@ export async function render(main, ctx) {
       <div class="card" style="grid-column:1/-1"><h2>Tarifas negociadas</h2><p class="sub">Tarifas pactadas por sus prestadores con cada ARS. Tienen prioridad sobre la tarifa general.</p>${can('tariffs.edit', ctx.role) ? html`<button class="btn sm" id="addNeg">+ Tarifa negociada</button>` : ''}<div id="neg" style="margin-top:8px"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Habilitación MISPAS</h2>${can('hab.edit', ctx.role) ? html`<button class="btn sm" id="addHab">+ Caso de habilitación</button>` : ''}<div id="habs" style="margin-top:8px"></div></div>
       ${staff ? html`<div class="card"><h2>Oportunidades con este cliente</h2><p class="sub">Venta cruzada: codificación, glosas, habilitación…</p>${crm ? html`<button class="btn sm" id="addOpp">+ Oportunidad</button>` : ''}<div id="opps"></div></div>
-      <div class="card"><h2>Tareas</h2>${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea</button>` : ''}<div id="tasks"></div></div>
+      <div class="card"><h2>CRM y solicitudes</h2><p class="sub">Genera solicitudes particulares al cliente, registra la comunicación y programa su seguimiento.</p><div class="toolbar" style="margin:0 0 8px">${crm ? html`<button class="btn primary sm" id="clientRequest">+ Solicitud al cliente</button>` : ''}${can('tasks.edit', ctx.role) ? html`<button class="btn sm" id="addTask">+ Tarea interna</button>` : ''}</div><div id="tasks"></div></div>
       <div class="card"><h2>Historial</h2>${crm ? html`<button class="btn sm" id="fullAct" style="margin-bottom:8px">+ Interacción completa</button>` : ''}${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
       ${can('users.invite', ctx.role) ? html`<div class="card" style="grid-column:1/-1"><h2>Usuarios del consultorio</h2>
         <p class="sub"><b>Médico:</b> ve su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA). <b>Secretaria:</b> agenda, captura, cobros a privados y cuadre solo de los médicos que se le asignan, sin pagos de ARS, glosas ni honorarios.</p>
@@ -170,6 +171,10 @@ export async function render(main, ctx) {
   const tBox = $('#tasks', main);
   const loadTasks = () => loadInto(tBox, () => listTasks({ entityType: 'organization', entityId: org.id }), (list) => taskList(list, can('tasks.edit', ctx.role)), { empty: () => emptyView('Sin tareas') });
   $('#addTask', main)?.addEventListener('click', async () => { if (await taskDialog(ctx, entity)) loadTasks(); });
+  $('#clientRequest', main)?.addEventListener('click', async () => {
+    try { if (await clientRequestDialog(ctx, org)) { loadTasks(); loadActs(); } }
+    catch (err) { toast(friendlyError(err), 'bad'); }
+  });
   tBox.addEventListener('click', (e) => taskAction(e, loadTasks));
 
   // ---- 1.7 · B4: preparación e-CF del cliente
