@@ -36,6 +36,29 @@ create index if not exists service_lines_unassigned_status_idx
 -- Estructural: una reclamación puede existir antes de ser asignada a un lote.
 alter table public.service_lines alter column submission_id drop not null;
 
+-- Los capturadores deben seguir viendo sus reclamaciones aun cuando todavía no tengan lote.
+create or replace function app.capturer_line_ok(p_line uuid)
+returns boolean
+language sql stable security definer set search_path=''
+as $
+  select exists (
+    select 1
+      from public.service_lines l
+      left join public.submissions s on s.id=l.submission_id
+     where l.id=p_line
+       and coalesce(l.provider_id,s.provider_id) in (select app.capturer_providers())
+  )
+$;
+
+drop policy if exists service_lines_select_capturer on public.service_lines;
+create policy service_lines_select_capturer on public.service_lines
+for select using ((select app.capturer_any()) and app.capturer_line_ok(id));
+
+drop policy if exists service_lines_update_capturer on public.service_lines;
+create policy service_lines_update_capturer on public.service_lines
+for update using (app.capturer_line_ok(id))
+with check (app.capturer_line_ok(id));
+
 -- 2) v_claims sigue mostrando las reclamaciones históricas y también las aún no asignadas.
 create or replace view public.v_claims as
 select l.id,
@@ -179,6 +202,26 @@ as $$
 declare
   r jsonb; v_line uuid; v_sub uuid;
 begin
+  -- Extiende el detector legado: las reclamaciones sin lote también participan en duplicados.
+  if exists (
+    select 1
+      from public.service_lines l
+      left join public.submissions s on s.id=l.submission_id
+     where l.organization_id=(select organization_id from public.providers where id=p_provider)
+       and coalesce(l.provider_id,s.provider_id)=p_provider
+       and coalesce(l.ars_id,s.ars_id)=p_ars
+       and (s.id is null or s.status not in ('rechazada','cerrada'))
+       and (
+         (l.member_number=trim(p_member) and l.service_date=p_service_date and l.procedure_id=p_procedure)
+         or (
+           nullif(trim(coalesce(p_authorization,'')),'') is not null
+           and l.authorization_number=trim(p_authorization)
+         )
+       )
+  ) and not p_allow_duplicate then
+    raise exception 'Posible reclamación duplicada en el ciclo de carga' using errcode='23505';
+  end if;
+
   r := public.capture_claim_dx(
     p_provider,p_ars,p_procedure,p_service_date,p_patient_name,p_member,p_authorization,
     p_patient_doc,p_amount,p_quantity,p_care_mode,p_clinic,p_notes,p_discrepancy_reason,
@@ -224,7 +267,9 @@ begin
   end if;
 
   select count(*), count(distinct organization_id),
-         min(organization_id), min(provider_id), min(ars_id),
+         (array_agg(organization_id))[1],
+         (array_agg(provider_id))[1],
+         (array_agg(ars_id))[1],
          min(date_trunc('month',service_date)::date)
     into v_count, v_valid, v_org, v_provider, v_ars, v_period
     from public.service_lines
