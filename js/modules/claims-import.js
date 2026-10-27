@@ -2,7 +2,7 @@
  * SOFA 1.7.5 · Módulo de Importación y Carga Masiva desde Excel
  * Integra el procesamiento local de SheetJS (.xlsx) directamente en el navegador.
  */
-import { html, \$ } from '../utils/dom.js';
+import { html, $ } from '../utils/dom.js';
 import { toast, friendlyError } from '../utils/ui.js';
 import { sb } from '../supabase.js';
 
@@ -31,13 +31,13 @@ export async function render(container, ctx) {
 
   let rawRows = null;
 
-  \$('#btnSelectFile').onclick = () => \$('#excelFile').click();
+  $('#btnSelectFile').onclick = () => $('#excelFile').click();
 
-  \$('#excelFile').onchange = (e) => {
+  $('#excelFile').onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    \$('#fileInfo').textContent = `Cargando: ${file.name}...`;
+    $('#fileInfo').textContent = `Cargando: ${file.name}...`;
     const reader = new FileReader();
 
     reader.onload = (evt) => {
@@ -50,33 +50,33 @@ export async function render(container, ctx) {
         rawRows = window.XLSX.utils.sheet_to_json(worksheet);
 
         if (rawRows && rawRows.length > 0) {
-          \$('#fileInfo').innerHTML = `<span style="color: #2b8a3e;">✔ ${file.name} listo (${rawRows.length} registros detectados)</span>`;
-          \$('#btnExecuteBulkInsert').disabled = false;
+          $('#fileInfo').innerHTML = `<span style="color: #2b8a3e;">✔ ${file.name} listo (${rawRows.length} registros detectados)</span>`;
+          $('#btnExecuteBulkInsert').disabled = false;
         } else {
           throw new Error('La primera hoja del archivo no contiene datos o faltan los encabezados.');
         }
       } catch (err) {
-        \$('#fileInfo').innerHTML = `<span style="color: #c92a2a;">❌ Error: ${err.message}</span>`;
-        \$('#btnExecuteBulkInsert').disabled = true;
+        $('#fileInfo').innerHTML = `<span style="color: #c92a2a;">❌ Error: ${err.message}</span>`;
+        $('#btnExecuteBulkInsert').disabled = true;
         rawRows = null;
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  \$('#btnCancelImport').onclick = () => {
-    \$('#excelFile').value = '';
-    \$('#fileInfo').textContent = '';
-    \$('#btnExecuteBulkInsert').disabled = true;
+  $('#btnCancelImport').onclick = () => {
+    $('#excelFile').value = '';
+    $('#fileInfo').textContent = '';
+    $('#btnExecuteBulkInsert').disabled = true;
     rawRows = null;
   };
 
-  \$('#btnExecuteBulkInsert').onclick = async () => {
+  $('#btnExecuteBulkInsert').onclick = async () => {
     if (!rawRows || rawRows.length === 0) return;
 
     try {
-      \$('#btnExecuteBulkInsert').disabled = true;
-      \$('#btnExecuteBulkInsert').textContent = 'Subiendo bloques...';
+      $('#btnExecuteBulkInsert').disabled = true;
+      $('#btnExecuteBulkInsert').textContent = 'Subiendo bloques...';
 
       // Estructuración masiva en service_lines (Tabla core de SOFA)
       const { data, error } = await sb()
@@ -86,11 +86,11 @@ export async function render(container, ctx) {
       if (error) throw error;
 
       toast(`¡Éxito! Se integraron ${rawRows.length} reclamaciones correctamente.`);
-      \$('#btnCancelImport').click();
+      $('#btnCancelImport').click();
     } catch (error) {
       alert(`Fallo en la carga masiva: ${friendlyError(error)}`);
-      \$('#btnExecuteBulkInsert').disabled = false;
-      \$('#btnExecuteBulkInsert').textContent = 'Procesar e Insertar en Supabase';
+      $('#btnExecuteBulkInsert').disabled = false;
+      $('#btnExecuteBulkInsert').textContent = 'Procesar e Insertar en Supabase';
     }
   };
 }

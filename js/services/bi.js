@@ -25,10 +25,10 @@ async function realClientIds() {
 const scope = (q, { orgId, arsId }) => { if (orgId) q = q.eq('organization_id', orgId); if (arsId) q = q.eq('ars_id', arsId); return q; };
 function applyScoped(q, f = {}, ids = []) {
   q = scope(q, f);
-  if (f.realOnly && !f.orgId) q = ids.length ? q.in('organization_id', ids) : q.eq('organization_id', '00000000-0000-0000-0000-000000000000');
+  if (f.realOnly) q = ids.length ? q.in('organization_id', ids) : q.eq('organization_id', '00000000-0000-0000-0000-000000000000');
   return q;
 }
-async function scopeIds(f = {}) { return f.realOnly && !f.orgId ? realClientIds() : []; }
+async function scopeIds(f = {}) { return f.realOnly ? realClientIds() : []; }
 
 export async function financialEvents(f) {
   const q = applyScoped(sb().from('v_financial_events').select('organization_id, ars_id, provider_id, submission_id, event_date, kind, amount'), f, await scopeIds(f));
@@ -64,7 +64,7 @@ export async function workQueue({ realOnly = false } = {}) {
 }
 export async function growthMonthly({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_growth_monthly_real' : 'v_growth_monthly').select('*').order('month')); }
 export async function mrr({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_mrr_real' : 'v_mrr').select('*').limit(1).maybeSingle()); }
-export async function pipelineTotals() { return must(await sb().from('v_pipeline').select('stage, opportunities, monthly_value, weighted_value')); }
+export async function pipelineTotals() { return must(await sb().from('v_pipeline_real').select('stage, opportunities, monthly_value, weighted_value')); }
 export async function growthTargets() { return must(await sb().from('growth_targets').select('*').order('ends_on')); }
 export async function settings() { const { getSettings } = await import('./admin.js'); return getSettings(); }   // 4.7.0 (SEG-29): por app_settings_staff()
 export async function glosaPareto(f = {}) { const q = applyScoped(sb().from('v_glosa_pareto').select('*'), f, await scopeIds(f)); return must(await q.limit(5000)); }

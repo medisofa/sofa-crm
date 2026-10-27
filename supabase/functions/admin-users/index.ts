@@ -92,6 +92,8 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       // Solo Super Admin: alta inmediata, sin correo de invitación. La cuenta queda confirmada
       // pero obligada a cambiar la contraseña temporal en el primer acceso.
       await d.assignRole(caller.id, null, 'super_admin', null, true);
+      // Validar también el rol y la organización solicitados.
+      await d.assignRole(caller.id, null, role, org, true);
       const existing = await d.userIdByEmail(email);
       if (existing) return reply(409, { ok: false, message: 'Ese correo ya tiene una cuenta. Use Cambiar rol, Activar usuario o Restablecer contraseña.' }, cors);
       await d.assignRole(caller.id, null, role, org, true);
@@ -121,7 +123,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       const msg = await d.assignRole(caller.id, id, role, org, false);
       return reply(200, { ok: true, user_id: id, message: msg }, cors);
     }
-    await d.assignRole(caller.id, null, 'billing', null, true);
+    await d.assignRole(caller.id, null, 'super_admin', null, true);
     const u = await d.getUser(id);
     if (!u?.last_sign_in_at) {
       try { await d.inviteUser(email, fullName || email, redirectTo); return reply(200, { ok: true, message: `Invitación reenviada a ${email}` }, cors); }

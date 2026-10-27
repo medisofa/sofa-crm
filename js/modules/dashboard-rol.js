@@ -90,7 +90,7 @@ function renderOperative(data, role, onOpen) {
   for (const s of data.sections) {
     const card = h('section', { class: 'i18-card', 'aria-label': s.title }, h('h3', {}, s.title));
     if (s.alert) card.append(note(s.alert.message, s.alert.level === 'vencido' ? 'error' : 'info'));
-  card.append(h('div', { class: 'i18-kpis' }, ...s.kpis.map((k) => kpiNode(k, role))));
+    card.append(h('div', { class: 'i18-kpis' }, ...s.kpis.map((k) => kpiNode(k, role))));
     if (s.shortcuts?.length && typeof onOpen === 'function') {
       card.append(h('div', { class: 'i18-actions', role: 'group', 'aria-label': 'Accesos directos' },
         ...s.shortcuts.map((code) => h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => onOpen(code) }, LABEL[code] || code))));
