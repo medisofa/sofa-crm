@@ -32,10 +32,16 @@ export function resolveAccountAction(accounts, actor, request) {
   if (!account || !actor?.userId || account.user_id === actor.userId ||
       (account.protectedAdmin && actor.role !== 'super_admin')) return null;
   const capabilities = { grant: 'users.invite', validate: 'users.invite', scope: 'capturers.assign',
-    reset: 'users.reset', resend: 'users.invite', toggle: 'users.toggle' };
+    reset: 'users.reset', resend: 'users.invite', toggle: 'users.toggle', repair: 'users.toggle' };
   if (!capabilities[request.action] || !can(capabilities[request.action], actor.role)) return null;
   if (['grant', 'resend'].includes(request.action) && (!account.email || account.sharedEmail || account.emailConflict)) return null;
   if (request.action === 'toggle' && account.is_active === null) return null;
+  if (request.action === 'repair') {
+    if (actor.role !== 'super_admin') return null;
+    const membership = account.memberships.find((m) => m.organization_id === request.orgId &&
+      m.role_code === request.role && ['client','capturer'].includes(m.role_code) && m.is_active === true && !m.conflict);
+    return membership ? { account, membership } : null;
+  }
   if (['grant', 'scope', 'validate'].includes(request.action)) {
     const membership = account.memberships.find((m) => (m.role_code || '') === (request.role || '') &&
       (m.organization_id || '') === (request.orgId || ''));

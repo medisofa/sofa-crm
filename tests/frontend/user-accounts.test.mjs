@@ -80,3 +80,14 @@ test('updating one consultorio preserves other provider scopes and rejects forei
   assert.deepEqual(mergeCapturerScope(['old-a', 'keep-b'], ['old-a'], []), ['keep-b']);
   assert.throws(() => mergeCapturerScope(['keep-b'], ['new-a'], ['foreign-c']), /ajeno/);
 });
+
+test('repair requires a super admin and an exact active external association', () => {
+  const accounts = groupUserAccounts([membership()]);
+  const request = { action: 'repair', userId: 'a', role: 'client', orgId: 'clinic-a' };
+  assert.ok(resolveAccountAction(accounts, { userId: 'actor', role: 'super_admin' }, request));
+  assert.equal(resolveAccountAction(accounts, { userId: 'actor', role: 'admin' }, request), null);
+  assert.equal(resolveAccountAction(accounts, { userId: 'a', role: 'super_admin' }, request), null);
+  assert.equal(resolveAccountAction(accounts, { userId: 'actor', role: 'super_admin' }, { ...request, orgId: 'other' }), null);
+  const inactive = groupUserAccounts([membership({ is_active: false })]);
+  assert.equal(resolveAccountAction(inactive, { userId: 'actor', role: 'super_admin' }, request), null);
+});

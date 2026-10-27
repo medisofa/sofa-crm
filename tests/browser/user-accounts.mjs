@@ -54,7 +54,45 @@ await page.evaluate(()=>{failReadiness=false;failReport=true;});await page.locat
 assert.equal(await page.locator('dialog').getByRole('button',{name:'Activar usuario',exact:true}).count(),0);assert.match(await page.locator('dialog').innerText(),/validación incompleta/);
 await page.locator('dialog').getByRole('button',{name:'Cerrar',exact:true}).click();
 const beforeDenied=await page.evaluate(()=>calls.length);await page.evaluate(async()=>usersRender(document.querySelector('main'),{...ctx,role:'client'}));assert.equal(await page.evaluate(()=>calls.length),beforeDenied);
+
+// New correction view: explicit reason, identity confirmation, denied write, then atomic success.
+await page.evaluate(async()=>{
+ window.rows=[{user_id:'repair-user',email:'repair@example.test',full_name:'Cuenta propia de prueba',role_code:'client',role_name:'Médico',organization_id:'clinic-a',organization:'Consultorio de prueba',kind:'client',is_active:true,status:'activo'}];
+ window.failReadiness=false;window.failReport=false;window.repairBlocked=false;window.repairReject=true;
+ const original=mockDB.rpc;
+ mockDB.rpc=(name,args)=>{
+  if(name==='admin_user_repair_preview'){calls.push({name,args});return Promise.resolve({data:{user_id:args.p_user,client_org_id:args.p_org,email:'repair@example.test',current_role:'client',target_role:'admin',profile_active:true,expected:'token-test',can_repair:!repairBlocked,blockers:repairBlocked?['Cuenta enlazada a un médico.']:[]}});}
+  if(name==='admin_repair_user_access'){calls.push({name,args});if(repairReject)return Promise.resolve({error:{message:'Los accesos cambiaron. Revise una nueva vista previa.'}});rows[0].is_active=false;rows[0].status='desactivado';rows.push({...rows[0],role_code:'admin',role_name:'Administrador SOFA',organization_id:'operator',organization:'Empresa SOFA',kind:'operator',is_active:true,status:'activo'});return Promise.resolve({data:{ok:true,audit_id:'audit-test',user_id:args.p_user,profile_active:true}});}
+  return original(name,args);
+ };
+ await usersRender(document.querySelector('main'),{...ctx,role:'super_admin'});
+});
+await page.locator('[data-act="repair"]').waitFor();await page.locator('[data-act="repair"]').click();await page.locator('dialog').waitFor();
+await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).click();
+assert.equal(await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length),0);
+await page.getByLabel('Motivo de la corrección *').fill('Cuenta propia asociada a un cliente por error');
+await page.getByLabel('Escribe el correo para confirmar *').fill('wrong@example.test');
+await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).click();
+assert.equal(await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length),0);
+await page.getByLabel('Escribe el correo para confirmar *').fill('repair@example.test');
+await page.locator('dialog input[name="confirmed"]').check();
+await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).click();
+await page.locator('dialog .fd-msg').getByText(/Los accesos cambiaron/).waitFor();
+assert.equal(await page.locator('dialog').count(),1);
+await page.locator('dialog').getByRole('button',{name:'Cancelar',exact:true}).click();
+await page.evaluate(()=>window.repairReject=false);
+await page.locator('[data-act="repair"]').click();await page.locator('dialog').waitFor();
+await page.getByLabel('Motivo de la corrección *').fill('Cuenta propia asociada a un cliente por error');
+await page.getByLabel('Escribe el correo para confirmar *').fill('repair@example.test');await page.locator('dialog input[name="confirmed"]').check();
+await page.screenshot({path:'/workspace/artifacts/sofa-reparacion-usuarios/vista-correccion.png',fullPage:true});
+await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).click();
+await page.getByText('1 de 1 cuentas · 2 accesos',{exact:true}).waitFor();
+assert.equal(await page.locator('tbody>tr').count(),1);assert.ok(await page.getByText('Administrador SOFA',{exact:true}).count());
+await page.evaluate(async()=>{window.rows[0].is_active=true;window.rows[0].status='activo';window.rows=rows.slice(0,1);window.repairBlocked=true;await usersRender(document.querySelector('main'),{...ctx,role:'super_admin'});});
+await page.locator('[data-act="repair"]').waitFor();await page.locator('[data-act="repair"]').click();await page.locator('dialog').waitFor();
+assert.equal(await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).count(),0);
+assert.match(await page.locator('dialog').innerText(),/Cuenta enlazada a un médico/);
 assert.deepEqual(errors,[]);assert.equal(external,0);
-assert.ok(await page.evaluate(()=>calls.every(c=>['users_overview','users_access_readiness','users_roles_report','log_export'].includes(c.name))));
-console.log('PASS: grouped accounts, exact access validation, combined filters, protected accounts, CSV, mobile/themes, rejected forged action, fail-closed activation, denied role. All RPC simulated; no real mutations or external requests.');
+assert.ok(await page.evaluate(()=>calls.every(c=>['users_overview','users_access_readiness','users_roles_report','log_export','admin_user_repair_preview','admin_repair_user_access'].includes(c.name))));
+console.log('PASS: repair preview/confirmation/rejected write/success/blocked clinical account;  grouped accounts, exact access validation, combined filters, protected accounts, CSV, mobile/themes, rejected forged action, fail-closed activation, denied role. All RPC simulated; no real mutations or external requests.');
 } finally {await browser.close();}
