@@ -863,3 +863,15 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 @media (prefers-reduced-motion:reduce){
   .dash-view-btn{transition:none}
 }
+
+/* Usuarios agrupados por cuenta */
+.users-accounts td{vertical-align:top}
+.user-membership{padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.user-membership:first-child{padding-top:0}
+.user-membership:last-child{border-bottom:0}
+.user-membership>.pill{margin-top:6px}
+.user-access-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.users-accounts .btn{min-height:44px;margin:3px 2px 3px 0}
+.users-accounts details{margin-top:8px;overflow-wrap:anywhere}
+.users-accounts summary{cursor:pointer;min-height:32px}
+.users-accounts td:first-child{overflow-wrap:anywhere}

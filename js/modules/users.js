@@ -4,11 +4,12 @@ import { emptyView, toast, friendlyError, confirmDialog, busy, formDialog, opt, 
 import { listMemberships, setUserActive, usersOverview, adminUsers } from '../services/admin.js';
 import { clientOptions } from '../services/bi.js';
 import { downloadCsv } from '../utils/filters.js';
-import { can, ROLES } from '../utils/permissions.js';
+import { can, canSee, ROLES } from '../utils/permissions.js';
 import { date, dateTime, todayISO } from '../utils/formatters.js';
 import { isEmail } from '../utils/validation.js';
 import { capturerScopes, providersOfOrg, setCapturerScope } from '../services/claims.js';
 import { invoke, rpc, supabase } from '../services/iter18.js';
+import { groupUserAccounts, matchesAccount, resolveAccountAction, mergeCapturerScope } from '../utils/user-accounts.js';
 
 const ORG_ROLES = ['client', 'capturer'];   // roles de la organización del cliente (no SOFA)
 
@@ -28,7 +29,7 @@ async function roleDialog(ctx, preset = {}) {
   const clients = await clientOptions().catch(() => []);
   const invite = !preset.email;
   const directActive = invite && preset.directActive === true && ctx.role === 'super_admin';
-  let provs = [];
+  let provs = [], providersOrg = null, providersReady = false, syncSequence = 0;
   return formDialog({
     title: directActive ? 'Crear usuario activo' : invite ? (preset.role === 'client' ? 'Invitar médico' : preset.role === 'capturer' ? 'Invitar secretaria' : 'Invitar usuario') : `Cambiar rol · ${preset.email}`,
     submitLabel: directActive ? 'Crear y activar' : invite ? 'Enviar invitación' : 'Guardar rol', wide: true,
@@ -44,15 +45,24 @@ async function roleDialog(ctx, preset = {}) {
       ${directActive ? html`<p class="small muted"><b>Alta directa por Super Admin:</b> la cuenta se confirma y activa sin enviar correo. El usuario deberá cambiar la contraseña temporal en el primer acceso.</p>` : invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}`,
     onOpen: (form) => {
       const sync = async () => {
+        const sequence = ++syncSequence;
+        providersReady = false; providersOrg = null; provs = [];
         const r = form.elements.role.value; const orgRole = ORG_ROLES.includes(r);
         form.elements.org.disabled = !orgRole; form.elements.org.closest('.field').style.display = orgRole ? '' : 'none';   // [hidden] no basta: .field fija display
         form.querySelector('#f_rdesc').textContent = ROLES[r]?.desc || '';
         const box = form.querySelector('#f_provs'); box.style.display = r === 'capturer' ? '' : 'none';
         if (r === 'capturer' && form.elements.org.value) {
-          provs = await providersOfOrg(form.elements.org.value).catch(() => []);
-          const current = preset.userId ? await capturerScopes(preset.userId).catch(() => []) : [];
-          paint(form.querySelector('#f_plist'), provs.length ? html`${provs.map((p) => html`<label class="li" style="cursor:pointer"><input type="checkbox" name="pv_${p.id}" ${current.includes(p.id) || provs.length === 1 ? 'checked' : ''}><div class="b"><div class="t1">${p.full_name}</div></div></label>`)}`
-            : html`<p class="small muted">Este cliente todavía no tiene médicos registrados. Agrégalos en su ficha antes de invitar a la secretaria.</p>`);
+          const org = form.elements.org.value;
+          paint(form.querySelector('#f_plist'), html`<p role="status">Cargando médicos y asignaciones…</p>`);
+          try {
+            const [providers, current] = await Promise.all([providersOfOrg(org), preset.userId ? capturerScopes(preset.userId) : Promise.resolve([])]);
+            if (sequence !== syncSequence || form.elements.org.value !== org || form.elements.role.value !== 'capturer') return;
+            provs = providers; providersOrg = org; providersReady = true;
+            paint(form.querySelector('#f_plist'), provs.length ? html`${provs.map((p) => html`<label class="li" style="cursor:pointer"><input type="checkbox" name="pv_${p.id}" ${current.includes(p.id) || (invite && provs.length === 1) ? 'checked' : ''}><div class="b"><div class="t1">${p.full_name}</div></div></label>`)}`
+              : html`<p class="small muted">Este cliente todavía no tiene médicos registrados. Agrégalos en su ficha antes de invitar a la secretaria.</p>`);
+          } catch (error) {
+            if (sequence === syncSequence) paint(form.querySelector('#f_plist'), html`<p role="alert">No se pudieron verificar los médicos y asignaciones. ${friendlyError(error)}</p>`);
+          }
         } else if (r === 'capturer') paint(form.querySelector('#f_plist'), html`<p class="small muted">Elige primero el consultorio.</p>`);
       };
       form.elements.role.addEventListener('change', sync); form.elements.org.addEventListener('change', sync); sync();
@@ -65,56 +75,79 @@ async function roleDialog(ctx, preset = {}) {
         if (directActive && String(d.password || '').length < 12) { fieldError(form.elements.password, 'Usa al menos 12 caracteres.'); return false; }
       }
       if (ORG_ROLES.includes(d.role) && !form.elements.org.value) { fieldError(form.elements.org, 'Elige el consultorio o clínica.'); return false; }
+      if (d.role === 'capturer' && (!providersReady || providersOrg !== form.elements.org.value)) { fieldError(form.elements.org, 'Espere a que se verifiquen los médicos del consultorio seleccionado.'); return false; }
       const chosen = d.role === 'capturer' ? provs.filter((p) => d[`pv_${p.id}`]).map((p) => p.id) : [];
       if (d.role === 'capturer' && !chosen.length) { toast('Marca al menos un médico para la secretaria', 'bad'); return false; }
       const r = await adminUsers({ action: directActive ? 'create_active' : invite ? 'invite' : 'grant', email: invite ? d.email.trim() : preset.email, full_name: d.full_name || '', password: directActive ? d.password : undefined, role: d.role, organization_id: ORG_ROLES.includes(d.role) ? form.elements.org.value : null });
-      if (d.role === 'capturer' && r?.user_id) await setCapturerScope(r.user_id, chosen);
+      if (d.role === 'capturer' && r?.user_id) {
+        try {
+          const current = await capturerScopes(r.user_id);
+          await setCapturerScope(r.user_id, mergeCapturerScope(current, provs.map((p) => p.id), chosen));
+        } catch (error) {
+          throw new Error(`El rol se guardó, pero la asignación de médicos requiere revisión. No repita la invitación. ${friendlyError(error)}`);
+        }
+      }
       return r;
     }
   });
 }
 
 export async function render(main, ctx) {
+  if (!canSee('usuarios', ctx.role)) {
+    paint(main, emptyView('Sin acceso', 'Tu rol no puede consultar ni administrar usuarios.'));
+    return;
+  }
   const manage = can('users.invite', ctx.role); const canToggle = can('users.toggle', ctx.role);
-  let rows = []; let filter = '';
+  let rows = [], accounts = []; let filter = '', search = '';
   paint(main, html`
-    <div class="page-head"><div class="t"><h2>Usuarios y roles</h2><p>Quién tiene acceso, con qué rol y cuándo entró por última vez. Revísalo cada trimestre y desactiva lo que ya no se usa.</p></div>
+    <div class="page-head"><div class="t"><h2>Usuarios y accesos</h2><p>Una fila por cuenta, con sus roles y organizaciones agrupados. Los filtros seleccionan cuentas; se muestran todos sus accesos.</p></div>
       <div class="toolbar" style="margin:0">${manage ? html`<button class="btn primary" id="invite">+ Invitar usuario</button>${ctx.role === 'super_admin' ? html`<button class="btn" id="createActive">+ Crear usuario activo</button>` : ''}<button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
+    <div class="toolbar"><label for="user-search">Buscar cuenta</label><input class="input grow" id="user-search" type="search" placeholder="Nombre, correo o identificador"><span id="user-count" role="status" aria-live="polite"></span></div>
     <div class="tabs" id="kinds" role="group" aria-label="Tipo de usuario" style="margin-bottom:6px"></div>
-    <div class="tabs" id="tabs" role="group" aria-label="Estado"></div><div id="l"></div>
+    <div class="tabs" id="tabs" role="group" aria-label="Estado del acceso"></div><p class="small muted">Una cuenta puede aparecer en varios filtros cuando tiene accesos distintos.</p><div id="l"></div>
     ${ctx.role === 'super_admin' ? html`<div class="card" style="margin-top:14px"><h2>Validación de usuarios y roles</h2>
       <p class="sub">Revisa usuarios sin rol, roles cruzados, secretarias sin médicos y otras inconsistencias.</p><button class="btn" id="valRoles">Revisar ahora</button><div id="valBox" style="margin-top:10px"></div></div>` : ''}`);
   let kind = '';
   const KINDS = [['', 'Todos'], ['sofa', 'Equipo SOFA'], ['client', 'Médicos'], ['capturer', 'Secretarias']];
-  const ofKind = (r) => (!kind ? true : kind === 'sofa' ? !ORG_ROLES.includes(r.role_code) : r.role_code === kind);
-  const drawKinds = () => paint($('#kinds', main), html`${KINDS.map(([k, l]) => html`<button data-k="${k}" aria-pressed="${kind === k}">${l}${k ? ` · ${rows.filter((r) => (k === 'sofa' ? !ORG_ROLES.includes(r.role_code) : r.role_code === k)).length}` : ''}</button>`)}`);
-  const tabs = [['', 'Todos'], ['activo', 'Activos'], ['invitación pendiente', 'Invitación pendiente'], ['sin ingreso en 90 días', 'Sin ingreso en 90 días'], ['desactivado', 'Desactivados']];
-  const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-s="${k}" aria-pressed="${filter === k}">${l}${k ? ` · ${rows.filter((r) => r.status === k).length}` : ''}</button>`)}`);
+  const drawKinds = () => paint($('#kinds', main), html`${KINDS.map(([k, l]) => html`<button data-k="${k}" aria-pressed="${kind === k}">${l} · ${accounts.filter((u) => matchesAccount(u, { kind: k, q: search })).length}</button>`)}`);
+  const tabs = [['', 'Todos'], ['activo', 'Con acceso activo'], ['invitación pendiente', 'Invitación pendiente'], ['sin ingreso en 90 días', 'Sin ingreso en 90 días'], ['desactivado', 'Con acceso desactivado']];
+  const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-s="${k}" aria-pressed="${filter === k}">${l} · ${accounts.filter((u) => matchesAccount(u, { kind, status: k, q: search })).length}</button>`)}`);
   const box = $('#l', main);
   const draw = () => {
-    const list = (filter ? rows.filter((r) => r.status === filter) : rows).filter(ofKind);
+    const list = accounts.filter((u) => matchesAccount(u, { kind, status: filter, q: search }));
+    $('#user-count', main).textContent = `${list.length} de ${accounts.length} cuentas · ${accounts.reduce((n, u) => n + u.memberships.length, 0)} accesos`;
     if (!list.length) { paint(box, emptyView('Sin usuarios en este filtro')); return; }
-    paint(box, html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Usuario</th><th>Rol</th><th>Organización</th><th>Estado</th><th>Último ingreso</th>${manage || canToggle ? html`<th></th>` : ''}</tr></thead>
+    paint(box, html`<div class="table-wrap"><table class="t cards users-accounts"><thead><tr><th>Cuenta</th><th>Roles y organizaciones</th><th>Último ingreso</th>${manage || canToggle ? html`<th>Acciones de la cuenta</th>` : ''}</tr></thead>
       <tbody>${list.map((u) => {
-        const self = u.user_id === ctx.session.user.id; const [sl, sc] = STATUS[u.status] || [u.status, ''];
-        const protectedRow = u.role_code === 'super_admin' && ctx.role !== 'super_admin';
+        const self = u.user_id === ctx.session.user.id;
+        const protectedRow = u.protectedAdmin && ctx.role !== 'super_admin';
+        const editable = !!u.user_id && !self && !protectedRow;
         return html`<tr>
-          <td data-l="Usuario"><b>${u.full_name || '—'}</b>${self ? html` <span class="pill info">Tú</span>` : ''}<div class="small muted">${u.email}</div></td>
-          <td data-l="Rol">${u.role_name}</td><td data-l="Organización">${u.organization}</td>
-          <td data-l="Estado"><span class="pill ${sc}">${sl}</span>${u.access_readiness ? (() => { const [rl, rc] = READINESS[u.access_readiness] || [u.access_readiness, '']; return html` <span class="pill ${rc}">${rl}</span>`; })() : ''}<div class="small muted">Invitado ${date(u.invited_at)}</div></td>
+          <td data-l="Cuenta"><b>${u.full_name || '—'}</b>${self ? html` <span class="pill info">Tú</span>` : ''}<div class="small muted">${[...u.emails].join(' · ') || 'Correo no disponible'}</div><details class="small"><summary>Identificador de cuenta</summary>${u.user_id || 'No disponible'}</details>
+            ${u.sharedEmail ? html`<p class="note warn">Correo asociado a cuentas distintas. Requiere revisión; no se han fusionado.</p>` : ''}${u.emailConflict ? html`<p class="note bad">Correos inconsistentes para esta cuenta.</p>` : ''}</td>
+          <td data-l="Roles y organizaciones">${u.memberships.map((m) => {
+            const [sl, sc] = STATUS[m.status] || [m.status, ''];
+            const [rl, rc] = READINESS[m.access_readiness] || [m.access_readiness, ''];
+            return html`<section class="user-membership"><b>${m.role_name || ROLES[m.role_code]?.name || m.role_code || 'Sin rol'}</b><div>${m.organization || 'Sin organización'}</div>
+              <span class="pill ${sc}">${sl}</span>${rl ? html` <span class="pill ${rc}">${rl}</span>` : ''}<div class="small muted">Invitado ${date(m.invited_at)}</div>
+              ${m.conflict ? html`<p class="note bad">Datos contradictorios para este acceso. Revisa la validación antes de modificarlo.</p>` : ''}
+              ${editable && !m.conflict ? html`<div class="user-access-actions">${manage && u.email && !u.sharedEmail ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id || ''}">Cambiar este rol</button>` : ''}
+                ${manage && m.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
+                ${manage ? html`<button class="btn sm" data-act="validate" data-user="${u.user_id}" data-role="${m.role_code || ''}" data-org="${m.organization_id || ''}">Validar acceso</button>` : ''}</div>` : ''}</section>`;
+          })}</td>
           <td data-l="Último ingreso">${u.last_sign_in_at ? dateTime(u.last_sign_in_at) : '—'}</td>
-          ${manage || canToggle ? html`<td data-l="">${self || protectedRow ? '' : html`
-            ${manage && u.email ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${u.role_code}" data-user="${u.user_id}" data-org="${u.kind === 'client' ? u.organization_id : ''}">Cambiar rol</button>
-              ${u.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-user="${u.user_id}" data-org="${u.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
+          ${manage || canToggle ? html`<td data-l="Acciones de la cuenta">${!editable ? '' : html`
+            ${manage && u.email && !u.sharedEmail ? html`
               ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
-              <button class="btn sm" data-act="resend" data-email="${u.email}">${u.status === 'invitación pendiente' ? 'Reenviar invitación' : 'Enviar acceso'}</button>
-              <button class="btn sm" data-act="validate" data-user="${u.user_id}">Validar usuario</button>` : ''}
-            ${canToggle ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar' : 'Activar usuario'}</button>` : ''}`}</td>` : ''}</tr>`;
+              <button class="btn sm" data-act="resend" data-user="${u.user_id}" data-email="${u.email}">Enviar acceso</button>` : ''}
+            ${canToggle && u.is_active !== null ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar cuenta' : 'Activar cuenta'}</button>` : ''}
+            ${u.is_active === null ? html`<p class="small muted">Estados de acceso distintos o inconsistentes: valida cada acceso antes de activar la cuenta.</p>` : ''}`}</td>` : ''}</tr>`;
       })}</tbody></table></div>`);
   };
   const load = async () => {
     try {
       rows = await usersOverview();
+      if (!Array.isArray(rows) || rows.some((u) => !u || typeof u !== 'object')) throw new Error('Respuesta de usuarios no válida.');
       try {
         const readiness = await rpc('users_access_readiness');
         const map = new Map((Array.isArray(readiness) ? readiness : []).map((x) => [`${x.user_id}:${x.role_code || ''}:${x.organization_id || ''}`, x]));
@@ -123,47 +156,69 @@ export async function render(main, ctx) {
     }
     catch (err) {
       // Sin el script 022: lista básica, sin correos ni último ingreso
-      const basic = await listMemberships().catch(() => []);
-      rows = basic.map((m) => ({ user_id: m.user_id, email: '', full_name: m.profiles?.full_name, role_code: m.role_code, role_name: m.roles?.name, organization_id: m.organization_id, organization: m.organizations?.legal_name, kind: m.organizations?.kind, is_active: m.is_active && m.profiles?.is_active !== false, invited_at: m.created_at, last_sign_in_at: null, status: m.is_active ? 'activo' : 'desactivado' }));
+      let basic;
+      try { basic = await listMemberships(); if (!Array.isArray(basic) || basic.some((m) => !m || typeof m !== 'object')) throw new Error('Respuesta de accesos no válida.'); }
+      catch (fallbackError) {
+        rows = []; accounts = []; drawKinds(); drawTabs();
+        $('#user-count', main).textContent = 'Listado no disponible';
+        paint(box, html`<div class="note bad" role="alert">No se pudo cargar la lista de cuentas. ${friendlyError(fallbackError)}</div><button class="btn" id="retryUsers">Reintentar</button>`);
+        $('#retryUsers', box).addEventListener('click', load);
+        return;
+      }
+      rows = basic.map((m) => ({ user_id: m.user_id, email: '', full_name: m.profiles?.full_name, role_code: m.role_code, role_name: m.roles?.name, organization_id: m.organization_id, organization: m.organizations?.legal_name, kind: m.organizations?.kind, is_active: m.is_active && m.profiles?.is_active !== false, invited_at: m.created_at, last_sign_in_at: null, status: m.is_active && m.profiles?.is_active !== false ? 'activo' : 'desactivado' }));
       toast(`Revisión de accesos no disponible: ${friendlyError(err)}`);
     }
+    accounts = groupUserAccounts(rows);
     drawKinds(); drawTabs(); draw();
   };
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-s]'); if (b) { filter = b.dataset.s; drawTabs(); draw(); } });
   $('#valRoles', main)?.addEventListener('click', (e) => busy(e.currentTarget, async () => { try { await runRolesReport($('#valBox', main)); } catch (err) { toast(friendlyError(err), 'bad'); } }));
-  $('#kinds', main).addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) { kind = b.dataset.k; drawKinds(); draw(); } });
+  $('#kinds', main).addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) { kind = b.dataset.k; drawKinds(); drawTabs(); draw(); } });
+  $('#user-search', main).addEventListener('input', (e) => { search = e.target.value; drawKinds(); drawTabs(); draw(); });
   const invitePreset = async (role) => { try { const r = await roleDialog(ctx, { role }); if (r) { toast(r.message, 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } };
   $('#inviteMed', main)?.addEventListener('click', () => invitePreset('client'));
   $('#inviteSec', main)?.addEventListener('click', () => invitePreset('capturer'));
   $('#invite', main)?.addEventListener('click', async () => { try { const r = await roleDialog(ctx); if (r) { toast(r.message, 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
   $('#createActive', main)?.addEventListener('click', async () => { try { const r = await roleDialog(ctx, { directActive: true }); if (r) { toast(r.message, 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
-  $('#csv', main).addEventListener('click', () => downloadCsv(`sofa-revision-accesos-${todayISO()}.csv`, ['Nombre', 'Correo', 'Rol', 'Organización', 'Estado', 'Invitado', 'Último ingreso'],
-    rows.map((u) => [u.full_name, u.email, u.role_name, u.organization, u.status, String(u.invited_at || '').slice(0, 10), String(u.last_sign_in_at || '').slice(0, 16).replace('T', ' ')])));
+  $('#csv', main).addEventListener('click', () => downloadCsv(`sofa-revision-accesos-${todayISO()}.csv`, ['ID de cuenta', 'Nombre', 'Correo', 'Accesos (rol / organización / estado)', 'Último ingreso', 'Revisión'],
+    accounts.filter((u) => matchesAccount(u, { kind, status: filter, q: search })).map((u) => [u.user_id, u.full_name, [...u.emails].join(' · '), u.memberships.map((m) => `${m.role_name || m.role_code} / ${m.organization || 'Sin organización'} / ${m.status}${m.conflict ? ' / Datos contradictorios' : ''}`).join(' | '), String(u.last_sign_in_at || '').slice(0, 16).replace('T', ' '), u.sharedEmail || u.emailConflict ? 'Revisar identidad' : ''])));
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.disabled || b.getAttribute('aria-busy') === 'true') return;
+    const selection = resolveAccountAction(accounts, { role: ctx.role, userId: ctx.session.user.id }, {
+      action: b.dataset.act, userId: b.dataset.user, role: b.dataset.role, orgId: b.dataset.org
+    });
+    if (!selection) { toast('Acción no disponible para la cuenta o el acceso seleccionado.', 'bad'); return; }
+    const { account, membership } = selection;
     try {
-      if (b.dataset.act === 'grant') { const r = await roleDialog(ctx, { email: b.dataset.email, role: b.dataset.role, orgId: b.dataset.org, userId: b.dataset.user }); if (r) { toast(r.message, 'ok'); load(); } return; }
-      if (b.dataset.act === 'scope') { if (await scopeDialog(b.dataset.user, b.dataset.org, b.dataset.name)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
-      if (b.dataset.act === 'reset') { await resetPassword(b.dataset.user, b.dataset.name); return; }
-      if (b.dataset.act === 'resend') { await busy(b, async () => { const r = await adminUsers({ action: 'resend', email: b.dataset.email }); toast(r.message, 'ok'); }); return; }
-      if (b.dataset.act === 'validate') { const u = rows.find((x) => x.user_id === b.dataset.user); if (u) await validateUser(u, load); return; }
-      const activate = b.dataset.active === '1';
-      if (!(await confirmDialog(activate ? 'Activar usuario' : 'Desactivar usuario', activate ? `${b.dataset.name} podrá volver a entrar a SOFA.` : `${b.dataset.name} no podrá ver ni modificar datos desde este momento. Sus registros y su historial se conservan.`, activate ? 'Activar' : 'Desactivar', !activate))) return;
-      await setUserActive(b.dataset.user, activate); toast(activate ? 'Usuario activado' : 'Usuario desactivado', 'ok'); load();
+      if (b.dataset.act === 'grant') { const r = await roleDialog(ctx, { email: account.email, role: membership.role_code, orgId: membership.kind === 'client' ? membership.organization_id : '', userId: account.user_id }); if (r) { toast(r.message, 'ok'); load(); } return; }
+      if (b.dataset.act === 'scope') { if (await scopeDialog(account.user_id, membership.organization_id, account.full_name || account.email)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
+      if (b.dataset.act === 'reset') { await resetPassword(account.user_id, account.full_name || account.email); return; }
+      if (b.dataset.act === 'resend') { await busy(b, async () => { const r = await adminUsers({ action: 'resend', email: account.email }); toast(r.message, 'ok'); }); return; }
+      if (b.dataset.act === 'validate') {
+        await validateUser(membership, load, { allowActivation: canToggle && account.memberships.length === 1 && account.is_active === false });
+        return;
+      }
+      await busy(b, async () => {
+        const activate = !account.is_active;
+        if (!(await confirmDialog(activate ? 'Activar usuario' : 'Desactivar usuario', activate ? `${account.full_name || account.email} podrá volver a entrar a SOFA.` : `${account.full_name || account.email} no podrá ver ni modificar datos desde este momento. Sus registros y su historial se conservan.`, activate ? 'Activar' : 'Desactivar', !activate))) return;
+        await setUserActive(account.user_id, activate); toast(activate ? 'Usuario activado' : 'Usuario desactivado', 'ok'); await load();
+      });
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
   load();
 }
 
 /** Validación individual de usuario y activación segura. */
-async function validateUser(u, reload) {
+async function validateUser(u, reload, { allowActivation = false } = {}) {
   const staff = SOFA_ROLES.includes(u.role_code);
   let readiness = null;
   try {
     const all = await rpc('users_access_readiness');
-    readiness = (Array.isArray(all) ? all : []).find((x) => x.user_id === u.user_id && x.role_code === u.role_code) || null;
+    readiness = (Array.isArray(all) ? all : []).find((x) => x.user_id === u.user_id && x.role_code === u.role_code && x.organization_id === u.organization_id) || null;
   } catch (_) { /* compatibilidad mientras se despliega la migración RBAC */ }
   const checks = [
+    { label: 'Validación de acceso en servidor', ok: !!readiness, detail: readiness ? 'Respuesta disponible para este rol y organización' : 'No disponible: no se habilita activación desde esta validación' },
     ...(readiness ? [
       { label: 'Correo confirmado', ok: readiness.email_confirmed, detail: readiness.email_confirmed ? 'Confirmado' : 'Pendiente de confirmación' },
       { label: 'Perfil activo', ok: readiness.profile_active, detail: readiness.profile_active ? 'Activo' : 'Desactivado' },
@@ -184,16 +239,18 @@ async function validateUser(u, reload) {
     }
   }
 
-  let findings = [];
+  let findings = [], reportComplete = false;
   try {
     const { usersRolesReport } = await import('../services/admin.js');
     const report = await usersRolesReport();
+    if (!Array.isArray(report)) throw new Error('Reporte no válido');
     const email = String(u.email || '').toLowerCase();
-    findings = report.filter((r) => (r.users || []).some((x) => String(x.email || '').toLowerCase() === email));
+    findings = report.filter((r) => (r.users || []).some((x) => x.user_id ? x.user_id === u.user_id : email && String(x.email || '').toLowerCase() === email));
+    reportComplete = true;
   } catch (_) { /* La validación básica sigue disponible si el reporte global no responde. */ }
 
-  const hardFail = checks.some((x) => !x.ok) || findings.some((x) => x.severity === 'alta');
-  const canActivateNow = !u.is_active && !hardFail;
+  const hardFail = !reportComplete || checks.some((x) => !x.ok) || findings.some((x) => x.severity === 'alta');
+  const canActivateNow = allowActivation && !u.is_active && !hardFail;
   const SEV = { alta: ['Corregir', 'bad'], media: ['Revisar', 'warn'], info: ['Info', 'info'], ok: ['Bien', 'ok'] };
 
   await formDialog({
@@ -201,7 +258,7 @@ async function validateUser(u, reload) {
     submitLabel: canActivateNow ? 'Activar usuario' : 'Cerrar',
     body: html`<p class="small">SOFA revisa identidad básica, rol, organización, alcance y hallazgos de gobierno antes de permitir la activación.</p>
       <div class="list">${checks.map((x) => html`<div class="li"><span class="pill ${x.ok ? 'ok' : 'bad'}">${x.ok ? 'Correcto' : 'Revisar'}</span><div class="b"><div class="t1">${x.label}</div><div class="t2">${x.detail}</div></div></div>`)}</div>
-      ${findings.length ? html`<h3 style="margin-top:14px">Hallazgos relacionados</h3><div class="list">${findings.map((r) => { const [l, cls] = SEV[r.severity] || [r.severity, '']; return html`<div class="li"><span class="pill ${cls}">${l}</span><div class="b"><div class="t1">${r.title}</div><div class="t2">${r.detail}</div></div></div>`; })}</div>` : html`<p class="small muted" style="margin-top:12px">Sin hallazgos adicionales asociados a este usuario.</p>`}
+      ${findings.length ? html`<h3 style="margin-top:14px">Hallazgos relacionados</h3><div class="list">${findings.map((r) => { const [l, cls] = SEV[r.severity] || [r.severity, '']; return html`<div class="li"><span class="pill ${cls}">${l}</span><div class="b"><div class="t1">${r.title}</div><div class="t2">${r.detail}</div></div></div>`; })}</div>` : html`<p class="small muted" style="margin-top:12px">${reportComplete ? 'Sin hallazgos adicionales asociados a este usuario.' : 'Reporte de roles no disponible: validación incompleta.'}</p>`}
       <p class="small" style="margin-top:12px"><b>Estado actual:</b> ${u.is_active ? 'Activo' : 'Desactivado'} · <b>Resultado:</b> ${hardFail ? 'requiere corrección antes de activar' : 'validación satisfactoria'}.</p>`,
     onSubmit: async () => {
       if (!canActivateNow) return true;
@@ -222,7 +279,12 @@ async function scopeDialog(userId, orgId, name) {
     body: provs.length ? html`<p class="small">La secretaria solo podrá registrar y consultar reclamaciones de los médicos marcados. Nunca verá pagos, honorarios ni información de otros médicos.</p>
       <div class="list">${provs.map((p) => html`<label class="li" style="cursor:pointer"><input type="checkbox" name="p_${p.id}" ${current.includes(p.id) ? 'checked' : ''}><div class="b"><div class="t1">${p.full_name}</div></div></label>`)}</div>`
       : emptyView('Sin médicos', 'Este cliente no tiene médicos activos registrados.'),
-    onSubmit: async (d) => { const ids = provs.filter((p) => d[`p_${p.id}`]).map((p) => p.id); await setCapturerScope(userId, ids); return true; }
+    onSubmit: async (d) => {
+      const chosen = provs.filter((p) => d[`p_${p.id}`]).map((p) => p.id);
+      const freshScope = await capturerScopes(userId);
+      await setCapturerScope(userId, mergeCapturerScope(freshScope, provs.map((p) => p.id), chosen));
+      return true;
+    }
   });
 }
 
