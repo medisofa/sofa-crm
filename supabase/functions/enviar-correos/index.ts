@@ -183,14 +183,22 @@ Deno.serve(async (req) => {
   const secreto = Deno.env.get("CORREOS_SECRETO") || "";
   if (!url || !serviceKey || secreto.length < 24) return json({ error: "El servicio de correos no está configurado. Avise al Administrador para revisar «enviar-correos»." }, 500);
   const db = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "desconocida";
 
   // Pixel de apertura (GET ?o=<token>): responde siempre el mismo GIF, haya o no correo, para no revelar qué tokens existen.
+  // Es la única ruta sin autenticación de esta función; el límite por IP es su única defensa contra abuso/escaneo.
   if (req.method === "GET") {
+    const pixelOk = await db.rpc("rate_limit_check", { p_key: `enviar-correos:pixel:${ip}`, p_max: 60, p_window_seconds: 60 }).then((r) => r.data !== false).catch(() => true);
+    if (!pixelOk) return new Response(GIF, { status: 200, headers: { "Content-Type": "image/gif", "Cache-Control": "no-store, max-age=0" } });
     const o = new URL(req.url).searchParams.get("o") || "";
     if (UUID.test(o)) { try { await db.rpc("email_register_open", { p_token: o }); } catch { /* el pixel nunca falla */ } }
     return new Response(GIF, { status: 200, headers: { "Content-Type": "image/gif", "Cache-Control": "no-store, max-age=0" } });
   }
   if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
+
+  // Por IP, antes del secreto: frena intentos repetidos de adivinarlo (30 solicitudes / 5 min).
+  const postOk = await db.rpc("rate_limit_check", { p_key: `enviar-correos:post:${ip}`, p_max: 30, p_window_seconds: 300 }).then((r) => r.data !== false).catch(() => true);
+  if (!postOk) return json({ error: "Demasiadas solicitudes desde esta red. Intente de nuevo en unos minutos." }, 429);
 
   // Quien procesa la cola presenta el secreto (comparación en tiempo constante)
   if (!igualesSeguro(req.headers.get("x-sofa-secreto") || "", secreto)) return json({ error: "No autorizado." }, 401);

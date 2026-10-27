@@ -23,10 +23,17 @@ export type Deps = {
   deleteUser: (id: string) => Promise<void>;
   getUser: (id: string) => Promise<{ id: string; email: string; last_sign_in_at?: string | null } | null>;
   sendRecovery: (email: string, redirectTo: string) => Promise<void>;
+  rateLimitCheck: (key: string, max: number, windowSeconds: number) => Promise<boolean>;
   appUrl: string;
   authRedirectUrl?: string;
   allowedOrigins: string[];
 };
+
+/** IP del cliente tal como la entrega el gateway de Supabase. 'desconocida' si no viene (nunca bloquea por eso). */
+function clientIp(req: Request): string {
+  const fwd = req.headers.get('x-forwarded-for') || '';
+  return fwd.split(',')[0].trim() || 'desconocida';
+}
 
 // Prospecto NO es asignable aquí: vive en lead_users / incorporación y no en organization_users.
 const ASSIGNABLE_ROLES = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor', 'client', 'capturer'];
@@ -37,12 +44,15 @@ const TRUSTED_ORIGINS = ['https://medisofa.github.io', 'https://app.sofamedica.c
 export function corsHeaders(origin: string | null, allowed: string[]): Record<string, string> {
   const effective = Array.from(new Set([...allowed, ...TRUSTED_ORIGINS]));
   const ok = origin && (effective.includes('*') || effective.includes(origin));
-  return {
-    'Access-Control-Allow-Origin': ok ? origin! : effective[0] || 'null',
+  const headers: Record<string, string> = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-sofa-client',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin'
   };
+  // Un origen no permitido no recibe ningún Access-Control-Allow-Origin: nunca reflejar
+  // ni devolver otro origen de confianza en su lugar.
+  if (ok) headers['Access-Control-Allow-Origin'] = origin!;
+  return headers;
 }
 
 function reply(status: number, body: Record<string, unknown>, cors: Record<string, string>): Response {
@@ -63,10 +73,19 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const effectiveOrigins = Array.from(new Set([...d.allowedOrigins, ...TRUSTED_ORIGINS]));
   if (origin && !effectiveOrigins.includes('*') && !effectiveOrigins.includes(origin)) return reply(403, { ok: false, message: 'Origen no autorizado' }, cors);
 
+  // Por IP: frena abuso antes de gastar nada en verificar el JWT (30 solicitudes / 5 min).
+  const ip = clientIp(req);
+  const ipOk = await d.rateLimitCheck(`admin-users:ip:${ip}`, 30, 300).catch(() => true);
+  if (!ipOk) return reply(429, { ok: false, message: 'Demasiadas solicitudes desde esta red. Intente de nuevo en unos minutos.' }, cors);
+
   const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   if (!jwt) return reply(401, { ok: false, message: 'Sesión requerida' }, cors);
   const caller = await d.getCaller(jwt).catch(() => null);
   if (!caller) return reply(401, { ok: false, message: 'Sesión inválida o vencida' }, cors);
+
+  // Por usuario: estas son acciones administrativas; un límite más estricto que el de IP (20 / 5 min).
+  const userOk = await d.rateLimitCheck(`admin-users:user:${caller.id}`, 20, 300).catch(() => true);
+  if (!userOk) return reply(429, { ok: false, message: 'Demasiadas solicitudes de esta cuenta. Intente de nuevo en unos minutos.' }, cors);
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return reply(400, { ok: false, message: 'Solicitud inválida' }, cors); }
@@ -173,5 +192,8 @@ Deno.serve((req) => handle(req, {
   },
   deleteUser: async (id) => { const { error } = await admin.auth.admin.deleteUser(id); if (error) throw error; },
   getUser: async (id) => { const { data, error } = await admin.auth.admin.getUserById(id); if (error) throw error; return data.user as { id: string; email: string; last_sign_in_at?: string | null }; },
-  sendRecovery: async (email, redirectTo) => { const { error } = await publicClient.auth.resetPasswordForEmail(email, { redirectTo }); if (error) throw error; }
+  sendRecovery: async (email, redirectTo) => { const { error } = await publicClient.auth.resetPasswordForEmail(email, { redirectTo }); if (error) throw error; },
+  // Si la comprobación misma falla (ej. hipo de base de datos), no bloquea: el rate limiting es
+  // defensa adicional, no el control de acceso principal (eso lo hace RLS/assignRole).
+  rateLimitCheck: async (key, max, windowSeconds) => unwrap(await admin.rpc('rate_limit_check', { p_key: key, p_max: max, p_window_seconds: windowSeconds })) as boolean
 }));
