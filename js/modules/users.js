@@ -100,9 +100,9 @@ export async function render(main, ctx) {
   const manage = can('users.invite', ctx.role); const canToggle = can('users.toggle', ctx.role);
   let rows = [], accounts = []; let filter = '', search = '';
   paint(main, html`
-    <div class="page-head"><div class="t"><h2>Usuarios y accesos</h2><p>Una fila por cuenta, con sus roles y organizaciones agrupados. Los filtros seleccionan cuentas; se muestran todos sus accesos.</p></div>
-      <div class="toolbar" style="margin:0">${manage ? html`<button class="btn primary" id="invite">+ Invitar usuario</button>${ctx.role === 'super_admin' ? html`<button class="btn" id="createActive">+ Crear usuario activo</button>` : ''}<button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
-    <div class="toolbar"><label for="user-search">Buscar cuenta</label><input class="input grow" id="user-search" type="search" placeholder="Nombre, correo o identificador"><span id="user-count" role="status" aria-live="polite"></span></div>
+    <div class="page-head users-page-head"><div class="t"><h2>Usuarios y accesos</h2><p>Una fila por cuenta, con sus roles y organizaciones agrupados. Los filtros seleccionan cuentas; se muestran todos sus accesos.</p></div>
+      <div class="toolbar" style="margin:0">${manage ? html`<details class="users-add"><summary class="btn primary">+ Agregar usuario</summary><div class="users-add-options"><button class="btn primary" id="invite">+ Invitar usuario</button>${ctx.role === 'super_admin' ? html`<button class="btn" id="createActive">+ Crear usuario activo</button>` : ''}<button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button></div></details>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
+    <div class="toolbar users-search"><label for="user-search">Buscar cuenta</label><input class="input grow" id="user-search" type="search" placeholder="Nombre, correo o identificador"><span id="user-count" role="status" aria-live="polite"></span></div>
     <div class="tabs" id="kinds" role="group" aria-label="Tipo de usuario" style="margin-bottom:6px"></div>
     <div class="tabs" id="tabs" role="group" aria-label="Estado del acceso"></div><p class="small muted">Una cuenta puede aparecer en varios filtros cuando tiene accesos distintos.</p><div id="l"></div>
     ${ctx.role === 'super_admin' ? html`<div class="card" style="margin-top:14px"><h2>Validación de usuarios y roles</h2>
@@ -123,7 +123,7 @@ export async function render(main, ctx) {
         const protectedRow = u.protectedAdmin && ctx.role !== 'super_admin';
         const editable = !!u.user_id && !self && !protectedRow;
         return html`<tr>
-          <td data-l="Cuenta"><b>${u.full_name || '—'}</b>${self ? html` <span class="pill info">Tú</span>` : ''}<div class="small muted">${[...u.emails].join(' · ') || 'Correo no disponible'}</div><details class="small"><summary>Identificador de cuenta</summary>${u.user_id || 'No disponible'}</details>
+          <td data-l="Cuenta"><button class="btn sm users-view" data-view-account="${u.user_id}">Ver cuenta</button><b>${u.full_name || '—'}</b>${self ? html` <span class="pill info">Tú</span>` : ''}<div class="small muted">${[...u.emails].join(' · ') || 'Correo no disponible'}</div><details class="small"><summary>Identificador de cuenta</summary>${u.user_id || 'No disponible'}</details>
             ${u.sharedEmail ? html`<p class="note warn">Correo asociado a cuentas distintas. Requiere revisión; no se han fusionado.</p>` : ''}${u.emailConflict ? html`<p class="note bad">Correos inconsistentes para esta cuenta.</p>` : ''}</td>
           <td data-l="Roles y organizaciones">${u.memberships.map((m) => {
             const [sl, sc] = STATUS[m.status] || [m.status, ''];
@@ -137,7 +137,7 @@ export async function render(main, ctx) {
                 ${ctx.role === 'super_admin' && ORG_ROLES.includes(m.role_code) && m.is_active === true ? html`<button class="btn sm" data-act="repair" data-user="${u.user_id}" data-role="${m.role_code}" data-org="${m.organization_id}">Corregir asignación</button>` : ''}</div>` : ''}</section>`;
           })}</td>
           <td data-l="Último ingreso">${u.last_sign_in_at ? dateTime(u.last_sign_in_at) : '—'}</td>
-          ${manage || canToggle ? html`<td data-l="Acciones de la cuenta">${!editable ? '' : html`
+          ${manage || canToggle ? html`<td data-l="Acciones de la cuenta">${!editable ? html`<p class="small muted">${self ? 'Tu cuenta: otro Super Admin debe realizar los cambios sensibles.' : protectedRow ? 'Cuenta protegida: requiere Super Admin.' : 'Identificador no disponible: revisa la cuenta.'}</p>` : html`
             ${manage && u.email && !u.sharedEmail ? html`
               ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
               <button class="btn sm" data-act="resend" data-user="${u.user_id}" data-email="${u.email}">Enviar acceso</button>` : ''}
@@ -183,6 +183,47 @@ export async function render(main, ctx) {
   $('#createActive', main)?.addEventListener('click', async () => { try { const r = await roleDialog(ctx, { directActive: true }); if (r) { toast(r.message, 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
   $('#csv', main).addEventListener('click', () => downloadCsv(`sofa-revision-accesos-${todayISO()}.csv`, ['ID de cuenta', 'Nombre', 'Correo', 'Accesos (rol / organización / estado)', 'Último ingreso', 'Revisión'],
     accounts.filter((u) => matchesAccount(u, { kind, status: filter, q: search })).map((u) => [u.user_id, u.full_name, [...u.emails].join(' · '), u.memberships.map((m) => `${m.role_name || m.role_code} / ${m.organization || 'Sin organización'} / ${m.status}${m.conflict ? ' / Datos contradictorios' : ''}`).join(' | '), String(u.last_sign_in_at || '').slice(0, 16).replace('T', ' '), u.sharedEmail || u.emailConflict ? 'Revisar identidad' : ''])));
+  box.addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-view-account]');
+    if (!trigger) return;
+    const account = accounts.find((item) => item.user_id === trigger.dataset.viewAccount);
+    if (!account) return;
+    const row = trigger.closest('tr');
+    const dialog = document.createElement('dialog');
+    dialog.className = 'dlg users-detail';
+    dialog.setAttribute('aria-labelledby', 'account-detail-title');
+    paint(dialog, html`<div class="dh" id="account-detail-title">${account.full_name || 'Cuenta seleccionada'}</div>
+      <div class="db"><p>${[...account.emails].join(' · ') || 'Correo no disponible'}</p>
+      <div class="tabs" role="group" aria-label="Secciones de la cuenta">
+      <button data-pane="access" aria-pressed="true">Accesos</button><button data-pane="security" aria-pressed="false">Seguridad</button><button data-pane="activity" aria-pressed="false">Actividad disponible</button></div>
+      <section data-content="access"><h3>Roles y organizaciones</h3><div class="users-detail-access"></div></section>
+      <section data-content="security" hidden><h3>Acciones de la cuenta</h3><p>Estas acciones afectan a la cuenta completa. Sus registros se conservan.</p><div class="users-detail-security"></div></section>
+      <section data-content="activity" hidden><h3>Último ingreso</h3><p>${account.last_sign_in_at ? dateTime(account.last_sign_in_at) : 'No disponible'}</p><p>No se dispone de un historial administrativo completo en esta vista.</p></section></div>
+      <div class="df"><button class="btn" data-close-account>Cerrar</button></div>`);
+    const copy = (source, target) => {
+      if (!source) return;
+      const clone = source.cloneNode(true);
+      clone.querySelectorAll('[data-act]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const original = [...source.querySelectorAll('[data-act]')].find((item) => item.dataset.act === button.dataset.act && item.dataset.role === button.dataset.role && item.dataset.org === button.dataset.org);
+          dialog.close();
+          original?.click(); // La acción vuelve a pasar por resolveAccountAction.
+        });
+      });
+      dialog.querySelector(target).append(clone);
+    };
+    copy(row.querySelector('[data-l="Roles y organizaciones"]'), '.users-detail-access');
+    copy(row.querySelector('[data-l="Acciones de la cuenta"]'), '.users-detail-security');
+    dialog.addEventListener('click', (e) => {
+      if (e.target.closest('[data-close-account]')) dialog.close();
+      const tab = e.target.closest('[data-pane]');
+      if (!tab) return;
+      dialog.querySelectorAll('[data-pane]').forEach((item) => item.setAttribute('aria-pressed', String(item === tab)));
+      dialog.querySelectorAll('[data-content]').forEach((item) => { item.hidden = item.dataset.content !== tab.dataset.pane; });
+    });
+    dialog.addEventListener('close', () => { dialog.remove(); if (trigger.isConnected) trigger.focus(); }, {once:true});
+    document.body.append(dialog); dialog.showModal(); dialog.querySelector('[data-pane]').focus();
+  });
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     if (b.disabled || b.getAttribute('aria-busy') === 'true') return;
@@ -233,12 +274,12 @@ async function repairAssignment(account, membership, reload) {
       <dt>Activación</dt><dd>${preview.profile_active === true ? 'La cuenta conservará su estado activo.' : 'La cuenta permanecerá inactiva; esta corrección no la reactiva.'}</dd></dl>
       ${allowed ? html`<div class="field"><label for="repair-reason">Motivo de la corrección *</label><textarea id="repair-reason" name="reason" rows="3" maxlength="1000" required placeholder="Describe por qué esta cuenta fue asociada por error al cliente"></textarea><span class="hint">Al menos 12 caracteres. El motivo y los accesos anteriores quedan registrados.</span></div>
         <div class="field"><label for="repair-email">Escribe el correo para confirmar *</label><input id="repair-email" name="email" type="email" autocomplete="off" required></div>
-        <label class="check"><input type="checkbox" name="confirmed"> Confirmo que esta cuenta debe ser Administrador SOFA y que su asociación al cliente es un error.</label>` : html`<div class="note bad" role="alert"><b>No se puede corregir automáticamente</b><ul>${preview.blockers.map((message) => html`<li>${message}</li>`)}</ul></div>`}`,
+        <div class="field"><label class="check" for="repair-confirmed"><input id="repair-confirmed" type="checkbox" name="confirmed"> Confirmo que esta cuenta debe ser Administrador SOFA y que su asociación al cliente es un error.</label><span role="status" class="sr-only" id="repair-confirmation-status"></span></div>` : html`<div class="note bad" role="alert"><b>No se puede corregir automáticamente</b><ul>${preview.blockers.map((message) => html`<li>${message}</li>`)}</ul></div>`}`,
     onSubmit: async (d, form) => {
       if (!allowed) return true;
       if ((d.reason || '').trim().length < 12) { fieldError(form.elements.reason, 'Describe el motivo con al menos 12 caracteres.'); return false; }
       if ((d.email || '').trim().toLowerCase() !== String(preview.email || '').toLowerCase()) { fieldError(form.elements.email, 'El correo no coincide con la cuenta mostrada.'); return false; }
-      if (d.confirmed !== true) { fieldError(form.elements.confirmed, 'Confirma el cambio solicitado.'); return false; }
+      if (d.confirmed !== true) { fieldError(form.elements.confirmed, 'Confirma el cambio solicitado.'); form.querySelector('#repair-confirmation-status').textContent = 'Confirma el cambio solicitado.'; form.elements.confirmed.focus(); return false; }
       const result = await rpc('admin_repair_user_access', { p_user: preview.user_id, p_org: preview.client_org_id,
         p_reason: d.reason.trim(), p_confirm_email: d.email.trim(), p_expected: preview.expected });
       if (result?.ok !== true || !result.audit_id) throw new Error('No se confirmó la corrección. Revisa la cuenta antes de reintentar.');

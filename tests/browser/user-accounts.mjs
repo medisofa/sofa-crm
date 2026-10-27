@@ -31,6 +31,13 @@ await page.evaluate(async()=>{
 });
 await page.getByText('6 de 6 cuentas · 8 accesos',{exact:true}).waitFor();
 assert.equal(await page.locator('tbody>tr').count(),6);
+await page.locator('tbody>tr').filter({hasText:'Dra. Ana Pérez'}).getByRole('button',{name:'Ver cuenta',exact:true}).click();
+await page.locator('dialog.users-detail').waitFor();
+assert.equal(await page.locator('dialog.users-detail .user-membership').count(),2);
+await page.locator('dialog.users-detail').getByRole('button',{name:'Seguridad',exact:true}).click();
+await page.locator('dialog.users-detail').getByRole('heading',{name:'Acciones de la cuenta',exact:true}).waitFor();
+await page.locator('dialog.users-detail').getByRole('button',{name:'Cerrar',exact:true}).click();
+
 const doctor=page.locator('tbody>tr').filter({hasText:'Dra. Ana Pérez'});
 assert.equal(await doctor.locator('.user-membership').count(),2);assert.equal(await doctor.locator('[data-act="resend"]').count(),1);
 assert.equal(await page.locator('tbody>tr').filter({hasText:'protected-e@example.test'}).locator('[data-act]').count(),0);
@@ -75,6 +82,10 @@ await page.getByLabel('Escribe el correo para confirmar *').fill('wrong@example.
 await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).click();
 assert.equal(await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length),0);
 await page.getByLabel('Escribe el correo para confirmar *').fill('repair@example.test');
+await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).click();
+assert.equal(await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length),0);
+await page.locator('dialog .err').getByText('Confirma el cambio solicitado.',{exact:true}).waitFor();
+assert.equal(await page.locator('#repair-confirmed').getAttribute('aria-invalid'),'true');
 await page.locator('dialog input[name="confirmed"]').check();
 await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).click();
 await page.locator('dialog .fd-msg').getByText(/Los accesos cambiaron/).waitFor();
