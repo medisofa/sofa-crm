@@ -51,7 +51,7 @@ export async function resolveGlosa(id, items, comment = null) { return must(awai
 // ---- Pagos de ARS
 export async function listPayments({ arsId = '', orgId = '', q = '', page = 0, size = 25, realOnly = false } = {}) {
   let query = sb().from('v_payments').select('*', { count: 'exact' });
-  if (realOnly && !orgId) query = applyOnlyReal(query, await realOrgIds());
+  if (realOnly) query = applyOnlyReal(query, await realOrgIds());
   if (arsId) query = query.eq('ars_id', arsId);
   if (orgId) query = query.eq('organization_id', orgId);
   const t = clean(q); if (t) query = query.or(`reference.ilike.%${t}%,client_name.ilike.%${t}%,folios.ilike.%${t}%`);
