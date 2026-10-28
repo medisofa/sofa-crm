@@ -56,11 +56,12 @@ export async function render(root, ctx = {}) {
       body.replaceChildren(note('La historia clínica todavía no está activada en este consultorio. La activa el Super Admin en «Historia clínica: control».'));
       return;
     }
-    if (!st.role && isSA) { emergencyForm(org); return; }
+    if (!st.role && isSA) { accessForm(org); return; }
     if (!st.role) { body.replaceChildren(note('Sin acceso a la historia clínica: solo el médico del consultorio la consulta.', 'error')); return; }
     if (st.require_mfa && st.aal !== 'aal2') { await mfaGate(); return; }
 
     const banners = [];
+    if (st.role === 'medico') { const pend = await pendingPanel(org); if (pend) banners.push(pend); }
     if (st.mode === 'prueba') banners.push(h('div', { class: 'hc-banner prueba', role: 'status' }, 'MODO PRUEBA · Use solo pacientes ficticios. No registre datos reales hasta la revisión legal.'));
     if (st.role === 'emergencia') banners.push(h('div', { class: 'hc-banner emergencia', role: 'status' }, `ACCESO DE EMERGENCIA · Solo lectura hasta las ${fmtTs(st.emergency_until)}. Todo queda en la bitácora que ve el médico.`));
 
@@ -99,17 +100,63 @@ export async function render(root, ctx = {}) {
     verifyStep(box, s.factor.id, () => openOrg());
   }
 
-  function emergencyForm(org) {
+  function accessForm(org) {
+    // 2.? · Dos caminos para el Super Admin: emergencia inmediata (como antes, sin aprobación, 60 min)
+    // o pedir autorización al médico (5/15/30/60 min, no entra hasta que el médico la aprueba).
     const reason = h('textarea', { id: 'hc-reason', rows: '3', maxlength: '500', style: 'width:100%' });
-    const go = h('button', { class: 'i18-btn', type: 'button' }, 'Pedir acceso de emergencia (60 min)');
+    const go = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Pedir acceso de emergencia (60 min, inmediato)');
     const msg = h('div', { 'aria-live': 'polite' });
     go.addEventListener('click', async () => {
       go.disabled = true;
       try { await rpc('clinical_break_glass', { p_org: org, p_reason: reason.value }); openOrg(); }
       catch (e) { msg.replaceChildren(note(e.message, 'error')); go.disabled = false; }
     });
-    body.replaceChildren(note('Como Super Admin no ve datos clínicos. Solo en una emergencia puede pedir acceso de lectura por 60 minutos. El motivo queda en la bitácora y el médico lo ve.'),
-      h('div', { class: 'i18-form' }, h('label', { for: 'hc-reason' }, 'Motivo (mínimo 20 caracteres)'), reason, h('div', {}, go), msg));
+
+    const minutes = h('select', { id: 'hc-minutes' }, [5, 15, 30, 60].map((m) => h('option', { value: String(m), ...(m === 15 ? { selected: true } : {}) }, `${m} minutos`)));
+    const reason2 = h('input', { id: 'hc-reason2', type: 'text', maxlength: '300', style: 'width:100%', placeholder: 'Motivo' });
+    const ask = h('button', { class: 'i18-btn', type: 'button' }, 'Pedir autorización al médico');
+    const msg2 = h('div', { 'aria-live': 'polite' });
+    ask.addEventListener('click', async () => {
+      if (!reason2.value.trim()) { msg2.replaceChildren(note('Escriba el motivo.', 'error')); return; }
+      ask.disabled = true;
+      try {
+        await rpc('clinical_access_request', { p_org: org, p_minutes: Number(minutes.value), p_reason: reason2.value.trim() });
+        msg2.replaceChildren(note('Solicitud enviada. El médico la verá al entrar a su Historia clínica y decide si la aprueba. Vuelva a entrar aquí después.', 'ok'));
+      } catch (e) { msg2.replaceChildren(note(e.message, 'error')); }
+      ask.disabled = false;
+    });
+
+    body.replaceChildren(note('Como Super Admin no ve datos clínicos por su rol normal. Tiene dos caminos de solo lectura:'),
+      h('section', { class: 'i18-card' }, h('h4', { style: 'margin-top:0' }, '1 · Pedir autorización al médico (recomendado)'),
+        h('p', { class: 'i18-sub' }, 'El médico aprueba o rechaza antes de que usted pueda entrar. Se cierra sola al vencer.'),
+        h('div', { class: 'i18-form' }, h('label', { for: 'hc-minutes' }, 'Duración', minutes), h('label', { for: 'hc-reason2' }, 'Motivo', reason2), h('div', {}, ask), msg2)),
+      h('section', { class: 'i18-card' }, h('h4', { style: 'margin-top:0' }, '2 · Acceso de emergencia (sin esperar aprobación)'),
+        h('p', { class: 'i18-sub' }, 'Solo para una emergencia real: entra de inmediato por 60 minutos. El motivo queda en la bitácora y el médico lo ve apenas entre.'),
+        h('div', { class: 'i18-form' }, h('label', { for: 'hc-reason' }, 'Motivo (mínimo 20 caracteres)'), reason, h('div', {}, go), msg)));
+  }
+
+  /** El médico ve aquí, al entrar a su Historia clínica, si el Super Admin le pidió acceso y puede aprobarlo o rechazarlo. */
+  async function pendingPanel(org) {
+    let rows;
+    try { rows = await rpc('clinical_access_pending', { p_org: org }); } catch { return null; }
+    const pend = (rows || []).filter((r) => r.status === 'pendiente');
+    if (!pend.length) return null;
+    const box = h('div', { class: 'hc-banner prueba', role: 'alert' });
+    const items = pend.map((r) => {
+      const yes = h('button', { class: 'i18-btn', type: 'button' }, 'Autorizar');
+      const no = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Rechazar');
+      const line = h('div', { style: 'margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap' },
+        h('span', {}, `${r.requested_by} pide ver la historia clínica por ${r.duration_minutes} min · "${r.reason}"`), yes, no);
+      const respond = async (approve) => {
+        yes.disabled = true; no.disabled = true;
+        try { await rpc('clinical_access_respond', { p_request: r.id, p_approve: approve }); openOrg(); }
+        catch (e) { alert(e.message); yes.disabled = false; no.disabled = false; }
+      };
+      yes.addEventListener('click', () => respond(true)); no.addEventListener('click', () => respond(false));
+      return line;
+    });
+    box.append(h('strong', {}, 'El Super Admin pidió acceso a esta historia clínica:'), ...items);
+    return box;
   }
 
   async function openPatient(id, main, st) {

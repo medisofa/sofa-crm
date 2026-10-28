@@ -42,6 +42,8 @@
 .menu-pop a:hover, .menu-pop button:hover { background: var(--surface-2); }
 .banner { font-size: 13px; padding: 7px 16px; border-bottom: 1px solid var(--line); }
 .banner.offline { background: var(--warn-bg); color: var(--warn); }
+.banner.viewas { background: var(--info-bg); color: var(--info); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.banner.viewas .btn { margin-left: auto; }
 main.page { padding: 20px 16px 72px; max-width: 1200px; width: 100%; margin: 0 auto; min-width: 0; }
 @media (min-width: 760px) { main.page { padding: 26px 28px 80px; } }
 main.page:focus { outline: none; }

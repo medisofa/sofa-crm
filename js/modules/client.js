@@ -36,7 +36,7 @@ export async function render(main, ctx) {
   paint(box, html`
     <div class="page-head"><div class="t">${staff ? html`<p><a href="#/clientes">← Clientes</a></p>` : ''}<h2>${org.legal_name}</h2>
       <p><span class="pill ${stCls}">${stLabel}</span> · ${org.org_type || '—'}${org.specialty ? ` · ${org.specialty}` : ''}${org.started_on ? ` · cliente desde ${date(org.started_on)}` : ''}</p></div>
-      ${wa ? html`<a class="btn" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${editOrg ? html`<button class="btn" id="editOrg">Editar datos</button>` : ''}</div>
+      ${wa ? html`<a class="btn" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${editOrg ? html`<button class="btn" id="editOrg">Editar datos</button>` : ''}${ctx.role === 'super_admin' ? html`<button class="btn" id="viewAs" title="Ver las pantallas de este cliente, en modo soporte y solo lectura">Ver como este cliente</button>` : ''}</div>
     <div class="grid kpis">
       <div class="kpi"><div class="l">Radicado</div><div class="v">${money(s?.radicado)}</div><div class="h">${num(s?.submitted)} radicaciones</div></div>
       <div class="kpi"><div class="l">Pagado</div><div class="v" style="color:var(--ok)">${money(s?.pagado)}</div><div class="h">${s?.tasa_pago == null ? 'Sin datos aún' : `${s.tasa_pago}% de lo radicado`}</div></div>
@@ -68,6 +68,10 @@ export async function render(main, ctx) {
   const invite = async (role) => { try { const { inviteToClient } = await import('./users.js'); const r = await inviteToClient(ctx, role, org.id); if (r) toast(r.message, 'ok'); } catch (err) { toast(friendlyError(err), 'bad'); } };
   $('#invMed', main)?.addEventListener('click', () => invite('client'));
   $('#invSec', main)?.addEventListener('click', () => invite('capturer'));
+  $('#viewAs', main)?.addEventListener('click', async () => {
+    const { enterViewAs } = await import('../app.js');
+    await enterViewAs({ id: org.id, legal_name: org.legal_name });
+  });
 
   // ---- Datos del cliente
   $('#editOrg', main)?.addEventListener('click', async () => {

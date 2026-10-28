@@ -38,7 +38,8 @@ async function roleDialog(ctx, preset = {}) {
       </div>
       <p class="small" id="f_rdesc" aria-live="polite"></p>
       <fieldset id="f_provs" style="border:0;padding:0;display:none"><legend class="small" style="font-weight:600">Médicos que atiende esta secretaria *</legend><div id="f_plist" class="list"></div></fieldset>
-      ${invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}`,
+      ${invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}
+      <p class="small muted">Si esta persona ya tiene acceso del otro lado (personal SOFA o Médico/Secretaria de un cliente), se cerrará automáticamente al guardar este cambio.</p>`,
     onOpen: (form) => {
       const sync = async () => {
         const r = form.elements.role.value; const orgRole = ORG_ROLES.includes(r);

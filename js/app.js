@@ -11,6 +11,7 @@ import { visibleNav, ROLES, homeRoute } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
+import { supportViewStart, supportViewEnd } from './services/admin.js';
 
 const app = document.getElementById('app');
 
@@ -37,7 +38,47 @@ const FAMILY_ICONS = {
   cuenta: ICON('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6"/>'),
   mas: ICON('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>')
 };
-const state = { session: null, profile: null, memberships: [], membership: null, role: null, operatorId: null };
+const state = { session: null, profile: null, memberships: [], membership: null, role: null, operatorId: null, viewAs: null };
+
+/**
+ * 2.? · "Ver como" (modo soporte, solo lectura): el Super Admin ve las pantallas
+ * de un cliente tal como las ve el médico, para dar seguimiento o resolver dudas.
+ * No cambia de sesión ni de usuario: sigue siendo el Super Admin ante Supabase
+ * (por eso puede ver los datos del cliente, que ya le están permitidos por RLS);
+ * solo cambia qué menú y pantallas renderiza esta pestaña. Para que "solo lectura"
+ * sea real en la interfaz, un candado global bloquea cualquier guardar mientras
+ * el modo está activo. Queda una auditoría SOLO interna de SOFA (nadie del
+ * cliente la ve): cuándo, quién y en cuál organización.
+ */
+export async function enterViewAs(org) {
+  if (state.role !== 'super_admin') return;
+  let sessionId = null;
+  try { sessionId = await supportViewStart(org.id); } catch (e) { toast(friendlyError(e), 'bad'); return; }
+  state.real = { role: state.role, membership: state.membership };
+  state.role = 'client';
+  state.membership = { organization_id: org.id, organization: org.legal_name, kind: 'client', role: 'client', role_name: 'Médico' };
+  state.viewAs = { sessionId, orgId: org.id, orgName: org.legal_name };
+  layout();
+  history.replaceState(null, '', `#/${homeRoute('client')}`);
+  route();
+}
+async function exitViewAs() {
+  if (!state.viewAs) return;
+  const { sessionId } = state.viewAs;
+  state.role = state.real.role; state.membership = state.real.membership; state.real = null; state.viewAs = null;
+  supportViewEnd(sessionId).catch(() => { /* la sesión se cierra sola por antigüedad si esto falla */ });
+  layout();
+  history.replaceState(null, '', `#/${homeRoute(state.role)}`);
+  route();
+}
+/** Candado global de solo lectura mientras "Ver como" está activo: bloquea todo guardar sin tener que tocar cada pantalla. */
+function blockIfViewAs(e) {
+  if (!state.viewAs) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  toast('Modo solo lectura: estás viendo como el cliente. No se puede guardar.', 'warn');
+}
+document.addEventListener('submit', blockIfViewAs, true);
+document.addEventListener('click', (e) => { if (state.viewAs && e.target.closest('[data-act]')) blockIfViewAs(e); }, true);
 
 function fatal(title, text, actions = '') {
   render(app, html`<div class="auth-wrap"><div class="auth-card" role="alert">
@@ -120,10 +161,12 @@ function layout() {
       <header class="topbar">
         <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
         <h1 id="pageTitle">SOFA</h1>
-        ${multi ? html`<label class="sr-only" for="orgSel">Organización activa</label><select class="org-select" id="orgSel">${state.memberships.map((m) => html`<option value="${m.organization_id}" ${m.organization_id === state.membership.organization_id ? raw('selected') : ''}>${m.organization} · ${m.role_name}</option>`)}</select>`
+        ${state.viewAs ? html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`
+                : multi ? html`<label class="sr-only" for="orgSel">Organización activa</label><select class="org-select" id="orgSel">${state.memberships.map((m) => html`<option value="${m.organization_id}" ${m.organization_id === state.membership.organization_id ? raw('selected') : ''}>${m.organization} · ${m.role_name}</option>`)}</select>`
                 : html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`}
         <button class="user-btn" id="userBtn" aria-haspopup="menu" aria-expanded="false"><span class="avatar" aria-hidden="true">${initials(name)}</span><span class="nm">${name}</span></button>
       </header>
+      ${state.viewAs ? html`<div class="banner viewas" role="status">👁 Viendo como <b>${state.viewAs.orgName}</b> — modo soporte, solo lectura. <button type="button" class="btn sm" id="exitViewAs">Salir</button></div>` : ''}
       <div class="banner offline" id="offline" hidden role="status">Sin conexión. Los cambios no se guardarán hasta que vuelva internet.</div>
       <main class="page" id="main" tabindex="-1"></main>
     </div>
@@ -134,6 +177,7 @@ function layout() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleMenu(false); closeUserMenu(); } });
   $('#userBtn').onclick = (e) => { e.stopPropagation(); openUserMenu(); };
   $('#orgSel')?.addEventListener('change', (e) => { rememberMembership(e.target.value); location.reload(); });
+  $('#exitViewAs')?.addEventListener('click', () => exitViewAs());
   const net = () => { $('#offline').hidden = navigator.onLine; };
   window.addEventListener('online', net); window.addEventListener('offline', net); net();
 }
