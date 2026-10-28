@@ -160,6 +160,7 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .nav-v2 .fam-cobros .nav-ico{color:#86e0a6}.nav-v2 .fam-consultorio .nav-ico{color:#ff9fb0}.nav-v2 .fam-resultados .nav-ico{color:#7ee0d6}
 .nav-v2 .fam-admin .nav-ico{color:#cfd6df}.nav-v2 .fam-cuenta .nav-ico{color:#cfd6df}.nav-v2 .fam-mas .nav-ico{color:#cfd6df}
 .nav-v2 .nav-items a{padding-left:40px}
+.nav-v2 .nav-flat{padding:8px 10px 20px}.nav-v2 .nav-flat a{padding-left:10px}
 
 /* ===== 2.1 · Ficha del cliente en pestañas ===== */
 .ct-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:14px 0 10px;border-bottom:1px solid var(--line,#dce1e8)}
@@ -192,8 +193,11 @@ a.i18-btn{text-decoration:none;display:inline-block}
 @media (max-width:640px){.ac-table thead{display:none}.ac-table tr{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--line,#dce1e8)}
   .ac-table td{border:0;padding:2px 0}.ac-table td::before{content:attr(data-l);display:block;font-size:11px;color:var(--ink-3,#6e7a89)}}
 
-/* ===== 2.1 · Variables de las pantallas nuevas enlazadas al tema (claro/oscuro) ===== */
-:root{--border:var(--line);--text-muted:var(--ink-3)}
+/* ===== 2.1 · Variables de las pantallas nuevas enlazadas al tema (claro/oscuro) =====
+   Sin estas líneas, --primary/--brand/--warning/--muted/--text no existen y cada
+   var(..., #valor) de respaldo usa su color de reserva (azul/verde genéricos),
+   en vez del navy/vino corporativo de variables.css. */
+:root{--border:var(--line);--text-muted:var(--ink-3);--primary:var(--navy);--brand:var(--navy);--warning:var(--warn);--muted:var(--ink-2);--text:var(--ink)}
 .i18-form [hidden],.hc-form [hidden],.i18-wrap [hidden]{display:none!important}
 .v2-launch-grid{align-items:start}
 

@@ -80,3 +80,7 @@ export async function removeStorageFiles(files) {
   return { removed, failed };
 }
 export async function usersRolesReport() { return must(await sb().rpc('users_roles_report')); }
+
+/** 2.? · "Ver como" (modo soporte, solo lectura): auditoría solo interna de SOFA */
+export async function supportViewStart(orgId, targetUserId = null) { return must(await sb().rpc('support_view_start', { p_org: orgId, p_target_user: targetUserId })); }
+export async function supportViewEnd(sessionId) { return must(await sb().rpc('support_view_end', { p_session: sessionId })); }

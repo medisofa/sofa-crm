@@ -6,7 +6,7 @@ import { passwordMfaReady } from './utils/password-mfa.js';
 import { APP_VERSION } from './version.js';
 import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
-import { html, render, $ } from './utils/dom.js';
+import { html, render, raw, $ } from './utils/dom.js';
 import { friendlyError, busy, fieldError } from './utils/ui.js';
 import { isEmail, passwordProblem } from './utils/validation.js';
 
@@ -26,17 +26,44 @@ const REASONS = {
 const card = document.getElementById('card');
 const shell = (body) => html`<div class="logo"><img class="logo-full" src="assets/brand/sofa-logo.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>${body}<p class="auth-foot">v${APP_VERSION} · Acceso exclusivo para personal y clientes autorizados</p>`;
 const note = (kind, text) => html`<div class="note ${kind}" role="status">${text}</div>`;
-const pwField = (id, label, auto) => html`<div class="field"><label for="${id}">${label}</label><div class="pw-wrap"><input id="${id}" type="password" autocomplete="${auto}" required minlength="10"><button type="button" data-toggle="${id}" aria-label="Mostrar contraseña">Ver</button></div></div>`;
+const EYE_ON = '<svg class="ico-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg class="ico-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-3.22 2.76A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 4.22-5.94"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+const pwField = (id, label, auto) => html`<div class="field"><label for="${id}">${label}</label><div class="pw-wrap"><input id="${id}" type="password" autocomplete="${auto}" required minlength="10">${raw(`<button type="button" class="pw-toggle" data-toggle="${id}" aria-pressed="false" aria-label="Mostrar contraseña">${EYE_ON}${EYE_OFF}</button>`)}</div></div>`;
 
 function bindToggles() {
   card.querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', () => {
     const i = document.getElementById(b.dataset.toggle); const show = i.type === 'password';
-    i.type = show ? 'text' : 'password'; b.textContent = show ? 'Ocultar' : 'Ver'; b.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    i.type = show ? 'text' : 'password';
+    b.classList.toggle('is-visible', show);
+    b.setAttribute('aria-pressed', String(show));
+    b.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
   }));
 }
 
+/** Avisa si Bloq Mayús está activado mientras se escribe la contraseña */
+function watchCapsLock(input) {
+  const field = input.closest('.field');
+  let hint = null;
+  const check = (e) => {
+    const on = typeof e.getModifierState === 'function' && e.getModifierState('CapsLock');
+    if (on && !hint) { hint = document.createElement('div'); hint.className = 'cap-hint'; hint.textContent = '⇪ Bloq Mayús está activado.'; field.appendChild(hint); }
+    else if (!on && hint) { hint.remove(); hint = null; }
+  };
+  input.addEventListener('keydown', check);
+  input.addEventListener('keyup', check);
+  input.addEventListener('blur', () => { hint?.remove(); hint = null; });
+}
+
+/** Pinta una vista en la tarjeta con una pequeña transición de entrada */
+function show(tpl) {
+  card.classList.remove('enter');
+  render(card, tpl);
+  void card.offsetWidth;
+  card.classList.add('enter');
+}
+
 function loginView(message) {
-  render(card, shell(html`
+  show(shell(html`
     <h1>Iniciar sesión</h1><p class="lead">Entra con el correo y la contraseña que te asignó SOFA.</p>
     ${message || ''}
     <form id="f" novalidate>
@@ -45,8 +72,9 @@ function loginView(message) {
       <div id="msg" aria-live="assertive"></div>
       <button class="btn primary block" type="submit">Entrar</button>
     </form>
-    <p style="text-align:center;margin:14px 0 0"><button class="btn link" id="forgot" type="button">¿Olvidaste tu contraseña?</button></p>`));
+    <p class="auth-switch"><button class="btn link" id="forgot" type="button">¿Olvidaste tu contraseña?</button></p>`));
   bindToggles();
+  watchCapsLock($('#password'));
   $('#email').focus();
   $('#forgot').onclick = () => forgotView($('#email').value);
   $('#f').onsubmit = async (e) => {
@@ -64,14 +92,14 @@ function loginView(message) {
 }
 
 function forgotView(prefill = '') {
-  render(card, shell(html`
+  show(shell(html`
     <h1>Recuperar contraseña</h1><p class="lead">Te enviaremos un enlace para crear una contraseña nueva.</p>
     <form id="f" novalidate>
       <div class="field"><label for="email">Correo electrónico</label><input id="email" type="email" autocomplete="username" required value="${prefill}"></div>
       <div id="msg" aria-live="assertive"></div>
       <button class="btn primary block" type="submit">Enviar enlace</button>
     </form>
-    <p style="text-align:center;margin:14px 0 0"><button class="btn link" id="back" type="button">Volver a iniciar sesión</button></p>`));
+    <p class="auth-switch"><button class="btn link" id="back" type="button">Volver a iniciar sesión</button></p>`));
   $('#email').focus();
   $('#back').onclick = () => loginView();
   $('#f').onsubmit = async (e) => {
@@ -92,7 +120,7 @@ function forgotView(prefill = '') {
 }
 
 function resetView(invite = false) {
-  render(card, shell(html`
+  show(shell(html`
     <h1>${invite ? 'Bienvenido a SOFA' : 'Crear contraseña nueva'}</h1><p class="lead">${invite ? 'Te invitaron a SOFA. Crea tu contraseña para entrar: ' : ''}Usa al menos 10 caracteres, combinando letras y números.</p>
     <form id="f" novalidate>
       ${pwField('p1', 'Contraseña nueva', 'new-password')}
@@ -101,6 +129,7 @@ function resetView(invite = false) {
       <button class="btn primary block" type="submit">Guardar contraseña</button>
     </form>`));
   bindToggles();
+  watchCapsLock($('#p1')); watchCapsLock($('#p2'));
   $('#p1').focus();
   $('#f').onsubmit = async (e) => {
     e.preventDefault();

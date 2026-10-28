@@ -42,7 +42,8 @@ async function roleDialog(ctx, preset = {}) {
       </div>
       <p class="small" id="f_rdesc" aria-live="polite"></p>
       <fieldset id="f_provs" style="border:0;padding:0;display:none"><legend class="small" style="font-weight:600">Médicos que atiende esta secretaria *</legend><div id="f_plist" class="list"></div></fieldset>
-      ${directActive ? html`<p class="small muted"><b>Alta directa por Super Admin:</b> la cuenta se confirma y activa sin enviar correo. El usuario deberá cambiar la contraseña temporal en el primer acceso.</p>` : invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}`,
+      ${directActive ? html`<p class="small muted"><b>Alta directa por Super Admin:</b> la cuenta se confirma y activa sin enviar correo. El usuario deberá cambiar la contraseña temporal en el primer acceso.</p>` : invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}
+      <p class="small muted">Una persona no puede ser a la vez personal de SOFA y Médico/Secretaria de un cliente. Si esta cuenta quedó mal asignada por error, use «Corregir asignación» en su fila en vez de cambiar el rol aquí.</p>`,
     onOpen: (form) => {
       form.querySelector('#generate-temporary-password')?.addEventListener('click', () => {
         const bytes = crypto.getRandomValues(new Uint8Array(20));
@@ -144,6 +145,7 @@ export async function render(main, ctx) {
               ${m.conflict ? html`<p class="note bad">Datos contradictorios para este acceso. Revisa la validación antes de modificarlo.</p>` : ''}
               ${editable && !m.conflict ? html`<div class="user-access-actions">${manage && u.email && !u.sharedEmail ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id || ''}">Cambiar este rol</button>` : ''}
                 ${manage && m.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
+                ${ctx.role === 'super_admin' && m.role_code === 'capturer' && m.is_active === true ? html`<button class="btn sm" data-act="viewas" data-user="${u.user_id}" data-org="${m.organization_id}" data-orgname="${m.organization || ''}" data-name="${u.full_name || u.email}" title="Ver las pantallas de esta secretaria, en modo soporte y solo lectura">Ver como esta secretaria</button>` : ''}
                 ${manage ? html`<button class="btn sm" data-act="validate" data-user="${u.user_id}" data-role="${m.role_code || ''}" data-org="${m.organization_id || ''}">Validar acceso</button>` : ''}
                 ${!repairUnavailable && ctx.role === 'super_admin' && ORG_ROLES.includes(m.role_code) && m.is_active === true ? html`<button class="btn sm" data-act="repair" data-user="${u.user_id}" data-role="${m.role_code}" data-org="${m.organization_id}">Corregir asignación</button>` : ''}</div>` : ''}</section>`;
           })}</td>
@@ -238,6 +240,11 @@ export async function render(main, ctx) {
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     if (b.disabled || b.getAttribute('aria-busy') === 'true') return;
+    if (b.dataset.act === 'viewas') {
+      const { enterViewAs } = await import('../app.js');
+      await enterViewAs({ id: b.dataset.org, legal_name: b.dataset.orgname }, { userId: b.dataset.user, role: 'capturer', name: b.dataset.name });
+      return;
+    }
     const selection = resolveAccountAction(accounts, { role: ctx.role, userId: ctx.session.user.id }, {
       action: b.dataset.act, userId: b.dataset.user, role: b.dataset.role, orgId: b.dataset.org
     });

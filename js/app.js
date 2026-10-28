@@ -11,6 +11,8 @@ import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
+import { supportViewStart, supportViewEnd } from './services/admin.js';
+import { viewAsState } from './utils/view-as-state.js';
 
 const app = document.getElementById('app');
 
@@ -37,7 +39,62 @@ const FAMILY_ICONS = {
   cuenta: ICON('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6"/>'),
   mas: ICON('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>')
 };
-const state = { session: null, profile: null, memberships: [], membership: null, role: null, operatorId: null };
+const state = { session: null, profile: null, memberships: [], membership: null, role: null, operatorId: null, viewAs: null };
+
+/**
+ * 2.? · "Ver como" (modo soporte, solo lectura): el Super Admin ve las pantallas
+ * de un cliente tal como las ve el médico, para dar seguimiento o resolver dudas.
+ * No cambia de sesión ni de usuario: sigue siendo el Super Admin ante Supabase
+ * (por eso puede ver los datos del cliente, que ya le están permitidos por RLS);
+ * solo cambia qué menú y pantallas renderiza esta pestaña. Para que "solo lectura"
+ * sea real en la interfaz, un candado global bloquea cualquier guardar mientras
+ * el modo está activo. Queda una auditoría SOLO interna de SOFA (nadie del
+ * cliente la ve): cuándo, quién y en cuál organización.
+ */
+const VIEW_AS_ROLE_NAME = { client: 'Médico', capturer: 'Secretaria / Capturista' };
+/**
+ * @param org {id, legal_name}
+ * @param target opcional: {userId, role, name} para "ver como" una secretaria en concreto.
+ *   Sin target, "ver como" el médico/consultorio en general (como antes).
+ */
+export async function enterViewAs(org, target = null) {
+  if (state.role !== 'super_admin') return;
+  const role = target?.role || 'client';
+  let sessionId = null;
+  try { sessionId = await supportViewStart(org.id, target?.userId || null); } catch (e) { toast(friendlyError(e), 'bad'); return; }
+  state.real = { role: state.role, membership: state.membership };
+  state.role = role;
+  state.membership = { organization_id: org.id, organization: org.legal_name, kind: 'client', role, role_name: VIEW_AS_ROLE_NAME[role] || role };
+  state.viewAs = { sessionId, orgId: org.id, orgName: org.legal_name, targetName: target?.name || null, role };
+  viewAsState.active = true;
+  layout();
+  history.replaceState(null, '', `#/${homeRoute(role)}`);
+  route();
+}
+async function exitViewAs() {
+  if (!state.viewAs) return;
+  const { sessionId } = state.viewAs;
+  state.role = state.real.role; state.membership = state.real.membership; state.real = null; state.viewAs = null;
+  viewAsState.active = false;
+  supportViewEnd(sessionId).catch(() => { /* la sesión se cierra sola por antigüedad si esto falla */ });
+  layout();
+  history.replaceState(null, '', `#/${homeRoute(state.role)}`);
+  route();
+}
+/** Candado global de solo lectura mientras "Ver como" está activo: bloquea todo guardar sin tener que tocar cada pantalla. */
+function blockIfViewAs(e) {
+  if (!state.viewAs) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  toast('Modo solo lectura: estás viendo como el cliente. No se puede guardar.', 'warn');
+}
+document.addEventListener('submit', blockIfViewAs, true);
+document.addEventListener('click', (e) => { if (state.viewAs && e.target.closest('[data-act]')) blockIfViewAs(e); }, true);
+// También bloquea imprimir/exportar PDF (window.print se usa en toda la app: historia clínica, reportes, recetas…)
+const realPrint = window.print.bind(window);
+window.print = function (...args) {
+  if (state.viewAs) { toast('Modo solo lectura: no se puede imprimir ni exportar mientras ves como el cliente.', 'warn'); return undefined; }
+  return realPrint(...args);
+};
 
 function fatal(title, text, actions = '') {
   render(app, html`<div class="auth-wrap"><div class="auth-card" role="alert">
@@ -139,10 +196,12 @@ function layout() {
       <header class="topbar">
         <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
         <h1 id="pageTitle">SOFA</h1>
-        ${multi ? html`<label class="sr-only" for="orgSel">Organización activa</label><select class="org-select" id="orgSel">${state.memberships.map((m) => html`<option value="${m.organization_id}" ${m.organization_id === state.membership.organization_id ? raw('selected') : ''}>${m.organization} · ${m.role_name}</option>`)}</select>`
+        ${state.viewAs ? html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`
+                : multi ? html`<label class="sr-only" for="orgSel">Organización activa</label><select class="org-select" id="orgSel">${state.memberships.map((m) => html`<option value="${m.organization_id}" ${m.organization_id === state.membership.organization_id ? raw('selected') : ''}>${m.organization} · ${m.role_name}</option>`)}</select>`
                 : html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`}
         <button class="user-btn" id="userBtn" aria-haspopup="menu" aria-expanded="false"><span class="avatar" aria-hidden="true">${initials(name)}</span><span class="nm">${name}</span></button>
       </header>
+      ${state.viewAs ? html`<div class="banner viewas" role="status">👁 Viendo como ${state.viewAs.targetName ? html`<b>${state.viewAs.targetName}</b> (${VIEW_AS_ROLE_NAME[state.viewAs.role] || state.viewAs.role} · ${state.viewAs.orgName})` : html`<b>${state.viewAs.orgName}</b>`} — modo soporte, solo lectura. <button type="button" class="btn sm" id="exitViewAs">Salir</button></div>` : ''}
       <div class="banner offline" id="offline" hidden role="status">Sin conexión. Los cambios no se guardarán hasta que vuelva internet.</div>
       <main class="page" id="main" tabindex="-1"></main>
     </div>
@@ -153,12 +212,16 @@ function layout() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleMenu(false); closeUserMenu(); } });
   $('#userBtn').onclick = (e) => { e.stopPropagation(); openUserMenu(); };
   $('#orgSel')?.addEventListener('change', (e) => { rememberMembership(e.target.value); location.reload(); });
+  $('#exitViewAs')?.addEventListener('click', () => exitViewAs());
   const net = () => { $('#offline').hidden = navigator.onLine; };
   window.addEventListener('online', net); window.addEventListener('offline', net); net();
 }
 
 /** 2.0 · Grupos plegables (se recuerdan en este navegador) y búsqueda en el menú. */
 const NAV_KEY = 'sofa.nav.cerrados';
+/** 2.? · Si el menú de un rol tiene pocos módulos en total, los acordeones por familia solo estorban:
+ * se muestra como lista plana, sin encabezados de grupo que haya que abrir para ver 2 o 3 enlaces. */
+const FLAT_NAV_THRESHOLD = 14;
 const closedGroups = () => { try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || '[]')); } catch (_) { return new Set(); } };
 const saveClosed = (set) => { try { localStorage.setItem(NAV_KEY, JSON.stringify([...set])); } catch (_) { /* sin almacenamiento: no se recuerda */ } };
 const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -181,6 +244,11 @@ function renderNav() {
       ? html`${hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : ''}
              ${otros.length ? html`<div class="nav-otros"><p class="nav-otros-t">Otros módulos a los que tienes acceso</p><div class="nav-hits">${otros.map(link)}</div></div>` : ''}`
       : html`<p class="nav-empty">No hay ningún módulo con «${$('#navSearch').value}» al que tengas acceso. Borra la búsqueda para ver tu menú.</p>`);
+    return;
+  }
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  if (total <= FLAT_NAV_THRESHOLD) {
+    render(nav, html`<div class="nav-items nav-flat">${groups.flatMap((g) => g.items).map(link)}</div>`);
     return;
   }
   render(nav, html`${groups.map((g) => {

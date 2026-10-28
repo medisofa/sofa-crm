@@ -6,6 +6,7 @@ import { rpc, clientOptions, clientName, h, note, guarded, table } from '../serv
 import { importPanel } from './hc-importar.js';
 
 const MODE = { desactivada: 'Desactivada', prueba: 'Prueba (solo pacientes ficticios)', activa: 'Activa (pacientes reales)' };
+const ACCESS_STATUS = { pendiente: 'Pendiente', aprobado: 'Aprobado', rechazado: 'Rechazado', caducado: 'Caducado (sin respuesta)' };
 const fmtTs = (iso) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
 export async function render(root) {
@@ -59,7 +60,47 @@ export async function render(root) {
       h('label', { class: 'i18-chk', for: 'hcc-mfa' }, mfa, ' Exigir verificación en dos pasos al médico para abrir la historia (recomendado)'),
       ackWrap, h('div', { class: 'i18-actions' }, save, showLog), msg),
       note('Recomendación: deje «Prueba» hasta que un abogado de salud revise el consentimiento, la conservación y la seguridad. En prueba, use solo pacientes ficticios.'),
-      logBox, importSection(org, st.mode));
+      logBox, st.mode !== 'desactivada' ? accessSection(org) : null, importSection(org, st.mode));
+  }
+
+  // 2.? · Acceso temporal a la historia clínica: el Super Admin pide, el médico aprueba o rechaza,
+  // con una duración fija (5/15/30/60 min) que vence sola. Reusa clinical_emergency_access (ya existía,
+  // pero nada la llenaba) y queda en la misma bitácora con cadena de hashes.
+  function accessSection(org) {
+    const box = h('section', { class: 'i18-card', id: 'hcc-access' }, h('h3', { style: 'margin-top:0' }, 'Pedir acceso temporal a la historia clínica'));
+    const minutes = h('select', { id: 'hcc-minutes' }, [5, 15, 30, 60].map((m) => h('option', { value: String(m), ...(m === 15 ? { selected: true } : {}) }, `${m} minutos`)));
+    const reason = h('input', { id: 'hcc-reason', type: 'text', maxlength: '300', placeholder: 'Motivo (ej.: el médico reportó un error y pidió ayuda por teléfono)', style: 'width:100%' });
+    const ask = h('button', { class: 'i18-btn', type: 'button' }, 'Pedir autorización al médico');
+    const msg = h('div', { 'aria-live': 'polite' });
+    const list = h('div', { 'aria-live': 'polite' });
+    async function loadList() {
+      const rows = await guarded(list, () => rpc('clinical_access_pending', { p_org: org }));
+      if (!rows) return;
+      list.replaceChildren(rows.length ? table([
+        { label: 'Pedida', get: (r) => fmtTs(r.requested_at) },
+        { label: 'Por', get: (r) => r.requested_by },
+        { label: 'Minutos', right: true, get: (r) => r.duration_minutes },
+        { label: 'Motivo', get: (r) => r.reason },
+        { label: 'Estado', get: (r) => ACCESS_STATUS[r.status] || r.status },
+        { label: 'Vence', get: (r) => fmtTs(r.expires_at) }
+      ], rows) : note('Sin solicitudes recientes.'));
+    }
+    ask.addEventListener('click', async () => {
+      if (!reason.value.trim()) { msg.replaceChildren(note('Escriba el motivo.', 'error')); return; }
+      ask.disabled = true;
+      try {
+        await rpc('clinical_access_request', { p_org: org, p_minutes: Number(minutes.value), p_reason: reason.value.trim() });
+        reason.value = '';
+        msg.replaceChildren(note('Solicitud enviada. El médico la ve en su pantalla de Historia clínica; si no responde en 30 minutos, caduca sola.', 'ok'));
+        await loadList();
+      } catch (e) { msg.replaceChildren(note(e.message, 'error')); }
+      ask.disabled = false;
+    });
+    box.append(note('El médico decide si la aprueba. Si aprueba, usted entra en modo lectura (acceso de emergencia) solo por el tiempo elegido; se cierra solo al vencer.'),
+      h('div', { class: 'i18-bar' }, h('label', { for: 'hcc-minutes' }, 'Duración', minutes), h('label', { for: 'hcc-reason', style: 'flex:1' }, 'Motivo', reason), ask), msg,
+      h('h4', {}, 'Solicitudes recientes'), list);
+    loadList();
+    return box;
   }
 
   // 2.6.1 · Importar historias de otro sistema: solo el Super Admin, a nombre del médico del consultorio
