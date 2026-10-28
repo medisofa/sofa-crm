@@ -1,3 +1,4 @@
+import { passwordMfaReady } from '../utils/password-mfa.js';
 /** SOFA · Cambio obligatorio de clave en el primer acceso.
  *  Uso en el arranque de la app, justo después de iniciar sesión:
  *    import { needsPasswordChange, render as cambioClave } from './modules/cambio-clave.js';
@@ -34,6 +35,7 @@ export async function render(root, { onDone } = {}) {
     if (a.value !== b.value) return out.replaceChildren(note('Las dos contraseñas no coinciden. Escríbalas de nuevo.', 'error'));
     btn.disabled = true;
     try {
+      if (!(await passwordMfaReady(out))) { btn.disabled = false; return; }
       const u = await supabase.auth.updateUser({ password: a.value });
       if (u.error) throw new Error(u.error.message.toLowerCase().includes('same') ? 'Elija una contraseña distinta a la temporal.' : 'No se pudo guardar la contraseña: ' + u.error.message);
       await rpc('confirm_password_changed');

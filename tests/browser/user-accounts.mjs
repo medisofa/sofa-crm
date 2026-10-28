@@ -120,6 +120,20 @@ await page.locator('[data-act="repair"]').click();
 await page.getByText('Corrección de asociaciones no habilitada',{exact:true}).waitFor();
 assert.equal(await page.locator('[data-act="repair"]').count(),0);
 assert.equal(await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length),writesBeforeMissing);
+// MFA gate: aal1 with verified TOTP must challenge; failure stays closed.
+await page.evaluate(async()=>{
+ const {passwordMfaReady}=await import('/js/utils/password-mfa.js');
+ const box=document.createElement('div');document.body.append(box);
+ let level='aal1';let fail=false;
+ mockDB.auth={mfa:{listFactors:async()=>({data:{totp:[{id:'factor-test',status:'verified'}]},error:fail?{message:'offline'}:null}),getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:level,nextLevel:'aal2'}}),challengeAndVerify:async()=>{level='aal2';return {error:null};}}};
+ if(await passwordMfaReady(box))throw Error('MFA gate bypassed');
+ box.querySelector('input').value='123456';box.querySelector('button').click();
+ await new Promise(resolve=>setTimeout(resolve,20));
+ if(!(await passwordMfaReady(box)))throw Error('Verified MFA rejected');
+ fail=true;
+ if(await passwordMfaReady(box))throw Error('Unavailable MFA allowed');
+ box.remove();
+});
 assert.deepEqual(errors,[]);assert.equal(external,0);
 assert.ok(await page.evaluate(()=>calls.every(c=>['users_overview','users_access_readiness','users_roles_report','log_export','admin_user_repair_preview','admin_repair_user_access'].includes(c.name))));
 console.log('PASS: repair preview/confirmation/rejected write/success/blocked clinical account;  grouped accounts, exact access validation, combined filters, protected accounts, CSV, mobile/themes, rejected forged action, fail-closed activation, denied role. All RPC simulated; no real mutations or external requests.');

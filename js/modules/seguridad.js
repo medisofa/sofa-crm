@@ -31,7 +31,7 @@ export function verifyStep(box, factorId, onDone) {
     } finally { ok.disabled = false; }
   }
   ok.addEventListener('click', go);
-  code.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  code.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!ok.disabled) go(); } });
   box.replaceChildren(h('div', { class: 'i18-form' }, h('label', { for: 'mfa-code' }, 'Código de 6 dígitos de su app autenticadora'), code, h('div', {}, ok), msg));
   setTimeout(() => code.focus(), 0);
 }

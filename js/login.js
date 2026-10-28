@@ -1,3 +1,4 @@
+import { passwordMfaReady } from './utils/password-mfa.js';
 /**
  * SOFA · Pantalla de acceso (login.html)
  * Modos: iniciar sesión · recuperar contraseña · definir nueva contraseña.
@@ -108,6 +109,7 @@ function resetView(invite = false) {
     fieldError(p1, prob); fieldError(p2, !prob && p1.value !== p2.value ? 'Las contraseñas no coinciden.' : null);
     if (prob || p1.value !== p2.value) return;
     await busy(e.submitter || $('#f button[type=submit]'), async () => {
+      if (!(await passwordMfaReady($('#msg')))) return;
       const { error } = await sb().auth.updateUser({ password: p1.value });
       if (error) { render($('#msg'), note('bad', friendlyError(error))); return; }
       history.replaceState(null, '', 'login.html');
