@@ -51,17 +51,24 @@ const state = { session: null, profile: null, memberships: [], membership: null,
  * el modo está activo. Queda una auditoría SOLO interna de SOFA (nadie del
  * cliente la ve): cuándo, quién y en cuál organización.
  */
-export async function enterViewAs(org) {
+const VIEW_AS_ROLE_NAME = { client: 'Médico', capturer: 'Secretaria / Capturista' };
+/**
+ * @param org {id, legal_name}
+ * @param target opcional: {userId, role, name} para "ver como" una secretaria en concreto.
+ *   Sin target, "ver como" el médico/consultorio en general (como antes).
+ */
+export async function enterViewAs(org, target = null) {
   if (state.role !== 'super_admin') return;
+  const role = target?.role || 'client';
   let sessionId = null;
-  try { sessionId = await supportViewStart(org.id); } catch (e) { toast(friendlyError(e), 'bad'); return; }
+  try { sessionId = await supportViewStart(org.id, target?.userId || null); } catch (e) { toast(friendlyError(e), 'bad'); return; }
   state.real = { role: state.role, membership: state.membership };
-  state.role = 'client';
-  state.membership = { organization_id: org.id, organization: org.legal_name, kind: 'client', role: 'client', role_name: 'Médico' };
-  state.viewAs = { sessionId, orgId: org.id, orgName: org.legal_name };
+  state.role = role;
+  state.membership = { organization_id: org.id, organization: org.legal_name, kind: 'client', role, role_name: VIEW_AS_ROLE_NAME[role] || role };
+  state.viewAs = { sessionId, orgId: org.id, orgName: org.legal_name, targetName: target?.name || null, role };
   viewAsState.active = true;
   layout();
-  history.replaceState(null, '', `#/${homeRoute('client')}`);
+  history.replaceState(null, '', `#/${homeRoute(role)}`);
   route();
 }
 async function exitViewAs() {
@@ -194,7 +201,7 @@ function layout() {
                 : html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`}
         <button class="user-btn" id="userBtn" aria-haspopup="menu" aria-expanded="false"><span class="avatar" aria-hidden="true">${initials(name)}</span><span class="nm">${name}</span></button>
       </header>
-      ${state.viewAs ? html`<div class="banner viewas" role="status">👁 Viendo como <b>${state.viewAs.orgName}</b> — modo soporte, solo lectura. <button type="button" class="btn sm" id="exitViewAs">Salir</button></div>` : ''}
+      ${state.viewAs ? html`<div class="banner viewas" role="status">👁 Viendo como ${state.viewAs.targetName ? html`<b>${state.viewAs.targetName}</b> (${VIEW_AS_ROLE_NAME[state.viewAs.role] || state.viewAs.role} · ${state.viewAs.orgName})` : html`<b>${state.viewAs.orgName}</b>`} — modo soporte, solo lectura. <button type="button" class="btn sm" id="exitViewAs">Salir</button></div>` : ''}
       <div class="banner offline" id="offline" hidden role="status">Sin conexión. Los cambios no se guardarán hasta que vuelva internet.</div>
       <main class="page" id="main" tabindex="-1"></main>
     </div>
