@@ -28,7 +28,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso»)
+export const BILLING_ROUTES = ['autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades', 'carga-google'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso») // 28/10/2026: + Carga Google Sheets/Form — ESENCIALES.billing ya lo asignaba al menú, pero este filtro lo bloqueaba antes de llegar (quedaba un ítem muerto)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
