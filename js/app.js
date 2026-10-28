@@ -251,7 +251,12 @@ function renderNav() {
     render(nav, html`<div class="nav-items nav-flat">${groups.flatMap((g) => g.items).map(link)}</div>`);
     return;
   }
-  render(nav, html`${groups.map((g) => {
+  // 28/10/2026: con muchos grupos, abrirlos uno por uno (o cerrarlos uno por uno) para buscar
+  // algo se vuelve lento. Un botón arriba abre o cierra todos de una vez; el grupo de la ruta
+  // activa igual se queda abierto, como ya pasa con el estado guardado por grupo.
+  const anyClosed = groups.some((g) => closed.has(g.group) && !g.items.some((i) => i.route === route));
+  render(nav, html`${groups.length > 1 ? html`<button type="button" class="nav-toggle-all" id="navToggleAll">${anyClosed ? 'Abrir todo' : 'Cerrar todo'}</button>` : ''}
+  ${groups.map((g) => {
     const active = g.items.some((i) => i.route === route);
     const open = active || !closed.has(g.group);
     return html`<div class="nav-group ${open ? 'open' : ''}">
@@ -262,6 +267,15 @@ function renderNav() {
 }
 function bindNav() {
   $('#nav').addEventListener('click', (e) => {
+    if (e.target.closest('#navToggleAll')) {
+      const { route } = parseHash();
+      const groups = visibleNav(state.role);
+      const activeGroup = groups.find((g) => g.items.some((i) => i.route === route))?.group;
+      const anyClosed = groups.some((g) => closedGroups().has(g.group) && g.group !== activeGroup);
+      saveClosed(anyClosed ? new Set() : new Set(groups.map((g) => g.group).filter((g) => g !== activeGroup)));
+      renderNav();
+      return;
+    }
     const b = e.target.closest('.nav-group-btn'); if (!b) return;
     const set = closedGroups(); const g = b.dataset.group;
     if (b.getAttribute('aria-expanded') === 'true') set.add(g); else set.delete(g);

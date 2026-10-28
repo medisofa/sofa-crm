@@ -103,6 +103,11 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .nav-v2 .nav-items a{border-radius:8px}
 .nav-v2 .nav-hits{padding-top:6px}
 .nav-v2 .nav-empty{padding:10px 12px;font-size:.85rem;opacity:.75}
+/* 28/10/2026: abrir/cerrar todos los grupos de un toque, para menús con muchas familias */
+.nav-toggle-all{display:block;width:calc(100% - 20px);margin:4px 10px 6px;padding:7px 10px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:inherit;font:inherit;font-size:.78rem;
+  font-weight:600;cursor:pointer;text-align:center}
+.nav-toggle-all:hover,.nav-toggle-all:focus-visible{background:rgba(255,255,255,.14)}
 @media (prefers-reduced-motion:reduce){.nav-v2 .nav-group-btn::after{transition:none}}
 
 .v2-launcher{margin-top:18px}
