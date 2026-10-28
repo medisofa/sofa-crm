@@ -3,7 +3,7 @@ import { html, raw } from '../utils/dom.js';
 import { formDialog, opt, requireFields, fieldError } from '../utils/ui.js';
 import { addMonths, todayISO } from '../utils/formatters.js';
 import { clientOptions } from '../services/bi.js';
-import { createCase, leadOptions, saveRequirement, EST_TYPES, CASE_KIND } from '../services/habilitation.js';
+import { createCase, leadOptions, saveRequirement, EST_TYPES, CASE_KIND, MODIFICATION_SUBKIND } from '../services/habilitation.js';
 
 const f = (name, label, input, hint = '') => html`<div class="field"><label for="f_${name}">${label}</label>${input}${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
 const text = (name, value = '', attrs = '') => html`<input id="f_${name}" name="${name}" value="${value ?? ''}" ${raw(attrs)}>`;
@@ -18,6 +18,7 @@ export async function caseDialog(preset = {}) {
       ${f('name', 'Nombre del establecimiento *', text('name', preset.name || '', 'required maxlength="150"'))}
       ${f('type', 'Tipo de establecimiento *', html`<select id="f_type" name="type">${EST_TYPES.map((t) => opt(t, t, preset.type || 'Consultorio'))}</select>`, 'Define el checklist de requisitos.')}
       ${f('kind', 'Trámite', html`<select id="f_kind" name="kind">${Object.entries(CASE_KIND).map(([k, l]) => opt(k, l, preset.kind || 'apertura'))}</select>`)}
+      ${f('subkind', 'Motivo de la modificación', html`<select id="f_subkind" name="subkind"><option value="">— No aplica (solo para Actualización) —</option>${Object.entries(MODIFICATION_SUBKIND).map(([k, l]) => opt(k, l, ''))}</select>`, 'Obligatorio solo cuando el trámite es Actualización: define la lista de requisitos y la tarifa.')}
       ${f('org', 'Cliente', html`<select id="f_org" name="org"><option value="">— Ninguno (prospecto o nuevo) —</option>${clients.map((c) => opt(c.id, c.legal_name, preset.orgId))}</select>`, 'Si es cliente, verá su checklist en SOFA.')}
       ${f('lead', 'Prospecto', html`<select id="f_lead" name="lead"><option value="">— Ninguno —</option>${leads.map((l) => opt(l.id, l.company))}</select>`)}
       ${f('fee', 'Honorario del servicio (RD$)', text('fee', preset.fee || '', 'type="number" min="0" step="0.01"'))}
@@ -26,7 +27,8 @@ export async function caseDialog(preset = {}) {
     onSubmit: async (d, form) => {
       if (!requireFields(form, ['name', 'type'])) return false;
       if (d.name.trim().length < 3) { fieldError(form.elements.name, 'Muy corto.'); return false; }
-      return createCase({ name: d.name.trim(), type: d.type, orgId: d.org || null, leadId: d.lead || null, kind: d.kind, fee: Number(d.fee || 0), target: d.target || null, notes: d.notes || null });
+      if (d.kind === 'actualizacion' && !d.subkind) { fieldError(form.elements.subkind, 'Indique el motivo de la modificación.'); return false; }
+      return createCase({ name: d.name.trim(), type: d.type, orgId: d.org || null, leadId: d.lead || null, kind: d.kind, fee: Number(d.fee || 0), target: d.target || null, notes: d.notes || null, subkind: d.subkind || null });
     }
   });
 }

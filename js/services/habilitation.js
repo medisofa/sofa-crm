@@ -9,6 +9,16 @@ export const STAGE_LABEL = { diagnostico: 'Diagnóstico de brechas', correccion:
 export const ITEM_STATUS = { pendiente: ['Sin evaluar', ''], verde: ['Verde · listo', 'ok'], amarillo: ['Amarillo · < 15 días', 'warn'], rojo: ['Rojo · obra o inversión', 'bad'], no_aplica: ['No aplica', ''] };
 export const EST_TYPES = ['Consultorio', 'Centro médico', 'Clínica', 'Laboratorio', 'Centro diagnóstico', 'Otro'];
 export const CASE_KIND = { apertura: 'Apertura', renovacion: 'Renovación', actualizacion: 'Actualización' };
+// 28/10/2026: motivos de "Modificación" (case_kind='actualizacion') según dhses.msp.gob.do —
+// cada uno trae su propia lista de requisitos y tarifa (ver la migración de habilitación).
+export const MODIFICATION_SUBKIND = {
+  ampliacion_servicios: 'Ampliación de listado de servicios',
+  cambio_nivel: 'Cambio de nivel de atención',
+  cambio_nombre: 'Cambio de nombre del establecimiento',
+  cambio_propietario: 'Cambio de propietario',
+  cambio_director: 'Cambio de director médico',
+  cambio_razon_social: 'Cambio de razón social'
+};
 
 export async function listCases({ group = 'activos', q = '', orgId = '', page = 0, size = 25 } = {}) {
   let query = sb().from('v_habilitation_cases').select('*', { count: 'exact' });
@@ -26,8 +36,8 @@ export async function caseItems(id) {
 }
 export async function updateItem(id, values) { return must(await sb().from('habilitation_items').update(values).eq('id', id).select('id, status').single()); }
 export async function updateCase(id, values) { return must(await sb().from('habilitation_cases').update(values).eq('id', id).select('id').single()); }
-export async function createCase({ name, type, orgId = null, leadId = null, kind = 'apertura', fee = 0, target = null, notes = null }) {
-  return must(await sb().rpc('create_habilitation_case', { p_name: name, p_type: type, p_org: orgId, p_lead: leadId, p_kind: kind, p_fee: fee, p_target: target, p_notes: notes }));
+export async function createCase({ name, type, orgId = null, leadId = null, kind = 'apertura', fee = 0, target = null, notes = null, subkind = null }) {
+  return must(await sb().rpc('create_habilitation_case', { p_name: name, p_type: type, p_org: orgId, p_lead: leadId, p_kind: kind, p_fee: fee, p_target: target, p_notes: notes, p_subkind: subkind }));
 }
 export async function moveCase(id, stage, comment = null, override = null) {
   return must(await sb().rpc('move_habilitation_case', { p_case: id, p_stage: stage, p_comment: comment, p_override: override }));
