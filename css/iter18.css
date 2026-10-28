@@ -8,7 +8,7 @@
 .i18-btn:disabled{opacity:.55;cursor:default}
 .i18-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
 .i18-kpi{border:1px solid var(--border,#d9dee5);border-radius:10px;padding:12px 14px;background:var(--surface,#fff)}
-.i18-kpi-v{font-size:1.35rem;font-weight:700}.i18-kpi-l{font-size:.85rem;color:var(--text-muted,#5b6674)}.i18-kpi-h{font-size:.78rem;color:var(--text-muted,#5b6674);margin-top:4px}
+.i18-kpi-v{font-size:1.35rem;font-weight:700;overflow-wrap:anywhere}.i18-kpi-l{font-size:.85rem;color:var(--text-muted,#5b6674)}.i18-kpi-h{font-size:.78rem;color:var(--text-muted,#5b6674);margin-top:4px}
 .i18-table-wrap{overflow-x:auto}
 .i18-table{border-collapse:collapse;width:100%;font-size:.9rem}
 .i18-table th,.i18-table td{border-bottom:1px solid var(--border,#e3e7ed);padding:8px;text-align:left;vertical-align:top}
@@ -746,22 +746,33 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 }
 
 
-/* ===== 5.26 · Tres vistas seleccionables del dashboard ===== */
+/* ===== 5.26 · Trece vistas seleccionables del dashboard (3 clásicas + 10 nuevas, 28/10/2026) =====
+ * El selector abre COLAPSADO en celular, tablet y escritorio por igual (una sola barra con la
+ * vista activa) y solo ocupa espacio mientras el usuario lo tiene abierto a propósito; al elegir
+ * una vista se cierra solo. Ver viewSelector() en dashboard-rol.js. */
 .dash-root{display:grid;gap:14px;min-width:0}
-.dash-viewbar{
-  display:flex;justify-content:space-between;align-items:center;gap:14px;
-  padding:12px 14px;border:1px solid var(--border,#cfd6df);border-radius:14px;
-  background:var(--surface,#fff)
+.dash-viewbar{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.dash-viewbar-toggle{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:10px 14px;border:0;background:none;color:inherit;font:inherit;cursor:pointer;min-height:44px
 }
-.dash-viewbar-copy{display:grid;gap:2px;min-width:0}
-.dash-viewbar-copy span{font-size:.85rem;color:var(--text-muted,#5b6674)}
-.dash-view-switch{display:flex;gap:6px;flex-wrap:wrap}
+.dash-viewbar-toggle:hover{background:var(--surface-2)}
+.dash-viewbar-toggle svg{width:18px;height:18px;stroke:var(--navy);flex:none}
+.dash-viewbar-copy{display:grid;gap:1px;min-width:0;flex:1;text-align:left}
+.dash-viewbar-copy span{font-size:.8rem;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-viewbar-chevron{transition:transform .15s;color:var(--ink-2);flex:none}
+.dash-viewbar-chevron.is-open{transform:rotate(180deg)}
+.dash-view-switch{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;padding:0 12px 12px}
 .dash-view-btn{
-  min-height:38px;padding:8px 12px;border-radius:999px;border:1px solid var(--border,#cfd6df);
-  background:var(--surface-2,#eef2f7);color:inherit;font:inherit;cursor:pointer
+  display:flex;flex-direction:column;align-items:center;gap:4px;min-height:58px;padding:8px 6px;
+  border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);
+  font:inherit;cursor:pointer;transition:background .15s,color .15s,border-color .15s
 }
-.dash-view-btn.is-active{background:var(--navy,#1A365D);color:#fff;border-color:var(--navy,#1A365D)}
-.dash-view-btn:focus-visible{outline:3px solid var(--primary,#1f6feb);outline-offset:2px}
+.dash-view-btn svg{width:17px;height:17px;stroke:currentColor}
+.dash-view-btn-lbl{font-size:.68rem;font-weight:600;line-height:1.1;text-align:center}
+.dash-view-btn.is-active{background:var(--navy);border-color:var(--navy);color:var(--on-navy)}
+.dash-view-btn:hover{border-color:var(--navy)}
+.dash-view-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .dash-layout{display:grid;gap:14px;min-width:0}
 
 /* Ejecutivo */
@@ -813,12 +824,147 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .dash-visual-secondary{min-height:112px}
 .dash-visual-actions{padding-top:2px}
 
+/* ===== 10 vistas nuevas (28/10/2026) — mismos tokens de variables.css, cada una con su propia
+ * tipografía de Google Fonts (cargada en index.html) y su propio acabado visual. ===== */
+.dash-new{border-radius:var(--r-lg);overflow:hidden}
+.dash-new h3{margin:0}
+.dash-new-brand{height:20px;width:auto;display:block;margin-bottom:10px;opacity:.96}
+.dn-grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.dn-lvl-ok{color:var(--ok)} .dn-lvl-warn{color:var(--warn)} .dn-lvl-bad{color:var(--bad)}
+.dash-new-sh{margin-top:14px}
+/* kpiNode() siempre trae la tarjeta base .i18-kpi; estas vistas quieren el valor sin caja propia */
+.dash-new-informe .dn-cell-v,.dash-new-editorial .dn-ecell-v,.dash-new-minimal .dn-mv{background:transparent;border:0;padding:0;box-shadow:none}
+/* el "↗" flotante asume los 54px de margen que .dashboard-kpi reserva; estas vistas lo quitan
+   porque ya son 100% clicables como tarjeta/fila, así que el ícono sobra y se oculta */
+.dash-new-informe .dn-cell-v .dashboard-kpi-go,.dash-new-editorial .dn-ecell-v .dashboard-kpi-go,.dash-new-minimal .dn-mv .dashboard-kpi-go{display:none}
+
+/* 1 · Clínico */
+.dash-new-clinico{font-family:"IBM Plex Sans",var(--font);border:1px solid var(--line);box-shadow:var(--shadow)}
+.dash-new-clinico .dn-hero{background:linear-gradient(120deg,var(--navy),var(--navy-2) 55%,var(--red-2) 130%);color:var(--on-navy);padding:22px 22px 18px}
+.dash-new-clinico .dn-eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;font-weight:700;display:block}
+.dash-new-clinico .dn-hero h3{margin:6px 0 0;font-size:1.25rem}
+.dash-new-clinico .dn-trace{width:100%;height:30px;margin-top:12px;opacity:.9;fill:none;stroke:#e9a0a0;stroke-width:2}
+.dash-new-clinico .dn-trace path{fill:none;stroke:#e9a0a0;stroke-width:2;stroke-linecap:round}
+.dash-new-clinico .dn-body{background:var(--surface);padding:16px 18px}
+.dash-new-clinico .dn-card{border:1px solid var(--line);border-radius:var(--r);padding:11px 12px;padding-right:54px;background:var(--surface)}
+.dash-new-clinico .dn-card .i18-kpi-v{font-family:"IBM Plex Mono",var(--mono);font-size:1.15rem}
+
+/* 2 · Informe */
+.dash-new-informe{font-family:"IBM Plex Sans",var(--font);background:var(--surface);border:1px solid var(--line);padding:22px 24px}
+.dash-new-informe h3{font-family:"Source Serif 4",serif;font-weight:600;font-size:1.3rem;color:var(--heading)}
+.dash-new-informe .dn-lede{color:var(--ink-2);font-size:.86rem;margin:4px 0 16px}
+.dash-new-informe .dn-rule{height:1px;background:linear-gradient(90deg,var(--red),var(--line) 40%);margin-bottom:14px}
+.dash-new-informe .dn-cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));border-top:1px solid var(--line)}
+.dash-new-informe .dn-cell{padding:12px 14px 12px 0;border-bottom:1px solid var(--line)}
+.dash-new-informe .dn-cell+.dn-cell{border-left:1px solid var(--line);padding-left:14px}
+.dash-new-informe .dn-idx{font-family:"Source Serif 4",serif;font-size:.72rem;color:var(--red);font-weight:600}
+.dash-new-informe .dn-cell-v .i18-kpi-v{font-family:"Source Serif 4",serif;font-size:1.4rem}
+
+/* 3 · Operaciones (un solo tema oscuro deliberado) */
+.dash-new-operaciones{font-family:"Space Grotesk",var(--font);background:#070c14;color:#dce6f5;padding:20px 22px;
+  background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+  background-size:24px 24px;border:1px solid #1c2940}
+.dash-new-operaciones h3{margin:8px 0 14px;font-size:1.1rem;font-weight:600}
+.dash-new-operaciones .dn-eyebrow2{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#6fa8ff;font-weight:600}
+.dash-new-operaciones .dn-dot{width:6px;height:6px;border-radius:50%;background:#4ee28f;box-shadow:0 0 0 3px rgba(78,226,143,.18)}
+.dash-new-operaciones .dn-tile{border:1px solid #223049;border-radius:8px;padding:10px 12px;padding-right:50px;background:rgba(18,28,46,.6)}
+.dash-new-operaciones .dn-tile .i18-kpi-v{font-family:"IBM Plex Mono",var(--mono);color:#eaf1ff;font-size:1.1rem}
+.dash-new-operaciones .dn-tile .i18-kpi-l{color:#7f93b3}
+.dash-new-operaciones .dn-tile .dashboard-kpi-go{background:#1c2940;border-color:#2a3a5a;color:#dce6f5}
+.dash-new-operaciones .i18-sec{background:transparent;border-color:#3a4a6a;color:#dce6f5}
+.dash-new-operaciones .i18-sec:hover{background:#1c2940}
+
+/* 4 · Cercano */
+.dash-new-cercano{font-family:"Figtree",var(--font);background:var(--surface-2);border:1px solid var(--line);position:relative}
+.dash-new-cercano .dn-glow{position:absolute;top:-70px;right:-50px;width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,rgba(26,54,93,.12),transparent 70%);pointer-events:none}
+.dash-new-cercano .dn-in{position:relative;padding:20px 20px 16px}
+.dash-new-cercano .dn-greet{font-size:.78rem;color:var(--ink-2);font-weight:700}
+.dash-new-cercano h3{margin:3px 0 14px;font-size:1.1rem;font-weight:800;color:var(--navy)}
+.dash-new-cercano .dn-rings{display:grid;gap:7px}
+.dash-new-cercano .dn-ring-link{text-decoration:none;color:inherit}
+.dash-new-cercano .dn-ring-row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:9px 12px}
+.dash-new-cercano .dn-ring{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(var(--navy) 70%,var(--line) 0)}
+.dash-new-cercano .dn-ring span{width:26px;height:26px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-size:.8rem;font-weight:800;color:var(--navy)}
+.dash-new-cercano .dn-lvl-bad .dn-ring,.dash-new-cercano .dn-lvl-warn .dn-ring{background:conic-gradient(var(--warn) 50%,var(--line) 0)}
+.dash-new-cercano .dn-lvl-bad .dn-ring{background:conic-gradient(var(--bad) 50%,var(--line) 0)}
+.dash-new-cercano .dn-lvl-bad .dn-ring span{color:var(--bad)}
+.dash-new-cercano .dn-lvl-warn .dn-ring span{color:var(--warn)}
+.dash-new-cercano .dn-ring-main{flex:1;min-width:0;font-size:.84rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-new-cercano .dn-ring-v{font-family:var(--mono);font-weight:800;color:var(--navy);font-size:.82rem;flex:none}
+.dash-new-cercano .dn-lvl-bad .dn-ring-v{color:var(--bad)}
+.dash-new-cercano .dn-pill{border-radius:999px}
+
+/* 5 · Recibo */
+.dash-new-recibo{font-family:"IBM Plex Mono",var(--mono);background:var(--surface-2);border:1px solid var(--line)}
+.dash-new-recibo .dn-rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:16px 18px 10px;border-bottom:1px dashed var(--line)}
+.dash-new-recibo h3{font-family:"Archivo",var(--font);font-weight:700;font-size:.92rem;text-transform:uppercase;letter-spacing:.03em}
+.dash-new-recibo .dn-folio{font-size:.68rem;color:var(--ink-2)}
+.dash-new-recibo .dn-stamp{border:2px solid var(--red);color:var(--red);font-family:"Archivo",var(--font);font-weight:700;font-size:.64rem;
+  padding:4px 9px;border-radius:4px;transform:rotate(-6deg);letter-spacing:.06em;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.dash-new-recibo .dn-stamp img{height:12px}
+.dash-new-recibo .dn-rrows{padding:2px 18px 14px}
+.dash-new-recibo .dn-rrow{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:.8rem}
+.dash-new-recibo .dn-rrow:last-child{border-bottom:0}
+.dash-new-recibo .dn-rl{color:var(--ink-2)}
+.dash-new-recibo .dn-rv{color:var(--ink);font-weight:600}
+.dash-new-recibo .dn-lvl-bad .dn-rv{color:var(--bad)}
+
+/* 6 · Editorial */
+.dash-new-editorial{background:var(--surface);border:1px solid var(--line)}
+.dash-new-editorial .dn-egrid{display:grid;grid-template-columns:1.3fr 1fr}
+.dash-new-editorial .dn-elead{background:var(--heading,#13213a);color:var(--on-navy);padding:22px 20px;display:flex;flex-direction:column;justify-content:space-between;gap:14px}
+.dash-new-editorial .dn-eyebrow{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;opacity:.75;font-weight:700}
+.dash-new-editorial .dn-elead h3{font-family:"Fraunces",serif;font-weight:600;font-size:1.4rem;line-height:1.1;margin:6px 0 0}
+.dash-new-editorial .dn-ebig{font-family:"Fraunces",serif;font-size:2.1rem;font-weight:600;line-height:1}
+.dash-new-editorial .dn-ebig small{font-family:"Figtree",var(--font);font-size:.8rem;font-weight:600;opacity:.75;display:block;margin-top:2px}
+.dash-new-editorial .dn-eside{display:grid}
+.dash-new-editorial .dn-ecell{padding:14px 18px;border-bottom:1px solid var(--line)}
+.dash-new-editorial .dn-ecell:last-child{border-bottom:0}
+.dash-new-editorial .dn-ecell b{font-size:.68rem;color:var(--red);text-transform:uppercase;letter-spacing:.08em;font-weight:700;display:block}
+.dash-new-editorial .dn-ecell-v .i18-kpi-v{font-family:"Fraunces",serif;font-size:1.25rem}
+@media (max-width:560px){ .dash-new-editorial .dn-egrid{grid-template-columns:1fr} }
+
+/* 7 · Minimalista */
+.dash-new-minimal{background:var(--surface);border:1px solid var(--line);padding:26px 24px}
+.dash-new-minimal .dn-eyebrow3{font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2);font-weight:700;margin-bottom:18px}
+.dash-new-minimal .dn-mrow{display:flex;justify-content:space-between;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--line)}
+.dash-new-minimal .dn-mrow:first-of-type{padding-top:0}
+.dash-new-minimal .dn-mv .i18-kpi-v{font-family:"IBM Plex Mono",var(--mono);font-size:1.25rem;font-weight:500}
+
+/* 8 · Carpeta clínica */
+.dash-new-carpeta{background:var(--surface);border:1px solid var(--line);border-radius:4px 14px 14px 14px;position:relative;margin-top:26px;overflow:visible}
+.dash-new-carpeta .dn-tab{position:absolute;top:-22px;left:16px;background:var(--navy);color:var(--on-navy);font-size:.68rem;font-weight:700;
+  padding:5px 12px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:6px}
+.dash-new-carpeta .dn-tab img{height:12px}
+.dash-new-carpeta .dn-cin{padding:20px 18px 14px}
+.dash-new-carpeta h3{font-size:.96rem;color:var(--ink)}
+.dash-new-carpeta .dn-sub{font-size:.74rem;color:var(--ink-2);margin:2px 0 12px}
+.dash-new-carpeta .dn-ccell .i18-kpi-v{font-size:1rem}
+
+/* 9 · Vidrio esmerilado */
+.dash-new-vidrio{position:relative;padding:22px 20px;background:linear-gradient(135deg,var(--navy),var(--navy-2) 45%,var(--red-2) 120%)}
+.dash-new-vidrio .dn-mesh{position:absolute;inset:0;background:radial-gradient(circle at 15% 20%,rgba(255,255,255,.18),transparent 45%),radial-gradient(circle at 85% 80%,rgba(255,255,255,.12),transparent 50%)}
+.dash-new-vidrio .dn-vin{position:relative;color:var(--on-navy)}
+.dash-new-vidrio h3{margin:6px 0 14px;font-size:1.1rem}
+.dash-new-vidrio .dn-vcard{background:rgba(255,255,255,.14);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.28);border-radius:var(--r-lg);padding:11px 13px;padding-right:54px}
+.dash-new-vidrio .dn-vcard .i18-kpi-l{color:rgba(255,255,255,.82)}
+.dash-new-vidrio .dn-vcard .dashboard-kpi-go{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.3);color:#fff}
+.dash-new-vidrio .dn-ghost{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.3);color:#fff}
+
+/* 10 · Bloques de impacto */
+.dash-new-bloques{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:3px;font-family:"Archivo",var(--font)}
+.dn-block{padding:18px 16px;min-height:110px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none}
+.dn-block b{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;opacity:.85}
+.dn-block-v{font-family:"Archivo",var(--font);font-size:1.7rem;font-weight:800;line-height:1.05;overflow-wrap:anywhere}
+.dn-block{background:var(--navy);color:var(--on-navy)}
+.dn-block.dn-lvl-bad{background:var(--red);color:#fff}
+.dn-block.dn-lvl-ok,.dn-block.dn-lvl-warn{background:var(--surface-2);color:var(--ink)}
+
 /* La vista seleccionada nunca cambia cálculos, solo composición. */
 .dash-layout .dashboard-kpi-link{text-decoration:none;color:inherit}
 @media (max-width:760px){
-  .dash-viewbar{align-items:stretch;flex-direction:column}
-  .dash-view-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
-  .dash-view-btn{padding:9px 6px;font-size:.86rem}
+  .dash-view-switch{grid-template-columns:repeat(3,minmax(0,1fr))}
   .dash-exec-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .dash-exec-mini{grid-template-columns:1fr 1fr}
   .dash-visual-grid{grid-template-columns:1fr}
