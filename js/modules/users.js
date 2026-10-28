@@ -39,7 +39,7 @@ async function roleDialog(ctx, preset = {}) {
       <p class="small" id="f_rdesc" aria-live="polite"></p>
       <fieldset id="f_provs" style="border:0;padding:0;display:none"><legend class="small" style="font-weight:600">Médicos que atiende esta secretaria *</legend><div id="f_plist" class="list"></div></fieldset>
       ${invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}
-      <p class="small muted">Si esta persona ya tiene acceso del otro lado (personal SOFA o Médico/Secretaria de un cliente), se cerrará automáticamente al guardar este cambio.</p>`,
+      <p class="small muted">Una persona no puede ser a la vez personal de SOFA y Médico/Secretaria de un cliente. Si esta cuenta quedó mal asignada por error, use «Corregir asignación» en su fila en vez de cambiar el rol aquí.</p>`,
     onOpen: (form) => {
       const sync = async () => {
         const r = form.elements.role.value; const orgRole = ORG_ROLES.includes(r);
@@ -102,6 +102,7 @@ export async function render(main, ctx) {
           ${manage || canToggle ? html`<td data-l="">${self || protectedRow ? '' : html`
             ${manage && u.email ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${u.role_code}" data-user="${u.user_id}" data-org="${u.kind === 'client' ? u.organization_id : ''}">Cambiar rol</button>
               ${u.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-user="${u.user_id}" data-org="${u.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
+              ${ctx.role === 'super_admin' && (u.role_code === 'client' || u.role_code === 'capturer') && u.is_active ? html`<button class="btn sm" data-act="repair" data-user="${u.user_id}" data-org="${u.organization_id}" data-name="${u.full_name || u.email}" title="Si esta cuenta quedó asignada como Médico/Secretaria por error">Corregir asignación</button>` : ''}
               ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
               <button class="btn sm" data-act="resend" data-email="${u.email}">${u.status === 'invitación pendiente' ? 'Reenviar invitación' : 'Enviar acceso'}</button>` : ''}
             ${canToggle ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar' : 'Activar'}</button>` : ''}`}</td>` : ''}</tr>`;
@@ -131,6 +132,7 @@ export async function render(main, ctx) {
     try {
       if (b.dataset.act === 'grant') { const r = await roleDialog(ctx, { email: b.dataset.email, role: b.dataset.role, orgId: b.dataset.org, userId: b.dataset.user }); if (r) { toast(r.message, 'ok'); load(); } return; }
       if (b.dataset.act === 'scope') { if (await scopeDialog(b.dataset.user, b.dataset.org, b.dataset.name)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
+      if (b.dataset.act === 'repair') { const r = await repairDialog(b.dataset.user, b.dataset.org, b.dataset.name); if (r) { toast(r.message, 'ok'); load(); } return; }
       if (b.dataset.act === 'reset') { await resetPassword(b.dataset.user, b.dataset.name); return; }
       if (b.dataset.act === 'resend') { await busy(b, async () => { const r = await adminUsers({ action: 'resend', email: b.dataset.email }); toast(r.message, 'ok'); }); return; }
       const activate = b.dataset.active === '1';
@@ -150,6 +152,40 @@ async function scopeDialog(userId, orgId, name) {
       <div class="list">${provs.map((p) => html`<label class="li" style="cursor:pointer"><input type="checkbox" name="p_${p.id}" ${current.includes(p.id) ? 'checked' : ''}><div class="b"><div class="t1">${p.full_name}</div></div></label>`)}</div>`
       : emptyView('Sin médicos', 'Este cliente no tiene médicos activos registrados.'),
     onSubmit: async (d) => { const ids = provs.filter((p) => d[`p_${p.id}`]).map((p) => p.id); await setCapturerScope(userId, ids); return true; }
+  });
+}
+
+/**
+ * "Corregir asignación" (solo Super Admin, requiere verificación en dos pasos ya hecha en la sesión):
+ * repara una cuenta de personal SOFA que quedó asignada por error como Médico o Secretaria de un cliente.
+ * Conserva la cuenta, el correo y el historial; desactiva la membresía equivocada y asigna Administrador
+ * SOFA en el operador. El servidor vuelve a revisar todos los bloqueos antes de aplicar nada (ver
+ * app.user_access_repair_context / admin_repair_user_access) — esta pantalla solo refleja esa respuesta.
+ */
+async function repairDialog(userId, orgId, name) {
+  let preview;
+  try { preview = await rpc('admin_user_repair_preview', { p_user: userId, p_org: orgId }); }
+  catch (err) { toast(friendlyError(err), 'bad'); return null; }
+  if (preview.blockers?.length) {
+    await formDialog({
+      title: `Corregir asignación · ${name}`, submitLabel: 'Entendido',
+      body: html`<p>No se puede corregir automáticamente. Revise cada punto antes de continuar a mano:</p>
+        <ul>${preview.blockers.map((b) => html`<li>${b}</li>`)}</ul>`,
+      onSubmit: async () => true
+    });
+    return null;
+  }
+  return formDialog({
+    title: `Corregir asignación · ${name}`, submitLabel: 'Corregir',
+    body: html`<p>Esta cuenta quedó asignada como <b>${preview.current_role === 'client' ? 'Médico' : 'Secretaria'}</b> de un cliente por error. Se desactivará esa membresía (sin borrar nada) y se le asignará <b>Administrador SOFA</b> en el operador. La cuenta, el correo y su historial se conservan.</p>
+      <div class="field"><label for="f_reason">Motivo *</label><textarea id="f_reason" name="reason" rows="3" maxlength="300" required placeholder="Describa cómo ocurrió el error"></textarea><span class="hint">Mínimo 12 caracteres. Queda en una bitácora aparte.</span></div>
+      <div class="field"><label for="f_email">Escriba de nuevo el correo de esta cuenta, para confirmar que es la correcta *</label><input id="f_email" name="confirm_email" type="email" required autocomplete="off"></div>`,
+    onSubmit: async (d, form) => {
+      if (!requireFields(form, ['reason', 'confirm_email'])) return false;
+      if (String(d.reason || '').trim().length < 12) { fieldError(form.elements.reason, 'Escriba al menos 12 caracteres.'); return false; }
+      if (String(d.confirm_email || '').trim().toLowerCase() !== String(preview.email || '').toLowerCase()) { fieldError(form.elements.confirm_email, 'No coincide con el correo de esta cuenta.'); return false; }
+      return rpc('admin_repair_user_access', { p_user: userId, p_org: orgId, p_reason: d.reason.trim(), p_confirm_email: d.confirm_email.trim(), p_expected: preview.expected });
+    }
   });
 }
 

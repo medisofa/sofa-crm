@@ -1,10 +1,11 @@
 /** SOFA · Barra de filtros común (período, cliente, ARS) para dashboard, aging y reportes */
 import { html, render as paint, $ } from './dom.js';
-import { opt } from './ui.js';
+import { opt, toast } from './ui.js';
 import { listArs } from '../services/catalog.js';
 import { clientOptions, defaultRange } from '../services/bi.js';
 import { isStaff } from './permissions.js';
 import { sb } from '../supabase.js';
+import { viewAsState } from './view-as-state.js';
 
 /** 4.0 · Bitácora de exportaciones: se registra quién descargó qué (no bloquea la descarga si falla). */
 export function logExport(file, count) {
@@ -43,6 +44,8 @@ export async function filterBar(el, ctx, onChange, { period = true, months = 6 }
 
 /** Descarga filas como CSV (separador ; y BOM para Excel en español) */
 export function downloadCsv(name, head, rows) {
+  // 2.? · "Ver como" (modo soporte, solo lectura): no se exporta nada mientras se ve como el cliente
+  if (viewAsState.active) { toast('Modo solo lectura: no se puede exportar mientras ves como el cliente.', 'warn'); return; }
   // 4.0/4.7: protección contra fórmulas (=, +, -, @, tabulador y retorno de carro) al abrir en Excel y registro de la exportación
   const q = (v) => { let t = String(v ?? ''); if (/^[\t\r]/.test(t) || (/^[=+\-@]/.test(t) && isNaN(Number(t)))) t = "'" + t; return `"${t.replace(/"/g, '""')}"`; };
   const csv = '\uFEFF' + [head, ...rows].map((r) => r.map(q).join(';')).join('\n');

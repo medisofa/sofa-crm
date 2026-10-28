@@ -12,6 +12,7 @@ import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
 import { supportViewStart, supportViewEnd } from './services/admin.js';
+import { viewAsState } from './utils/view-as-state.js';
 
 const app = document.getElementById('app');
 
@@ -58,6 +59,7 @@ export async function enterViewAs(org) {
   state.role = 'client';
   state.membership = { organization_id: org.id, organization: org.legal_name, kind: 'client', role: 'client', role_name: 'Médico' };
   state.viewAs = { sessionId, orgId: org.id, orgName: org.legal_name };
+  viewAsState.active = true;
   layout();
   history.replaceState(null, '', `#/${homeRoute('client')}`);
   route();
@@ -66,6 +68,7 @@ async function exitViewAs() {
   if (!state.viewAs) return;
   const { sessionId } = state.viewAs;
   state.role = state.real.role; state.membership = state.real.membership; state.real = null; state.viewAs = null;
+  viewAsState.active = false;
   supportViewEnd(sessionId).catch(() => { /* la sesión se cierra sola por antigüedad si esto falla */ });
   layout();
   history.replaceState(null, '', `#/${homeRoute(state.role)}`);
@@ -79,6 +82,12 @@ function blockIfViewAs(e) {
 }
 document.addEventListener('submit', blockIfViewAs, true);
 document.addEventListener('click', (e) => { if (state.viewAs && e.target.closest('[data-act]')) blockIfViewAs(e); }, true);
+// También bloquea imprimir/exportar PDF (window.print se usa en toda la app: historia clínica, reportes, recetas…)
+const realPrint = window.print.bind(window);
+window.print = function (...args) {
+  if (state.viewAs) { toast('Modo solo lectura: no se puede imprimir ni exportar mientras ves como el cliente.', 'warn'); return undefined; }
+  return realPrint(...args);
+};
 
 function fatal(title, text, actions = '') {
   render(app, html`<div class="auth-wrap"><div class="auth-card" role="alert">

@@ -61,7 +61,10 @@ export async function render(root, ctx = {}) {
     if (st.require_mfa && st.aal !== 'aal2') { await mfaGate(); return; }
 
     const banners = [];
-    if (st.role === 'medico') { const pend = await pendingPanel(org); if (pend) banners.push(pend); }
+    if (st.role === 'medico') {
+      const pend = await pendingPanel(org); if (pend) banners.push(pend);
+      const active = await activePanel(org); if (active) banners.push(active);
+    }
     if (st.mode === 'prueba') banners.push(h('div', { class: 'hc-banner prueba', role: 'status' }, 'MODO PRUEBA · Use solo pacientes ficticios. No registre datos reales hasta la revisión legal.'));
     if (st.role === 'emergencia') banners.push(h('div', { class: 'hc-banner emergencia', role: 'status' }, `ACCESO DE EMERGENCIA · Solo lectura hasta las ${fmtTs(st.emergency_until)}. Todo queda en la bitácora que ve el médico.`));
 
@@ -156,6 +159,28 @@ export async function render(root, ctx = {}) {
       return line;
     });
     box.append(h('strong', {}, 'El Super Admin pidió acceso a esta historia clínica:'), ...items);
+    return box;
+  }
+
+  /** El médico ve aquí los accesos temporales ya aprobados y vigentes, y puede cortarlos antes de que venzan. */
+  async function activePanel(org) {
+    let rows;
+    try { rows = await rpc('clinical_access_active', { p_org: org }); } catch { return null; }
+    if (!rows.length) return null;
+    const box = h('div', { class: 'hc-banner emergencia', role: 'status' });
+    const items = rows.map((r) => {
+      const until = new Date(r.expires_at).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+      const cut = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Cortar acceso ahora');
+      cut.addEventListener('click', async () => {
+        if (!confirm(`¿Cortar el acceso de ${r.user}? No podrá seguir viendo la historia clínica.`)) return;
+        cut.disabled = true;
+        try { await rpc('clinical_access_revoke', { p_access: r.id }); openOrg(); }
+        catch (e) { alert(e.message); cut.disabled = false; }
+      });
+      return h('div', { style: 'margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap' },
+        h('span', {}, `${r.user} tiene acceso de lectura hasta las ${until} · "${r.reason}"`), cut);
+    });
+    box.append(h('strong', {}, 'Acceso temporal activo ahora mismo:'), ...items);
     return box;
   }
 
