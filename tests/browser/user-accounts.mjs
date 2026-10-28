@@ -103,6 +103,23 @@ await page.evaluate(async()=>{window.rows[0].is_active=true;window.rows[0].statu
 await page.locator('[data-act="repair"]').waitFor();await page.locator('[data-act="repair"]').click();await page.locator('dialog').waitFor();
 assert.equal(await page.locator('dialog').getByRole('button',{name:'Corregir y asignar Administrador',exact:true}).count(),0);
 assert.match(await page.locator('dialog').innerText(),/Cuenta enlazada a un médico/);
+await page.locator('dialog').getByRole('button',{name:'Cerrar',exact:true}).click();
+await page.evaluate(()=>{
+ const previous=mockDB.rpc;
+ mockDB.rpc=(name,args)=>name==='admin_user_repair_preview' ? Promise.resolve({error:{code:'42501',message:'permission denied for function admin_user_repair_preview'}}) : previous(name,args);
+});
+await page.locator('[data-act="repair"]').click();
+await page.getByText('No tienes permiso para esta acción.',{exact:true}).waitFor();
+assert.equal(await page.locator('[data-act="repair"]').count(),1);
+await page.evaluate(()=>{
+ const previous=mockDB.rpc;
+ mockDB.rpc=(name,args)=>name==='admin_user_repair_preview' ? Promise.resolve({error:{code:'PGRST202',message:'Could not find the function public.admin_user_repair_preview in the schema cache'}}) : previous(name,args);
+});
+const writesBeforeMissing=await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length);
+await page.locator('[data-act="repair"]').click();
+await page.getByText('Corrección de asociaciones no habilitada',{exact:true}).waitFor();
+assert.equal(await page.locator('[data-act="repair"]').count(),0);
+assert.equal(await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length),writesBeforeMissing);
 assert.deepEqual(errors,[]);assert.equal(external,0);
 assert.ok(await page.evaluate(()=>calls.every(c=>['users_overview','users_access_readiness','users_roles_report','log_export','admin_user_repair_preview','admin_repair_user_access'].includes(c.name))));
 console.log('PASS: repair preview/confirmation/rejected write/success/blocked clinical account;  grouped accounts, exact access validation, combined filters, protected accounts, CSV, mobile/themes, rejected forged action, fail-closed activation, denied role. All RPC simulated; no real mutations or external requests.');

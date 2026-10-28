@@ -98,13 +98,13 @@ export async function render(main, ctx) {
     return;
   }
   const manage = can('users.invite', ctx.role); const canToggle = can('users.toggle', ctx.role);
-  let rows = [], accounts = []; let filter = '', search = '';
+  let rows = [], accounts = []; let filter = '', search = ''; let repairUnavailable = false;
   paint(main, html`
     <div class="page-head users-page-head"><div class="t"><h2>Usuarios y accesos</h2><p>Una fila por cuenta, con sus roles y organizaciones agrupados. Los filtros seleccionan cuentas; se muestran todos sus accesos.</p></div>
       <div class="toolbar" style="margin:0">${manage ? html`<details class="users-add"><summary class="btn primary">+ Agregar usuario</summary><div class="users-add-options"><button class="btn primary" id="invite">+ Invitar usuario</button>${ctx.role === 'super_admin' ? html`<button class="btn" id="createActive">+ Crear usuario activo</button>` : ''}<button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button></div></details>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
     <div class="toolbar users-search"><label for="user-search">Buscar cuenta</label><input class="input grow" id="user-search" type="search" placeholder="Nombre, correo o identificador"><span id="user-count" role="status" aria-live="polite"></span></div>
     <div class="tabs" id="kinds" role="group" aria-label="Tipo de usuario" style="margin-bottom:6px"></div>
-    <div class="tabs" id="tabs" role="group" aria-label="Estado del acceso"></div><p class="small muted">Una cuenta puede aparecer en varios filtros cuando tiene accesos distintos.</p><div id="l"></div>
+    <div class="tabs" id="tabs" role="group" aria-label="Estado del acceso"></div><p class="small muted">Una cuenta puede aparecer en varios filtros cuando tiene accesos distintos.</p><div id="repair-availability" role="status"></div><div id="l"></div>
     ${ctx.role === 'super_admin' ? html`<div class="card" style="margin-top:14px"><h2>Validación de usuarios y roles</h2>
       <p class="sub">Revisa usuarios sin rol, roles cruzados, secretarias sin médicos y otras inconsistencias.</p><button class="btn" id="valRoles">Revisar ahora</button><div id="valBox" style="margin-top:10px"></div></div>` : ''}`);
   let kind = '';
@@ -134,7 +134,7 @@ export async function render(main, ctx) {
               ${editable && !m.conflict ? html`<div class="user-access-actions">${manage && u.email && !u.sharedEmail ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id || ''}">Cambiar este rol</button>` : ''}
                 ${manage && m.role_code === 'capturer' && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
                 ${manage ? html`<button class="btn sm" data-act="validate" data-user="${u.user_id}" data-role="${m.role_code || ''}" data-org="${m.organization_id || ''}">Validar acceso</button>` : ''}
-                ${ctx.role === 'super_admin' && ORG_ROLES.includes(m.role_code) && m.is_active === true ? html`<button class="btn sm" data-act="repair" data-user="${u.user_id}" data-role="${m.role_code}" data-org="${m.organization_id}">Corregir asignación</button>` : ''}</div>` : ''}</section>`;
+                ${!repairUnavailable && ctx.role === 'super_admin' && ORG_ROLES.includes(m.role_code) && m.is_active === true ? html`<button class="btn sm" data-act="repair" data-user="${u.user_id}" data-role="${m.role_code}" data-org="${m.organization_id}">Corregir asignación</button>` : ''}</div>` : ''}</section>`;
           })}</td>
           <td data-l="Último ingreso">${u.last_sign_in_at ? dateTime(u.last_sign_in_at) : '—'}</td>
           ${manage || canToggle ? html`<td data-l="Acciones de la cuenta">${!editable ? html`<p class="small muted">${self ? 'Tu cuenta: otro Super Admin debe realizar los cambios sensibles.' : protectedRow ? 'Cuenta protegida: requiere Super Admin.' : 'Identificador no disponible: revisa la cuenta.'}</p>` : html`
@@ -233,7 +233,17 @@ export async function render(main, ctx) {
     if (!selection) { toast('Acción no disponible para la cuenta o el acceso seleccionado.', 'bad'); return; }
     const { account, membership } = selection;
     try {
-      if (b.dataset.act === 'repair') { await repairAssignment(account, membership, load); return; }
+      if (b.dataset.act === 'repair') {
+        if (repairUnavailable) return;
+        try { await busy(b, () => repairAssignment(account, membership, load)); }
+        catch (error) {
+          if (error.code !== 'REPAIR_NOT_INSTALLED') throw error;
+          repairUnavailable = true;
+          paint($('#repair-availability', main), html`<div class="note warn"><b>Corrección de asociaciones no habilitada</b><p>La base todavía no tiene instalada la herramienta validada de corrección. No se modificó ninguna cuenta. Un administrador debe completar su validación e instalación; no elimines ni reactives accesos para evitar este bloqueo.</p></div>`);
+          draw();
+        }
+        return;
+      }
       if (b.dataset.act === 'grant') { const r = await roleDialog(ctx, { email: account.email, role: membership.role_code, orgId: membership.kind === 'client' ? membership.organization_id : '', userId: account.user_id }); if (r) { toast(r.message, 'ok'); load(); } return; }
       if (b.dataset.act === 'scope') { if (await scopeDialog(account.user_id, membership.organization_id, account.full_name || account.email)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
       if (b.dataset.act === 'reset') { await resetPassword(account.user_id, account.full_name || account.email); return; }
@@ -255,9 +265,21 @@ export async function render(main, ctx) {
 /** Corrección explícita y auditada, no eliminación de la identidad. */
 async function repairAssignment(account, membership, reload) {
   let preview;
-  try { preview = await rpc('admin_user_repair_preview', { p_user: account.user_id, p_org: membership.organization_id }); }
+  try {
+    const result = await supabase.rpc('admin_user_repair_preview', { p_user: account.user_id, p_org: membership.organization_id });
+    if (result.error) {
+      const error = new Error(result.error.message || 'No se pudo verificar la asociación.');
+      error.code = result.error.code;
+      throw error;
+    }
+    preview = result.data;
+  }
   catch (error) {
-    if (/admin_user_repair_preview|schema cache|does not exist/i.test(String(error?.message))) throw new Error('La herramienta de corrección todavía no está habilitada en esta base. No se modificó la cuenta.');
+    if (['PGRST202', '42883'].includes(error?.code) ||
+        /(?:could not find the function|function .* does not exist).*admin_user_repair_preview|admin_user_repair_preview.*does not exist/i.test(String(error?.message))) {
+      const missing = new Error('La herramienta de corrección todavía no está habilitada en esta base. No se modificó la cuenta.');
+      missing.code = 'REPAIR_NOT_INSTALLED'; throw missing;
+    }
     throw error;
   }
   if (!preview || preview.user_id !== account.user_id || preview.client_org_id !== membership.organization_id ||
