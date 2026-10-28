@@ -2,11 +2,19 @@
 -- (Supabase, proyecto bpwjhgpzhzhiocoxrvzq) y registradas aquí para el historial.
 
 -- =====================================================================
--- 1) "Revertir asignación": al cambiar el rol de un usuario entre
---    personal SOFA y Médico/Secretaria de un cliente, se cierra
---    automáticamente la membresía anterior del otro lado en el mismo
---    movimiento (antes se bloqueaba en un sentido y quedaba huérfana
---    en el otro: así terminó una cuenta viendo 5 clientes a la vez).
+-- 1) "Revertir asignación" — NOTA (28/10/2026): el primer intento de esta
+--    función agregaba un auto-cierre de la membresía del otro lado al
+--    reasignar un rol. Eso contradecía la especificación ya aprobada en
+--    docs/diseno/GESTION_ACCESOS_SOPORTE_NOVEDADES.md ("La función de
+--    asignación habitual conserva la prohibición... No se quitó esa
+--    protección para resolver este caso"), así que se revirtió: esta
+--    función sigue BLOQUEANDO (como siempre) si el usuario ya tiene el
+--    otro tipo de membresía activa, en vez de cerrarla sola. El caso que
+--    motivó esto (una cuenta viendo 5 clientes a la vez) se resuelve con
+--    la migración 3 de este archivo (admin_user_repair_audit /
+--    admin_repair_user_access), que sí fue diseñada para eso con
+--    auditoría y confirmación explícitas.
+--    Definición actual en producción, tal cual quedó tras el revert:
 -- =====================================================================
 CREATE OR REPLACE FUNCTION public.admin_assign_role(p_actor uuid, p_user uuid, p_role text, p_org uuid DEFAULT NULL::uuid, p_dry_run boolean DEFAULT false)
  RETURNS text
@@ -15,7 +23,6 @@ CREATE OR REPLACE FUNCTION public.admin_assign_role(p_actor uuid, p_user uuid, p
  SET search_path TO ''
 AS $function$
 declare v_op uuid; v_actor_role text; v_staff boolean; v_org uuid; v_kind text; v_target_super boolean;
-        v_closed_org text; v_closed_count int := 0;
 begin
   select ou.organization_id, ou.role_code into v_op, v_actor_role
     from public.organization_users ou join public.organizations o on o.id = ou.organization_id and o.kind = 'operator'
@@ -42,6 +49,9 @@ begin
     end if;
   end if;
   if p_user is not null then
+    if v_staff and exists (select 1 from public.organization_users where user_id = p_user and role_code in ('client','capturer') and is_active) then
+      raise exception 'Ese usuario ya es Médico o Secretaria de un cliente y no puede ser personal de SOFA. Use «Corregir asignación» desde su ficha si fue un error, o cree una cuenta nueva para el personal.' using errcode = '42501';
+    end if;
     if p_user = p_actor then raise exception 'No puede cambiar su propio rol' using errcode = '22023'; end if;
     select exists (select 1 from public.organization_users where user_id = p_user and role_code = 'super_admin' and is_active) into v_target_super;
     if v_target_super and v_actor_role <> 'super_admin' then
@@ -51,28 +61,12 @@ begin
   if p_dry_run or p_user is null then return 'ok'; end if;
 
   perform set_config('request.jwt.claims', json_build_object('sub', p_actor, 'role', 'authenticated')::text, true);
-
-  if v_staff then
-    select string_agg(o.legal_name, ', '), count(*) into v_closed_org, v_closed_count
-      from public.organization_users ou join public.organizations o on o.id = ou.organization_id
-     where ou.user_id = p_user and ou.role_code in ('client','capturer') and ou.is_active and ou.organization_id <> v_org;
-    update public.organization_users set is_active = false
-     where user_id = p_user and role_code in ('client','capturer') and is_active and organization_id <> v_org;
-  else
-    select string_agg(o.legal_name, ', '), count(*) into v_closed_org, v_closed_count
-      from public.organization_users ou join public.organizations o on o.id = ou.organization_id and o.kind = 'operator'
-     where ou.user_id = p_user and ou.role_code not in ('client','capturer') and ou.is_active;
-    update public.organization_users set is_active = false
-     where user_id = p_user and organization_id in (select id from public.organizations where kind = 'operator') and is_active;
-  end if;
-
   insert into public.profiles (id, full_name) values (p_user, 'Usuario') on conflict (id) do update set is_active = true;
   insert into public.organization_users (organization_id, user_id, role_code, is_active)
   values (v_org, p_user, p_role, true)
   on conflict (organization_id, user_id) do update set role_code = excluded.role_code, is_active = true;
   perform set_config('request.jwt.claims', '', true);
-  return format('Rol %s asignado%s', (select name from public.roles where code = p_role),
-                case when v_closed_count > 0 then format('. Se cerró su acceso anterior en %s.', v_closed_org) else '' end);
+  return format('Rol %s asignado', (select name from public.roles where code = p_role));
 end $function$;
 
 -- =====================================================================
