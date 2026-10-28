@@ -53,7 +53,7 @@ export async function uploadDocument({ orgId, submissionId, lineId = null, docTy
 }
 
 export async function listDocuments({ submissionId = null, entityType = null, entityId = null, type = '', limit = 200 } = {}) {
-  let q = sb().from('documents').select('id, organization_id, entity_type, entity_id, service_line_id, document_type_code, storage_path, file_name, mime_type, size_bytes, uploaded_at, uploaded_by, document_types(name)');
+  let q = sb().from('documents').select('id, organization_id, entity_type, entity_id, service_line_id, document_type_code, storage_path, bucket, file_name, mime_type, size_bytes, uploaded_at, uploaded_by, document_types(name)');
   if (submissionId) q = q.eq('entity_type', 'submission').eq('entity_id', submissionId);
   if (entityType && entityId) q = q.eq('entity_type', entityType).eq('entity_id', entityId);
   if (type) q = q.eq('document_type_code', type);
@@ -62,9 +62,17 @@ export async function listDocuments({ submissionId = null, entityType = null, en
 
 /** Abre el documento con una URL firmada de 5 minutos */
 export async function openDocument(doc) {
+  if (!doc?.storage_path) throw new Error('El documento no tiene ruta de almacenamiento registrada. Solicita una revisión del expediente.');
   const win = window.open('', '_blank');
   const { data, error } = await sb().storage.from(doc.bucket || BUCKET).createSignedUrl(doc.storage_path, 300);
-  if (error || !data?.signedUrl) { win?.close(); throw error || new Error('No se pudo generar el enlace del documento.'); }
+  if (error || !data?.signedUrl) {
+    win?.close();
+    const message = String(error?.message || '');
+    if (/object not found|not found|404/i.test(message)) {
+      throw new Error('El archivo no se encuentra en el almacenamiento. El registro del documento sigue intacto; solicita al administrador verificar su ruta y recuperar el archivo.');
+    }
+    throw error || new Error('No se pudo generar el enlace del documento.');
+  }
   if (win) { win.opener = null; win.location.href = data.signedUrl; return null; }
   return data.signedUrl; // el navegador bloqueó la ventana: se muestra el enlace
 }
@@ -75,3 +83,37 @@ export async function deleteDocument(doc) {
   await sb().storage.from(doc.bucket || BUCKET).remove([doc.storage_path]).catch(() => {});
 }
 export const sizeLabel = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+
+/** Revisión SOFA de documentos A–E */
+export async function listClientDocumentReviews(orgId) {
+  return must(await sb().from('client_document_reviews')
+    .select('document_id, organization_id, status, notes, reviewed_by, reviewed_at, updated_at')
+    .eq('organization_id', orgId)
+    .order('updated_at', { ascending: false }));
+}
+export async function reviewClientDocument(documentId, status, notes = '') {
+  return must(await sb().rpc('review_client_document', {
+    p_document: documentId,
+    p_status: status,
+    p_notes: notes || null
+  }));
+}
+
+
+/** Documento D por ARS */
+export async function clientDocumentArsOptions(orgId) {
+  return must(await sb().rpc('client_document_ars_options', { p_org: orgId }));
+}
+export async function listClientDocumentArs(orgId) {
+  return must(await sb().from('client_document_ars')
+    .select('document_id, organization_id, ars_id, created_at, ars(name)')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false }));
+}
+export async function linkClientDocumentArs(documentId, arsId) {
+  return must(await sb().rpc('link_client_document_ars', {
+    p_document: documentId,
+    p_ars: arsId
+  }));
+}

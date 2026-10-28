@@ -30,7 +30,16 @@
 .topbar h1 { flex: 1; min-width: 0; margin: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .org-chip { font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .org-select { max-width: 240px; min-height: 36px; border: 1px solid var(--line); border-radius: var(--r); padding: 4px 8px; background: var(--surface); }
-@media (max-width: 640px) { .org-chip, .org-select { display: none; } }
+/* El contexto activo debe seguir visible en móvil. */
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; }
+  .topbar .org-chip, .topbar .org-select {
+    order: 4; flex: 0 0 100%; max-width: 100%; min-width: 0;
+    min-height: 44px; display: flex; align-items: center;
+  }
+  .topbar .org-select { display: block; color: var(--ink); }
+  .menu-pop { top: calc(100% + 4px); max-width: calc(100vw - 32px); }
+}
 .user-btn { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px 3px 3px; cursor: pointer; min-height: 40px; }
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
 .user-btn .nm { font-size: 13px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

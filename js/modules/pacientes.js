@@ -60,7 +60,7 @@ export async function render(root) {
   if (!orgs.length) { top.replaceChildren(note('No tiene consultorios asignados. Pida al Administrador que le asigne uno.')); return; }
 
   const org = h('select', { id: 'px-org' }, orgs.map(([id, name]) => h('option', { value: id }, name)));
-  const q = h('input', { id: 'px-q', type: 'search', placeholder: 'Nombre, cédula o número de afiliado', style: 'min-width:16rem' });
+  const q = h('input', { id: 'px-q', type: 'search', placeholder: 'Nombre, cédula, NSS o número de afiliado', style: 'min-width:16rem' });
   const go = h('button', { class: 'i18-btn', type: 'button' }, 'Buscar');
   const nuevo = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Nuevo paciente');
   const link = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Crear fichas desde el historial');
@@ -97,11 +97,13 @@ export async function render(root) {
     const f = (id, label, attrs = {}) => { const i = h('input', { id, ...attrs }); return [h('label', { for: id }, label), i]; };
     const [lName, name] = f('px-name', 'Nombre completo *', { value: p?.name || '' });
     const [lDoc, doc] = f('px-doc', 'Cédula o pasaporte', { value: p?.doc || '' });
+    const [lNss, nss] = f('px-nss', 'NSS', { value: p?.nss || p?.member || '' });
     const [lBirth, birth] = f('px-birth', 'Fecha de nacimiento', { type: 'date', value: p?.birth_date || '' });
     const sex = h('select', { id: 'px-sex' }, h('option', { value: '' }, '—'), Object.entries(SEX).map(([k, v]) => h('option', { value: k, selected: p?.sex === k }, v)));
     const [lPhone, phone] = f('px-phone', 'Teléfono (WhatsApp)', { value: p?.phone || '' });
     const [lMail, mail] = f('px-mail', 'Correo', { type: 'email', value: p?.email || '' });
     const [lMem, mem] = f('px-mem', 'Número de afiliado', { value: p?.member || '' });
+    const reason = h('textarea', { id: 'px-reason', rows: '2', maxlength: '500', style: 'width:100%', placeholder: 'Obligatorio si cambia cédula, NSS, ARS o número de afiliado' });
     const notes = h('textarea', { id: 'px-notes', rows: '2', maxlength: '500', style: 'width:100%' }, p?.notes || '');
     const ars = h('select', { id: 'px-ars' }, h('option', { value: '' }, 'Sin seguro (privado)'), cat.map((a) => h('option', { value: a.id, selected: (p?.ars_id || '') === a.id }, a.name)));
     const plan = h('select', { id: 'px-plan' });
@@ -114,21 +116,44 @@ export async function render(root) {
     ars.addEventListener('change', () => fillPlans(null));
     fillPlans(p?.plan_id || null);
     const msg = h('div', { 'aria-live': 'polite' });
+    const globalMatch = h('div', { 'aria-live': 'polite' });
+    let lastGlobal = null;
+    async function checkGlobal() {
+      if (p) return;
+      const ced = doc.value.trim(), ns = nss.value.trim();
+      if (!ced && !ns) { globalMatch.replaceChildren(); lastGlobal = null; return; }
+      try {
+        const r = await rpc('global_patient_lookup', { p_cedula: ced || null, p_nss: ns || null, p_name: name.value || null, p_birth: birth.value || null, p_phone: phone.value || null });
+        lastGlobal = r;
+        if (r?.match === 'exact' && r.patient) {
+          const use = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Usar datos del paciente');
+          use.addEventListener('click', async () => {
+            use.disabled = true;
+            try { const id = await rpc('attach_global_patient', { p_global: r.patient.id, p_org: org.value }); await open(id); }
+            catch (e) { globalMatch.replaceChildren(note(e.message, 'error')); }
+          });
+          globalMatch.replaceChildren(note(`Paciente encontrado en el Registro Universal SOFA: ${r.patient.full_name}. Se compartirán solo datos administrativos; no consultas ni diagnósticos.`), use);
+        } else if (r?.match === 'conflict') globalMatch.replaceChildren(note('Hay un conflicto entre cédula y NSS. No se fusionará automáticamente; revise los identificadores.', 'error'));
+        else globalMatch.replaceChildren();
+      } catch (e) { globalMatch.replaceChildren(note(e.message, 'error')); }
+    }
+    doc.addEventListener('change', checkGlobal); nss.addEventListener('change', checkGlobal);
     const save = h('button', { class: 'i18-btn', type: 'button' }, 'Guardar ficha');
     save.addEventListener('click', async () => {
       save.disabled = true; msg.replaceChildren();
       try {
-        const id = await rpc('save_patient', { p_id: p?.id || null, p_org: org.value, p_full_name: name.value, p_doc: doc.value || null,
+        const id = await rpc('save_patient_global', { p_id: p?.id || null, p_org: org.value, p_full_name: name.value, p_cedula: doc.value || null, p_nss: nss.value || null,
           p_birth: birth.value || null, p_sex: sex.value || null, p_phone: phone.value || null, p_email: mail.value || null,
-          p_ars: ars.value || null, p_member: mem.value || null, p_notes: notes.value || null });
+          p_ars: ars.value || null, p_member: mem.value || null, p_notes: notes.value || null, p_reason: reason.value || null });
         await rpc('set_patient_plan', { p_patient: id, p_ars: ars.value || null, p_plan: plan.value || null });
         await open(id);
       } catch (e) { msg.replaceChildren(note(e.message, 'error')); save.disabled = false; }
     });
     card.replaceChildren(h('section', { class: 'i18-card' }, h('h3', {}, p ? 'Editar ficha' : 'Nuevo paciente'),
-      h('div', { class: 'i18-form' }, lName, name, lDoc, doc, lBirth, birth, h('label', { for: 'px-sex' }, 'Sexo'), sex, lPhone, phone, lMail, mail,
+      h('div', { class: 'i18-form' }, lName, name, lDoc, doc, lNss, nss, lBirth, birth, h('label', { for: 'px-sex' }, 'Sexo'), sex, lPhone, phone, lMail, mail,
         h('label', { for: 'px-ars' }, 'ARS'), ars, h('label', { for: 'px-plan' }, 'Plan de la ARS'), plan, lMem, mem,
-        h('label', { for: 'px-notes' }, 'Notas administrativas (no clínicas)'), notes, save), msg));
+        h('label', { for: 'px-notes' }, 'Notas administrativas (no clínicas)'), notes,
+        p ? h('label', { for: 'px-reason' }, 'Justificación de cambio de identidad/seguro') : null, p ? reason : null, save), globalMatch, msg));
   }
 
   async function open(id) {

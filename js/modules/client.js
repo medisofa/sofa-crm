@@ -11,7 +11,7 @@ import { listCases, STAGE_LABEL } from '../services/habilitation.js';
 import { ORG_TYPES, ORG_STATUS, PROVIDER_TYPES, CODE_STATUS, SERVICES, ACTIVITY_TYPES, stageLabel, serviceName, subStatus } from '../utils/constants.js';
 import { money, date, dateTime, num, todayISO, period as periodLabel } from '../utils/formatters.js';
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
-import { can, isStaff } from '../utils/permissions.js';
+import { can, isStaff, canOpen } from '../utils/permissions.js';
 import { isTaxId, isEmail, isPhone } from '../utils/validation.js';
 import { contactDialog, taskDialog, interactionDialog, activityExtra } from './crm-dialogs.js';
 import { setupClientTabs } from './client-tabs.js';
@@ -24,17 +24,23 @@ export async function render(main, ctx) {
   const id = ctx.arg;
   paint(main, html`<div id="cl"></div>`);
   const box = $('#cl', main);
-  const res = await loadInto(box, () => getClient(id), () => html``, { isEmpty: (d) => !d.org, empty: () => emptyView('Cliente no encontrado', 'No existe o tu rol no tiene acceso.', html`<a class="btn" href="#/clientes">Volver</a>`) });
+  const res = await loadInto(box, () => getClient(id), () => html``, { isEmpty: (d) => !d.org, empty: () => emptyView('No se encontró', 'No existe o tu rol no tiene acceso.', canOpen('clientes', ctx.role) ? html`<a class="btn" href="#/clientes">Volver</a>` : '') });
   if (!res?.org) return;
   const { org, stats: s } = res;
   ctx.setTitle(org.legal_name);
   const staff = isStaff(ctx.role), editOrg = can('clients.edit', ctx.role), editCodes = can('codes.edit', ctx.role), crm = can('crm.edit', ctx.role);
+  // 5.22.0 · Esta ficha es la del equipo de SOFA, y el Médico la ve como «Mi ficha». Tenía diez
+  // enlaces a pantallas que su rol no puede abrir: al tocarlos le salía «Sin acceso». Ahora el
+  // enlace solo se pinta si la ruta es suya; si no, queda el texto, que es lo que quería leer.
+  const puede = (ruta) => canOpen(ruta, ctx.role);
+  const boton = (ruta, texto, cls = 'btn sm') => (puede(ruta) ? html`<a class="${cls}" href="#/${ruta}">${texto}</a>` : '');
+  const enlace = (ruta, texto, cls = '') => (puede(ruta.split('/')[0]) ? html`<a class="${cls}" href="#/${ruta}">${texto}</a>` : html`<span class="${cls}">${texto}</span>`);
   const [stLabel, stCls] = ORG_STATUS[org.status] || [org.status, ''];
   const wa = waLink(org.whatsapp);
   const entity = { type: 'organization', id: org.id, label: org.legal_name, organizationId: org.id };
 
   paint(box, html`
-    <div class="page-head"><div class="t">${staff ? html`<p><a href="#/clientes">← Clientes</a></p>` : ''}<h2>${org.legal_name}</h2>
+    <div class="page-head"><div class="t">${staff && puede('clientes') ? html`<p><a href="#/clientes">← Clientes</a></p>` : ''}<h2>${org.legal_name}</h2>
       <p><span class="pill ${stCls}">${stLabel}</span> · ${org.org_type || '—'}${org.specialty ? ` · ${org.specialty}` : ''}${org.started_on ? ` · cliente desde ${date(org.started_on)}` : ''}</p></div>
       ${wa ? html`<a class="btn" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${editOrg ? html`<button class="btn" id="editOrg">Editar datos</button>` : ''}${ctx.role === 'super_admin' ? html`<button class="btn" id="viewAs" title="Ver las pantallas de este cliente, en modo soporte y solo lectura">Ver como este cliente</button>` : ''}</div>
     <div class="grid kpis">
@@ -51,7 +57,7 @@ export async function render(main, ctx) {
       ${staff ? html`<div class="card"><h2>Factura electrónica (e-CF)</h2><p class="sub">Desde su fecha de obligación, sus lotes solo se radican con e-NCF E31 aceptado por la DGII.</p><div id="ecfc"></div></div>` : ''}
       ${staff || ctx.role === 'client' ? html`<div class="card"><h2>Implementación (onboarding)</h2><p class="sub">9 pasos para dejar al cliente operando. Al completarlos pasa a Activo.</p><div id="onb"></div></div>
       <div class="card"><h2>Documentos A–E</h2><p class="sub">Contrato, autorización, cartas y formulario, prellenados con los datos del cliente.</p><div id="cdocs"></div></div>` : ''}
-      <div class="card" style="grid-column:1/-1"><h2>Radicaciones</h2><p class="sub">Las más recientes de este cliente.</p>${can('subs.create', ctx.role) ? html`<button class="btn sm" id="addSub">+ Nueva radicación</button> ` : ''}<a class="btn sm" href="#/radicaciones">Ver todas</a><div id="subs" style="margin-top:8px"></div></div>
+      <div class="card" style="grid-column:1/-1"><h2>Radicaciones</h2><p class="sub">Las más recientes de este cliente.</p>${can('subs.create', ctx.role) ? html`<button class="btn sm" id="addSub">+ Nueva radicación</button> ` : ''}${boton('radicaciones', 'Ver todas')}<div id="subs" style="margin-top:8px"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Tarifas negociadas</h2><p class="sub">Tarifas pactadas por sus prestadores con cada ARS. Tienen prioridad sobre la tarifa general.</p>${can('tariffs.edit', ctx.role) ? html`<button class="btn sm" id="addNeg">+ Tarifa negociada</button>` : ''}<div id="neg" style="margin-top:8px"></div></div>
       <div class="card" style="grid-column:1/-1"><h2>Habilitación MISPAS</h2>${can('hab.edit', ctx.role) ? html`<button class="btn sm" id="addHab">+ Caso de habilitación</button>` : ''}<div id="habs" style="margin-top:8px"></div></div>
       ${staff ? html`<div class="card"><h2>Oportunidades con este cliente</h2><p class="sub">Venta cruzada: codificación, glosas, habilitación…</p>${crm ? html`<button class="btn sm" id="addOpp">+ Oportunidad</button>` : ''}<div id="opps"></div></div>
@@ -59,7 +65,7 @@ export async function render(main, ctx) {
       <div class="card"><h2>Historial</h2>${crm ? html`<button class="btn sm" id="fullAct" style="margin-bottom:8px">+ Interacción completa</button>` : ''}${can('tasks.edit', ctx.role) ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select><label class="sr-only" for="abody">Qué pasó</label><input class="input" id="abody" name="body" placeholder="Llamada, acuerdo, entrega de documentos…" maxlength="1000"><button class="btn" type="submit">Registrar</button></form>` : ''}<div id="acts" class="timeline"></div></div>` : ''}
       ${can('users.invite', ctx.role) ? html`<div class="card" style="grid-column:1/-1"><h2>Usuarios del consultorio</h2>
         <p class="sub"><b>Médico:</b> ve su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA). <b>Secretaria:</b> agenda, captura, cobros a privados y cuadre solo de los médicos que se le asignan, sin pagos de ARS, glosas ni honorarios.</p>
-        <div class="toolbar" style="margin:0"><button class="btn primary" id="invMed" type="button">+ Invitar médico</button><button class="btn" id="invSec" type="button">+ Invitar secretaria</button><a class="btn" href="#/usuarios">Ver usuarios</a></div></div>` : ''}
+        <div class="toolbar" style="margin:0"><button class="btn primary" id="invMed" type="button">+ Invitar médico</button><button class="btn" id="invSec" type="button">+ Invitar secretaria</button>${boton('usuarios', 'Ver usuarios', 'btn')}</div></div>` : ''}
     </div>`);
 
   setupClientTabs(main, org, ctx.role);   // 2.1 · pestañas · 2.2: carga de tarifario por rol
@@ -97,7 +103,7 @@ export async function render(main, ctx) {
   // ---- Prestadores
   let providers = [];
   const provBox = $('#provs', main);
-  const loadProv = () => loadInto(provBox, async () => { providers = await listProviders(org.id); return providers; }, (list) => html`<div class="list">${list.map((p) => html`<div class="li"><div class="b"><div class="t1"><a href="#/medicos/${p.id}">${p.full_name}</a>${p.is_active ? '' : html` <span class="pill">Inactivo</span>`}</div>
+  const loadProv = () => loadInto(provBox, async () => { providers = await listProviders(org.id); return providers; }, (list) => html`<div class="list">${list.map((p) => html`<div class="li"><div class="b"><div class="t1">${enlace(`medicos/${p.id}`, p.full_name)}${p.is_active ? '' : html` <span class="pill">Inactivo</span>`}</div>
     <div class="t2">${[PROVIDER_TYPES[p.provider_type], p.specialty, p.exequatur ? `Exequátur ${p.exequatur}` : null, p.tax_id].filter(Boolean).join(' · ')}</div></div>${editOrg ? html`<button class="btn sm" data-prov="${p.id}">Editar</button>` : ''}</div>`)}</div>`,
   { empty: () => emptyView('Sin prestadores', editOrg ? 'Agrega al menos uno: las radicaciones se hacen a nombre de un prestador.' : '') });
   const provDialog = async (p = null) => {
@@ -149,11 +155,21 @@ export async function render(main, ctx) {
   $('#addContact', main)?.addEventListener('click', async () => { if (await contactDialog(ctx, { organizationId: org.id, label: org.legal_name, providers })) loadContacts(); });
 
   loadProv(); loadCodes(); loadContacts();
+
+  // ---- Implementación y documentos A–E también para el Médico / Cliente.
+  // Antes estaban después de "if (!staff) return" y por eso la tarjeta quedaba vacía.
+  if ($('#onb', main)) {
+    const cc = await import('./client-commercial.js');
+    cc.renderOnboarding($('#onb', main), org, ctx, (activated) => { if (activated) location.reload(); });
+    listProviders(org.id).then((pv) => cc.renderCommercialDocs($('#cdocs', main), org, ctx, pv))
+      .catch(() => cc.renderCommercialDocs($('#cdocs', main), org, ctx, []));
+  }
+
   if (!staff) return;
 
   // ---- Oportunidades (venta cruzada)
   const oBox = $('#opps', main);
-  const loadOpps = () => loadInto(oBox, () => listOpportunities({ organizationId: org.id, includeClosed: true }), (list) => html`<div class="list">${list.map((o) => html`<div class="li"><div class="b"><div class="t1"><a href="#/oportunidades/${o.id}">${serviceName(o.service_code)}</a></div><div class="t2">${stageLabel(o.stage)} · ${money(o.estimated_value)}/mes</div></div></div>`)}</div>`, { empty: () => emptyView('Sin oportunidades') });
+  const loadOpps = () => loadInto(oBox, () => listOpportunities({ organizationId: org.id, includeClosed: true }), (list) => html`<div class="list">${list.map((o) => html`<div class="li"><div class="b"><div class="t1">${enlace(`oportunidades/${o.id}`, serviceName(o.service_code))}</div><div class="t2">${stageLabel(o.stage)} · ${money(o.estimated_value)}/mes</div></div></div>`)}</div>`, { empty: () => emptyView('Sin oportunidades') });
   $('#addOpp', main)?.addEventListener('click', async () => {
     const id2 = await formDialog({ title: `Nueva oportunidad · ${org.legal_name}`, body: html`<div class="form-grid">
       <div class="field"><label for="o_svc">Servicio *</label><select id="o_svc" name="service_code">${SERVICES.map((x) => opt(x.code, x.name, 'codificacion'))}</select></div>
@@ -195,12 +211,6 @@ export async function render(main, ctx) {
       if (ok) { toast('Preparación e-CF guardada', 'ok'); drawEcf(org); }
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
-  // ---- 1.5 · Implementación y documentos A–E (se cargan cuando ya se conocen los prestadores)
-  if ($('#onb', main)) {
-    const cc = await import('./client-commercial.js');
-    cc.renderOnboarding($('#onb', main), org, ctx, (activated) => { if (activated) location.reload(); });
-    listProviders(org.id).then((pv) => cc.renderCommercialDocs($('#cdocs', main), org, ctx, pv)).catch(() => cc.renderCommercialDocs($('#cdocs', main), org, ctx, []));
-  }
   $('#fullAct', main)?.addEventListener('click', async () => {
     try { if (await interactionDialog(ctx, { entityType: 'organization', entityId: org.id, organizationId: org.id })) { toast('Interacción registrada', 'ok'); loadActs(); } }
     catch (err) { toast(friendlyError(err), 'bad'); }
@@ -215,14 +225,14 @@ export async function render(main, ctx) {
     catch (err) { toast(friendlyError(err), 'bad'); }
   });
   const loadSubs = () => loadInto($('#subs', main), async () => (await listSubmissions({ orgId: org.id, size: 8 })).data,
-    (rows) => html`<div class="list">${rows.map((x) => { const [l, c] = subStatus(x.display_status); return html`<div class="li"><div class="b"><div class="t1"><a href="#/radicaciones/${x.id}" class="mono">${x.folio}</a> · ${x.ars_name} · ${periodLabel(x.period)}</div><div class="t2">${x.provider_name} · ${num(x.lines)} servicios · ${money(x.claimed)}</div></div><span class="pill ${c}">${l}</span></div>`; })}</div>`,
+    (rows) => html`<div class="list">${rows.map((x) => { const [l, c] = subStatus(x.display_status); return html`<div class="li"><div class="b"><div class="t1">${enlace(`radicaciones/${x.id}`, x.folio, 'mono')} · ${x.ars_name} · ${periodLabel(x.period)}</div><div class="t2">${x.provider_name} · ${num(x.lines)} servicios · ${money(x.claimed)}</div></div><span class="pill ${c}">${l}</span></div>`; })}</div>`,
     { empty: () => html`<p class="small muted">Sin radicaciones todavía.</p>` });
   $('#addSub', main)?.addEventListener('click', async () => {
     const { newSubmissionDialog } = await import('./submission-dialogs.js');
     try { const sid = await newSubmissionDialog(org.id); if (sid) location.hash = `#/radicaciones/${sid}`; } catch (err) { toast(friendlyError(err), 'bad'); }
   });
   const loadNeg = () => loadInto($('#neg', main), async () => (await listCurrentTariffs({ orgId: org.id, scope: 'prestador', size: 100 })).data,
-    (rows) => html`<div class="list">${rows.map((x) => html`<div class="li"><div class="b"><div class="t1"><a href="#/codificacion/${x.procedure_id}">${x.description}</a> · <b>${money(x.amount)}</b></div><div class="t2">${x.ars_name} · ${x.provider_name} · desde ${date(x.valid_from)}</div></div></div>`)}</div>`,
+    (rows) => html`<div class="list">${rows.map((x) => html`<div class="li"><div class="b"><div class="t1">${enlace(`codificacion/${x.procedure_id}`, x.description)} · <b>${money(x.amount)}</b></div><div class="t2">${x.ars_name} · ${x.provider_name} · desde ${date(x.valid_from)}</div></div></div>`)}</div>`,
     { empty: () => html`<p class="small muted">Sin tarifas negociadas: se aplica la tarifa general de cada ARS.</p>` });
   $('#addNeg', main)?.addEventListener('click', async () => {
     const { tariffDialog } = await import('./tariff-dialogs.js');

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es-DO"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SOFA 5.22.0 &middot; Lo que el medico si ve</title>
+<style>:root{--t:#14181d;--s:#5b6773;--l:#e2e6ea;--p:#f6f8fa;--v:#0f7b52;--vf:#e6f4ee;--r:#a3281e;--rf:#fcecea;--a:#1b4f8a;--af:#e9f1fa;--m:#8a5a00;--mf:#fdf3e0}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--t);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.h{max-width:1000px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:-.015em}
+.sub{color:var(--s);margin:0 0 28px;font-size:15px}
+h2{font-size:20px;margin:46px 0 14px;padding-bottom:9px;border-bottom:2px solid var(--t)}
+h3{font-size:16px;margin:28px 0 8px}
+h4{font-size:14.5px;margin:20px 0 6px;color:var(--s);text-transform:uppercase;letter-spacing:.04em}
+p{margin:0 0 14px}
+.al{border-left:4px solid var(--r);background:var(--rf);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+.ok{border-left:4px solid var(--v);background:var(--vf);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+.no{border-left:4px solid var(--a);background:var(--af);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+.am{border-left:4px solid var(--m);background:var(--mf);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+code{background:var(--p);padding:1px 5px;border-radius:4px;font-size:13.5px;font-family:ui-monospace,Menlo,monospace}
+table{border-collapse:collapse;width:100%;font-size:14.5px;margin-bottom:14px}
+th,td{border-bottom:1px solid var(--l);padding:9px 10px;text-align:left;vertical-align:top}
+th{background:var(--p);font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--s)}
+.si{color:var(--v);font-weight:700}.pend{color:var(--m);font-weight:700}.mal{color:var(--r);font-weight:700}.no_{color:var(--s)}
+ol,ul{padding-left:22px}li{margin-bottom:9px}
+footer{margin-top:46px;padding-top:18px;border-top:1px solid var(--l);color:var(--s);font-size:13.5px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0 24px}
+.pane{border:1px solid var(--l);border-radius:12px;overflow:hidden;background:#fff}
+.pane>header{background:var(--p);padding:8px 13px;font:600 12.5px system-ui;text-transform:uppercase;letter-spacing:.04em;color:var(--s);border-bottom:1px solid var(--l)}
+.pane>div{padding:14px}
+.fake{background:#141a21;color:#e8edf2;border-radius:9px;padding:14px}
+.fk-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.fk-k{background:#1d2630;border-radius:7px;padding:7px 9px}
+.fk-k b{display:block;font:500 10.5px system-ui;color:#93a3b4;text-transform:none;letter-spacing:0}
+.fk-k span{font:700 15px system-ui}
+.fk-hero{background:#1d2630;border-radius:9px;padding:14px;margin-bottom:9px}
+.fk-hero b{display:block;font:500 12px system-ui;color:#93a3b4}
+.fk-hero span{font:800 28px/1.15 system-ui;display:block;margin:3px 0}
+.fk-hero i{font:400 12.5px system-ui;color:#f0b45e;font-style:normal}
+.fk-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #27313d;font:400 12.5px system-ui}
+.fk-row:last-child{border:0}
+.fk-row u{text-decoration:none;color:#93a3b4}
+.fk-btn{display:inline-block;background:#2b6cb0;color:#fff;border-radius:7px;padding:7px 12px;font:600 12.5px system-ui;margin-top:10px}
+.cnt{font:700 13px system-ui;color:var(--r)}
+@media (max-width:720px){.cmp{grid-template-columns:1fr}.h{padding:26px 14px 60px}}</style></head><body><div class="h">
+
+<h1>Lo que el médico sí ve</h1>
+<p class="sub">SOFA 5.22.0 &middot; Sin migración: nueve archivos del navegador &middot; 18 de octubre de 2026</p>
+
+<div class="ok"><b>Qué se probó.</b>
+<table style="margin-top:12px"><thead><tr><th>Pieza</th><th>Estado</th></tr></thead><tbody>
+<tr><td>«Mi dinero» rediseñada</td><td class="si">PROBADO · 17 de 17 en Chromium, con uno y con dos consultorios</td></tr>
+<tr><td>Tablas como tarjetas en el teléfono</td><td class="si">PROBADO · 6 de 6, a 390 px, sin desborde</td></tr>
+<tr><td>«Mis glosas» con el período en cada tarjeta</td><td class="si">PROBADO · 3 de 3</td></tr>
+<tr><td>Las cinco rutas de la Iteración 18</td><td class="si">PROBADO · ejecutando <code>canSee()</code>: las cinco en <b>true</b>, el menú sigue en <b>19</b> rutas</td></tr>
+<tr><td>Base de datos</td><td class="no_">No se toca. Cero migraciones.</td></tr>
+</tbody></table></div>
+
+<h2>1 · Las cinco pantallas que estaban construidas y escondidas</h2>
+<div class="no"><b>Ojo con el porqué, que no era un descuido.</b> El comentario del 16/10 en <code>permissions.js</code> dice: <i>«ningún médico usaba las pantallas del equipo de facturación; las sustituyen Mi dinero, Mis glosas y Mi productividad»</i>. Esa decisión fue correcta y <b>no la deshice</b>.
+<p style="margin:12px 0 0">Lo que hice fue ponerlas en <code>extra</code>, que existe justo para esto: <b>alcanzables desde un botón, sin aparecer en el menú</b>. El médico sigue viendo sus 19 rutas de siempre; lo que cambia es que ahora el botón «Ver mi estado de cuenta (PDF)» de «Mi dinero» <b>funciona</b>.</p>
+<table style="margin-top:12px"><thead><tr><th>Ruta</th><th><code>canSee</code></th><th>¿En el menú?</th></tr></thead><tbody>
+<tr><td><code>estado-cuenta</code></td><td class="si">true</td><td class="no_">no</td></tr>
+<tr><td><code>calendario-cobros</code></td><td class="si">true</td><td class="no_">no</td></tr>
+<tr><td><code>rentabilidad</code></td><td class="si">true</td><td class="no_">no</td></tr>
+<tr><td><code>analitica-glosas</code></td><td class="si">true</td><td class="no_">no</td></tr>
+<tr><td><code>reconsideracion</code></td><td class="si">true</td><td class="no_">no</td></tr>
+</tbody></table></div>
+
+<h2>2 · «Mi dinero»: de 19 cifras a una pregunta</h2>
+<p>Antes: diez indicadores del mismo tamaño en tres bloques, más nueve cifras escondidas en las notas al pie, y <b>ninguna fecha</b>. Ahora:</p>
+<ul>
+<li><b>Una cifra manda:</b> «Las ARS le deben RD$&nbsp;113,896», y debajo, en una línea, cuánto ya pasó de la fecha en que debían pagarle.</li>
+<li><b>Las fechas, que nunca se le habían enseñado.</b> Las tres ARS que le van a pagar primero, con el día — <i>Humano · sáb 24 oct · RD$&nbsp;46,200</i> —, luego las atrasadas sin fecha, y el resto agrupado en una línea.</li>
+<li><b>Dos botones:</b> el PDF del estado de cuenta y el calendario completo. Los dos funcionan ahora.</li>
+<li><b>Lo demás, plegado.</b> «Cómo va oct 2026» guarda lo cobrado, lo reclamado, las glosas y los honorarios. Está, pero no compite.</li>
+<li><b>El retorno al final</b>, como cierre en prosa: <i>«En oct 2026 SOFA le cobró RD$&nbsp;20,445 y le cobró a las ARS RD$&nbsp;96,300. Por cada peso que le pagó, 11.7×»</i>.</li>
+</ul>
+<div class="am"><b>Una advertencia que puse en la pantalla a propósito.</b> La fecha de cobro sale de lo que esa ARS tardó en pagarle <i>a él</i> en los últimos lotes. La pantalla lo dice tal cual: <b>«es una estimación con su propio historial, no una promesa de la ARS»</b>. Una fecha que el médico tome por un compromiso y falle hace más daño que no dar fecha.</div>
+
+<h2>3 · Las tablas, legibles en el teléfono</h2>
+<p>Siete tablas de 6 a 9 columnas se leían arrastrando la pantalla a lo ancho, a ciegas. Ahora, por debajo de 640 px, cada fila se convierte en una tarjeta y <b>cada dato sale con el nombre de su columna al lado</b>.</p>
+<p>Se hizo en dos sitios, no en siete módulos: el ayudante <code>table()</code> de <code>services/iter18.js</code> estampa <code>data-l</code> en cada celda, y <code>css/iter18.css</code> trae la regla. <b>Es el mismo patrón que ya usaban <code>.ac-table</code> y <code>.ex-table</code></b> en tu propio CSS. Una tabla hecha a mano sin <code>data-l</code> se apila igual; solo se queda sin la etiqueta.</p>
+<table><thead><tr><th>Medición a 390 px</th><th>Antes</th><th>Ahora</th></tr></thead><tbody>
+<tr><td>Desborde horizontal de la página</td><td class="mal">sí</td><td class="si">0 px</td></tr>
+<tr><td>Ancho de celda</td><td class="mal">~780 px</td><td class="si">374 px</td></tr>
+<tr><td>El dato trae su etiqueta</td><td class="mal">no</td><td class="si">sí</td></tr>
+<tr><td>En escritorio</td><td colspan="2" class="si">sin cambios: sigue siendo la misma tabla de 7 columnas</td></tr>
+</tbody></table>
+
+<h2>4 · Tres cosas que delataban que la pantalla no era suya</h2>
+<table><thead><tr><th>Qué</th><th>Cómo quedó</th></tr></thead><tbody>
+<tr><td>El desplegable <b>«Cliente»</b> con un solo elemento: su propio consultorio</td><td class="si">Se esconde cuando hay uno solo. Cuando hay dos o más, aparece y se llama <b>«Consultorio»</b>.</td></tr>
+<tr><td><b>«Glosado»</b> significaba cuatro períodos distintos en cuatro pantallas</td><td class="si">El período va <b>en la tarjeta</b>: «Glosado desde oct 2026», «Glosado en oct 2026», «Tasa de glosa · oct 2026».</td></tr>
+<tr><td><b>«Aceptado (perdido)»</b>, jerga de auditoría</td><td class="si">«Perdido · glosas que no se recuperaron».</td></tr>
+<tr><td><b>«Ticket promedio»</b>, «Reclamaciones»</td><td class="si">«Promedio por servicio», «Servicios».</td></tr>
+</tbody></table>
+
+<h2>5 · «Mi ficha»: se acabaron los enlaces a «Sin acceso»</h2>
+<p><code>client.js</code> es la ficha interna de SOFA, y el médico la ve como «Mi ficha». Tenía <b>10 enlaces</b> a rutas que su rol no puede abrir. Ahora el archivo usa <code>canOpen()</code>: si la ruta no es suya, <b>el enlace no se pinta y queda el texto</b>, que es lo que iba a leer de todas formas.</p>
+<table><thead><tr><th>Enlace</th><th>Veces</th><th>Qué le pasa al médico</th></tr></thead><tbody>
+<tr><td><code>#/radicaciones</code></td><td>3</td><td class="si">Queda el folio como texto</td></tr>
+<tr><td><code>#/oportunidades</code></td><td>2</td><td class="si">Queda el nombre del servicio</td></tr>
+<tr><td><code>#/clientes</code></td><td>2</td><td class="si">El botón «Volver» no se pinta</td></tr>
+<tr><td><code>#/medicos</code>, <code>#/usuarios</code>, <code>#/codificacion</code></td><td>3</td><td class="si">Queda el nombre</td></tr>
+<tr><td><code>#/contratos</code> (en <code>client-tabs.js</code>)</td><td>1</td><td class="si">El botón «Abrir el Tarifario contractual» no se pinta</td></tr>
+</tbody></table>
+<p>Para el equipo de SOFA no cambia nada: ellos sí pueden abrir esas rutas y siguen viendo los enlaces.</p>
+
+<h2>Qué se sube, por GitHub web</h2>
+<table><thead><tr><th>Archivo</th><th>Qué cambia</th></tr></thead><tbody>
+<tr><td><code>js/modules/mi-dinero.js</code></td><td class="pend">Reescrito</td></tr>
+<tr><td><code>js/utils/permissions.js</code></td><td>Cinco rutas al <code>extra</code> del médico</td></tr>
+<tr><td><code>js/services/iter18.js</code></td><td>Una línea: <code>table()</code> estampa <code>data-l</code></td></tr>
+<tr><td><code>css/iter18.css</code></td><td>Dos bloques nuevos al final de sus secciones: «Mi dinero» y las tablas en teléfono</td></tr>
+<tr><td><code>js/modules/mis-glosas.js</code></td><td>Período en la tarjeta, selector escondido</td></tr>
+<tr><td><code>js/modules/mi-productividad.js</code></td><td>Período en la tarjeta, selector escondido, nombres</td></tr>
+<tr><td><code>js/modules/reporte-contador.js</code></td><td>Selector escondido</td></tr>
+<tr><td><code>js/modules/client.js</code></td><td><code>canOpen()</code> en los enlaces</td></tr>
+<tr><td><code>js/modules/client-tabs.js</code></td><td><code>canOpen()</code> en el botón del tarifario</td></tr>
+</tbody></table>
+<div class="no"><b>Recargue duro la primera vez</b> (<code>Ctrl+Shift+R</code>): el navegador cachea el <code>permissions.js</code> y el <code>iter18.css</code> viejos, y sin eso no verá ni los botones ni las tarjetas del teléfono.</div>
+<p><b>Para deshacerlo</b> no hace falta nada especial: son nueve archivos del navegador. Se restauran desde el historial de GitHub y el sistema queda como estaba. <b>La base de datos no se toca.</b></p>
+
+<h2>Lo que queda de la evaluación</h2>
+<table><thead><tr><th>Pendiente</th><th>De quién</th></tr></thead><tbody>
+<tr><td>Desplegar la Edge Function <code>enviar-correos</code> (6 en cola, 0 enviados)</td><td class="pend">Tuyo</td></tr>
+<tr><td>Encender «Leaked password protection» en Authentication</td><td class="pend">Tuyo, un clic</td></tr>
+<tr><td>Tope del formulario público <b>por visitante</b>, no global</td><td class="no_">Migración 232, cuando digas</td></tr>
+<tr><td>Unificar «por cobrar» en una sola función (hoy se calcula de 3 maneras)</td><td class="no_">Migración 234, cuando digas</td></tr>
+<tr><td>Los permisos de escritura sueltos (migración 230, ya escrita)</td><td class="no_">Tu decisión sobre las 64 pruebas</td></tr>
+<tr><td>Inicio como lista de pendientes en vez de cinco indicadores</td><td class="no_">Siguiente iteración</td></tr>
+</tbody></table>
+
+<footer>SOFA 5.22.0 &middot; Probado en Chromium con un cliente simulado y los datos reales de <code>collection_calendar</code>, en escritorio y a 390 px. Las afirmaciones sobre lo que el médico puede abrir se verificaron ejecutando <code>canSee()</code> y <code>visibleNav()</code>, no leyendo el archivo.</footer>
+</div></body></html>

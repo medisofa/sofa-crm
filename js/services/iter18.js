@@ -28,9 +28,19 @@ async function read(query) {
   return data || [];
 }
 export const clientOptions = () => read(supabase.from('organizations').select('id, legal_name, trade_name').eq('kind', 'client').order('legal_name'));
+export const realClientOptions = () => read(supabase.from('sofa_real_client_organizations').select('id, legal_name').order('legal_name'));
 export const providerOptions = () => read(supabase.from('providers').select('id, full_name, organization_id').eq('is_active', true).order('full_name'));
 export const pendingMessages = () => read(supabase.from('message_queue').select('id, kind, provider_id, organization_id, to_phone, subject, body, scheduled_for, status, patient_id').eq('status', 'pendiente').order('scheduled_for').limit(300));
 export const recentSummaries = () => read(supabase.from('message_queue').select('id, provider_id, organization_id, subject, body, scheduled_for, status').eq('kind', 'resumen_semanal').order('scheduled_for', { ascending: false }).limit(40));
+async function realClientIds() { return (await read(supabase.from('sofa_real_client_organizations').select('id'))).map((r) => r.id); }
+export async function realPendingMessages() {
+  const ids = await realClientIds(); if (!ids.length) return [];
+  return read(supabase.from('message_queue').select('id, kind, provider_id, organization_id, to_phone, subject, body, scheduled_for, status, patient_id').eq('status', 'pendiente').in('organization_id', ids).order('scheduled_for').limit(300));
+}
+export async function realRecentSummaries() {
+  const ids = await realClientIds(); if (!ids.length) return [];
+  return read(supabase.from('message_queue').select('id, provider_id, organization_id, subject, body, scheduled_for, status').eq('kind', 'resumen_semanal').in('organization_id', ids).order('scheduled_for', { ascending: false }).limit(40));
+}
 
 /** 4.7.0 · «null» visible en pantalla: replaceChildren/append/prepend convierten null, undefined y false en TEXTO («null», «false»).
  *  Varias pantallas arman sus hijos con `cond ? nodo : null`; aquí se ignoran esos valores, igual que hace h(). Se aplica una sola vez. */
@@ -75,8 +85,10 @@ export function kpi(label, value, hint) {
 export function table(cols, rows, foot) {
   return h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
     h('thead', {}, h('tr', {}, cols.map((c) => h('th', { class: c.right ? 'i18-r' : '' }, c.label)))),
-    h('tbody', {}, rows.length ? rows.map((r) => h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '' }, c.get(r))))) : h('tr', {}, h('td', { colspan: cols.length, class: 'i18-empty' }, 'Sin datos para mostrar.'))),
-    foot ? h('tfoot', {}, h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '' }, foot[c.key] ?? '')))) : null));
+    // data-l lleva el nombre de la columna a cada celda: en el teléfono la tabla se convierte en
+    // tarjetas y cada dato sale con su etiqueta al lado, sin arrastrar la pantalla a lo ancho.
+    h('tbody', {}, rows.length ? rows.map((r) => h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '', 'data-l': c.label }, c.get(r))))) : h('tr', {}, h('td', { colspan: cols.length, class: 'i18-empty' }, 'Sin datos para mostrar.'))),
+    foot ? h('tfoot', {}, h('tr', {}, cols.map((c) => h('td', { class: c.right ? 'i18-r' : '', 'data-l': c.label }, foot[c.key] ?? '')))) : null));
 }
 export const note = (text, kind = 'info') => h('p', { class: `i18-note i18-${kind}`, role: kind === 'error' ? 'alert' : 'status' }, text);
 

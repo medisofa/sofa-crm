@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="es-DO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#14181d">
+<title>Solicitar servicios · SOFA</title>
+<link rel="icon" href="assets/icons/favicon-32.png">
+<style>
+  :root{
+    --tinta:#14181d; --suave:#5b6773; --linea:#dfe4e9; --panel:#f6f8fa; --fondo:#fff;
+    --rojo:#c0392b; --rojo-f:#fdecea; --verde:#0f7b52; --verde-f:#e6f4ee; --azul:#1b4f8a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--panel);color:var(--tinta);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%}
+  .marca{background:var(--tinta);padding:18px 16px;text-align:center}
+  .marca img{height:38px;width:auto;display:inline-block}
+  .hoja{max-width:620px;margin:0 auto;padding:16px 16px 56px}
+  .tarjeta{background:var(--fondo);border:1px solid var(--linea);border-radius:14px;padding:22px 20px;margin-bottom:16px}
+  h1{font-size:23px;line-height:1.25;margin:0 0 8px;letter-spacing:-.01em}
+  h2{font-size:18px;margin:0 0 10px}
+  p{margin:0 0 14px}
+  .intro{color:var(--suave);font-size:15px}
+  label{display:block;font-size:14px;font-weight:600;margin:16px 0 5px}
+  .req::after{content:" *";color:var(--rojo)}
+  input[type=text],input[type=tel],input[type=email],select,textarea{
+    width:100%;padding:12px 13px;font-size:16px;font-family:inherit;color:var(--tinta);
+    background:var(--fondo);border:1px solid var(--linea);border-radius:10px}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--azul);outline-offset:1px;border-color:var(--azul)}
+  textarea{min-height:88px;resize:vertical}
+  .ayuda{font-size:13px;color:var(--suave);margin:5px 0 0}
+  .ops{display:grid;gap:8px;margin-top:6px}
+  .op{display:flex;gap:11px;align-items:flex-start;border:1px solid var(--linea);border-radius:10px;padding:12px 13px;cursor:pointer;background:var(--fondo)}
+  .op:has(input:checked){border-color:var(--azul);background:#f3f8fd}
+  .op input{margin:3px 0 0;width:19px;height:19px;flex:0 0 auto;accent-color:var(--azul)}
+  .op b{display:block;font-size:15px}
+  .op span{font-size:13.5px;color:var(--suave)}
+  .ars{display:grid;grid-template-columns:repeat(auto-fill,minmax(166px,1fr));gap:7px;margin-top:6px}
+  .ars label{display:flex;gap:9px;align-items:center;margin:0;font-weight:400;font-size:14.5px;
+    border:1px solid var(--linea);border-radius:9px;padding:9px 11px;cursor:pointer;background:var(--fondo)}
+  .ars label:has(input:checked){border-color:var(--azul);background:#f3f8fd;font-weight:600}
+  .ars input{width:17px;height:17px;accent-color:var(--azul)}
+  .legal{background:var(--panel);border-radius:10px;padding:13px 14px;font-size:13.5px;color:var(--suave);margin-top:18px}
+  .legal label{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:14px;color:var(--tinta);margin:0}
+  .legal input{margin:3px 0 0;width:19px;height:19px;flex:0 0 auto;accent-color:var(--azul)}
+  .trampa{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  button{font-family:inherit}
+  .enviar{width:100%;margin-top:20px;padding:15px;font-size:16.5px;font-weight:700;color:#fff;
+    background:var(--tinta);border:0;border-radius:11px;cursor:pointer}
+  .enviar:disabled{opacity:.55;cursor:default}
+  .aviso{border-radius:10px;padding:13px 15px;margin:14px 0 0;font-size:14.5px}
+  .err{background:var(--rojo-f);color:var(--rojo);border-left:4px solid var(--rojo)}
+  .oka{background:var(--verde-f);color:var(--verde);border-left:4px solid var(--verde)}
+  .folio{font-family:ui-monospace,Menlo,monospace;font-size:21px;font-weight:700;letter-spacing:.02em}
+  .enlace{display:block;word-break:break-all;background:var(--panel);border:1px dashed var(--linea);
+    border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;margin:10px 0}
+  .btn2{width:100%;padding:13px;font-size:15px;font-weight:600;background:var(--fondo);
+    color:var(--tinta);border:1.5px solid var(--tinta);border-radius:10px;cursor:pointer;margin-bottom:9px}
+  .zona{border:2px dashed var(--linea);border-radius:12px;padding:24px 16px;text-align:center;background:var(--panel)}
+  .zona b{display:block;font-size:15.5px;margin-bottom:3px}
+  .zona span{font-size:13.5px;color:var(--suave)}
+  .lista{list-style:none;margin:14px 0 0;padding:0}
+  .lista li{display:flex;gap:11px;align-items:center;padding:11px 0;border-top:1px solid var(--linea);font-size:14.5px}
+  .lista .ic{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--verde-f);color:var(--verde);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .lista .nb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lista .cu{font-size:12.5px;color:var(--suave);white-space:nowrap}
+  .pie{text-align:center;font-size:13px;color:var(--suave);padding:0 16px}
+  .oculto{display:none}
+  @media (prefers-color-scheme:dark){
+    :root{--tinta:#e8edf2;--suave:#9aa5b1;--linea:#2a3340;--panel:#0f1318;--fondo:#161b22;
+          --rojo:#ff9d93;--rojo-f:#2a1715;--verde:#5ad18f;--verde-f:#13251c;--azul:#7db3ec}
+    .op:has(input:checked),.ars label:has(input:checked){background:#172231}
+  }
+</style>
+</head>
+<body>
+
+<div class="marca"><img src="assets/brand/sofa-logo-white.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
+
+<div class="hoja">
+
+  <!-- ─────────── Paso 1 · el formulario ─────────── -->
+  <div id="paso1">
+    <div class="tarjeta">
+      <h1>Cuéntanos qué necesitas</h1>
+      <p class="intro">Somos SOFA. Nos encargamos de que te paguen: facturación a las ARS, codificación, habilitación ante Salud Pública y tu código de prestador. Llena esto en dos minutos y te contactamos.</p>
+
+      <form id="f" novalidate>
+        <div class="trampa" aria-hidden="true">
+          <label for="website">No llenes este campo</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+        </div>
+
+        <label class="req" for="nombre">Tu nombre completo</label>
+        <input type="text" id="nombre" autocomplete="name" enterkeyhint="next" required>
+
+        <label class="req" for="tipo">¿Qué eres?</label>
+        <select id="tipo" required>
+          <option value="medico">Médico o profesional de la salud</option>
+          <option value="centro">Centro médico o clínica</option>
+          <option value="laboratorio">Laboratorio</option>
+          <option value="otro">Otra cosa</option>
+        </select>
+
+        <label for="empresa">Nombre del consultorio o centro</label>
+        <input type="text" id="empresa" autocomplete="organization">
+        <p class="ayuda">Si todavía no tiene nombre, déjalo vacío.</p>
+
+        <label class="req" for="telefono">Teléfono</label>
+        <input type="tel" id="telefono" autocomplete="tel" inputmode="tel" placeholder="809 000 0000" required>
+
+        <label for="correo">Correo electrónico</label>
+        <input type="email" id="correo" autocomplete="email" inputmode="email">
+
+        <label for="especialidad">Tu especialidad</label>
+        <input type="text" id="especialidad" placeholder="Pediatría, nutriología, ortopedia…">
+
+        <label for="ciudad">Ciudad</label>
+        <input type="text" id="ciudad" placeholder="Santiago" autocomplete="address-level2">
+
+        <label class="req">¿En qué te ayudamos?</label>
+        <div class="ops" id="servicios"></div>
+
+        <label>¿Con cuáles ARS quieres trabajar?</label>
+        <p class="ayuda">Marca las que te interesen. Si no estás seguro, déjalo en blanco y lo vemos juntos.</p>
+        <div class="ars" id="ars"></div>
+
+        <label for="mensaje">¿Algo más que debamos saber?</label>
+        <textarea id="mensaje" placeholder="Cuéntanos tu situación en pocas palabras."></textarea>
+
+        <div class="legal">
+          <label><input type="checkbox" id="consent" required>
+            <span>Autorizo a SOFA a usar mis datos y documentos para evaluar y gestionar esta solicitud, conforme a la <b>Ley 172-13 de Protección de Datos Personales</b>. Puedo pedir que los borren cuando quiera.</span></label>
+        </div>
+
+        <button type="submit" class="enviar" id="btn">Enviar mi solicitud</button>
+        <div id="errF" class="aviso err oculto" role="alert"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─────────── Paso 2 · recibida y carga de documentos ─────────── -->
+  <div id="paso2" class="oculto">
+    <div class="tarjeta" id="recibida">
+      <div class="aviso oka" style="margin-top:0"><b>¡Listo! Ya tenemos tu solicitud.</b><br>Te vamos a contactar muy pronto.</div>
+      <p style="margin-top:16px">Tu número de solicitud es</p>
+      <p class="folio" id="folio">—</p>
+      <h2 style="margin-top:22px">Guarda este enlace</h2>
+      <p class="intro">Es tuyo y es privado. Con él puedes volver cuando quieras a subir tus documentos, sin crear cuenta ni recordar contraseñas.</p>
+      <code class="enlace" id="enlace">—</code>
+      <button class="btn2" id="copiar">Copiar el enlace</button>
+      <button class="btn2" id="wa">Enviármelo por WhatsApp</button>
+      <p class="ayuda" id="expira"></p>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Sube tus documentos</h2>
+      <p class="intro">Cédula, exequátur, títulos, certificación del colegio… Lo que tengas a mano. Puedes tomarles foto con el teléfono o subir el PDF. No hace falta que los subas todos hoy.</p>
+
+      <label for="archivos" class="zona" style="display:block;margin-top:4px">
+        <b>Toca aquí para elegir archivos</b>
+        <span>Fotos o PDF · hasta 10 MB cada uno</span>
+      </label>
+      <input type="file" id="archivos" multiple accept="application/pdf,image/jpeg,image/png,image/webp" class="trampa">
+
+      <div id="errD" class="aviso err oculto" role="alert"></div>
+      <div id="okD" class="aviso oka oculto" role="status"></div>
+
+      <ul class="lista" id="subidos"></ul>
+    </div>
+  </div>
+
+  <p class="pie">¿Dudas? Escríbenos por WhatsApp y te atendemos.<br>SOFA · Soluciones de Facturación Médica · Santiago, República Dominicana</p>
+</div>
+
+<script src="vendor/supabase-js-2.117.2.umd.js"></script>
+<script type="module">
+import { CONFIG } from './js/config.js';
+
+const $ = (s) => document.querySelector(s);
+const url = String(CONFIG.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+const sb  = window.supabase.createClient(url, String(CONFIG.SUPABASE_PUBLISHABLE_KEY || '').trim(),
+  { auth: { persistSession: false, autoRefreshToken: false } });
+
+/** El canal viene del enlace: #c=ig, #c=wa… Solo sirve para saber de dónde llegó. */
+const frag = new URLSearchParams(location.hash.replace(/^#/, ''));
+const canal = (frag.get('c') || 'web').toLowerCase();
+let token = frag.get('t') || null;
+let rutaBase = null;
+
+const verError = (caja, msg) => { const e = $(caja); e.textContent = msg; e.classList.remove('oculto'); };
+const ocultar  = (caja) => $(caja).classList.add('oculto');
+const fecha = (iso) => { try { return new Date(iso).toLocaleString('es-DO', { dateStyle:'medium', timeStyle:'short' }); } catch { return ''; } };
+
+/* ── Catálogos ───────────────────────────────────────────────────────────── */
+async function catalogos() {
+  const [serv, ars] = await Promise.all([
+    sb.from('intake_service_defs').select('code,label,hint').order('sort_order'),
+    sb.from('ars').select('code,name').eq('is_active', true).eq('kind', 'ars').order('name'),
+  ]);
+  (serv.data || []).forEach((s) => {
+    const l = document.createElement('label'); l.className = 'op';
+    l.innerHTML = '<input type="checkbox" value="">' +
+                  '<span><b></b><span></span></span>';
+    l.querySelector('input').value = s.code;
+    l.querySelector('b').textContent = s.label;
+    l.querySelector('span span').textContent = s.hint || '';
+    $('#servicios').append(l);
+  });
+  (ars.data || []).forEach((a) => {
+    const l = document.createElement('label');
+    l.innerHTML = '<input type="checkbox" value=""><span></span>';
+    l.querySelector('input').value = a.code;
+    l.querySelector('span').textContent = a.name;
+    $('#ars').append(l);
+  });
+}
+
+/* ── Paso 1 · enviar ─────────────────────────────────────────────────────── */
+$('#f').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  ocultar('#errF');
+  const marcados = (sel) => [...document.querySelectorAll(sel + ' input:checked')].map((i) => i.value);
+  if (!$('#consent').checked) { verError('#errF', 'Hay que aceptar el uso de los datos para poder enviar la solicitud.'); return; }
+  if (marcados('#servicios').length === 0) { verError('#errF', 'Marca al menos una cosa en la que podamos ayudarte.'); return; }
+
+  $('#btn').disabled = true; $('#btn').textContent = 'Enviando…';
+  try {
+    const { data, error } = await sb.rpc('service_request_create', { p_payload: {
+      nombre: $('#nombre').value, tipo: $('#tipo').value, empresa: $('#empresa').value,
+      telefono: $('#telefono').value, correo: $('#correo').value,
+      especialidad: $('#especialidad').value, ciudad: $('#ciudad').value,
+      canal, mensaje: $('#mensaje').value,
+      servicios: marcados('#servicios'), ars: marcados('#ars'),
+      website: $('#website').value,
+      consentimiento: $('.legal span').textContent.trim(),
+    }});
+    if (error) throw error;
+    token = data.token; rutaBase = data.ruta_base;
+    $('#folio').textContent = data.folio;
+    const liga = location.origin + location.pathname + '#t=' + token;
+    $('#enlace').textContent = liga;
+    $('#wa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Mi solicitud en SOFA (' + data.folio + '): ' + liga), '_blank');
+    $('#expira').textContent = 'El enlace sirve hasta el ' + new Date(data.expira).toLocaleDateString('es-DO', { dateStyle:'long' }) + '.';
+    history.replaceState(null, '', location.pathname + '#t=' + token);
+    $('#paso1').classList.add('oculto'); $('#paso2').classList.remove('oculto');
+    window.scrollTo(0, 0);
+  } catch (e) {
+    verError('#errF', e.message || 'No se pudo enviar. Revisa tu conexión y vuelve a intentar.');
+    $('#btn').disabled = false; $('#btn').textContent = 'Enviar mi solicitud';
+  }
+});
+
+$('#copiar').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#enlace').textContent);
+        $('#copiar').textContent = 'Copiado'; setTimeout(() => ($('#copiar').textContent = 'Copiar el enlace'), 1800); }
+  catch { verError('#errD', 'No se pudo copiar. Selecciona el enlace y cópialo a mano.'); }
+});
+
+/* ── Paso 2 · volver con el enlace privado ───────────────────────────────── */
+async function abrirConToken() {
+  const { data, error } = await sb.rpc('service_request_view', { p_token: token });
+  if (error) { $('#paso1').classList.remove('oculto'); verError('#errF', error.message); return; }
+  rutaBase = data.ruta_base;
+  $('#folio').textContent = data.folio;
+  $('#enlace').textContent = location.origin + location.pathname + '#t=' + token;
+  $('#expira').textContent = 'El enlace sirve hasta el ' + new Date(data.expira).toLocaleDateString('es-DO', { dateStyle:'long' }) + '.';
+  $('#recibida').querySelector('.aviso').textContent = 'Hola de nuevo, ' + data.nombre + '. Esta es tu solicitud.';
+  $('#paso1').classList.add('oculto'); $('#paso2').classList.remove('oculto');
+  pintar(data.documentos || []);
+}
+
+function pintar(docs) {
+  const ul = $('#subidos'); ul.replaceChildren();
+  docs.forEach((d) => {
+    const li = document.createElement('li');
+    const ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = '✓';
+    const nb = document.createElement('span'); nb.className = 'nb'; nb.textContent = d.nombre;
+    const cu = document.createElement('span'); cu.className = 'cu'; cu.textContent = fecha(d.subido);
+    li.append(ic, nb, cu); ul.append(li);
+  });
+}
+
+/* ── Subir archivos ──────────────────────────────────────────────────────── */
+$('#archivos').addEventListener('change', async (ev) => {
+  const files = [...ev.target.files]; ev.target.value = '';
+  if (!files.length) return;
+  ocultar('#errD'); ocultar('#okD');
+  let bien = 0;
+  for (const f of files) {
+    try {
+      if (f.size > 10485760) throw new Error('«' + f.name + '» pesa más de 10 MB. Toma la foto de nuevo o reduce el PDF.');
+      const ext  = (f.name.split('.').pop() || 'dat').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const ruta = rutaBase + '/' + crypto.randomUUID() + '.' + ext;
+      const up = await sb.storage.from('intake').upload(ruta, f, { contentType: f.type, upsert: false });
+      if (up.error) throw up.error;
+      const { error } = await sb.rpc('service_request_doc_register', {
+        p_token: token, p_path: ruta, p_name: f.name, p_mime: f.type, p_size: f.size });
+      if (error) throw error;
+      bien++;
+    } catch (e) {
+      verError('#errD', e.message || 'No se pudo subir «' + f.name + '». Vuelve a intentar.');
+    }
+  }
+  if (bien) {
+    const { data } = await sb.rpc('service_request_view', { p_token: token });
+    if (data) pintar(data.documentos || []);
+    const o = $('#okD'); o.textContent = bien === 1 ? 'Documento subido. Ya lo tenemos.' : bien + ' documentos subidos. Ya los tenemos.';
+    o.classList.remove('oculto');
+  }
+});
+
+/* ── Arranque ────────────────────────────────────────────────────────────── */
+(async () => {
+  try {
+    if (token) { await abrirConToken(); }
+    else { await catalogos(); }
+  } catch (e) {
+    verError('#errF', 'No se pudo cargar la página. Revisa tu conexión y vuelve a intentar.');
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,15 +1,26 @@
 /** SOFA · Tareas */
 import { sb } from '../supabase.js';
 const must = ({ data, error }) => { if (error) throw error; return data; };
-export async function listTasks({ bucket = '', assignee = '', entityType = '', entityId = '' } = {}) {
+let realIdsCache = null;
+async function realOrgIds() {
+  if (realIdsCache) return realIdsCache;
+  realIdsCache = must(await sb().from('sofa_real_client_organizations').select('id')).map((r) => r.id);
+  return realIdsCache;
+}
+function applyTaskScope(q, ids) {
+  return ids.length ? q.or(`organization_id.is.null,organization_id.in.(${ids.join(',')})`) : q.is('organization_id', null);
+}
+export async function listTasks({ bucket = '', assignee = '', entityType = '', entityId = '', realOnly = false } = {}) {
   let q = sb().from('v_tasks').select('*');
+  if (realOnly) q = applyTaskScope(q, await realOrgIds());
   if (bucket) q = q.eq('bucket', bucket);
   if (assignee) q = q.eq('assignee_id', assignee);
   if (entityType) q = q.eq('entity_type', entityType).eq('entity_id', entityId);
   return must(await q.order('due_date', { ascending: bucket !== 'completadas' }).limit(300));
 }
-export async function taskCounts(assignee = '') {
-  let q = sb().from('v_tasks').select('bucket');
+export async function taskCounts(assignee = '', { realOnly = false } = {}) {
+  let q = sb().from('v_tasks').select('bucket, organization_id');
+  if (realOnly) q = applyTaskScope(q, await realOrgIds());
   if (assignee) q = q.eq('assignee_id', assignee);
   const rows = must(await q.limit(2000));
   return rows.reduce((m, r) => { m[r.bucket] = (m[r.bucket] || 0) + 1; return m; }, { hoy: 0, vencidas: 0, proximas: 0, completadas: 0 });

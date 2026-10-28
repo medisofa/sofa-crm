@@ -32,7 +32,7 @@ export async function render(main, ctx) {
   listArs().then((ars) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`)).catch(() => {});
 
   // Tarjetas
-  submissionSummary().then((rows) => {
+  submissionSummary({ realOnly: staff }).then((rows) => {
     const prep = rows.filter((r) => ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'].includes(r.status));
     const ready = rows.filter((r) => r.status === 'lista_para_radicar');
     const open = rows.filter((r) => ['radicada', 'en_auditoria_ars'].includes(r.status) && Number(r.balance) > 0);
@@ -46,7 +46,7 @@ export async function render(main, ctx) {
   }).catch((e) => paint($('#k', main), html`<div class="note bad">${friendlyError(e)}</div>`));
 
   const list = $('#l', main);
-  const load = () => loadInto(list, () => listSubmissions({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
+  const load = () => loadInto(list, () => listSubmissions({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff }), ({ data, count }) => html`
     <div class="table-wrap"><table class="t cards"><thead><tr><th>Radicación</th><th>Prestador</th><th>ARS</th><th>Período</th><th class="n">Servicios</th><th class="n">Reclamado</th><th>Estado</th><th class="n">Expediente</th><th class="n">Saldo</th></tr></thead>
     <tbody>${data.map((s) => {
       const [lbl, cls] = subStatus(s.display_status);

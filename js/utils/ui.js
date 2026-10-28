@@ -15,7 +15,13 @@ export function friendlyError(err) {
   const e = err || {};
   const msg = String(e.message || e.error_description || e.msg || e || '');
   const code = String(e.code || e.status || '');
-  if (!navigator.onLine || /Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'Sin conexión a internet. Revisa tu conexión y vuelve a intentar.';
+  // 5.11.1 · Un módulo que no se pudo descargar NO es falta de internet. Pasa cuando la red falla
+  // un instante al abrir una pantalla por primera vez, o cuando la publicación aún se está propagando.
+  // Va ANTES del caso de red porque el navegador incluye «Failed to fetch» en este mismo mensaje.
+  if (/dynamically imported module|error loading dynamically|importing a module script/i.test(msg))
+    return 'No se pudo descargar esta pantalla. Recarga la página y vuelve a entrar. Si vuelve a pasar, avísanos: el archivo de esta pantalla no está llegando.';
+  if (!navigator.onLine) return 'Sin conexión a internet. Revisa tu conexión y vuelve a intentar.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'No se pudo conectar con el servidor. Puede ser tu conexión o una caída momentánea. Espera unos segundos y vuelve a intentar.';
   if (/invalid login credentials|invalid_credentials/i.test(msg)) return 'Correo o contraseña incorrectos.';
   if (/email not confirmed/i.test(msg)) return 'Tu correo aún no está confirmado. Pide al administrador que lo confirme.';
   if (/rate limit|too many/i.test(msg) || code === '429') return 'Demasiados intentos. Espera unos minutos y vuelve a intentar.';

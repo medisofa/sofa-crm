@@ -62,7 +62,7 @@ const REPORTS = {
     } },
   honorarios: { title: 'Honorarios por cliente', about: 'Devengado, facturado y cobrado por SOFA a cada cliente (acumulado).', fees: true,
     async build() {
-      const r = await feeSummaryAll();
+      const r = await feeSummaryAll({ realOnly: true });
       return { cols: [{ label: 'Cliente', key: 'client_name' }, { label: 'Reglas vigentes', key: 'rules' }, { label: 'Devengado', key: 'accrued', type: 'money' }, { label: 'Por facturar', key: 'uninvoiced', type: 'money' }, { label: 'Facturado', key: 'invoiced', type: 'money' }, { label: 'Cobrado', key: 'collected', type: 'money' }], rows: r, totals: true };
     } }
 };
@@ -77,7 +77,8 @@ export async function render(main, ctx) {
       <div class="toolbar no-print" style="margin:0"><button class="btn" id="csv">Exportar CSV</button><button class="btn" id="print">Imprimir</button></div></div>
     <div class="toolbar no-print"><label class="sr-only" for="rep">Reporte</label><select class="input" id="rep" style="width:auto;min-width:280px">${avail.map(([k, r]) => opt(k, r.title, key))}</select></div>
     <div id="fb"></div><div id="out">${loadingView(6)}</div>`);
-  let f = await filterBar($('#fb', main), ctx, (nf) => { f = nf; run(); });
+  let f = await filterBar($('#fb', main), ctx, (nf) => { f = { ...nf, realOnly: staff }; run(); });
+  f.realOnly = staff;
   const run = async () => {
     const rep = REPORTS[key]; const out = $('#out', main); paint(out, loadingView(6));
     try {

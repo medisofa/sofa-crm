@@ -7,9 +7,8 @@ import { loadInto, toast, friendlyError, opt, formDialog, fieldError } from '../
 import { dateTime } from '../utils/formatters.js';
 import { COMMERCIAL_DOCS, COMMERCIAL_DOC_STATUS, COMMERCIAL_DOC_TYPE } from '../utils/constants.js';
 import { can } from '../utils/permissions.js';
-import { onboardingStatus, setOnboardingStep, activateClient, listCommercialDocs, getCommercialDoc, generateCommercialDoc, setCommercialDocStatus } from '../services/crm.js';
-import { uploadDocument } from '../services/documents.js';
-import { listArs } from '../services/catalog.js';
+import { onboardingStatus, setOnboardingStep, activateClient } from '../services/crm.js';
+import { uploadDocument, listDocuments, openDocument, sizeLabel, listClientDocumentReviews, reviewClientDocument, clientDocumentArsOptions, listClientDocumentArs, linkClientDocumentArs } from '../services/documents.js';
 
 const SRC = { automatico: ['Automático', 'ok'], manual: ['Marcado a mano', 'info'], pendiente: ['Pendiente', 'warn'] };
 
@@ -57,51 +56,245 @@ export function renderOnboarding(box, org, ctx, onChange = () => {}) {
   return { reload: load };
 }
 
-/** Documentos A–E: generar, PDF con membrete, estado y copia firmada */
+/** Documentos A–E: modelos editables, carga del médico y revisión SOFA. */
+const escDoc = (v) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
+const modelName = (code, arsName = '') => `SOFA_Modelo_${code}_${COMMERCIAL_DOCS[code].replace(/[^A-Za-z0-9]+/g,'_')}${arsName ? '_' + arsName.replace(/[^A-Za-z0-9]+/g,'_') : ''}.doc`;
+
+function modelHtml(code, org, arsName = '') {
+  const name = escDoc(org.legal_name || org.trade_name || '________________');
+  const tax = escDoc(org.tax_id || '________________');
+  const address = escDoc([org.address, org.city].filter(Boolean).join(', ') || '________________');
+  const email = escDoc(org.email || '________________');
+  const phone = escDoc(org.phone || org.whatsapp || '________________');
+  const ars = escDoc(arsName || '________________');
+  const legal = ['A','B'].includes(code)
+    ? '<p style="border:2px solid #8B0000;padding:10px"><b>MODELO DE TRABAJO — REQUIERE REVISIÓN LEGAL ANTES DE FIRMA O USO.</b></p>'
+    : '<p style="border:1px solid #999;padding:10px"><b>MODELO OPERATIVO.</b> Revise y complete los campos pendientes antes de utilizarlo.</p>';
+
+  const blocks = {
+    A: `
+      <h1>Contrato de servicios SOFA</h1>
+      <p><b>Entre:</b> ${name}, RNC/Cédula ${tax}, con domicilio en ${address}, en adelante “EL CLIENTE”; y SOFA · Soluciones de Facturación Médica, en adelante “SOFA”.</p>
+      <h2>1. Objeto</h2><p>Definir los servicios administrativos y de gestión contratados: ________________________________.</p>
+      <h2>2. Alcance</h2><p>ARS / centros / especialidades incluidas: ________________________________.</p>
+      <h2>3. Honorarios y forma de pago</h2><p>Modalidad y monto: ________________________________.</p>
+      <h2>4. Obligaciones del cliente</h2><p>Entrega oportuna de información, autorizaciones y documentos necesarios para la gestión.</p>
+      <h2>5. Obligaciones de SOFA</h2><p>Gestión diligente, trazabilidad, confidencialidad y reporte del estado de los procesos contratados.</p>
+      <h2>6. Confidencialidad y protección de información</h2><p>Condiciones aplicables: ________________________________.</p>
+      <h2>7. Vigencia, terminación y jurisdicción</h2><p>_______________________________.</p>
+      <p>Firma EL CLIENTE: ____________________ &nbsp;&nbsp; Firma SOFA: ____________________</p>`,
+    B: `
+      <h1>Autorización de representación</h1>
+      <p>Yo, __________________________________, actuando en nombre de ${name}, RNC/Cédula ${tax}, autorizo a SOFA · Soluciones de Facturación Médica a realizar, dentro del alcance contratado, gestiones administrativas relacionadas con facturación, codificación, reclamaciones, radicación, seguimiento y comunicación ante los centros de salud y/o ARS indicados por el cliente.</p>
+      <p><b>Alcance específico autorizado:</b> ________________________________________________.</p>
+      <p><b>ARS / centros aplicables:</b> ________________________________________________.</p>
+      <p><b>Vigencia:</b> desde ____/____/______ hasta ____/____/______ o hasta revocación escrita conforme a lo contratado.</p>
+      <p>Firma: ____________________ &nbsp; Cédula: ____________________ &nbsp; Fecha: ____/____/______</p>`,
+    C: `
+      <h1>Carta de presentación a la clínica / centro de salud</h1>
+      <p>Fecha: ____/____/______</p>
+      <p>Señores<br><b>________________________________</b><br>Ciudad</p>
+      <p>Por medio de la presente, ${name} informa que SOFA · Soluciones de Facturación Médica apoyará la gestión administrativa de sus reclamaciones y procesos de facturación conforme a la autorización otorgada por el cliente.</p>
+      <p>Solicitamos facilitar la coordinación operativa necesaria con el personal autorizado de SOFA para los procesos correspondientes.</p>
+      <p>Contacto del cliente: ${phone} · ${email}</p>
+      <p>Atentamente,</p><p>________________________________<br>Nombre / firma / sello</p>`,
+    D: `
+      <h1>Carta de representación ante ARS</h1>
+      <p>Fecha: ____/____/______</p>
+      <p>Señores<br><b>${ars}</b></p>
+      <p>Por medio de la presente, ${name}, RNC/Cédula ${tax}, comunica que SOFA · Soluciones de Facturación Médica ha sido autorizada para apoyar las gestiones administrativas vinculadas a facturación, codificación, radicación y seguimiento de reclamaciones, dentro del alcance expresamente autorizado por el cliente.</p>
+      <p><b>Código de prestador:</b> ____________________ &nbsp; <b>Especialidad:</b> ____________________</p>
+      <p><b>Contacto autorizado:</b> ________________________________.</p>
+      <p>Atentamente,</p><p>________________________________<br>Nombre / firma / sello</p>`,
+    E: `
+      <h1>Formulario de implementación SOFA</h1>
+      <table border="1" cellspacing="0" cellpadding="6" width="100%">
+        <tr><td><b>Cliente</b></td><td>${name}</td></tr>
+        <tr><td><b>RNC/Cédula</b></td><td>${tax}</td></tr>
+        <tr><td><b>Dirección</b></td><td>${address}</td></tr>
+        <tr><td><b>Teléfono</b></td><td>${phone}</td></tr>
+        <tr><td><b>Correo</b></td><td>${email}</td></tr>
+        <tr><td><b>Prestador principal</b></td><td>____________________________</td></tr>
+        <tr><td><b>Especialidad</b></td><td>____________________________</td></tr>
+        <tr><td><b>ARS contratadas</b></td><td>____________________________</td></tr>
+        <tr><td><b>Códigos de prestador</b></td><td>____________________________</td></tr>
+        <tr><td><b>Centros / clínicas</b></td><td>____________________________</td></tr>
+        <tr><td><b>Contacto operativo</b></td><td>____________________________</td></tr>
+        <tr><td><b>Frecuencia de retiro / entrega</b></td><td>____________________________</td></tr>
+        <tr><td><b>Observaciones</b></td><td><br><br><br></td></tr>
+      </table>`
+  };
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escDoc(COMMERCIAL_DOCS[code])}</title>
+    <style>body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.45;margin:40px;color:#222}h1{color:#1A365D}h2{font-size:13pt;color:#1A365D}table{border-collapse:collapse}td{vertical-align:top}</style>
+    </head><body>${legal}${blocks[code] || ''}<hr><p style="font-size:9pt;color:#666">SOFA · Soluciones de Facturación Médica · Modelo ${code}. Complete y revise antes de usar.</p></body></html>`;
+}
+
+function downloadModel(code, org, arsName = '') {
+  const blob = new Blob([modelHtml(code, org, arsName)], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = modelName(code, arsName); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function renderCommercialDocs(box, org, ctx, providers = []) {
-  const manage = can('onboarding.manage', ctx.role);
-  let rows = [];
-  const load = () => loadInto(box, async () => { rows = await listCommercialDocs(org.id); return rows; }, (list) => html`
-    ${manage ? html`<div class="toolbar" style="margin:0 0 8px">${Object.entries(COMMERCIAL_DOCS).map(([k, l]) => html`<button class="btn sm" data-gen="${k}" title="${l}">+ ${k} · ${l}</button>`)}</div>` : ''}
-    ${list.length ? html`<div class="list">${list.map((d) => { const [l, c] = COMMERCIAL_DOC_STATUS[d.status] || [d.status, '']; return html`<div class="li">
-      <div class="b"><div class="t1"><b>${d.template_code}</b> · ${COMMERCIAL_DOCS[d.template_code]}${d.ars?.name ? ` · ${d.ars.name}` : ''}${d.providers?.full_name ? ` · ${d.providers.full_name}` : ''}</div>
-        <div class="t2">Generado ${dateTime(d.created_at)} · plantilla v${d.template_version}${d.status !== 'generado' ? ` · ${l.toLowerCase()} ${dateTime(d.status_changed_at)}` : ''}</div></div>
-      <span class="pill ${c}">${l}</span>
-      <button class="btn sm" data-pdf="${d.id}">PDF</button>
-      ${manage && d.status !== 'anulado' && d.status !== 'firmado' ? html`<select class="input" data-st="${d.id}" style="width:auto;min-height:32px" aria-label="Cambiar estado">
-        <option value="">Estado…</option>${['enviado', 'entregado', 'anulado'].map((s) => opt(s, COMMERCIAL_DOC_STATUS[s][0]))}</select>
-        <label class="btn sm" style="cursor:pointer">Subir firmada<input type="file" data-sign="${d.id}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}</div>`; })}</div>`
-      : html`<p class="small muted">Aún no se han generado documentos para este cliente.</p>`}
-    <p class="small muted">Los textos de A (contrato) y B (autorización) deben estar revisados por un abogado. SOFA los llena con los datos del cliente, pero no sustituye esa revisión.</p>`, { isEmpty: () => false });   // sin documentos todavía: igual se muestran los botones para generarlos
+  const canUpload = can('docs.upload', ctx.role) || can('clientdocs.upload', ctx.role);
+  const canReview = ['super_admin','admin','assistant','operations'].includes(ctx.role);
+  let docs = []; let reviews = []; let arsOptions = []; let arsLinks = [];
+
+  const reviewState = (latest) => {
+    const review = latest ? reviews.find((r) => r.document_id === latest.id) : null;
+    const status = !latest ? ['Pendiente','warn']
+      : !review ? ['Cargado por cliente','info']
+      : review.status === 'aprobado' ? ['Aprobado','ok']
+      : review.status === 'requiere_correccion' ? ['Requiere corrección','bad']
+      : ['En revisión SOFA','warn'];
+    return { review, status };
+  };
+
+  const standardCard = (code, title, list) => {
+    const type = COMMERCIAL_DOC_TYPE[code];
+    const files = list.filter((d) => d.document_type_code === type);
+    const latest = files[0] || null;
+    const { review, status } = reviewState(latest);
+    const legal = ['A','B'].includes(code);
+    return html`<div class="li commercial-doc-row">
+      <div class="commercial-doc-code">${code}</div>
+      <div class="b">
+        <div class="t1">${title}</div>
+        <div class="t2">${legal ? 'Modelo de trabajo · requiere revisión legal antes de firma/uso.' : 'Modelo operativo editable.'}</div>
+        <div class="small" style="margin-top:5px"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${sizeLabel(latest.size_bytes)} · ${dateTime(latest.uploaded_at)}` : ''}</div>
+        ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:6px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
+      </div>
+      <div class="toolbar commercial-doc-actions">
+        <button class="btn sm" data-model="${code}" type="button">Descargar modelo</button>
+        ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
+        ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Subir nueva versión' : 'Subir documento'}<input type="file" data-upload-doc="${code}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
+        ${canReview && latest ? html`<button class="btn sm" data-review-doc="${latest.id}" data-review-code="${code}" type="button">Revisar</button>` : ''}
+      </div>
+    </div>`;
+  };
+
+  const documentD = (list) => html`<div class="li commercial-doc-row">
+    <div class="commercial-doc-code">D</div>
+    <div class="b">
+      <div class="t1">Carta de representación ante ARS</div>
+      <div class="t2">Se gestiona una carta independiente por cada ARS vinculada al cliente.</div>
+      ${arsOptions.length ? html`<div class="list" style="margin-top:8px">
+        ${arsOptions.map((a) => {
+          const ids = new Set(arsLinks.filter((x) => x.ars_id === a.ars_id).map((x) => x.document_id));
+          const latest = list.find((d) => d.document_type_code === 'carta_ars' && ids.has(d.id)) || null;
+          const { review, status } = reviewState(latest);
+          return html`<div class="li commercial-doc-ars-row">
+            <div class="b">
+              <div class="t1">${a.ars_name}</div>
+              <div class="small"><span class="pill ${status[1]}">${status[0]}</span>${latest ? ` · ${latest.file_name} · ${dateTime(latest.uploaded_at)}` : ''}</div>
+              ${review?.notes ? html`<div class="note ${review.status === 'requiere_correccion' ? 'bad' : 'info'} small" style="margin-top:5px"><b>Observación SOFA:</b> ${review.notes}</div>` : ''}
+            </div>
+            <div class="toolbar commercial-doc-actions">
+              <button class="btn sm" data-model="D" data-model-ars="${a.ars_name}" type="button">Descargar modelo</button>
+              ${latest ? html`<button class="btn sm" data-open-doc="${latest.id}" type="button">Ver cargado</button>` : ''}
+              ${canUpload ? html`<label class="btn sm" style="cursor:pointer">${latest ? 'Nueva versión' : 'Subir carta'}<input type="file" data-upload-doc="D" data-upload-ars="${a.ars_id}" accept="application/pdf,image/jpeg,image/png" hidden></label>` : ''}
+              ${canReview && latest ? html`<button class="btn sm" data-review-doc="${latest.id}" data-review-code="D" data-review-ars="${a.ars_name}" type="button">Revisar</button>` : ''}
+            </div>
+          </div>`;
+        })}
+      </div>` : html`<div class="note warn small" style="margin-top:8px">Este cliente todavía no tiene ARS vinculadas en tarifarios o radicaciones. Cuando se configure una ARS, aparecerá aquí automáticamente.</div>`}
+    </div>
+  </div>`;
+
+  const load = () => loadInto(box, async () => {
+    [docs, reviews, arsOptions, arsLinks] = await Promise.all([
+      listDocuments({ entityType: 'organization', entityId: org.id, limit: 200 }),
+      listClientDocumentReviews(org.id).catch(() => []),
+      clientDocumentArsOptions(org.id).catch(() => []),
+      listClientDocumentArs(org.id).catch(() => [])
+    ]);
+    return docs;
+  }, (list) => html`
+    <div class="note info" style="margin-bottom:10px">
+      <b>Cómo usar esta sección</b><br>
+      1. Descarga el modelo. 2. Complétalo y fírmalo cuando corresponda. 3. Súbelo aquí. 4. SOFA lo revisa y te indica si fue aprobado o requiere corrección.
+    </div>
+    <div class="list">
+      ${standardCard('A', COMMERCIAL_DOCS.A, list)}
+      ${standardCard('B', COMMERCIAL_DOCS.B, list)}
+      ${standardCard('C', COMMERCIAL_DOCS.C, list)}
+      ${documentD(list)}
+      ${standardCard('E', COMMERCIAL_DOCS.E, list)}
+    </div>
+    <p class="small muted">Formatos aceptados al subir: PDF, JPG o PNG, máximo 10 MB. Los modelos son ayudas de gestión; A y B deben ser revisados y aprobados legalmente antes de su uso definitivo.</p>
+  `, { isEmpty: () => false });
+
   box.addEventListener('click', async (e) => {
-    const g = e.target.closest('[data-gen]'); const p = e.target.closest('[data-pdf]');
+    const model = e.target.closest('[data-model]');
+    const open = e.target.closest('[data-open-doc]');
+    const reviewBtn = e.target.closest('[data-review-doc]');
     try {
-      if (g) {
-        const code = g.dataset.gen; const ars = code === 'D' ? await listArs().catch(() => []) : [];
-        const r = await formDialog({ title: `Generar ${code} · ${COMMERCIAL_DOCS[code]}`, submitLabel: 'Generar',
-          body: html`${providers.length > 1 ? html`<div class="field"><label for="cg_p">Médico</label><select id="cg_p" name="provider">${providers.map((x) => opt(x.id, x.full_name))}</select></div>` : ''}
-            ${code === 'D' ? html`<div class="field"><label for="cg_a">ARS *</label><select id="cg_a" name="ars"><option value="">Seleccione…</option>${ars.map((a) => opt(a.id, a.name))}</select><span class="hint">Se genera una carta por ARS.</span></div>` : ''}
-            <p class="small">El documento se llena con los datos actuales del cliente. Lo que falte queda como "______" para completarlo a mano.</p>`,
-          onSubmit: async (d, f) => { if (code === 'D' && !d.ars) { fieldError(f.elements.ars, 'Seleccione la ARS'); return false; } return generateCommercialDoc(org.id, code, d.provider || null, d.ars || null); } });
-        if (r) { toast('Documento generado', 'ok'); load(); }
-      } else if (p) {
-        p.disabled = true; const { downloadLetterPdf } = await import('../utils/pdf-invoice.js');
-        toast(`Descargado ${await downloadLetterPdf(await getCommercialDoc(p.dataset.pdf))}`, 'ok'); p.disabled = false;
+      if (model) downloadModel(model.dataset.model, org, model.dataset.modelArs || '');
+      if (open) {
+        const doc = docs.find((d) => d.id === open.dataset.openDoc);
+        if (doc) {
+          const fallback = await openDocument(doc);
+          if (fallback) window.open(fallback, '_blank', 'noopener');
+        }
       }
-    } catch (err) { toast(friendlyError(err), 'bad'); if (p) p.disabled = false; }
-  });
-  box.addEventListener('change', async (e) => {
-    const s = e.target.closest('[data-st]'); const f = e.target.closest('[data-sign]');
-    try {
-      if (s && s.value) { await setCommercialDocStatus(s.dataset.st, s.value); toast(`Marcado como ${COMMERCIAL_DOC_STATUS[s.value][0].toLowerCase()}`, 'ok'); load(); }
-      if (f && f.files[0]) {
-        const d = rows.find((x) => x.id === f.dataset.sign);
-        toast('Subiendo copia firmada…');
-        const up = await uploadDocument({ orgId: org.id, file: f.files[0], entityType: 'organization', entityId: org.id, docType: COMMERCIAL_DOC_TYPE[d.template_code], bucket: 'contracts' });
-        await setCommercialDocStatus(d.id, 'firmado', up.id); toast('Documento firmado guardado en el expediente', 'ok'); load();
+      if (reviewBtn) {
+        const current = reviews.find((r) => r.document_id === reviewBtn.dataset.reviewDoc);
+        const label = reviewBtn.dataset.reviewArs ? `D · ${reviewBtn.dataset.reviewArs}` : `${reviewBtn.dataset.reviewCode} · ${COMMERCIAL_DOCS[reviewBtn.dataset.reviewCode]}`;
+        const ok = await formDialog({
+          title: `Revisar ${label}`,
+          submitLabel: 'Guardar revisión',
+          body: html`<div class="field"><label for="cdr_status">Resultado *</label>
+            <select id="cdr_status" name="status">
+              <option value="en_revision" ${current?.status === 'en_revision' ? 'selected' : ''}>En revisión SOFA</option>
+              <option value="aprobado" ${current?.status === 'aprobado' ? 'selected' : ''}>Aprobado</option>
+              <option value="requiere_correccion" ${current?.status === 'requiere_correccion' ? 'selected' : ''}>Requiere corrección</option>
+            </select></div>
+            <div class="field"><label for="cdr_notes">Observaciones</label><textarea id="cdr_notes" name="notes" rows="3" maxlength="600" placeholder="Indique qué debe corregirse o deje una nota de aprobación.">${current?.notes || ''}</textarea></div>`,
+          onSubmit: async (d, form) => {
+            if (d.status === 'requiere_correccion' && String(d.notes || '').trim().length < 5) {
+              fieldError(form.elements.notes, 'Indique qué debe corregir el cliente.');
+              return false;
+            }
+            await reviewClientDocument(reviewBtn.dataset.reviewDoc, d.status, String(d.notes || '').trim());
+            return true;
+          }
+        });
+        if (ok) { toast('Revisión documental guardada', 'ok'); load(); }
       }
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
+
+  box.addEventListener('change', async (e) => {
+    const input = e.target.closest('[data-upload-doc]');
+    if (!input || !input.files?.[0]) return;
+    const code = input.dataset.uploadDoc;
+    const file = input.files[0];
+    try {
+      input.disabled = true;
+      toast('Subiendo documento…');
+      const up = await uploadDocument({
+        orgId: org.id,
+        file,
+        entityType: 'organization',
+        entityId: org.id,
+        docType: COMMERCIAL_DOC_TYPE[code],
+        bucket: 'contracts'
+      });
+      if (code === 'D') {
+        if (!input.dataset.uploadArs) throw new Error('Seleccione la ARS correspondiente a la carta.');
+        await linkClientDocumentArs(up.id, input.dataset.uploadArs);
+      }
+      toast(`${code} · ${code === 'D' ? 'Carta ante ARS' : COMMERCIAL_DOCS[code]} guardado. Queda pendiente de revisión SOFA.`, 'ok');
+      load();
+    } catch (err) {
+      toast(friendlyError(err), 'bad');
+      input.disabled = false;
+    }
+  });
+
   load();
   return { reload: load };
 }

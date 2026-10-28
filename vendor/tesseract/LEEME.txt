@@ -1,0 +1,12 @@
+Lectura de texto (OCR) autoalojada · SOFA 4.5.2
+Todo sale de este mismo origen: no hay CDN ni servicios de terceros.
+
+  tesseract.esm.min.js                 tesseract.js 5.1.1 (Apache-2.0)        LICENSE-tesseract.js.md
+  worker.min.js                        tesseract.js 5.1.1
+  tesseract-core-simd-lstm.wasm.js     tesseract.js-core 5.1.1 (Apache-2.0)   LICENSE-tesseract.js-core
+  tesseract-core-lstm.wasm.js          (respaldo sin SIMD; el WebAssembly viene incrustado en el .js)
+  spa.traineddata.gz                   @tesseract.js-data/spa 4.0.0_best_int (español, LSTM, 2 MB; datos Tesseract Apache-2.0, paquete MIT)
+
+Para actualizar: en una carpeta temporal fuera del repo, npm i tesseract.js tesseract.js-core @tesseract.js-data/spa y copiar
+los mismos archivos. Cambiar de motor sin tocar la pantalla: registrarMotor() en js/services/ocr-motor.js.
+CSP: ver el comentario al inicio de ocr-motor.js.

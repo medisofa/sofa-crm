@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
 import { resolve, parseHash, DEFAULT_ROUTE } from './router.js';
-import { visibleNav, ROLES, homeRoute } from './utils/permissions.js';
+import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
@@ -97,7 +97,7 @@ function fatal(title, text, actions = '') {
 
 /**
  * 1.9 · Primer acceso: si el usuario entró con la clave temporal (creada con «Crear usuario»),
- * debe cambiarla antes de usar el sistema. Se carga aparte: si falla, la aplicación sigue arrancando.
+ * debe cambiarla antes de usar el sistema. Si falla su verificación, se detiene el arranque hasta poder comprobarla.
  */
 async function passwordGate() {
   try {
@@ -106,7 +106,11 @@ async function passwordGate() {
     render(app, html`<div class="auth-wrap"><div class="auth-card" id="cambioClave"></div></div>`);
     await cc.render($('#cambioClave'), { onDone: () => setTimeout(() => location.reload(), 800) });
     return true;
-  } catch (e) { console.warn('cambio-clave', e); return false; }
+  } catch (e) {
+    fatal('No se pudo verificar la seguridad de la cuenta', 'Comprueba la conexión y vuelve a intentarlo. Debemos verificar si necesitas cambiar la contraseña antes de abrir el sistema.', html`<button class="btn primary" id="retryPasswordGate">Reintentar</button>`);
+    $('#retryPasswordGate').onclick = () => location.reload();
+    return true;
+  }
 }
 
 async function boot() {
@@ -144,6 +148,7 @@ async function boot() {
   if (await passwordGate()) return;   // 1.9 · cambio de clave obligatorio en el primer acceso
   // Organización operadora (SOFA) para crear registros del CRM; null para usuarios de clientes
   state.operatorId = (state.memberships.find((m) => m.kind === 'operator') || {}).organization_id || null;
+  await menuConfigurado();
   layout();
   watchAuth();
   startInactivityTimer();
@@ -151,6 +156,20 @@ async function boot() {
   if (!location.hash || (location.hash.replace(/^#\/?/, '') === DEFAULT_ROUTE && homeRoute(state.role) !== DEFAULT_ROUTE)) history.replaceState(null, '', `#/${homeRoute(state.role)}`);
   route();
   registerSW();
+}
+
+/** 5.17.0 · I73 · Trae el menú que el Super Admin dejó configurado en «Permisos y menús».
+ *  Si no se puede —sin red, sin permiso, la tabla vacía, la migración sin aplicar— no pasa nada:
+ *  se usan los valores del código, que son los de siempre. Nunca deja a nadie sin menú, y por eso
+ *  esto no bloquea el arranque ni muestra error: el menú de fábrica es una respuesta correcta. */
+async function menuConfigurado() {
+  try {
+    const c = sb();
+    if (!c) { olvidarMenu(); return; }
+    const { data, error } = await c.rpc('role_menu_get');
+    if (error || !data) { olvidarMenu(); return; }
+    aplicarMenu(data.config);
+  } catch (_) { olvidarMenu(); }
 }
 
 function layout() {
@@ -206,9 +225,18 @@ function renderNav() {
   const closed = closedGroups();
   const link = (i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`;
   const groups = visibleNav(state.role);
+  // 5.11.0 · la pista solo vale la pena cuando hay bastante fuera del menú. Con 2 o 4 módulos
+  // (Prospecto, Facturación, Secretaria) sería ruido para quien menos navega el sistema.
+  const nExtra = extraNav(state.role).length;
+  const mostrarPista = nExtra >= 10;
   if (q) {
     const hits = groups.flatMap((g) => g.items.filter((i) => norm(i.label).includes(q) || norm(g.group).includes(q)));
-    render(nav, hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : html`<p class="nav-empty">No hay módulos con «${$('#navSearch').value}». Borre la búsqueda para ver todo el menú.</p>`);
+    // 5.11.0 · el buscador también encuentra lo que el rol puede abrir aunque no esté en su menú.
+    const otros = extraNav(state.role).filter((i) => norm(i.label).includes(q));
+    render(nav, (hits.length || otros.length)
+      ? html`${hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : ''}
+             ${otros.length ? html`<div class="nav-otros"><p class="nav-otros-t">Otros módulos a los que tienes acceso</p><div class="nav-hits">${otros.map(link)}</div></div>` : ''}`
+      : html`<p class="nav-empty">No hay ningún módulo con «${$('#navSearch').value}» al que tengas acceso. Borra la búsqueda para ver tu menú.</p>`);
     return;
   }
   const total = groups.reduce((n, g) => n + g.items.length, 0);
@@ -222,7 +250,8 @@ function renderNav() {
     return html`<div class="nav-group ${open ? 'open' : ''}">
       <button type="button" class="nav-group-btn fam-${g.key || 'mas'}" data-group="${g.group}" aria-expanded="${open ? 'true' : 'false'}"><span class="nav-ico">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}</span><span class="nav-gname">${g.group}</span><span class="nav-count">${g.items.length}</span></button>
       <div class="nav-items" ${open ? '' : raw('hidden')}>${g.items.map(link)}</div></div>`;
-  })}`);
+  })}
+  ${mostrarPista ? html`<p class="nav-hint">Tu menú muestra lo que usas a diario. Busca arriba para abrir otros ${nExtra} módulos a los que tienes acceso.</p>` : ''}`);
 }
 function bindNav() {
   $('#nav').addEventListener('click', (e) => {
@@ -266,11 +295,25 @@ async function route() {
   const main = $('#main'); const title = $('#pageTitle');
   let r;
   try { r = await resolve(state.role); }
-  catch (e) { render(main, errorView(e)); return; }
+  catch (e) {
+    // 5.11.1 · aquí solo se llega si el archivo del módulo no se pudo descargar. Recargar lo resuelve,
+    // así que se ofrece el botón en vez de dejar al usuario en un callejón sin salida.
+    console.error(e);
+    render(main, errorView(e, 'recargar'));
+    main.querySelector('[data-retry="recargar"]')?.addEventListener('click', () => location.reload());
+    return;
+  }
   if (my !== routeSeq) return;
   const setTitle = (t) => { title.textContent = t; document.title = `${t} · SOFA`; };
   const home = homeRoute(state.role);
   if (r.kind === 'forbidden' && r.def.route === DEFAULT_ROUTE && home !== DEFAULT_ROUTE) { location.replace(`#/${home}`); return; }
+  if (r.kind === 'sinmodulo') {
+    setTitle(r.def.label);
+    render(main, emptyView('Esta pantalla todavía no está instalada',
+      `"${r.def.label}" aparece en tu menú, pero su archivo no está en esta versión de SOFA. No es tu conexión. Avísanos: falta subir la versión nueva del enrutador.`,
+      html`<a class="btn primary" href="#/${home}">Volver al inicio</a>`));
+    return;
+  }
   if (r.kind === 'notfound') { setTitle('No encontrado'); render(main, emptyView('Página no encontrada', 'La dirección no existe.', html`<a class="btn primary" href="#/${home}">Ir al inicio</a>`)); return; }
   if (r.kind === 'forbidden') { setTitle(r.def.label); render(main, emptyView('Sin acceso a este módulo', `Tu rol (${ROLES[state.role]?.name}) no incluye "${r.def.label}". Si lo necesitas, pide al Super Admin que revise tus permisos.`, html`<a class="btn" href="#/${home}">Volver al inicio</a>`)); return; }
   setTitle(r.def.label);

@@ -1,0 +1,80 @@
+\set ON_ERROR_STOP on
+BEGIN;
+CREATE FUNCTION public.qa_expect_denial(q text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+ BEGIN EXECUTE q; EXCEPTION WHEN insufficient_privilege OR check_violation OR invalid_parameter_value OR serialization_failure THEN RETURN; END;
+ RAISE EXCEPTION 'No se rechazó: %',q;
+END $$;
+CREATE FUNCTION public.qa_assert(ok boolean,label text) RETURNS void LANGUAGE plpgsql AS $$ BEGIN
+ IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %',label; END IF; RAISE NOTICE 'PASS: %',label; END $$;
+CREATE FUNCTION public.qa_missing_association(p_user uuid) RETURNS text LANGUAGE plpgsql AS $$ BEGIN
+ PERFORM public.admin_user_repair_preview(p_user,'00000000-0000-4000-8000-000000000101');
+ RAISE EXCEPTION 'Se esperaba rechazo';
+EXCEPTION WHEN no_data_found THEN RETURN SQLERRM; END $$;
+SELECT public.qa_assert(NOT has_function_privilege('anon','public.admin_user_repair_preview(uuid,uuid)','execute'),'anon no ejecuta vista previa');
+SELECT public.qa_assert(NOT has_function_privilege('anon','public.admin_repair_user_access(uuid,uuid,text,text,text)','execute'),'anon no ejecuta corrección');
+SELECT public.qa_assert(NOT has_function_privilege('authenticated','app.user_access_repair_context(uuid,uuid)','execute'),'helper privado');
+SELECT public.qa_assert(NOT has_table_privilege('authenticated','public.user_access_repair_audit','select'),'auditoría privada');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims','{}',true);
+SELECT public.qa_expect_denial($q$SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101')$q$);
+SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000001","aal":"aal1"}',true);
+SELECT public.qa_expect_denial($q$SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101')$q$);
+SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000002","aal":"aal2"}',true);
+SELECT public.qa_expect_denial($q$SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101')$q$);
+SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000009","aal":"aal2"}',true);
+SELECT public.qa_expect_denial($q$SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101')$q$);
+SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000001","aal":"aal2"}',true);
+SELECT public.qa_assert(public.qa_missing_association('00000000-0000-4000-8000-000000000002')=public.qa_missing_association('00000000-0000-4000-8000-000000000099'),'no revela cuentas sin asociación al consultorio');
+SELECT public.qa_expect_denial($q$SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000101')$q$);
+SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101')->>'expected' AS token \gset
+SELECT public.qa_expect_denial($q$SELECT public.admin_repair_user_access('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101','Motivo de prueba correcto','wrong@example.test','wrong-token')$q$);
+RESET ROLE;
+INSERT INTO public.providers VALUES('00000000-0000-4000-8000-000000000301','00000000-0000-4000-8000-000000000004');
+INSERT INTO public.organization_users VALUES('00000000-0000-4000-8000-000000000102','00000000-0000-4000-8000-000000000005','client',true);
+UPDATE public.profiles SET is_active=false WHERE id='00000000-0000-4000-8000-000000000006';
+SET LOCAL ROLE authenticated;
+SELECT public.qa_assert((public.admin_user_repair_preview('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000101')->>'can_repair')::boolean=false,'médico enlazado bloqueado');
+SELECT public.qa_assert((public.admin_user_repair_preview('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000101')->>'can_repair')::boolean=false,'varios accesos activos bloqueados');
+RESET ROLE;
+UPDATE public.organizations SET clinical_state='completa' WHERE id='00000000-0000-4000-8000-000000000101';
+SET LOCAL ROLE authenticated;
+SELECT public.qa_assert((public.admin_user_repair_preview('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101')->>'can_repair')::boolean=false,'historia clínica habilitada bloquea corrección');
+RESET ROLE;
+UPDATE public.organizations SET clinical_state='desactivada' WHERE id='00000000-0000-4000-8000-000000000101';
+UPDATE public.profiles SET must_change_password=true WHERE id='00000000-0000-4000-8000-000000000001';
+SET LOCAL ROLE authenticated;
+SELECT public.qa_expect_denial($q$SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101')$q$);
+RESET ROLE;
+UPDATE public.profiles SET must_change_password=false WHERE id='00000000-0000-4000-8000-000000000001';
+INSERT INTO public.organization_users VALUES('00000000-0000-4000-8000-000000000200','00000000-0000-4000-8000-000000000008','super_admin',false);
+INSERT INTO public.organization_users VALUES('00000000-0000-4000-8000-000000000201','00000000-0000-4000-8000-000000000007','client',false);
+SET LOCAL ROLE authenticated;
+SELECT public.qa_assert((public.admin_user_repair_preview('00000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000101')->>'can_repair')::boolean=false,'protege Super Admin anterior');
+SELECT public.qa_assert((public.admin_user_repair_preview('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000101')->>'can_repair')::boolean=false,'protege asociaciones de otro operador');
+SELECT public.qa_expect_denial(format('SELECT public.admin_repair_user_access(%L,%L,%L,%L,%L)','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101','corto','qa-3@example.test',:'token'));
+SELECT public.qa_expect_denial(format('SELECT public.admin_repair_user_access(%L,%L,%L,%L,%L)','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101','Motivo válido de prueba','wrong@example.test',:'token'));
+RESET ROLE;
+UPDATE public.profiles SET is_active=false WHERE id='00000000-0000-4000-8000-000000000003';
+SET LOCAL ROLE authenticated;
+SELECT public.qa_expect_denial(format('SELECT public.admin_repair_user_access(%L,%L,%L,%L,%L)','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101','Motivo válido de prueba','qa-3@example.test',:'token'));
+RESET ROLE;
+UPDATE public.profiles SET is_active=true WHERE id='00000000-0000-4000-8000-000000000003';
+CREATE FUNCTION app.qa_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE check_violation USING MESSAGE='Auditoría bloqueada en prueba'; END $$;
+CREATE TRIGGER qa_failure BEFORE INSERT ON public.user_access_repair_audit FOR EACH ROW EXECUTE FUNCTION app.qa_audit_failure();
+SET LOCAL ROLE authenticated;
+SELECT public.qa_expect_denial(format('SELECT public.admin_repair_user_access(%L,%L,%L,%L,%L)','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101','Motivo válido de prueba','qa-3@example.test',:'token'));
+RESET ROLE;
+SELECT public.qa_assert((SELECT is_active FROM public.organization_users WHERE user_id='00000000-0000-4000-8000-000000000003' AND organization_id='00000000-0000-4000-8000-000000000101'),'fallo de auditoría revierte desactivación');
+SELECT public.qa_assert(NOT EXISTS(SELECT 1 FROM public.organization_users WHERE user_id='00000000-0000-4000-8000-000000000003' AND role_code='admin'),'fallo de auditoría revierte alta de rol');
+DROP TRIGGER qa_failure ON public.user_access_repair_audit;
+SET LOCAL ROLE authenticated;
+SELECT public.qa_assert((public.admin_repair_user_access('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000101','Cuenta propia asociada por error','qa-3@example.test',:'token')->>'ok')::boolean,'corrección legítima');
+SELECT public.admin_user_repair_preview('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000101')->>'expected' AS inactive_token \gset
+SELECT public.admin_repair_user_access('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000101','Cuenta inactiva asociada por error','qa-6@example.test',:'inactive_token');
+RESET ROLE;
+SELECT public.qa_assert((SELECT count(*)=9 FROM auth.users),'se conservan todas las identidades');
+SELECT public.qa_assert((SELECT count(*)=2 FROM public.user_access_repair_audit),'auditoría de ambas correcciones');
+SELECT public.qa_assert((SELECT NOT is_active FROM public.organization_users WHERE user_id='00000000-0000-4000-8000-000000000006' AND role_code='admin'),'no reactiva cuenta inactiva');
+SELECT public.qa_assert((SELECT NOT is_active FROM public.organization_users WHERE user_id='00000000-0000-4000-8000-000000000003' AND organization_id='00000000-0000-4000-8000-000000000101'),'asociación errónea conservada inactiva');
+ROLLBACK;

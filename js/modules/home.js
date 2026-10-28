@@ -26,25 +26,29 @@ export async function render(main, ctx) {
 
   const kp = $('#kpis', main);
   const defs = [
-    ['Clientes PSS visibles', 'organizations', (q) => q.eq('kind', 'client')],
-    ['Radicaciones visibles', 'submissions'],
-    ['ARS en catálogo', 'ars'],
-    ['Conceptos en catálogo', 'procedures']
+    ['Clientes PSS visibles', 'organizations', (q) => q.eq('kind', 'client'), 'clientes'],
+    ['Radicaciones visibles', 'submissions', null, 'radicaciones'],
+    ['ARS en catálogo', 'ars', null, 'ars'],
+    ['Conceptos en catálogo', 'procedures', null, 'codificacion']
   ];
-  paint(kp, html`${defs.map(([l]) => html`<div class="kpi"><div class="l">${l}</div><div class="v">…</div></div>`)}`);
+  paint(kp, html`${defs.map(([l,,, route]) => canSee(route, ctx.role)
+    ? html`<a class="kpi dashboard-summary-link" href="#/${route}" aria-label="${l}"><span class="dashboard-summary-go">↗</span><div class="l">${l}</div><div class="v">…</div></a>`
+    : html`<div class="kpi"><div class="l">${l}</div><div class="v">…</div></div>`)}`);
   const vals = await Promise.allSettled(defs.map(([, t, f]) => headCount(t, f)));
-  paint(kp, html`${defs.map(([l], i) => html`<div class="kpi"><div class="l">${l}</div><div class="v">${vals[i].status === 'fulfilled' ? num(vals[i].value) : '—'}</div>${vals[i].status === 'rejected' ? html`<div class="h">${friendlyError(vals[i].reason)}</div>` : ''}</div>`)}`);
+  paint(kp, html`${defs.map(([l,,, route], i) => canSee(route, ctx.role)
+    ? html`<a class="kpi dashboard-summary-link" href="#/${route}" aria-label="${l}"><span class="dashboard-summary-go">↗</span><div class="l">${l}</div><div class="v">${vals[i].status === 'fulfilled' ? num(vals[i].value) : '—'}</div>${vals[i].status === 'rejected' ? html`<div class="h">${friendlyError(vals[i].reason)}</div>` : ''}</a>`
+    : html`<div class="kpi"><div class="l">${l}</div><div class="v">${vals[i].status === 'fulfilled' ? num(vals[i].value) : '—'}</div>${vals[i].status === 'rejected' ? html`<div class="h">${friendlyError(vals[i].reason)}</div>` : ''}</div>`)}`);
 
   if (staff) {
     const tb = $('#today', main);
     loadInto(tb, async () => {
       const me = ctx.session.user.id;
-      const [late, today, opps] = await Promise.all([listTasks({ bucket: 'vencidas', assignee: me }), listTasks({ bucket: 'hoy', assignee: me }),
+      const [late, today, opps] = await Promise.all([listTasks({ bucket: 'vencidas', assignee: me, realOnly: true }), listTasks({ bucket: 'hoy', assignee: me, realOnly: true }),
         canSee('oportunidades', ctx.role) ? listOpportunities({}).then((r) => r.filter((o) => o.overdue)) : Promise.resolve([])]);
       return { tasks: [...late, ...today], opps };
     }, ({ tasks, opps }) => html`<div class="list">
-      ${tasks.map((t) => html`<div class="li"><div class="b"><div class="t1">${t.title}</div><div class="t2">${t.entity_label || 'Tarea'} · vence ${date(t.due_date)}${t.bucket === 'vencidas' ? html` · <b style="color:var(--bad)">vencida</b>` : ''}</div></div><a class="btn sm" href="#/tareas">Ver</a></div>`)}
-      ${opps.slice(0, 6).map((o) => html`<div class="li"><div class="b"><div class="t1">${o.company}</div><div class="t2">${o.next_action || 'Sin próxima acción'} · <b style="color:var(--bad)">${date(o.next_action_date)}</b></div></div><a class="btn sm" href="#/oportunidades/${o.id}">Abrir</a></div>`)}
+      ${tasks.map((t) => html`<a class="li dashboard-row-link" href="#/tareas"><div class="b"><div class="t1">${t.title}</div><div class="t2">${t.entity_label || 'Tarea'} · vence ${date(t.due_date)}${t.bucket === 'vencidas' ? html` · <b style="color:var(--bad)">vencida</b>` : ''}</div></div><span class="btn sm">Ver</span></a>`)}
+      ${opps.slice(0, 6).map((o) => html`<a class="li dashboard-row-link" href="#/oportunidades/${o.id}"><div class="b"><div class="t1">${o.company}</div><div class="t2">${o.next_action || 'Sin próxima acción'} · <b style="color:var(--bad)">${date(o.next_action_date)}</b></div></div><span class="btn sm">Abrir</span></a>`)}
     </div>`, { isEmpty: (d) => !d.tasks.length && !d.opps.length, empty: () => emptyView('Todo al día', 'No tienes tareas vencidas ni seguimientos atrasados.') });
     const box = $('#plan', main);
     const editable = can('milestones.edit', ctx.role);

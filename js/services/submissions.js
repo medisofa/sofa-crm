@@ -11,8 +11,9 @@ export const GROUPS = {
   cerradas: { label: 'Cerradas y rechazadas', statuses: ['cerrada', 'rechazada'] }
 };
 
-export async function listSubmissions({ group = 'todas', orgId = '', arsId = '', period = '', q = '', page = 0, size = 25 } = {}) {
+export async function listSubmissions({ group = 'todas', orgId = '', arsId = '', period = '', q = '', page = 0, size = 25, realOnly = false } = {}) {
   let query = sb().from('v_submissions').select('*', { count: 'exact' });
+  if (realOnly) query = query.eq('is_demo', false);
   const g = GROUPS[group];
   if (g?.statuses) query = query.in('status', g.statuses);
   if (group === 'radicadas') query = query.gt('balance', 0);
@@ -26,8 +27,10 @@ export async function listSubmissions({ group = 'todas', orgId = '', arsId = '',
   return { data, count: count ?? data.length };
 }
 /** Cifras para las tarjetas del listado (solo columnas livianas) */
-export async function submissionSummary() {
-  return must(await sb().from('v_submissions').select('status, display_status, claimed, balance, payment_deadline, submitted_on').limit(5000));
+export async function submissionSummary({ realOnly = false } = {}) {
+  let q = sb().from('v_submissions').select('status, display_status, claimed, balance, payment_deadline, submitted_on, is_demo');
+  if (realOnly) q = q.eq('is_demo', false);
+  return must(await q.limit(5000));
 }
 export async function getSubmission(id) { return must(await sb().from('v_submissions').select('*').eq('id', id).maybeSingle()); }
 export async function newSubmission({ provider, ars, period, plan = null, notes = null }) {

@@ -24,7 +24,8 @@ export async function render(main, ctx) {
     <div id="fb"></div><div id="body">${loadingView(6)}</div>`);
   $('#print', main).addEventListener('click', () => window.print());
   const body = $('#body', main);
-  let f = await filterBar($('#fb', main), ctx, (nf) => { f = nf; draw(); });
+  let f = await filterBar($('#fb', main), ctx, (nf) => { f = { ...nf, realOnly: isStaff(ctx.role) }; draw(); });
+  f.realOnly = isStaff(ctx.role);
   $('#tabs', main)?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-t]'); if (!b) return; tab = b.dataset.t;
     main.querySelectorAll('#tabs [data-t]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.t === tab)));
@@ -79,7 +80,7 @@ export async function render(main, ctx) {
     if (tab !== 'operacion' || !isStaff(ctx.role)) return;
     const card = document.createElement('div'); card.className = 'card'; card.style.marginTop = '14px'; card.id = 'ecfCard'; body.appendChild(card);
     try {
-      const { ecfReadiness } = await import('../services/claims.js'); const rows = await ecfReadiness();
+      const { ecfReadiness } = await import('../services/claims.js'); const rows = await ecfReadiness({ realOnly: true });
       if (!document.body.contains(card)) return;
       const by = (k) => rows.filter((r) => r.ecf_status === k).length; const pend = rows.filter((r) => r.ecf_status !== 'listo');
       paint(card, html`<h2>Factura electrónica (e-CF) de los clientes</h2><p class="sub">Clientes que deben facturar a las ARS con e-CF y su preparación. Sin e-CF aceptado, sus lotes no se radican desde su fecha.</p>
@@ -96,7 +97,7 @@ export async function render(main, ctx) {
     body.appendChild(card);
     try {
       const { stageTimes } = await import('../services/claims.js');
-      const rows = (await stageTimes()).sort((a, b) => (a.ars_id ? 1 : 0) - (b.ars_id ? 1 : 0) || b.claims - a.claims);
+      const rows = (await stageTimes({ realOnly: true })).sort((a, b) => (a.ars_id ? 1 : 0) - (b.ars_id ? 1 : 0) || b.claims - a.claims);
       if (!document.body.contains(card)) return;
       const d = (v) => (v == null ? '—' : `${num(v)} d`);
       paint(card, html`<h2>Tiempos por etapa</h2><p class="sub">Días promedio entre hitos de las reclamaciones de los últimos 12 meses. La primera fila es el total.</p>
@@ -122,7 +123,7 @@ export async function render(main, ctx) {
   }
 
   async function drawGrowth() {
-    const [gm, m, pipe, targets, st] = await Promise.all([growthMonthly(), mrr().catch(() => null), pipelineTotals().catch(() => []), growthTargets().catch(() => []), settings().catch(() => null)]);
+    const [gm, m, pipe, targets, st] = await Promise.all([growthMonthly({ realOnly: true }), mrr({ realOnly: true }).catch(() => null), pipelineTotals().catch(() => []), growthTargets().catch(() => []), settings().catch(() => null)]);
     const target = Number(st?.target_mrr || 0); const current = Number(m?.fixed_monthly || 0) + Number(m?.success_monthly_avg || 0);
     const open = pipe.filter((p) => !['cliente', 'perdido'].includes(p.stage));
     const weighted = sum(open, 'weighted_value'); const oppCount = sum(open, 'opportunities');

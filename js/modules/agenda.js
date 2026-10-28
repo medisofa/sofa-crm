@@ -125,9 +125,41 @@ export async function renderAgenda(box, ctx) {
       <div class="field"><label for="ap_nss">NSS / afiliado</label><input id="ap_nss" name="member" maxlength="40" value="${a.member_number || ''}"></div>
       <div class="field"><label for="ap_aut">Autorización</label><input id="ap_aut" name="authorization" maxlength="60" value="${a.authorization_number || ''}"></div>
       <div class="field"><label for="ap_doc">Cédula</label><input id="ap_doc" name="doc" maxlength="20" inputmode="numeric" value="${a.patient_doc || ''}"></div>
-      <div class="field"><label for="ap_ph">Teléfono</label><input id="ap_ph" name="phone" maxlength="20" inputmode="tel" value="${a.phone || ''}"></div>
+      <div class="field"><label for="ap_ph">Teléfono</label><input id="ap_ph" name="phone" maxlength="20" inputmode="tel" value="${a.phone || ''}"></div><div id="ap_global" style="grid-column:1/-1"></div>
       <div class="field"><label for="ap_r">Motivo</label><input id="ap_r" name="reason" maxlength="200" value="${a.reason || ''}"></div></div>`,
-    onOpen: (f) => { const sync = () => { const ars_ = f.elements.payer.value === 'ars'; ['ars', 'member', 'authorization'].forEach((k) => { f.elements[k].disabled = !ars_; }); }; f.elements.payer.addEventListener('change', sync); sync(); },
+    onOpen: (f) => {
+      const sync = () => { const ars_ = f.elements.payer.value === 'ars'; ['ars', 'member', 'authorization'].forEach((k) => { f.elements[k].disabled = !ars_; }); };
+      f.elements.payer.addEventListener('change', sync); sync();
+      const matchBox = f.querySelector('#ap_global');
+      let seq = 0;
+      const checkUniversal = async () => {
+        const ced=f.elements.doc.value.trim(), nss=f.elements.member.value.trim();
+        if(!ced&&!nss){paint(matchBox,html``);return;}
+        const my=++seq;
+        try{
+          const { rpc } = await import('../services/iter18.js');
+          const r=await rpc('global_patient_lookup',{p_cedula:ced||null,p_nss:nss||null,p_name:f.elements.patient.value.trim()||null,p_birth:null,p_phone:f.elements.phone.value.trim()||null});
+          if(my!==seq)return;
+          if(r?.match==='exact'&&r.patient){
+            paint(matchBox,html`<div class="note info"><b>Paciente encontrado:</b> ${r.patient.full_name}. Se compartirán solo datos administrativos; esta cita conservará motivo, autorización y datos médicos propios.
+              <div class="toolbar" style="margin-top:6px"><button class="btn sm" type="button" data-use-global>Usar datos del paciente</button></div></div>`);
+            matchBox.querySelector('[data-use-global]')?.addEventListener('click',async()=>{
+              f.elements.patient.value=r.patient.full_name||f.elements.patient.value;
+              f.elements.doc.value=r.patient.cedula||f.elements.doc.value;
+              f.elements.member.value=r.patient.nss||r.patient.member_number||f.elements.member.value;
+              f.elements.phone.value=r.patient.phone||f.elements.phone.value;
+              if(r.patient.ars_id&&ars.some((x)=>x.id===r.patient.ars_id)){f.elements.payer.value='ars';f.elements.ars.value=r.patient.ars_id;sync();}
+              const orgId=providers.find((p)=>p.id===mem.provider)?.organization_id;
+              if(orgId) await rpc('attach_global_patient',{p_global:r.patient.id,p_org:orgId});
+              paint(matchBox,html`<div class="note ok">Datos administrativos cargados. La cita sigue siendo nueva e independiente.</div>`);
+            });
+          } else if(r?.match==='conflict') paint(matchBox,html`<div class="note bad">La cédula y el NSS no corresponden al mismo registro. Revise antes de guardar.</div>`);
+          else paint(matchBox,html``);
+        }catch(_){paint(matchBox,html``);}
+      };
+      f.elements.doc.addEventListener('change',checkUniversal);
+      f.elements.member.addEventListener('change',checkUniversal);
+    },
     onSubmit: async (d, f) => {
       if ((d.patient || '').trim().length < 3) { fieldError(f.elements.patient, 'Mínimo 3 caracteres'); return false; }
       if (d.payer === 'ars' && !d.ars) { fieldError(f.elements.ars, 'Seleccione la ARS o marque Privado'); return false; }

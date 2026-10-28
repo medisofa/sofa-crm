@@ -16,6 +16,7 @@ import {
 import { requiredDocsPreview, dossierStatus } from '../services/dossier.js';
 import { dossierPill } from './dossier-card.js';
 import { initCamara } from './captura-camara.js';
+import { revisarCaptura, capturarConDiagnostico, mostrarAviso, limpiarAvisos, pistaCedula, cie10Suggestions } from '../services/calidad-dato.js';   // I61: calidad del dato
 
 /** Se conserva entre visitas dentro de la misma sesión: médico, ARS, fecha y clínica */
 const memory = { provider: '', ars: '', date: '', clinic: '', careMode: 'ambulatorio' };
@@ -42,7 +43,8 @@ export async function render(main, ctx) {
           <div class="field"><label for="c_nss">NSS / No. afiliado *</label><input id="c_nss" name="member" required maxlength="40" inputmode="numeric"></div>
           <div class="field"><label for="c_auth">No. de autorización <span id="authReq">*</span></label><input id="c_auth" name="authorization" maxlength="60"></div>
           <div class="field"><label for="c_authdate">Fecha de la autorización</label><input id="c_authdate" name="authdate" type="date" max="${todayISO()}"><span class="hint">Avisa a los 150 días si no se ha radicado</span></div>
-          <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div>
+          <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div><div id="globalPatientMatch" style="grid-column:1/-1"></div>
+          <div class="field"><label for="c_dx">Diagnóstico (CIE-10)</label><input id="c_dx" name="diagnosis" maxlength="60" autocomplete="off" placeholder="Ej.: I10, E11.9"><span class="hint">SOFA sugiere códigos según servicio, SIMON y CUPS. Confirma el diagnóstico documentado; puedes escribir otro código.</span><div id="dxSuggest" class="small" style="margin-top:6px"></div></div>
           <div class="field"><label for="c_clinic">Centro / clínica</label><input id="c_clinic" name="clinic" maxlength="120"></div>
           <div class="field" style="grid-column:1/-1"><label for="c_srv">5 · Servicio contratado *</label>
             <select id="c_srv" name="procedure" required disabled><option value="">Seleccione médico, ARS y fecha</option></select>
@@ -134,7 +136,7 @@ export async function render(main, ctx) {
       SIMON <b class="mono">${s.simon || '—'}</b> · CUPS <b class="mono">${s.cups || '—'}</b>${s.internal_code ? html` · Interno <span class="mono">${s.internal_code}</span>` : ''}${s.ars_service_code ? html` · Código ARS <span class="mono">${s.ars_service_code}</span>` : ''}<br>
       Tarifa contractual <b>${money(s.amount)}</b> · vigente ${date(s.valid_from)}${s.valid_to ? ` al ${date(s.valid_to)}` : ' en adelante'}${s.contract_ref ? html` · contrato <span class="mono">${s.contract_ref}</span>` : ''}
       <div class="small" style="margin-top:4px" id="reqDocs"></div></div>` : html``);
-    if (s) loadReqDocs();
+    if (s) { loadReqDocs(); loadDxSuggestions(); } else paint(el('dxSuggest'), html``);
     drawDiff();
   }
 
@@ -180,6 +182,45 @@ export async function render(main, ctx) {
     el('nc_mode').addEventListener('change', (e) => { el('nc_rs').hidden = e.target.value !== 'excepcion'; });
     el('c_amt').focus();
   }
+
+  // ------------------------------------------------------------ CIE-10 sugerido
+  let dxSeq = 0;
+  async function loadDxSuggestions(query = '') {
+    const box = el('dxSuggest'); if (!box) return;
+    const procedure = S.service?.procedure_id || S.catalogPick?.id || null;
+    if (!procedure && !query) { paint(box, html``); return; }
+    const my = ++dxSeq;
+    try {
+      const rows = await cie10Suggestions(procedure, query || null, 10);
+      if (my !== dxSeq || !alive()) return;
+      if (!rows.length) {
+        paint(box, query ? html`Sin coincidencias en el catálogo CIE-10 de referencia.` : html`Sin sugerencia automática. Escribe el CIE-10 documentado.`);
+        return;
+      }
+      paint(box, html`<div class="note info" style="margin:0">
+        <b>${query ? 'Resultados CIE-10' : 'CIE-10 sugeridos'}</b>
+        <div class="small muted">Sugerencia administrativa; no sustituye el diagnóstico documentado por el profesional.</div>
+        <div class="toolbar" style="margin-top:6px;gap:6px;flex-wrap:wrap">
+          ${rows.map((r) => html`<button type="button" class="btn sm" data-dx="${r.code}" title="${r.rationale || ''}">${r.code} · ${r.title_es}${r.confidence && r.confidence !== 'manual' ? ` · ${r.confidence}` : ''}</button>`)}
+        </div>
+        ${!query ? html`<div class="small muted" style="margin-top:6px">Basado en: ${[rows[0]?.matched_by, rows[0]?.simon && `SIMON ${rows[0].simon}`, rows[0]?.cups && `CUPS ${rows[0].cups}`].filter(Boolean).join(' · ') || 'tipo de servicio'}.</div>` : ''}
+      </div>`);
+      box.querySelectorAll('[data-dx]').forEach((b) => b.addEventListener('click', () => {
+        el('c_dx').value = b.dataset.dx;
+        revisarDato();
+        toast(`CIE-10 ${b.dataset.dx} seleccionado. Confirma que coincide con el diagnóstico documentado.`);
+      }));
+    } catch (_) { paint(box, html`<span class="muted">No se pudieron cargar sugerencias CIE-10; puedes escribir el código manualmente.</span>`); }
+  }
+
+  let dxTimer;
+  el('c_dx').addEventListener('input', () => {
+    clearTimeout(dxTimer);
+    const q = el('c_dx').value.trim();
+    dxTimer = setTimeout(() => {
+      if (q.length >= 2) loadDxSuggestions(q); else if (S.service || S.catalogPick) loadDxSuggestions();
+    }, 300);
+  });
 
   /** Documentos del expediente según servicio + ARS + modalidad (Iteración 13) */
   let reqSeq = 0;
@@ -248,16 +289,74 @@ export async function render(main, ctx) {
   el('c_amt').addEventListener('input', drawDiff);
   syncAuth();
 
+  // ------------------------------------------------------------ I61 · calidad del dato (avisos en la misma casilla)
+  const dqCampos = { cedula: 'c_doc', nss: 'c_nss', diagnostico: 'c_dx' };
+  let dqSeq = 0;
+  async function revisarDato() {
+    const seq = ++dqSeq;
+    const doc = el('c_doc').value.trim(); const nss = el('c_nss').value.trim(); const dx = el('c_dx').value.trim();
+    limpiarAvisos(el('c_doc'), el('c_nss'), el('c_dx'));
+    const pista = pistaCedula(doc);
+    if (pista) mostrarAviso(el('c_doc'), pista.mensaje, pista.nivel);   // se adelanta sin red; el servidor confirma abajo
+    const org = S.providers.find((p) => p.id === el('c_prov').value)?.organization_id;
+    if (!org || (!doc && !nss && !dx)) return;
+    try {
+      const r = await revisarCaptura({ org, ars: el('c_ars').value, procedure: S.service?.procedure_id || S.catalogPick?.id || '', diagnosis: dx, doc, member: nss });
+      if (!alive() || seq !== dqSeq) return;
+      limpiarAvisos(el('c_doc'), el('c_nss'), el('c_dx'));
+      const vistos = {};
+      (r.issues || []).forEach((i) => { const id = dqCampos[i.campo]; if (!id) return; vistos[id] = [...(vistos[id] || []), i]; });
+      Object.entries(vistos).forEach(([id, lista]) => mostrarAviso(el(id), lista.map((i) => i.mensaje).join(' '), lista.some((i) => i.efectivo === 'bloquear') ? 'bloquea' : 'advierte'));
+    } catch { /* la revisión en vivo es una ayuda: el servidor vuelve a revisar al guardar */ }
+  }
+  ['c_doc', 'c_nss', 'c_dx'].forEach((i) => el(i).addEventListener('change', revisarDato));
+  el('c_srv').addEventListener('change', () => { if (el('c_dx').value.trim()) revisarDato(); });
+
+  // ------------------------------------------------------------ Registro Universal de Pacientes
+  let globalSeq = 0;
+  async function checkUniversalPatient() {
+    const box = el('globalPatientMatch'); if (!box) return;
+    const cedula = el('c_doc').value.trim(), nss = el('c_nss').value.trim();
+    if (!cedula && !nss) { paint(box, html``); return; }
+    const my = ++globalSeq;
+    try {
+      const r = await import('../services/iter18.js').then((m) => m.rpc('global_patient_lookup', {
+        p_cedula: cedula || null, p_nss: nss || null, p_name: el('c_pat').value.trim() || null, p_birth: null, p_phone: null
+      }));
+      if (my !== globalSeq || !alive()) return;
+      if (r?.match === 'exact' && r.patient) {
+        paint(box, html`<div class="note info"><b>Paciente encontrado</b> · ${r.patient.full_name}. SOFA puede reutilizar solo sus datos administrativos; no traerá consultas, diagnósticos ni notas anteriores.
+          <div class="toolbar" style="margin-top:6px"><button type="button" class="btn sm" id="useGlobalPatient">Usar datos del paciente</button></div></div>`);
+        el('useGlobalPatient')?.addEventListener('click', async () => {
+          el('c_pat').value = r.patient.full_name || el('c_pat').value;
+          el('c_doc').value = r.patient.cedula || el('c_doc').value;
+          el('c_nss').value = r.patient.nss || r.patient.member_number || el('c_nss').value;
+          if (r.patient.ars_id && S.ars.some((a) => a.id === r.patient.ars_id)) { el('c_ars').value = r.patient.ars_id; await onArs(); }
+          const orgId = S.providers.find((p) => p.id === el('c_prov').value)?.organization_id;
+          if (orgId) {
+            try { const { rpc } = await import('../services/iter18.js'); await rpc('attach_global_patient', { p_global: r.patient.id, p_org: orgId }); } catch (_) {}
+          }
+          paint(box, html`<div class="note ok">Datos administrativos reutilizados. La nueva consulta continúa limpia.</div>`);
+        });
+      } else if (r?.match === 'conflict') {
+        paint(box, html`<div class="note bad">La cédula y el NSS apuntan a registros diferentes. Revise los identificadores antes de continuar.</div>`);
+      } else paint(box, html``);
+    } catch (_) { paint(box, html``); }
+  }
+  el('c_doc').addEventListener('change', checkUniversalPatient);
+  el('c_nss').addEventListener('change', checkUniversalPatient);
+
   // ------------------------------------------------------------ guardar
   const clearPatient = () => {
-    ['c_pat', 'c_nss', 'c_auth', 'c_authdate', 'c_doc', 'c_notes'].forEach((i) => { el(i).value = ''; fieldError(el(i), ''); });
+    ['c_pat', 'c_nss', 'c_auth', 'c_authdate', 'c_doc', 'c_dx', 'c_notes'].forEach((i) => { el(i).value = ''; fieldError(el(i), ''); });
+    limpiarAvisos(el('c_doc'), el('c_nss'), el('c_dx'));
     el('c_qty').value = '1'; paint(el('dupBox'), html``); cam.limpiar();
   };
   function values() {
     return {
       provider: el('c_prov').value, ars: el('c_ars').value, serviceDate: el('c_date').value,
       procedure: S.service?.procedure_id || S.catalogPick?.id || '',
-      patientName: el('c_pat').value.trim(), member: el('c_nss').value.trim(), authorization: el('c_auth').value.trim(), patientDoc: el('c_doc').value.trim(),
+      patientName: el('c_pat').value.trim(), member: el('c_nss').value.trim(), authorization: el('c_auth').value.trim(), patientDoc: el('c_doc').value.trim(), diagnosis: el('c_dx').value.trim(),
       quantity: Number(el('c_qty').value || 1), careMode: el('c_mode').value, clinic: el('c_clinic').value.trim(), notes: el('c_notes').value.trim()
     };
   }
@@ -296,7 +395,8 @@ export async function render(main, ctx) {
     }
     v.allowDuplicate = allowDuplicate;
     try {
-      const r = await captureClaim(v);
+      const r = await capturarConDiagnostico(v);   // I61: igual que captureClaim, con diagnóstico y avisos de calidad
+      if (r.advertencias?.length) toast(`${r.folio} registrada con avisos: ${r.advertencias.map((a) => a.mensaje).join(' · ')}`);
       memory.clinic = v.clinic;
       if (cam.hayPendientes()) {
         const orgId = S.providers.find((p) => p.id === v.provider)?.organization_id;
@@ -330,6 +430,7 @@ export async function render(main, ctx) {
         return;
       }
       toast(friendlyError(err), 'bad');
+      if (err?.hint === 'calidad_dato') revisarDato();   // marca en cada casilla qué corregir
     }
   }
 

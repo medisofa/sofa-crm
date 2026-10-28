@@ -27,7 +27,7 @@ export async function render(main, ctx) {
     <div class="card" style="margin-top:14px"><h2>Facturas de SOFA</h2><div class="tabs" id="tabs" role="group" aria-label="Estado"></div><div id="inv"></div></div>
     ${staff ? html`<div class="card" style="margin-top:14px"><h2>Libro de honorarios</h2><p class="sub">Los 100 más recientes. El cálculo no se edita: para corregir un pago se anula y se registra de nuevo.</p><div id="led"></div></div>` : ''}`);
 
-  const loadSummary = () => loadInto($('#sum', main), feeSummary, (rows) => {
+  const loadSummary = () => loadInto($('#sum', main), () => feeSummary({ realOnly: staff }), (rows) => {
     const t = rows.reduce((a, r) => ({ accrued: a.accrued + Number(r.accrued), invoiced: a.invoiced + Number(r.invoiced), collected: a.collected + Number(r.collected), unin: a.unin + Number(r.uninvoiced) }), { accrued: 0, invoiced: 0, collected: 0, unin: 0 });
     paint($('#k', main), html`
       <div class="kpi"><div class="l">Devengado</div><div class="v">${money(t.accrued)}</div></div>
@@ -43,7 +43,7 @@ export async function render(main, ctx) {
   const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-t="${k}" aria-pressed="${st.inv === k}">${l}</button>`)}`);
   drawTabs();
   let invRows = [];
-  const loadInv = () => loadInto($('#inv', main), async () => { const r = await listInvoices({ status: st.inv, page: st.page, size: CONFIG.PAGE_SIZE }); invRows = r.data; return r; }, ({ data, count }) => html`
+  const loadInv = () => loadInto($('#inv', main), async () => { const r = await listInvoices({ status: st.inv, page: st.page, size: CONFIG.PAGE_SIZE, realOnly: staff }); invRows = r.data; return r; }, ({ data, count }) => html`
     <div class="table-wrap"><table class="t cards"><thead><tr><th>Factura</th>${staff ? html`<th>Cliente</th>` : ''}<th>Mes</th><th>NCF fiscal</th><th class="n">Total</th><th class="n">Saldo</th><th>Estado</th>${manage ? html`<th></th>` : ''}</tr></thead>
     <tbody>${data.map((i) => { const [l, c] = INVOICE_STATUS[i.status] || [i.status, '']; return html`<tr><td data-l="Factura"><a href="#/honorarios/${i.id}"><b class="mono">${i.folio}</b></a><div class="small muted">Emitida ${date(i.issued_on)} · vence ${date(i.due_on)}</div></td>
       ${staff ? html`<td data-l="Cliente">${i.client_name}</td>` : ''}<td data-l="Mes">${period(i.period)}</td><td data-l="NCF fiscal" class="mono">${i.ncf || html`<span class="muted">—</span>`}</td>
@@ -52,7 +52,7 @@ export async function render(main, ctx) {
       ${manage ? html`<td data-l="">${['emitida', 'pagada_parcial'].includes(i.status) ? html`<button class="btn sm primary" data-inv="pay" data-id="${i.id}">Cobro</button> ` : ''}<button class="btn sm" data-inv="pdf" data-id="${i.id}" title="Descargar PDF">PDF</button> ${i.status !== 'anulada' ? html`<button class="btn sm" data-inv="ncf" data-id="${i.id}" title="Registrar el NCF emitido en el sistema fiscal">NCF fiscal</button> ` : ''}${i.status === 'emitida' ? html`<button class="btn sm danger" data-inv="void" data-id="${i.id}">Anular</button>` : ''}</td>` : ''}</tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
   { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin facturas', manage ? 'Genera las facturas del mes en "Cierre del mes".' : 'Aún no hay facturas.') });
 
-  const loadLedger = () => staff && loadInto($('#led', main), () => listFees(100), (rows) => html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="n">Base</th><th class="n">Tasa</th><th class="n">Honorario</th><th>Factura</th></tr></thead>
+  const loadLedger = () => staff && loadInto($('#led', main), () => listFees(100, { realOnly: true }), (rows) => html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="n">Base</th><th class="n">Tasa</th><th class="n">Honorario</th><th>Factura</th></tr></thead>
     <tbody>${rows.map((f) => html`<tr><td data-l="Fecha">${dateTime(f.calculated_at)}</td><td data-l="Cliente">${f.organizations?.legal_name}</td><td data-l="Origen">${FEE_SOURCE[f.source_type] || f.source_type}<div class="small muted">${period(f.period)}</div></td>
       <td data-l="Base" class="n">${f.source_type === 'cuota' ? (Number(f.base_amount) > 0 && Number(f.base_amount) < new Date(Number(String(f.period).slice(0, 4)), Number(String(f.period).slice(5, 7)), 0).getDate() ? html`${num(f.base_amount)} días <span class="pill warn">prorrateada</span>` : 'Mes completo') : money(f.base_amount)}</td><td data-l="Tasa" class="n">${f.rate != null ? `${Number(f.rate)}%` : 'Fijo'}</td><td data-l="Honorario" class="n"><b>${money(f.amount)}</b></td>
       <td data-l="Factura" class="mono">${f.sofa_invoices?.folio || html`<span class="pill warn">Por facturar</span>`}</td></tr>`)}</tbody></table></div>`,

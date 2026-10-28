@@ -15,6 +15,7 @@ const bar = (v, max, color = 'var(--navy-2)') => html`<div style="height:8px;bac
 
 export async function render(main, ctx) {
   if (ctx.arg) return renderDetail(main, ctx);
+  const staff = isStaff(ctx.role);
   const st = { group: 'abiertas', arsId: '', q: '', page: 0 };
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Glosas</h2><p>Cada glosa se trabaja dos veces: se apela para recuperar el dinero y se corrige la causa para que no se repita.</p></div></div>
@@ -32,7 +33,7 @@ export async function render(main, ctx) {
   drawTabs();
   listArs().then((a) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${a.map((x) => opt(x.id, x.name))}`)).catch(() => {});
 
-  Promise.all([glosaSummary(), glosaPareto(), arsReconciliation()]).then(([rows, par, rec]) => {
+  Promise.all([glosaSummary({ realOnly: staff }), glosaPareto({ realOnly: staff }), arsReconciliation({ realOnly: staff })]).then(([rows, par, rec]) => {
     const tot = rows.reduce((t, r) => t + Number(r.amount), 0), disp = rows.reduce((t, r) => t + Number(r.in_dispute), 0);
     const recov = rows.reduce((t, r) => t + Number(r.recovered), 0), acc = rows.reduce((t, r) => t + Number(r.accepted), 0);
     const soon = rows.filter((r) => GLOSA_OPEN.includes(r.status) && r.days_left <= 7);
@@ -51,7 +52,7 @@ export async function render(main, ctx) {
   }).catch((e) => paint($('#k', main), errorView(e)));
 
   const list = $('#l', main);
-  const load = () => loadInto(list, () => listGlosas({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
+  const load = () => loadInto(list, () => listGlosas({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff }), ({ data, count }) => html`
     <div class="table-wrap"><table class="t cards"><thead><tr><th>Glosa · radicación</th><th>Prestador</th><th>ARS</th><th>Motivo principal</th><th class="n">Glosado</th><th class="n">En disputa</th><th>Estado</th><th>Responder antes de</th></tr></thead>
     <tbody>${data.map((g) => { const [l, c] = glosaStatus(g.status); const open = GLOSA_OPEN.includes(g.status); return html`<tr data-id="${g.id}" style="cursor:pointer">
       <td data-l="Radicación"><a href="#/glosas/${g.id}" class="mono"><b>${g.glosa_folio || g.folio}</b></a>${g.glosa_folio ? html`<div class="small mono">${g.folio}</div>` : ''}<div class="small muted">${period(g.period)}${g.ars_reference ? ` · ${g.ars_reference}` : ''}</div></td>
