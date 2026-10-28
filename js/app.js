@@ -47,7 +47,7 @@ function fatal(title, text, actions = '') {
 
 /**
  * 1.9 · Primer acceso: si el usuario entró con la clave temporal (creada con «Crear usuario»),
- * debe cambiarla antes de usar el sistema. Se carga aparte: si falla, la aplicación sigue arrancando.
+ * debe cambiarla antes de usar el sistema. Si falla su verificación, se detiene el arranque hasta poder comprobarla.
  */
 async function passwordGate() {
   try {
@@ -56,7 +56,11 @@ async function passwordGate() {
     render(app, html`<div class="auth-wrap"><div class="auth-card" id="cambioClave"></div></div>`);
     await cc.render($('#cambioClave'), { onDone: () => setTimeout(() => location.reload(), 800) });
     return true;
-  } catch (e) { console.warn('cambio-clave', e); return false; }
+  } catch (e) {
+    fatal('No se pudo verificar la seguridad de la cuenta', 'Comprueba la conexión y vuelve a intentarlo. Debemos verificar si necesitas cambiar la contraseña antes de abrir el sistema.', html`<button class="btn primary" id="retryPasswordGate">Reintentar</button>`);
+    $('#retryPasswordGate').onclick = () => location.reload();
+    return true;
+  }
 }
 
 async function boot() {

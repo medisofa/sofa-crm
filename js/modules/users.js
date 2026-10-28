@@ -36,7 +36,7 @@ async function roleDialog(ctx, preset = {}) {
     body: html`<div class="form-grid">
       ${invite ? html`${f('email', 'Correo *', html`<input id="f_email" name="email" type="email" required autocomplete="off">`)}
         ${f('full_name', 'Nombre completo *', html`<input id="f_full_name" name="full_name" required maxlength="120">`)}
-        ${directActive ? f('password', 'Contraseña temporal *', html`<input id="f_password" name="password" type="password" required minlength="12" autocomplete="new-password">`, 'Mínimo 12 caracteres. No se enviará correo; entrégala al usuario por un canal seguro.') : ''}` : ''}
+        ${directActive ? f('password', 'Contraseña temporal *', html`<input id="f_password" name="password" type="password" required minlength="12" autocomplete="new-password"><button type="button" class="btn" id="generate-temporary-password">Generar contraseña segura</button><button type="button" class="btn" id="show-temporary-password">Mostrar</button>`, 'Mínimo 12 caracteres. No se enviará correo; entrégala al usuario por un canal seguro.') : ''}` : ''}
       ${f('role', 'Rol *', html`<select id="f_role" name="role">${roleOpts(ctx, preset.role || 'billing')}</select>`)}
       ${f('org', 'Consultorio o clínica (cliente) *', html`<select id="f_org" name="org"><option value="">Seleccione…</option>${clients.map((c) => opt(c.id, c.legal_name, preset.orgId))}</select>`)}
       </div>
@@ -44,6 +44,17 @@ async function roleDialog(ctx, preset = {}) {
       <fieldset id="f_provs" style="border:0;padding:0;display:none"><legend class="small" style="font-weight:600">Médicos que atiende esta secretaria *</legend><div id="f_plist" class="list"></div></fieldset>
       ${directActive ? html`<p class="small muted"><b>Alta directa por Super Admin:</b> la cuenta se confirma y activa sin enviar correo. El usuario deberá cambiar la contraseña temporal en el primer acceso.</p>` : invite ? html`<p class="small muted">La persona recibe un correo para crear su contraseña. Si el correo ya tiene usuario, solo se le asigna el rol.</p>` : ''}`,
     onOpen: (form) => {
+      form.querySelector('#generate-temporary-password')?.addEventListener('click', () => {
+        const bytes = crypto.getRandomValues(new Uint8Array(20));
+        form.elements.password.value = 'Aa9!' + Array.from(bytes, x => x.toString(16).padStart(2, '0')).join('');
+        form.elements.password.type = 'password';
+        form.querySelector('#show-temporary-password').textContent = 'Mostrar';
+      });
+      form.querySelector('#show-temporary-password')?.addEventListener('click', (event) => {
+        const input = form.elements.password;
+        input.type = input.type === 'password' ? 'text' : 'password';
+        event.currentTarget.textContent = input.type === 'password' ? 'Mostrar' : 'Ocultar';
+      });
       const sync = async () => {
         const sequence = ++syncSequence;
         providersReady = false; providersOrg = null; provs = [];

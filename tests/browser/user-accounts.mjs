@@ -120,6 +120,16 @@ await page.locator('[data-act="repair"]').click();
 await page.getByText('Corrección de asociaciones no habilitada',{exact:true}).waitFor();
 assert.equal(await page.locator('[data-act="repair"]').count(),0);
 assert.equal(await page.evaluate(()=>calls.filter(c=>c.name==='admin_repair_user_access').length),writesBeforeMissing);
+await page.evaluate(async()=>{
+ const {needsPasswordChange}=await import('/js/modules/cambio-clave.js');
+ const previous=mockDB.rpc;
+ try {
+  for(const value of [true,false]) {mockDB.rpc=async()=>({data:{must_change_password:value}});if(await needsPasswordChange()!==value)throw Error('Password flag incorrect');}
+  for(const response of [{error:{message:'offline'}},{data:null},{data:{}}]) {
+   mockDB.rpc=async()=>response;let rejected=false;try{await needsPasswordChange();}catch{rejected=true;}if(!rejected)throw Error('Password gate failed open');
+  }
+ }finally{mockDB.rpc=previous;}
+});
 // MFA gate: aal1 with verified TOTP must challenge; failure stays closed.
 await page.evaluate(async()=>{
  const {passwordMfaReady}=await import('/js/utils/password-mfa.js');

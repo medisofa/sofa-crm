@@ -7,7 +7,9 @@ import { passwordMfaReady } from '../utils/password-mfa.js';
 import { supabase, rpc, h, note } from '../services/iter18.js';
 
 export async function needsPasswordChange() {
-  try { const s = await rpc('my_security_state'); return Boolean(s && s.must_change_password); } catch (_) { return false; }
+  const s = await rpc('my_security_state');
+  if (!s || typeof s.must_change_password !== 'boolean') throw new Error('No se pudo verificar el cambio obligatorio de contraseña.');
+  return s.must_change_password;
 }
 
 const reglas = (p) => {
