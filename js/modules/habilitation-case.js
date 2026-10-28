@@ -1,7 +1,7 @@
 /** SOFA · Ficha de un caso de habilitación: etapas, datos del trámite, semáforo por requisito, evidencias e historial */
 import { html, render as paint, raw, $ } from '../utils/dom.js';
 import { loadingView, emptyView, errorView, toast, friendlyError, busy, opt, fieldError } from '../utils/ui.js';
-import { getCase, caseItems, updateItem, updateCase, moveCase, caseActivity, leadContact, STAGES, STAGE_LABEL, ITEM_STATUS, CASE_KIND } from '../services/habilitation.js';
+import { getCase, caseItems, updateItem, updateCase, moveCase, caseActivity, leadContact, STAGES, STAGE_LABEL, ITEM_STATUS, CASE_KIND, MODIFICATION_SUBKIND } from '../services/habilitation.js';
 import { organizationContact, profileNames } from '../services/submissions.js';
 import { listDocuments, uploadDocument, openDocument, fileProblem, sizeLabel } from '../services/documents.js';
 import { money, date, dateTime, todayISO } from '../utils/formatters.js';
@@ -54,7 +54,7 @@ export async function render(main, ctx) {
     paint(box, html`
       <div class="page-head"><div class="t"><p class="no-print"><a href="#/habilitacion">← Habilitación</a></p>
         <h2>${c.establishment_name} <span class="pill ${c.stage === 'habilitado' ? 'ok' : c.stage === 'cancelado' ? '' : 'info'}">${STAGE_LABEL[c.stage]}</span></h2>
-        <p><span class="mono">${c.folio}</span> · ${c.establishment_type} · ${CASE_KIND[c.case_kind]}${staff && (c.client_name || c.lead_company) ? ` · ${c.client_name || c.lead_company}` : ''}${c.owner_name ? ` · Responsable: ${c.owner_name}` : ''}</p></div>
+        <p><span class="mono">${c.folio}</span> · ${c.establishment_type} · ${CASE_KIND[c.case_kind]}${c.case_subkind ? ` (${MODIFICATION_SUBKIND[c.case_subkind] || c.case_subkind})` : ''}${staff && (c.client_name || c.lead_company) ? ` · ${c.client_name || c.lead_company}` : ''}${c.owner_name ? ` · Responsable: ${c.owner_name}` : ''}</p></div>
         <div class="toolbar no-print" style="margin:0">
           ${edit && NEXT[c.stage] ? html`<button class="btn primary" data-move="${NEXT[c.stage]}">${NEXT_LABEL[NEXT[c.stage]]}</button>` : ''}
           ${edit && ['ensamblaje', 'depositado', 'inspeccion'].includes(c.stage) ? html`<button class="btn" data-move="correccion">Volver a corrección</button>` : ''}

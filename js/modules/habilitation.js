@@ -1,7 +1,7 @@
 /** SOFA · Habilitación Express ante MISPAS: casos y checklist maestro */
 import { html, render as paint, $ } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, errorView } from '../utils/ui.js';
-import { listCases, caseSummary, requirementsCatalog, saveRequirement, STAGE_LABEL, CASE_KIND } from '../services/habilitation.js';
+import { listCases, caseSummary, requirementsCatalog, saveRequirement, STAGE_LABEL, CASE_KIND, MODIFICATION_SUBKIND } from '../services/habilitation.js';
 import { money, num, date } from '../utils/formatters.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { CONFIG } from '../config.js';
@@ -38,7 +38,7 @@ export async function render(main, ctx) {
     return loadInto(list, () => listCases({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
       <div class="table-wrap"><table class="t cards"><thead><tr><th>Establecimiento</th><th>Etapa</th><th>Semáforo</th><th class="n">Listo</th><th>Fecha objetivo</th><th>Licencia</th></tr></thead>
       <tbody>${data.map((c) => html`<tr data-id="${c.id}" style="cursor:pointer">
-        <td data-l="Establecimiento"><a href="#/habilitacion/${c.id}"><b>${c.establishment_name}</b></a><div class="small muted">${c.folio} · ${c.establishment_type} · ${CASE_KIND[c.case_kind]}${staff && (c.client_name || c.lead_company) ? ` · ${c.client_name || c.lead_company}` : ''}</div></td>
+        <td data-l="Establecimiento"><a href="#/habilitacion/${c.id}"><b>${c.establishment_name}</b></a><div class="small muted">${c.folio} · ${c.establishment_type} · ${CASE_KIND[c.case_kind]}${c.case_subkind ? ` (${MODIFICATION_SUBKIND[c.case_subkind] || c.case_subkind})` : ''}${staff && (c.client_name || c.lead_company) ? ` · ${c.client_name || c.lead_company}` : ''}</div></td>
         <td data-l="Etapa"><span class="pill ${c.stage === 'habilitado' ? 'ok' : c.stage === 'cancelado' ? '' : 'info'}">${STAGE_LABEL[c.stage]}</span></td>
         <td data-l="Semáforo" class="small"><span class="pill ok">${c.verde}</span> <span class="pill warn">${c.amarillo}</span> <span class="pill bad">${c.rojo}</span>${c.pendiente ? html` <span class="pill">${c.pendiente} sin evaluar</span>` : ''}</td>
         <td data-l="Listo" class="n"><b>${c.ready_pct}%</b>${c.critical_open ? html`<div class="small" style="color:var(--bad)">${c.critical_open} críticos</div>` : ''}</td>
