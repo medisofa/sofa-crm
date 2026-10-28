@@ -16,7 +16,7 @@ export async function revokeSelectedAccesses(account, ctx, reload) {
   const memberships=account.memberships;
   if(!memberships.length||memberships.some(m=>m.conflict||!m.organization_id)||new Set(memberships.map(m=>m.organization_id)).size!==memberships.length) throw new Error('Primero revisa las inconsistencias de los accesos.');
   const review=await formDialog({title:'Seleccionar accesos para revocar',submitLabel:'Revisar selección',wide:true,
-    body:html`<p><b>${account.full_name||account.email}</b> · ${account.email}</p><p>Marca solo las organizaciones a las que esta cuenta debe dejar de acceder. Se conservan la cuenta y su historial.</p>
+    body:html`<p><b>${account.full_name||account.email}</b> · ${account.email}</p><p>Marca las asignaciones directas que deseas desactivar. Se conservan la cuenta y su historial. Un rol interno de SOFA puede seguir otorgando acceso al consultorio por otra vía.</p>
       <fieldset><legend>Accesos de la cuenta</legend>${memberships.map((m,i)=>html`<label class="user-membership check"><input type="checkbox" name="access_${i}"> ${m.role_name||m.role_code} · ${m.organization||m.organization_id}</label>`)}</fieldset><p role="alert" id="selection-error"></p>`,
     onSubmit:async(d,form)=>{
       const selected=memberships.filter((m,i)=>d[`access_${i}`]===true);
@@ -32,7 +32,7 @@ export async function revokeSelectedAccesses(account, ctx, reload) {
   let saved=false;
   await formDialog({title:'Confirmar revocación de accesos',submitLabel:'Revocar accesos seleccionados',wide:true,
     body:html`<p><b>${account.full_name||account.email}</b></p><ul>${review.selected.map(m=>html`<li>${m.role_name||m.role_code} · ${m.organization||m.organization_id}</li>`)}</ul>
-      <p>Los demás accesos se conservan. Si seleccionaste todos, la cuenta quedará sin acceso operativo. Esta acción no activa el perfil ni asigna otro rol.</p>
+      <p>Se desactivarán estas asignaciones directas. Los permisos derivados de otros roles o asignaciones requieren una revisión aparte. Esta acción no activa el perfil ni asigna otro rol.</p>
       <div class="field"><label for="revoke-reason">Motivo obligatorio</label><textarea id="revoke-reason" name="reason" maxlength="1000" rows="3"></textarea></div>
       <div class="field"><label class="check"><input id="revoke-confirm" name="confirmed" type="checkbox"> Confirmo la cuenta y las organizaciones seleccionadas.</label></div>`,
     onOpen:(form)=>{for(const name of ['reason','confirmed'])form.elements[name].addEventListener('input',()=>fieldError(form.elements[name],null));},

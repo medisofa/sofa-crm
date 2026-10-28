@@ -31,7 +31,7 @@ BEGIN
  IF EXISTS (
   SELECT 1 FROM unnest(selected) x
   LEFT JOIN public.organizations o ON o.id=x
-  WHERE o.id IS NULL OR o.kind NOT IN ('client','operator') OR NOT EXISTS (
+  WHERE o.id IS NULL OR o.kind IS NULL OR o.kind NOT IN ('client','operator') OR NOT EXISTS (
    SELECT 1 FROM public.organization_users a
    JOIN public.profiles p ON p.id=a.user_id
    JOIN public.organizations op ON op.id=a.organization_id AND op.kind='operator'

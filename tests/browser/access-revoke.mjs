@@ -28,6 +28,7 @@ await page.evaluate(async()=>{
 await page.getByRole('button',{name:'Revisar selección',exact:true}).click();
 await page.getByText('Selecciona al menos un acceso.',{exact:true}).waitFor();
 assert.equal(await page.evaluate(()=>calls.length),0);
+await page.screenshot({path:'/workspace/artifacts/sofa-reparacion-usuarios/seleccionar-accesos-checkbox.png',fullPage:true});
 await page.locator('[name="access_1"]').check();
 await page.getByRole('button',{name:'Revisar selección',exact:true}).click();
 await page.getByRole('button',{name:'Revocar accesos seleccionados',exact:true}).waitFor();
@@ -44,6 +45,24 @@ await page.evaluate(()=>rejectWrite=false);
 await page.getByRole('button',{name:'Revocar accesos seleccionados',exact:true}).click();
 await page.waitForFunction(()=>window.reloaded===true);
 assert.deepEqual(await page.evaluate(()=>calls.at(-1).args.p_orgs),['clinic']);
+await page.evaluate(()=>{
+ const old=mockDB.rpc;
+ mockDB.rpc=async(name,args)=>{
+  const r=await old(name,args);
+  if(name==='admin_access_revoke_preview')r.data.accesses[0].role_code='admin';
+  return r;
+ };
+ window.launch();
+});
+await page.locator('[name="access_1"]').check();
+await page.getByRole('button',{name:'Revisar selección',exact:true}).click();
+await page.locator('.fd-msg').getByText(/Un rol cambió/).waitFor();
+assert.equal(await page.getByRole('button',{name:'Revocar accesos seleccionados',exact:true}).count(),0);
+for(const theme of ['light','dark']){
+ await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+}
 assert.deepEqual(errors,[]);assert.equal(external,0);
 console.log('PASS: selección obligatoria, alcance exacto, motivo y confirmación, fallo conserva formulario, éxito recarga. RPC simuladas.');
 }finally{await browser.close();}

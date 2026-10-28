@@ -14,6 +14,11 @@ BEGIN
  RAISE EXCEPTION 'Expected denial %',expected_state;
 END $$;
 INSERT INTO public.organization_users VALUES('00000000-0000-4000-8000-000000000102','00000000-0000-4000-8000-000000000003','capturer',true);
+-- Tipo de organización desconocido, aun con operador y asociación válidos.
+INSERT INTO public.organizations(id,kind,operator_id) VALUES
+ ('00000000-0000-4000-8000-000000000103',NULL,'00000000-0000-4000-8000-000000000100');
+INSERT INTO public.organization_users VALUES
+ ('00000000-0000-4000-8000-000000000103','00000000-0000-4000-8000-000000000003','client',true);
 SELECT public.qa_revoke_assert(NOT has_function_privilege('anon','public.admin_access_revoke_apply(uuid,uuid[],text,text)','EXECUTE'),'anon cannot apply');
 SELECT public.qa_revoke_assert(NOT has_table_privilege('authenticated','public.user_access_revocation_audit','INSERT'),'no direct audit writes');
 SET LOCAL ROLE authenticated;
@@ -22,6 +27,7 @@ SELECT public.qa_revoke_denied($q$SELECT public.admin_access_revoke_preview('000
 SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000001","aal":"aal2"}',true);
 SELECT public.qa_revoke_denied($q$SELECT public.admin_access_revoke_preview('00000000-0000-4000-8000-000000000001',ARRAY['00000000-0000-4000-8000-000000000100']::uuid[])$q$,'42501');
 SELECT public.qa_revoke_denied($q$SELECT public.admin_access_revoke_preview('00000000-0000-4000-8000-000000000003',ARRAY[]::uuid[])$q$,'22023');
+SELECT public.qa_revoke_denied($q$SELECT public.admin_access_revoke_preview('00000000-0000-4000-8000-000000000003',ARRAY['00000000-0000-4000-8000-000000000103']::uuid[])$q$,'42501');
 SELECT public.qa_revoke_denied($q$SELECT public.admin_access_revoke_preview('00000000-0000-4000-8000-000000000003',ARRAY['00000000-0000-4000-8000-000000000201']::uuid[])$q$,'42501');
 SELECT public.qa_revoke_denied($q$SELECT public.admin_access_revoke_preview('00000000-0000-4000-8000-000000000003',ARRAY['00000000-0000-4000-8000-000000000101',NULL]::uuid[])$q$,'22023');
 SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000002","aal":"aal2"}',true);
