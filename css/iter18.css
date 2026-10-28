@@ -126,6 +126,7 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .nav-v2 .fam-cobros .nav-ico{color:#86e0a6}.nav-v2 .fam-consultorio .nav-ico{color:#ff9fb0}.nav-v2 .fam-resultados .nav-ico{color:#7ee0d6}
 .nav-v2 .fam-admin .nav-ico{color:#cfd6df}.nav-v2 .fam-cuenta .nav-ico{color:#cfd6df}.nav-v2 .fam-mas .nav-ico{color:#cfd6df}
 .nav-v2 .nav-items a{padding-left:40px}
+.nav-v2 .nav-flat{padding:8px 10px 20px}.nav-v2 .nav-flat a{padding-left:10px}
 
 /* ===== 2.1 · Ficha del cliente en pestañas ===== */
 .ct-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:14px 0 10px;border-bottom:1px solid var(--line,#dce1e8)}

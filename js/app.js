@@ -140,6 +140,9 @@ function layout() {
 
 /** 2.0 · Grupos plegables (se recuerdan en este navegador) y búsqueda en el menú. */
 const NAV_KEY = 'sofa.nav.cerrados';
+/** 2.? · Si el menú de un rol tiene pocos módulos en total, los acordeones por familia solo estorban:
+ * se muestra como lista plana, sin encabezados de grupo que haya que abrir para ver 2 o 3 enlaces. */
+const FLAT_NAV_THRESHOLD = 14;
 const closedGroups = () => { try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || '[]')); } catch (_) { return new Set(); } };
 const saveClosed = (set) => { try { localStorage.setItem(NAV_KEY, JSON.stringify([...set])); } catch (_) { /* sin almacenamiento: no se recuerda */ } };
 const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -153,6 +156,11 @@ function renderNav() {
   if (q) {
     const hits = groups.flatMap((g) => g.items.filter((i) => norm(i.label).includes(q) || norm(g.group).includes(q)));
     render(nav, hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : html`<p class="nav-empty">No hay módulos con «${$('#navSearch').value}». Borre la búsqueda para ver todo el menú.</p>`);
+    return;
+  }
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  if (total <= FLAT_NAV_THRESHOLD) {
+    render(nav, html`<div class="nav-items nav-flat">${groups.flatMap((g) => g.items).map(link)}</div>`);
     return;
   }
   render(nav, html`${groups.map((g) => {
