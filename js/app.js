@@ -98,7 +98,7 @@ window.print = function (...args) {
 
 function fatal(title, text, actions = '') {
   render(app, html`<div class="auth-wrap"><div class="auth-card" role="alert">
-    <div class="logo"><img class="logo-full" src="assets/brand/sofa-logo.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
+    <div class="logo"><img class="logo-full logo-light" src="assets/brand/sofa-logo.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"><img class="logo-full logo-dark" src="assets/brand/sofa-logo-dark.png" alt="" aria-hidden="true" width="942" height="321"></div>
     <h1>${title}</h1><p class="lead">${text}</p>${actions}</div></div>`);
 }
 
