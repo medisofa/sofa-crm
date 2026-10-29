@@ -91,15 +91,6 @@ main.page:focus { outline: none; }
 .auth-card .logo { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
 .auth-card .logo img { width: 46px; height: 46px; border-radius: 10px; }
 .auth-card .logo img.logo-full { width: 100%; max-width: 300px; height: auto; border-radius: 0; margin: 0 auto 4px; display: block; }
-/* El wordmark del logo es azul navy: sobre tarjeta oscura (sistema en modo oscuro, o tema forzado) se cambia
-   por la variante clara para que siga siendo legible. */
-.auth-card .logo img.logo-dark { display: none; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .auth-card .logo img.logo-light { display: none; }
-  :root:not([data-theme="light"]) .auth-card .logo img.logo-dark { display: block; }
-}
-:root[data-theme="dark"] .auth-card .logo img.logo-light { display: none; }
-:root[data-theme="dark"] .auth-card .logo img.logo-dark { display: block; }
 .auth-card .logo { justify-content: center; }
 .auth-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--red) 0 50%, var(--navy-3) 50% 100%); }
 .auth-card .logo b { display: block; font-size: 20px; letter-spacing: .03em; }
