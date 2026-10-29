@@ -305,26 +305,38 @@ async function repairAssignment(account, membership, reload) {
   const allowed = preview.can_repair === true && preview.blockers.length === 0;
   let saved = false;
   await formDialog({
-    title: 'Corregir asociación de cuenta', submitLabel: allowed ? 'Corregir y asignar Administrador' : 'Cerrar', wide: true,
+    title: 'Corregir asociación de cuenta', submitLabel: allowed ? 'Desactivar asociación errónea' : 'Cerrar', wide: true,
     body: html`<p><b>${account.full_name || 'Cuenta seleccionada'}</b><br>${preview.email}</p>
       <details><summary>Identificador de cuenta</summary>${preview.user_id}</details>
       <dl class="kv"><dt>Asociación actual</dt><dd>${ROLES[membership.role_code]?.name || membership.role_code} · ${membership.organization}</dd>
-      <dt>Cambio solicitado</dt><dd>Desactivar esa asociación errónea y asignar Administrador SOFA en su operador.</dd>
+      <dt>Cambio por defecto</dt><dd>Solo desactivar esa asociación errónea. No se otorga ningún otro acceso.</dd>
       <dt>Cuenta e historial</dt><dd>Se conservan el identificador, correo, documentos y registros anteriores. No se elimina al usuario.</dd>
       <dt>Activación</dt><dd>${preview.profile_active === true ? 'La cuenta conservará su estado activo.' : 'La cuenta permanecerá inactiva; esta corrección no la reactiva.'}</dd></dl>
       ${allowed ? html`<div class="field"><label for="repair-reason">Motivo de la corrección *</label><textarea id="repair-reason" name="reason" rows="3" maxlength="1000" required placeholder="Describe por qué esta cuenta fue asociada por error al cliente"></textarea><span class="hint">Al menos 12 caracteres. El motivo y los accesos anteriores quedan registrados.</span></div>
         <div class="field"><label for="repair-email">Escribe el correo para confirmar *</label><input id="repair-email" name="email" type="email" autocomplete="off" required></div>
-        <div class="field"><label class="check" for="repair-confirmed"><input id="repair-confirmed" type="checkbox" name="confirmed"> Confirmo que esta cuenta debe ser Administrador SOFA y que su asociación al cliente es un error.</label><span role="status" class="sr-only" id="repair-confirmation-status"></span></div>` : html`<div class="note bad" role="alert"><b>No se puede corregir automáticamente</b><ul>${preview.blockers.map((message) => html`<li>${message}</li>`)}</ul></div>`}`,
+        <div class="field"><label class="check" for="repair-promote"><input id="repair-promote" type="checkbox" name="promote_admin"> Esta cuenta en realidad es personal de SOFA: además de desactivar la asociación, asignarle Administrador en su operador.</label><span class="hint">Déjalo sin marcar para el caso normal: solo se resetea la asociación errónea de este usuario (ej. un médico o secretaria mal asociado), sin darle ningún rol nuevo.</span></div>
+        <div id="repair-promote-extra" hidden><div class="field"><label class="check" for="repair-confirmed"><input id="repair-confirmed" type="checkbox" name="confirmed"> Confirmo que esta cuenta debe ser Administrador SOFA y que su asociación al cliente es un error.</label><span role="status" class="sr-only" id="repair-confirmation-status"></span></div></div>` : html`<div class="note bad" role="alert"><b>No se puede corregir automáticamente</b><ul>${preview.blockers.map((message) => html`<li>${message}</li>`)}</ul></div>`}`,
+    onOpen: (form, d) => {
+      if (!allowed) return;
+      const promote = form.elements.promote_admin;
+      const extra = form.querySelector('#repair-promote-extra');
+      const submitBtn = d.querySelector('[type=submit]');
+      promote?.addEventListener('change', () => {
+        extra.hidden = !promote.checked;
+        if (!promote.checked) form.elements.confirmed.checked = false;
+        submitBtn.textContent = promote.checked ? 'Corregir y asignar Administrador' : 'Desactivar asociación errónea';
+      });
+    },
     onSubmit: async (d, form) => {
       if (!allowed) return true;
       if ((d.reason || '').trim().length < 12) { fieldError(form.elements.reason, 'Describe el motivo con al menos 12 caracteres.'); return false; }
       if ((d.email || '').trim().toLowerCase() !== String(preview.email || '').toLowerCase()) { fieldError(form.elements.email, 'El correo no coincide con la cuenta mostrada.'); return false; }
-      if (d.confirmed !== true) { fieldError(form.elements.confirmed, 'Confirma el cambio solicitado.'); form.querySelector('#repair-confirmation-status').textContent = 'Confirma el cambio solicitado.'; form.elements.confirmed.focus(); return false; }
+      if (d.promote_admin === true && d.confirmed !== true) { fieldError(form.elements.confirmed, 'Confirma el cambio solicitado.'); form.querySelector('#repair-confirmation-status').textContent = 'Confirma el cambio solicitado.'; form.elements.confirmed.focus(); return false; }
       const result = await rpc('admin_repair_user_access', { p_user: preview.user_id, p_org: preview.client_org_id,
-        p_reason: d.reason.trim(), p_confirm_email: d.email.trim(), p_expected: preview.expected });
+        p_reason: d.reason.trim(), p_confirm_email: d.email.trim(), p_expected: preview.expected, p_promote_admin: d.promote_admin === true });
       if (result?.ok !== true || !result.audit_id) throw new Error('No se confirmó la corrección. Revisa la cuenta antes de reintentar.');
       saved = true;
-      toast(`Asociación corregida. Registro de auditoría: ${result.audit_id}.`, 'ok');
+      toast(result.promoted_admin ? `Administrador SOFA asignado. Registro de auditoría: ${result.audit_id}.` : `Asociación errónea desactivada. Registro de auditoría: ${result.audit_id}.`, 'ok');
       return true;
     }
   });
