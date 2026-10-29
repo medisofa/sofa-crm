@@ -16,6 +16,7 @@ export const MODULES = {
   hoy: 'today.js', dashboard: 'dashboard.js', aging: 'aging.js', reportes: 'reports.js',
   habilitacion: 'habilitation.js', mercado: 'market.js', guias: 'guides.js',
   captura: 'capture.js', reclamaciones: 'claims.js', retiros: 'pickups.js', contratos: 'contracts.js', 'carga-google': 'google-intake.js',
+  'puesta-al-dia': 'puesta-al-dia.js',   // 29/10/2026
   preradicacion: 'prerad.js', requisitos: 'requirements.js',
   // Iteraciones 18 a 28 (SOFA 1.9.0)
   'mi-dashboard': 'dashboard-rol.js',
