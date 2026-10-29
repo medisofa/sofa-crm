@@ -162,6 +162,7 @@ export async function render(main, ctx) {
               ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
               <button class="btn sm" data-act="resend" data-user="${u.user_id}" data-email="${u.email}">Enviar acceso</button>` : ''}
             ${canToggle && u.is_active !== null ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar cuenta' : 'Activar cuenta'}</button>` : ''}
+            ${ctx.role === 'super_admin' && u.user_id !== ctx.session?.user?.id && !u.protectedAdmin && u.memberships.length && !u.memberships.some((m) => m.conflict || !m.organization_id) ? html`<button class="btn sm" data-act="revoke" data-user="${u.user_id}">Revocar accesos seleccionados</button>` : ''}
             ${u.is_active === null ? html`<p class="small muted">Estados de acceso distintos o inconsistentes: valida cada acceso antes de activar la cuenta.</p>` : ''}`}</td>` : ''}</tr>`;
       })}</tbody></table></div>`);
   };
@@ -251,6 +252,15 @@ export async function render(main, ctx) {
     if (b.dataset.act === 'viewas') {
       const { enterViewAs } = await import('../app.js');
       await enterViewAs({ id: b.dataset.org, legal_name: b.dataset.orgname }, { userId: b.dataset.user, role: 'capturer', name: b.dataset.name });
+      return;
+    }
+    if (b.dataset.act === 'revoke') {
+      const account = accounts.find((item) => item.user_id === b.dataset.user);
+      if (!account) { toast('Cuenta no disponible.', 'bad'); return; }
+      try {
+        const { revokeSelectedAccesses } = await import('./user-access-revoke.js');
+        await revokeSelectedAccesses(account, ctx, load);
+      } catch (error) { toast(friendlyError(error), 'bad'); }
       return;
     }
     const selection = resolveAccountAction(accounts, { role: ctx.role, userId: ctx.session.user.id }, {
