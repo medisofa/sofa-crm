@@ -28,7 +28,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades', 'carga-google'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso») // 28/10/2026: + Carga Google Sheets/Form — ESENCIALES.billing ya lo asignaba al menú, pero este filtro lo bloqueaba antes de llegar (quedaba un ítem muerto)
+export const BILLING_ROUTES = ['autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades', 'carga-google', 'puesta-al-dia'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso») // 28/10/2026: + Carga Google Sheets/Form — ESENCIALES.billing ya lo asignaba al menú, pero este filtro lo bloqueaba antes de llegar (quedaba un ítem muerto)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -94,6 +94,7 @@ export const NAV = [
   ]},
   { group: 'Facturación y Radicación', items: [
     { route: 'carga-google', label: 'Carga Google Sheets / Form', roles: ['super_admin','admin','operations','billing'], ready: true },
+    { route: 'puesta-al-dia', label: 'Puesta al día', roles: ['super_admin','admin','operations','billing'], ready: true },   // 29/10/2026
     { route: 'radicaciones', label: 'Radicaciones', roles: ALL, ready: true },
     { route: 'codificacion', label: 'Codificación y tarifas', roles: ALL, ready: true },
     { route: 'glosas', label: 'Glosas', roles: [...STAFF.filter((r) => r !== 'assistant'), 'client'], ready: true },
@@ -230,7 +231,7 @@ export const ESENCIALES = {
 
   // Facturación · perfil de referencia desde el 01/10/2026. BILLING_ROUTES sigue siendo su tope.
   billing: {
-    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'captura', 'carga-google', 'reclamaciones', 'expediente',
+    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente',
            'retiros', 'radicaciones', 'reconsideracion', 'perfil', 'seguridad'],
     extra: ['dashboard', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
   },
@@ -416,7 +417,7 @@ function familiaDe(route, role) {
 export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
   { key: 'clientes', group: 'Gestión SOFA', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'fugas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado', 'honorarios', 'planes', 'suscripciones', 'puesta-en-marcha'] },
-  { key: 'facturacion', group: 'Facturación y Radicación', routes: ['captura', 'carga-google', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
+  { key: 'facturacion', group: 'Facturación y Radicación', routes: ['captura', 'carga-google', 'puesta-al-dia', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros, Conciliación y Glosas', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'documentos-consultorio', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
