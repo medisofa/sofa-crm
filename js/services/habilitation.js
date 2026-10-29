@@ -32,7 +32,7 @@ export async function listCases({ group = 'activos', q = '', orgId = '', page = 
 export async function caseSummary() { return must(await sb().from('v_habilitation_cases').select('stage, license_days_left, days_to_target, critical_open').limit(5000)); }
 export async function getCase(id) { return must(await sb().from('v_habilitation_cases').select('*').eq('id', id).maybeSingle()); }
 export async function caseItems(id) {
-  return must(await sb().from('habilitation_items').select('id, area, requirement, is_critical, status, notes, due_on, document_id, sort_order, requirement_id, habilitation_requirements(code, evidence_hint)').eq('case_id', id).order('sort_order'));
+  return must(await sb().from('habilitation_items').select('id, area, requirement, is_critical, status, notes, due_on, document_id, sort_order, requirement_id, client_note, client_submitted_at, habilitation_requirements(code, evidence_hint)').eq('case_id', id).order('sort_order'));
 }
 export async function updateItem(id, values) { return must(await sb().from('habilitation_items').update(values).eq('id', id).select('id, status').single()); }
 export async function updateCase(id, values) { return must(await sb().from('habilitation_cases').update(values).eq('id', id).select('id').single()); }

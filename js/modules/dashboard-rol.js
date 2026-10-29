@@ -65,7 +65,7 @@ const ICO = {
 // catálogo de propuestas. Se suman a las 3 ya existentes; no las reemplazan. Cada una reusa
 // las mismas data.sections/kpis — solo cambia la composición visual, nunca el cálculo.
 const VIEW_META = {
-  operativo: { label: 'Operativo', hint: 'Pendientes, acciones y accesos directos.', icon: ICO.clasica },
+  operativo: { label: 'Vista general', hint: 'Pendientes, acciones y accesos directos.', icon: ICO.clasica },
   ejecutivo: { label: 'Ejecutivo', hint: 'Indicadores y alertas para tomar decisiones.', icon: ICO.clasica },
   visual: { label: 'Visual', hint: 'Tarjetas amplias y lectura rápida del estado.', icon: ICO.clasica },
   clinico: { label: 'Clínico', hint: 'El pulso del logo como hilo conductor.', icon: ICO.pulso, nuevo: true },
