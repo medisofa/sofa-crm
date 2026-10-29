@@ -24,7 +24,7 @@
  * AL PUBLICAR UNA VERSIÓN NUEVA: cambia VERSION abajo para que se renueve la caché.
  * Mantenlo igual al APP_VERSION de js/version.js.
  */
-const VERSION = 'sofa-shell-5.22.9';
+const VERSION = 'sofa-shell-5.23.0';
 
 /** Lo mínimo para que la aplicación arranque y pinte algo sin conexión. */
 const SHELL = [
@@ -69,10 +69,13 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;   // Supabase y cualquier otro origen: siempre red
-  // Primero la red (siempre la versión publicada, incluido js/config.js).
+  // Primero la red (siempre la versión publicada, incluido js/config.js). `cache: 'no-store'`
+  // evita que un `fetch()` normal devuelva una copia de la caché HTTP del navegador (el origen
+  // manda Cache-Control de varios minutos): sin esto, "siempre la red" podía en realidad servir
+  // una respuesta de minutos atrás hasta que esa caché expirara.
   // Toda respuesta buena se guarda, así una pantalla abierta una vez queda disponible sin conexión.
   e.respondWith(
-    fetch(req).then((res) => {
+    fetch(req, { cache: 'no-store' }).then((res) => {
       if (res.ok) { const copia = res.clone(); caches.open(VERSION).then((c) => c.put(req, copia)); }
       return res;
     }).catch(() => caches.match(req, { ignoreSearch: true })
