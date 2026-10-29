@@ -88,7 +88,7 @@ export async function buildInvoicePdf(d) {
 
   // 1) Logo (izquierda) — misma área que "Añadir logotipo" en la plantilla
   const img = await logo();
-  if (img) doc.addImage(img, 'PNG', M, 12, half, half * 321 / 942, undefined, 'FAST');
+  if (img) doc.addImage(img, 'PNG', M, 12, half, half * 321 / 992, undefined, 'FAST');
   else { doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...NAVY); doc.text('SOFA', M, 26); }
 
   // 2) Título y datos de la factura (derecha)
@@ -224,7 +224,7 @@ export async function buildLetterPdf(d) {
   doc.setProperties({ title: d.title, subject: 'Documento comercial SOFA', author: v['sofa.razon_social'] || 'SOFA', creator: 'SOFA' });
   const img = await logo();
   const head = () => {
-    if (img) doc.addImage(img, 'PNG', M, 10, 58, 58 * 321 / 942, undefined, 'FAST');
+    if (img) doc.addImage(img, 'PNG', M, 10, 58, 58 * 321 / 992, undefined, 'FAST');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...NAVY); doc.text(`Documento ${d.template_code}`, W - M, 15, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
     doc.text(`Versión de plantilla ${d.template_version} · ${fdate(String(d.created_at || '').slice(0, 10))}`, W - M, 19.5, { align: 'right' });
@@ -312,7 +312,7 @@ export async function buildActaPdf(d) {
   const AUD = { documental: 'documental', retrospectiva: 'retrospectiva', concurrente: 'concurrente', telefonica: 'telefónica', otra: 'otra' };
   doc.setProperties({ title: `Acta de conciliación ${a.folio}`, subject: 'Conciliación de glosa', creator: 'SOFA' });
   const img = await logo();
-  if (img) doc.addImage(img, 'PNG', M, 10, 52, 52 * 321 / 942, undefined, 'FAST');
+  if (img) doc.addImage(img, 'PNG', M, 10, 52, 52 * 321 / 992, undefined, 'FAST');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...NAVY); doc.text('Acta de conciliación de glosa', W - M, 17, { align: 'right' });
   doc.setFontSize(9); doc.setTextColor(...WINE); doc.text(RES[a.result] || a.result, W - M, 22.5, { align: 'right' });
   doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40); doc.text(`No. ${a.folio} · ${fdate(a.held_on)}`, W - M, 27.5, { align: 'right' });
