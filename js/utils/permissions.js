@@ -13,10 +13,11 @@ export const ROLES = Object.freeze({   // nombres según la tabla de roles (audi
   auditor: { name: 'Auditor de Expedientes', staff: true, desc: 'Audita expedientes, trazabilidad y controles; acceso preferentemente de lectura.' },
   client: { name: 'Médico / Cliente', staff: false, desc: 'Dueño de la práctica: su consultorio completo (agenda, reclamaciones, cobros, Mi práctica y sus honorarios SOFA).' },
   capturer: { name: 'Secretaria / Capturista', staff: false, desc: 'Agenda, captura, cobros a privados y cuadre de los médicos que se le asignan; sin pagos de ARS, glosas ni honorarios.' },
+  asistente: { name: 'Asistente de consulta', staff: false, desc: 'Ayuda al médico durante la consulta: mueve el flujo de pacientes y, si el médico lo autoriza, lee y escribe la Historia clínica de los médicos que se le asignan.' },   // 29/10/2026 · Flujo de pacientes
   prospect: { name: 'Prospecto', staff: false, desc: 'Futuro cliente: solo ve el avance de su incorporación. Al convertirse en cliente pasa a Médico.' }   // 2.1 · Iteración 30
 });
-/** ALL = roles con acceso general. El Capturador (D3, mínimo privilegio) NO está aquí: solo ve lo que se le asigna explícitamente. */
-const ALL = Object.keys(ROLES).filter((r) => r !== 'capturer' && r !== 'prospect');   // 2.1: el Prospecto tampoco tiene acceso general
+/** ALL = roles con acceso general. El Capturador y el Asistente (D3, mínimo privilegio) NO están aquí: solo ven lo que se les asigna explícitamente. */
+const ALL = Object.keys(ROLES).filter((r) => r !== 'capturer' && r !== 'asistente' && r !== 'prospect');   // 2.1: el Prospecto tampoco tiene acceso general
 const STAFF = ALL.filter((r) => ROLES[r].staff);
 const OPS = ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'operations'];
 const CAPTURE = ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'client', 'capturer'];
@@ -37,11 +38,12 @@ export const BILLING_ROUTES = ['autoentrenamiento', 'mi-dashboard', 'hoy', 'dash
  */
 export const NAV = [
   { group: 'Operación', items: [
-    { route: 'mi-dashboard', label: 'Inicio', roles: [...ALL, 'capturer'], ready: true },
+    { route: 'mi-dashboard', label: 'Inicio', roles: [...ALL, 'capturer', 'asistente'], ready: true },
     { route: 'autoentrenamiento', label: 'Mi autoentrenamiento', roles: Object.keys(ROLES), ready: true },   // 1.9 · primera página según el rol · 2.0: se llama «Inicio»
     { route: 'inicio', label: 'Panel SOFA', roles: STAFF, ready: true },   // 2.0: el panel general queda para el personal de SOFA
-    { route: 'hoy', label: 'Trabajo de hoy', roles: [...ALL, 'capturer'], ready: true },
+    { route: 'hoy', label: 'Trabajo de hoy', roles: [...ALL, 'capturer', 'asistente'], ready: true },
     { route: 'mi-bandeja', label: 'Mi bandeja', roles: ['super_admin', 'admin', 'operations', 'billing'], ready: true },   // 4.9 · I59
+    { route: 'flujo-pacientes', label: 'Flujo de pacientes', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer', 'asistente'], ready: true },   // 29/10/2026
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
     { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.7 · I68a
@@ -50,7 +52,7 @@ export const NAV = [
   ]},
   { group: 'Mi consultorio', items: [   // 1.9 · Iteraciones 19 a 27
     { route: 'pacientes', label: 'Pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
-    { route: 'historia-clinica', label: 'Historia clínica', roles: ['client', 'super_admin'], ready: true },
+    { route: 'historia-clinica', label: 'Historia clínica', roles: ['client', 'super_admin', 'asistente'], ready: true },
     { route: 'mi-ficha', label: 'Mi ficha (ARS y tarifas)', roles: ['client'], ready: true },
     { route: 'documentos-consultorio', label: 'Documentos del consultorio', roles: ['capturer'], ready: true },   // 2.1 · Iteración 31
     { route: 'mi-incorporacion', label: 'Mi incorporación', roles: ['prospect'], ready: true },   // 2.1 · Iteración 30   // 2.0 · Iteración 29 (Super Admin solo con acceso de emergencia)
@@ -167,11 +169,11 @@ export const NAV = [
     { route: 'mi-suscripcion', label: 'Mi suscripción', roles: ['client', 'super_admin', 'admin'], ready: true },   // 4.9 · P2
     { route: 'mi-puesta-en-marcha', label: 'Mi puesta en marcha', roles: ['client'], ready: true },   // 4.9 · I56
     { route: 'mis-avisos', label: 'Mis avisos por correo', roles: ['client', 'super_admin', 'admin', 'operations', 'billing', 'glosas'], ready: true },   // 5.0 · I63
-    { route: 'novedades', label: 'Novedades', roles: [...ALL, 'capturer', 'prospect'], ready: true },   // 5.5.0 · I65
-    { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer', 'prospect'], ready: true },
-    { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer', 'prospect'], ready: true },   // 2.0 · MFA
-    { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer', 'prospect'], ready: true },
-    { route: 'cambio-clave', label: 'Cambiar contraseña', roles: [...ALL, 'capturer', 'prospect'], ready: true, hidden: true }   // 1.9 · también se abre sola en el primer acceso
+    { route: 'novedades', label: 'Novedades', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },   // 5.5.0 · I65
+    { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },
+    { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },   // 2.0 · MFA
+    { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },
+    { route: 'cambio-clave', label: 'Cambiar contraseña', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true, hidden: true }   // 1.9 · también se abre sola en el primer acceso
   ]}
 ];
 
@@ -226,6 +228,13 @@ export const ESENCIALES = {
     menu: ['mi-dashboard', 'agenda', 'verificacion', 'pacientes', 'captura', 'reclamaciones',
            'expediente', 'saldos-pacientes', 'mensajes', 'documentos-consultorio', 'perfil', 'seguridad'],
     extra: ['hoy', 'calidad-captura', 'insumos', 'novedades', 'diagnostico', 'cambio-clave']
+  },
+
+  // Asistente de consulta · 29/10/2026 · ayuda al médico en consulta: mueve el flujo de pacientes
+  // y, si el médico lo autoriza (can_hc), lee y escribe la Historia clínica.
+  asistente: {
+    menu: ['mi-dashboard', 'flujo-pacientes', 'historia-clinica', 'perfil', 'seguridad'],
+    extra: ['hoy', 'novedades', 'diagnostico', 'cambio-clave']
   },
 
   // Facturación · perfil de referencia desde el 01/10/2026. BILLING_ROUTES sigue siendo su tope.

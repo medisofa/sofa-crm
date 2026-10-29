@@ -209,6 +209,8 @@ export async function adjustDistribution(allocationId, items, reason) {
 export async function capturerScopes(userId) { return must(await sb().from('capturer_scopes').select('provider_id').eq('user_id', userId)).map((r) => r.provider_id); }
 export async function providersOfOrg(orgId) { return must(await sb().from('providers').select('id, full_name').eq('organization_id', orgId).eq('is_active', true).order('full_name')); }
 export async function setCapturerScope(userId, providerIds) { return must(await sb().rpc('set_capturer_scope', { p_user: userId, p_providers: providerIds })); }
+export async function assistantScopes(userId) { return must(await sb().from('assistant_scopes').select('provider_id').eq('user_id', userId)).map((r) => r.provider_id); }
+export async function setAssistantScope(userId, providerIds) { return must(await sb().rpc('set_assistant_scope', { p_user: userId, p_providers: providerIds })); }
 
 
 // ---------------------------------------------------------------- Iteración 14 · post-radicación
