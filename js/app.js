@@ -192,7 +192,7 @@ function layout() {
       <div class="side-foot">v${APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
     </aside>
     <div class="scrim" id="scrim"></div>
-    <div style="min-width:0;display:flex;flex-direction:column">
+    <div id="appContent" style="min-width:0;display:flex;flex-direction:column">
       <header class="topbar">
         <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
         <h1 id="pageTitle">SOFA</h1>
@@ -291,6 +291,10 @@ function bindNav() {
 function toggleMenu(open) {
   $('#sidebar')?.classList.toggle('open', open); $('#scrim')?.classList.toggle('show', open);
   $('#menuBtn')?.setAttribute('aria-expanded', String(open));
+  // 28/10/2026: con el menú abierto en móvil, el contenido de atrás (p. ej. la grilla de
+  // «Mis módulos») quedaba alcanzable por teclado y lector de pantalla pese a estar oculto
+  // visualmente tras el velo. `inert` lo saca del tabulado y de la accesibilidad mientras dure.
+  $('#appContent')?.toggleAttribute('inert', !!open);
 }
 function closeUserMenu() { $('.menu-pop')?.remove(); $('#userBtn')?.setAttribute('aria-expanded', 'false'); }
 function openUserMenu() {
