@@ -36,7 +36,7 @@ function clientIp(req: Request): string {
 }
 
 // Prospecto NO es asignable aquí: vive en lead_users / incorporación y no en organization_users.
-const ASSIGNABLE_ROLES = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor', 'client', 'capturer'];
+const ASSIGNABLE_ROLES = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor', 'client', 'capturer', 'asistente'];
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const TRUSTED_ORIGINS = ['https://medisofa.github.io', 'https://app.sofamedica.com', 'https://staging.sofamedica.com'];

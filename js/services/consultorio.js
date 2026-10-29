@@ -15,6 +15,8 @@ export async function saveAppointment(v) {
     p_reason: v.reason || null, p_notes: v.notes || null });
 }
 export async function setAppointmentStatus(id, status, note = null) { await rpc('set_appointment_status', { p_id: id, p_status: status, p_note: note }); return true; }
+export async function callAppointmentIn(id, room) { await rpc('call_appointment_in', { p_id: id, p_room: room }); return true; }
+export async function flowBoard(orgId, dateIso) { return rpc('flow_board', { p_org: orgId, p_date: dateIso }); }
 export async function linkAppointmentClaim(appointmentId, lineId) { await rpc('link_appointment_claim', { p_appointment: appointmentId, p_line: lineId }); return true; }
 
 export async function listPrivateCharges(providerId, date) {

@@ -35,7 +35,10 @@ a { color: var(--info); }
 .card > .sub { font-size: 13.5px; color: var(--ink-2); margin: 0 0 14px; }
 .grid { display: grid; gap: 14px; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.grid.four { grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); align-items: start; }
 .grid.kpis { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.flow-col h3 { display: flex; align-items: center; gap: 8px; margin-top: 0; }
+.flow-card.li { align-items: flex-start; }
 .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; }
 .kpi .l { font-size: 12.5px; color: var(--ink-2); }
 .kpi .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
