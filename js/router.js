@@ -22,7 +22,7 @@ export const MODULES = {
   'mi-dashboard': 'dashboard-rol.js',
   'estado-cuenta': 'statement.js', 'calendario-cobros': 'collections-calendar.js', mensajes: 'weekly.js', rentabilidad: 'profitability.js',
   pacientes: 'pacientes.js', 'saldos-pacientes': 'saldos-pacientes.js', 'indicadores-agenda': 'indicadores-agenda.js',
-  seguimiento: 'seguimiento.js', 'avisos-pacientes': 'avisos-pacientes.js', 'mis-secretarias': 'mis-secretarias.js',
+  seguimiento: 'seguimiento.js', 'avisos-pacientes': 'avisos-pacientes.js', 'mis-secretarias': 'mis-secretarias.js', 'mis-asistentes': 'mis-asistentes.js',
   centros: 'centros.js', 'alta-usuarios': 'usuarios.js', 'cambio-clave': 'cambio-clave.js',
   'analitica-glosas': 'analitica-glosas.js', 'salud-clientes': 'salud-clientes.js',
   // 2.0 · Iteración 29
