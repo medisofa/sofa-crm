@@ -43,7 +43,6 @@ export const NAV = [
     { route: 'inicio', label: 'Panel SOFA', roles: STAFF, ready: true },   // 2.0: el panel general queda para el personal de SOFA
     { route: 'hoy', label: 'Trabajo de hoy', roles: [...ALL, 'capturer', 'asistente'], ready: true },
     { route: 'mi-bandeja', label: 'Mi bandeja', roles: ['super_admin', 'admin', 'operations', 'billing'], ready: true },   // 4.9 · I59
-    { route: 'flujo-pacientes', label: 'Flujo de pacientes', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer', 'asistente'], ready: true },   // 29/10/2026
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
     { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.7 · I68a
@@ -51,6 +50,7 @@ export const NAV = [
     { route: 'dashboard', label: 'Dashboard BI', roles: [...NO_OPS(STAFF), 'client'], ready: true }
   ]},
   { group: 'Mi consultorio', items: [   // 1.9 · Iteraciones 19 a 27
+    { route: 'flujo-pacientes', label: 'Flujo de pacientes', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer', 'asistente'], ready: true },   // 29/10/2026 · ventana del consultorio y su equipo, no de Operación de SOFA
     { route: 'pacientes', label: 'Pacientes', roles: ['super_admin', 'admin', 'client', 'capturer'], ready: true },
     { route: 'historia-clinica', label: 'Historia clínica', roles: ['client', 'super_admin', 'asistente'], ready: true },
     { route: 'mi-ficha', label: 'Mi ficha (ARS y tarifas)', roles: ['client'], ready: true },
@@ -428,7 +428,7 @@ export const FAMILIES = [
   { key: 'clientes', group: 'Gestión SOFA', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'fugas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado', 'honorarios', 'planes', 'suscripciones', 'puesta-en-marcha'] },
   { key: 'facturacion', group: 'Facturación y Radicación', routes: ['captura', 'carga-google', 'puesta-al-dia', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros, Conciliación y Glosas', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas'] },
-  { key: 'consultorio', group: 'Consultorio', routes: ['mi-ficha', 'documentos-consultorio', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
+  { key: 'consultorio', group: 'Consultorio', routes: ['flujo-pacientes', 'mi-ficha', 'documentos-consultorio', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
@@ -441,7 +441,7 @@ export const FAMILIES = [
 export const FAMILIAS_ROL = {
   client: [
     { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda'] },
-    { key: 'pacientes',   group: 'Mis pacientes', routes: ['pacientes', 'historia-clinica', 'saldos-pacientes'] },
+    { key: 'pacientes',   group: 'Mis pacientes', routes: ['flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes'] },
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
     { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador'] },
     { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'centros', 'clinica'] },
