@@ -51,7 +51,7 @@ const state = { session: null, profile: null, memberships: [], membership: null,
  * el modo está activo. Queda una auditoría SOLO interna de SOFA (nadie del
  * cliente la ve): cuándo, quién y en cuál organización.
  */
-const VIEW_AS_ROLE_NAME = { client: 'Médico', capturer: 'Secretaria / Capturista' };
+const VIEW_AS_ROLE_NAME = { client: 'Médico', capturer: 'Secretaria / Capturista', asistente: 'Asistente de consulta' };
 /**
  * @param org {id, legal_name}
  * @param target opcional: {userId, role, name} para "ver como" una secretaria en concreto.
