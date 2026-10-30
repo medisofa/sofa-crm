@@ -447,6 +447,59 @@ export const FAMILIAS_ROL = {
     { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador'] },
     { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica'] },
     { key: 'cuenta',      group: 'Mi cuenta',     routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
+  ],
+
+  // 30/10/2026 · Secretaria: agenda y pacientes del médico que la asignó, captura y cobro al
+  // privado. Antes cayó bien en FAMILIES por casualidad (las 14 rutas de su menú ya estaban
+  // repartidas en familias del equipo interno), pero con esas etiquetas de SOFA ("Facturación
+  // y Radicación") en vez de las suyas. Mismo criterio que ya tiene Médico.
+  capturer: [
+    { key: 'dia',       group: 'Mi día',        routes: ['mi-dashboard', 'agenda', 'flujo-pacientes', 'verificacion'] },
+    { key: 'pacientes', group: 'Mis pacientes', routes: ['pacientes', 'saldos-pacientes', 'mensajes', 'documentos-consultorio'] },
+    { key: 'trabajo',   group: 'Mi trabajo',    routes: ['captura', 'reclamaciones', 'expediente'] },
+    { key: 'cuenta',    group: 'Mi cuenta',     routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
+  ],
+
+  // 30/10/2026 · Facturación: captura, prepara y radica. Con FAMILIES genéricas su menú (14
+  // rutas) entraba igual de completo, pero repartido en familias de 19 rutas de las que ella
+  // solo usa 2 o 3 — la etiqueta no avisaba qué tan poco le tocaba de cada una.
+  billing: [
+    { key: 'dia',     group: 'Mi día',    routes: ['mi-dashboard', 'hoy', 'mi-bandeja'] },
+    { key: 'trabajo', group: 'Mi trabajo',routes: ['captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente', 'retiros', 'radicaciones', 'reconsideracion'] },
+    { key: 'cuenta',  group: 'Mi cuenta', routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
+  ],
+
+  // 30/10/2026 · Cobros, Conciliación y Glosas: cobrar y conciliar es un trabajo distinto de
+  // pelear la glosa, aunque antes compartían la misma familia genérica ("Cobros, Conciliación
+  // y Glosas") sin esa distinción. Separarlas en dos familias refleja mejor cómo cambia de
+  // tarea en el día: primero intenta cobrar, y solo si no se puede entra a litigar la glosa.
+  glosas: [
+    { key: 'dia',     group: 'Mi día',                 routes: ['mi-dashboard', 'hoy', 'reclamaciones'] },
+    { key: 'cobros',  group: 'Cobros y conciliación',  routes: ['pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros'] },
+    { key: 'glosas',  group: 'Glosas',                 routes: ['glosas', 'reconsideracion', 'causas-glosa', 'analitica-glosas'] },
+    { key: 'cuenta',  group: 'Mi cuenta',              routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
+  ],
+
+  // 30/10/2026 · Comercial / Onboarding: antes "Habilitación MISPAS" y "Códigos ARS" caían en
+  // las familias "Consultorio" y "Facturación y Radicación" de FAMILIES — nombres que no tienen
+  // sentido para un rol que no atiende pacientes ni factura. Se separa cartera (conseguir y dar
+  // seguimiento al cliente) de crecimiento (lo que lo hace crecer una vez es cliente).
+  assistant: [
+    { key: 'dia',         group: 'Mi día',       routes: ['mi-dashboard', 'hoy', 'tareas'] },
+    { key: 'cartera',     group: 'Mi cartera',   routes: ['solicitudes', 'oportunidades', 'prospectos', 'contactos', 'clientes', 'medicos'] },
+    { key: 'crecimiento', group: 'Crecimiento',  routes: ['propuestas', 'fugas', 'onboarding-30', 'salud-clientes', 'casos-exito', 'mercado'] },
+    { key: 'habilitacion',group: 'Habilitación', routes: ['habilitacion', 'codigos-ars'] },
+    { key: 'cuenta',      group: 'Mi cuenta',    routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
+  ],
+
+  // 30/10/2026 · Operaciones: retira, valida, prepara y radica — no es "Facturación" en el
+  // sentido de cobrarle al cliente, es la línea operativa de SOFA. Se separa la gestión de
+  // clientes nuevos/en marcha (onboarding operativo) del trabajo diario de radicación.
+  operations: [
+    { key: 'dia',        group: 'Mi día',     routes: ['mi-dashboard', 'hoy', 'mi-bandeja', 'tareas'] },
+    { key: 'clientes',   group: 'Clientes',   routes: ['clientes', 'salud-clientes', 'puesta-en-marcha', 'onboarding-30'] },
+    { key: 'radicacion', group: 'Radicación', routes: ['retiros', 'preradicacion', 'radicaciones', 'preauditoria', 'ecf', 'requisitos', 'reclamaciones', 'expediente', 'calidad-captura'] },
+    { key: 'cuenta',     group: 'Mi cuenta',  routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
   ]
 };
 
