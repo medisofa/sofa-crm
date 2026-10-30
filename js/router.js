@@ -38,7 +38,7 @@ export const MODULES = {
   // 3.1 a 3.5 · Iteraciones 41 a 45
   ecf: 'ecf-preparacion.js', preauditoria: 'preauditoria.js', 'causas-glosa': 'causas-glosa.js', cartera: 'cartera.js', 'brechas-tarifa': 'brechas-tarifa.js',
   // 3.6 a 4.0 · Iteraciones 46 a 50
-  'auditoria-expedientes': 'auditoria-expedientes.js', insumos: 'insumos.js', 'mi-habilitacion': 'mi-habilitacion.js', direccion: 'direccion.js',
+  'auditoria-expedientes': 'auditoria-expedientes.js', insumos: 'insumos.js', 'pagos-privados': 'pagos-privados.js', 'mi-habilitacion': 'mi-habilitacion.js', direccion: 'direccion.js',
   'mis-horas': 'mis-horas.js', 'salud-sistema': 'salud-sistema.js',
   // 4.1 a 4.5 · Iteraciones 51 a 55
   propuestas: 'propuestas.js', fugas: 'propuestas.js', verificacion: 'verificacion.js', 'informe-trimestral': 'informe-trimestral.js', 'casos-exito': 'referidos.js', recomendar: 'referidos.js',

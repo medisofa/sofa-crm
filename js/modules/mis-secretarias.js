@@ -14,10 +14,10 @@ export async function render(root) {
   const sel = h('select', { id: 'ms-prov' }, provs.map((p) => h('option', { value: p.id }, p.full_name)));
   top.replaceChildren(h('div', { class: 'i18-form' }, h('label', { for: 'ms-prov' }, 'Médico'), sel));
 
-  async function save(row, book, wa) {
+  async function save(row, book, wa, pay) {
     msg.replaceChildren();
     try {
-      await rpc('set_assistant_permissions', { p_user: row.user_id, p_provider: sel.value, p_can_book: book.checked, p_can_whatsapp: wa.checked });
+      await rpc('set_assistant_permissions', { p_user: row.user_id, p_provider: sel.value, p_can_book: book.checked, p_can_whatsapp: wa.checked, p_can_payments: pay.checked });
       msg.replaceChildren(note(`Permisos de ${row.name} guardados.`));
     } catch (e) { msg.replaceChildren(note(e.message, 'error')); await load(); }
   }
@@ -28,11 +28,14 @@ export async function render(root) {
     out.replaceChildren(h('div', { class: 'i18-list' }, rows.map((r) => {
       const book = h('input', { type: 'checkbox', checked: r.can_book });
       const wa = h('input', { type: 'checkbox', checked: r.can_whatsapp });
-      book.addEventListener('change', () => save(r, book, wa));
-      wa.addEventListener('change', () => save(r, book, wa));
+      const pay = h('input', { type: 'checkbox', checked: r.can_payments });
+      book.addEventListener('change', () => save(r, book, wa, pay));
+      wa.addEventListener('change', () => save(r, book, wa, pay));
+      pay.addEventListener('change', () => save(r, book, wa, pay));
       return h('section', { class: 'i18-card' }, h('h3', {}, r.name + (r.active === false ? ' (inactiva)' : '')),
         h('label', { class: 'i18-chk' }, book, ' Puede dar y cambiar citas'),
-        h('label', { class: 'i18-chk' }, wa, ' Puede ver y enviar los mensajes de WhatsApp'));
+        h('label', { class: 'i18-chk' }, wa, ' Puede ver y enviar los mensajes de WhatsApp'),
+        h('label', { class: 'i18-chk' }, pay, ' Puede registrar pagos de pacientes'));
     })));
   }
   sel.addEventListener('change', load);

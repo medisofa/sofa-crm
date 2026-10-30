@@ -47,6 +47,7 @@ export const NAV = [
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
     { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.7 · I68a
     { route: 'tarifas-privadas', label: 'Tarifas privadas', roles: ['super_admin', 'admin', 'assistant', 'client'], ready: true },
+    { route: 'pagos-privados', label: 'Pagos de pacientes', roles: ['super_admin', 'admin', 'operations', 'billing', 'auditor', 'client', 'capturer'], ready: true },   // 30/10/2026 · pagos directos del paciente (no ARS), autorizado por médico
     { route: 'dashboard', label: 'Dashboard BI', roles: [...NO_OPS(STAFF), 'client'], ready: true }
   ]},
   { group: 'Mi consultorio', items: [   // 1.9 · Iteraciones 19 a 27
@@ -210,7 +211,7 @@ export const ESENCIALES = {
   client: {
     menu: ['mi-dashboard', 'agenda', 'flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes',
            'captura', 'hospitalizacion',
-           'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador',
+           'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados',
            'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros',
            'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'],
     // 18/10/2026: estas cinco vuelven, pero SOLO en «extra»: alcanzables desde un botón de
@@ -229,7 +230,7 @@ export const ESENCIALES = {
   capturer: {
     menu: ['mi-dashboard', 'agenda', 'flujo-pacientes', 'verificacion', 'pacientes', 'captura', 'reclamaciones',
            'expediente', 'saldos-pacientes', 'mensajes', 'documentos-consultorio', 'perfil', 'seguridad'],
-    extra: ['hoy', 'calidad-captura', 'insumos', 'novedades', 'diagnostico', 'cambio-clave']
+    extra: ['hoy', 'calidad-captura', 'insumos', 'pagos-privados', 'novedades', 'diagnostico', 'cambio-clave']
   },
 
   // Asistente de consulta · 29/10/2026 · ayuda al médico en consulta: mueve el flujo de pacientes
@@ -429,7 +430,7 @@ export const FAMILIES = [
   { key: 'clientes', group: 'Gestión SOFA', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'fugas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado', 'honorarios', 'planes', 'suscripciones', 'puesta-en-marcha'] },
   { key: 'facturacion', group: 'Facturación y Radicación', routes: ['captura', 'carga-google', 'puesta-al-dia', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
   { key: 'cobros', group: 'Cobros, Conciliación y Glosas', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas'] },
-  { key: 'consultorio', group: 'Consultorio', routes: ['flujo-pacientes', 'mi-ficha', 'documentos-consultorio', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'insumos', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
+  { key: 'consultorio', group: 'Consultorio', routes: ['flujo-pacientes', 'mi-ficha', 'documentos-consultorio', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'pagos-privados', 'insumos', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
@@ -444,7 +445,7 @@ export const FAMILIAS_ROL = {
     { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda'] },
     { key: 'pacientes',   group: 'Mis pacientes', routes: ['flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes'] },
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
-    { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador'] },
+    { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados'] },
     { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica'] },
     { key: 'cuenta',      group: 'Mi cuenta',     routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
   ],
