@@ -390,13 +390,33 @@ async function route() {
   if (my === routeSeq) main.focus({ preventScroll: true });
 }
 
+function swUpdateBanner() {
+  if (document.querySelector('.sw-update-banner')) return;
+  const bar = document.createElement('div');
+  bar.className = 'sw-update-banner';
+  bar.setAttribute('role', 'status');
+  bar.innerHTML = '<span>Hay una versión nueva de SOFA.</span> <button type="button">Recargar ahora</button>';
+  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--navy,#223A5D);color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font:14px/1.4 system-ui,sans-serif';
+  bar.querySelector('button').style.cssText = 'padding:6px 14px;border-radius:6px;border:0;background:#fff;color:var(--navy,#223A5D);font-weight:600;cursor:pointer';
+  bar.querySelector('button').addEventListener('click', () => location.reload());
+  document.body.appendChild(bar);
+}
+
 function registerSW() {
   if (!('serviceWorker' in navigator) || location.protocol !== 'https:') return;
-  navigator.serviceWorker.register('sw.js').then((reg) => {
+  // 5.23.1 · Antes se registraba sin updateViaCache: el navegador podía comparar contra una copia
+  // de sw.js guardada en su caché HTTP normal y nunca detectar que había una versión nueva —
+  // sobre todo en una PWA instalada, donde el navegador revisa actualizaciones con poca frecuencia.
+  // Con 'none', cada revisión de actualización pide sw.js siempre a la red.
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
-      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) toast('Hay una versión nueva de SOFA. Recarga la página para usarla.'); });
+      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) swUpdateBanner(); });
     });
+    // Revisa de inmediato al abrir (no solo cuando el navegador decida hacerlo) y cada vez que
+    // la pestaña vuelve a estar visible: en una app instalada puede quedar abierta días.
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
   }).catch((e) => console.warn('SW', e));
 }
 
