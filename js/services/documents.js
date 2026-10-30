@@ -5,6 +5,7 @@
  */
 import { sb } from '../supabase.js';
 const BUCKET = 'claim-documents';
+const SHORT_TTL_BUCKETS = new Set(['clinical-records', 'habilitation-documents']);
 export const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 export const MAX_BYTES = 10 * 1024 * 1024;
 const must = ({ data, error }) => { if (error) throw error; return data; };
@@ -64,7 +65,8 @@ export async function listDocuments({ submissionId = null, entityType = null, en
 export async function openDocument(doc) {
   if (!doc?.storage_path) throw new Error('El documento no tiene ruta de almacenamiento registrada. Solicita una revisión del expediente.');
   const win = window.open('', '_blank');
-  const { data, error } = await sb().storage.from(doc.bucket || BUCKET).createSignedUrl(doc.storage_path, 300);
+  const ttl = SHORT_TTL_BUCKETS.has(doc.bucket) ? 60 : 300;
+  const { data, error } = await sb().storage.from(doc.bucket || BUCKET).createSignedUrl(doc.storage_path, ttl);
   if (error || !data?.signedUrl) {
     win?.close();
     const message = String(error?.message || '');

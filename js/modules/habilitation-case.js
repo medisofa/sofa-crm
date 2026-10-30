@@ -167,14 +167,14 @@ export async function render(main, ctx) {
       const prob = file.type.startsWith('image/') ? null : fileProblem(file);
       if (prob) { toast(prob, 'bad'); return; }
       try {
-        const doc = await uploadDocument({ orgId: orgForDocs, entityType: 'habilitation', entityId: id, file });
+        const doc = await uploadDocument({ orgId: orgForDocs, entityType: 'habilitation', entityId: id, file, bucket: 'habilitation-documents' });
         await updateItem(inp.dataset.up, { document_id: doc.id });
         toast('Evidencia guardada', 'ok'); await refresh();
       } catch (err) { toast(friendlyError(err), 'bad'); }
     }));
     box.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', async () => {
       const doc = S.docs.find((d) => d.id === b.dataset.open); if (!doc) return;
-      try { const url = await openDocument(doc); if (url) paint($('#docLink', box), html`<div class="note">Tu navegador bloqueó la ventana. <a href="${url}" target="_blank" rel="noopener">Abrir ${doc.file_name}</a> (válido 5 minutos).</div>`); }
+      try { const url = await openDocument(doc); if (url) paint($('#docLink', box), html`<div class="note">Tu navegador bloqueó la ventana. <a href="${url}" target="_blank" rel="noopener">Abrir ${doc.file_name}</a> (válido ${doc.bucket === 'habilitation-documents' ? '60 segundos' : '5 minutos'}).</div>`); }
       catch (err) { toast(friendlyError(err), 'bad'); }
     }));
   }
