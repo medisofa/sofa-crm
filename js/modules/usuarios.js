@@ -164,8 +164,10 @@ async function renderRequest(root, ctx) {
       ...provs.filter((p) => p.organization_id === orgSel.value).map((p) => h('label', { class: 'i18-chk' }, h('input', { type: 'checkbox', value: p.id, name: 'prov' }), ' ' + p.full_name)));
   };
   type.addEventListener('change', paint); orgSel.addEventListener('change', paint);
+  const orgField = h('label', { for: 'ur-org' }, 'Consultorio', orgSel);
+  const orgLabel = h('p', { class: 'i18-sub', hidden: true });
   const form = h('form', { class: 'i18-form', novalidate: true },
-    h('label', { for: 'ur-org' }, 'Consultorio', orgSel), h('label', { for: 'ur-type' }, 'Tipo de usuario', type),
+    orgField, orgLabel, h('label', { for: 'ur-type' }, 'Tipo de usuario', type),
     h('label', { for: 'ur-name' }, 'Nombre completo', name), h('label', { for: 'ur-email' }, 'Correo', email), provBox, perm,
     h('label', { for: 'ur-notes' }, 'Notas para SOFA', notes), send);
   form.addEventListener('submit', async (ev) => {
@@ -193,12 +195,23 @@ async function renderRequest(root, ctx) {
     note('Para cuidar quién entra a sus datos, los usuarios los autoriza SOFA. Llene la solicitud: cuando el Super Admin la apruebe se crea la cuenta y SOFA le entrega la clave temporal por un medio privado.'),
     form, out, h('h3', {}, 'Mis solicitudes'), mine));
   await guarded(out, async () => {
-    const [o, p] = await Promise.all([
-      supabase.from('organizations').select('id, kind, legal_name, trade_name').eq('kind', 'client').order('legal_name'),
+    // Solo el/los consultorio(s) donde este médico es Médico — nunca todos los clientes del
+    // sistema: se le asigna directamente el consultorio que le corresponde, sin elegirlo de una
+    // lista que no es suya (el servidor ya lo exigía; esto evita la confusión de verla).
+    const [mem, p] = await Promise.all([
+      supabase.from('organization_users').select('organization_id, organizations(id, kind, legal_name, trade_name)').eq('role_code', 'client').eq('is_active', true),
       supabase.from('providers').select('id, organization_id, full_name').eq('is_active', true).order('full_name')]);
-    for (const x of [o, p]) if (x.error) throw new Error(x.error.message);
+    for (const x of [mem, p]) if (x.error) throw new Error(x.error.message);
     provs = p.data;
-    orgSel.replaceChildren(...o.data.map((x) => h('option', { value: x.id }, x.trade_name || x.legal_name)));
+    const orgs = (mem.data || []).map((m) => m.organizations).filter((o) => o && o.kind === 'client');
+    if (!orgs.length) { out.replaceChildren(note('No encontramos un consultorio asociado a su cuenta. Contacte a SOFA.', 'error')); return false; }
+    orgSel.replaceChildren(...orgs.map((x) => h('option', { value: x.id }, x.trade_name || x.legal_name)));
+    if (orgs.length === 1) {
+      orgSel.value = orgs[0].id;
+      orgField.hidden = true;
+      orgLabel.hidden = false;
+      orgLabel.textContent = `Consultorio: ${orgs[0].trade_name || orgs[0].legal_name}`;
+    }
     paint();
     return true;
   });
