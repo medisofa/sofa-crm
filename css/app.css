@@ -1,6 +1,13 @@
 /* SOFA · Layout de la aplicación */
 .app { display: grid; grid-template-columns: 1fr; min-height: 100%; }
 @media (min-width: 1000px) { .app { grid-template-columns: var(--sidebar) minmax(0, 1fr); } }
+/* 29/10/2026 · Menú horizontal: alternativa al lateral, no un reemplazo — el usuario elige cuál
+   ver (menú de la cuenta), igual que el tema. Solo tiene sentido con ancho de escritorio: bajo
+   1000px siempre se usa el lateral como cajón, sea cual sea la preferencia. */
+@media (min-width: 1000px) {
+  .app[data-menu="horizontal"] { grid-template-columns: 1fr; }
+  .app[data-menu="horizontal"] .sidebar { display: none; }
+}
 
 .sidebar { background: var(--navy); color: var(--on-navy); position: fixed; inset: 0 auto 0 0; width: min(290px, 86vw); transform: translateX(-102%); transition: transform .2s ease; z-index: 40; overflow-y: auto; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); display: flex; flex-direction: column; }
 .sidebar.open { transform: none; }
@@ -29,6 +36,24 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .scrim { background: rgba(6, 12, 22, .85); }
 }
+
+/* Menú horizontal: fila de familias (fondo navy, como el lateral) + fila de pantallas de la
+   familia activa (pestañas, acento rojo en la activa). Oculto por defecto (atributo `hidden`,
+   que JS controla); bajo 1000px se fuerza oculto también por CSS como respaldo. */
+.topnav { background: var(--surface); }
+.topnav-groups { background: var(--navy); display: flex; gap: 2px; overflow-x: auto; padding: 8px 16px; scrollbar-width: none; }
+.topnav-groups::-webkit-scrollbar { display: none; }
+.topnav-groups button { white-space: nowrap; padding: 7px 13px; border-radius: 999px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, .72); background: transparent; border: 0; cursor: pointer; }
+.topnav-groups button:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.topnav-groups button.activo { background: #fff; color: var(--navy); }
+.topnav-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); padding: 0 16px; scrollbar-width: none; }
+.topnav-tabs::-webkit-scrollbar { display: none; }
+.topnav-tabs a { position: relative; white-space: nowrap; padding: 11px 13px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.topnav-tabs a:hover { color: var(--ink); }
+.topnav-tabs a[aria-current="page"] { color: var(--navy); }
+.topnav-tabs a[aria-current="page"]::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2.5px; background: var(--red); border-radius: 2px 2px 0 0; }
+.topnav-tabs a .soon { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-3); }
+@media (max-width: 999px) { .topnav { display: none !important; } }
 
 .topbar { position: sticky; top: 0; z-index: 20; min-height: var(--topbar); background: var(--surface); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 8px 16px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
 .topbar .menu-btn { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); cursor: pointer; font-size: 18px; }

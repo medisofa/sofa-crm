@@ -184,7 +184,7 @@ function layout() {
   const multi = state.memberships.length > 1;
   render(app, html`
   <a class="skip" href="#main">Saltar al contenido</a>
-  <div class="app">
+  <div class="app" data-menu="${getMenuLayout()}">
     <aside class="sidebar" id="sidebar" aria-label="Menú principal">
       <div class="brand"><img class="logo-full" src="assets/brand/sofa-logo-white.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
       <div class="nav-search"><label class="sr-only" for="navSearch">Buscar en el menú</label><input id="navSearch" type="search" placeholder="Buscar módulo…" autocomplete="off"></div>
@@ -193,6 +193,10 @@ function layout() {
     </aside>
     <div class="scrim" id="scrim"></div>
     <div id="appContent" style="min-width:0;display:flex;flex-direction:column">
+      <nav class="topnav" id="topnav" aria-label="Menú horizontal" hidden>
+        <div class="topnav-groups" id="topnavGroups"></div>
+        <div class="topnav-tabs" id="topnavTabs"></div>
+      </nav>
       <header class="topbar">
         <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
         <h1 id="pageTitle">SOFA</h1>
@@ -207,6 +211,11 @@ function layout() {
     </div>
   </div>`);
   renderNav(); bindNav();
+  $('#topnavGroups')?.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-fam]'); if (!b) return;
+    horizFamilia = b.dataset.fam;
+    renderTopNav();
+  });
   $('#menuBtn').onclick = () => toggleMenu(true);
   $('#scrim').onclick = () => toggleMenu(false);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleMenu(false); closeUserMenu(); } });
@@ -217,6 +226,17 @@ function layout() {
   window.addEventListener('online', net); window.addEventListener('offline', net); net();
 }
 
+/** 29/10/2026 · Menú horizontal, alternativa al lateral (conviven: el usuario elige cuál ver,
+ *  igual que el tema claro/oscuro). Solo tiene sentido con ancho de escritorio — en pantallas
+ *  angostas siempre se usa el lateral como cajón, sea cual sea la preferencia (ver CSS). */
+const MENU_LAYOUT_KEY = 'sofa.menu.layout';
+const MENU_LAYOUT_NAME = { lateral: 'Lateral', horizontal: 'Horizontal' };
+const getMenuLayout = () => { try { return localStorage.getItem(MENU_LAYOUT_KEY) === 'horizontal' ? 'horizontal' : 'lateral'; } catch (_) { return 'lateral'; } };
+function setMenuLayout(v) { try { localStorage.setItem(MENU_LAYOUT_KEY, v); } catch (_) { /* sin almacenamiento: no se recuerda */ } }
+/** Familia elegida a mano en el menú horizontal (para previsualizar sus pantallas antes de
+ *  entrar a alguna); se olvida en cada navegación real, momento en que vuelve a seguir la ruta activa. */
+let horizFamilia = null;
+
 /** 2.0 · Grupos plegables (se recuerdan en este navegador) y búsqueda en el menú. */
 const NAV_KEY = 'sofa.nav.cerrados';
 /** 2.? · Si el menú de un rol tiene pocos módulos en total, los acordeones por familia solo estorban:
@@ -226,6 +246,7 @@ const closedGroups = () => { try { return new Set(JSON.parse(localStorage.getIte
 const saveClosed = (set) => { try { localStorage.setItem(NAV_KEY, JSON.stringify([...set])); } catch (_) { /* sin almacenamiento: no se recuerda */ } };
 const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 function renderNav() {
+  renderTopNav();
   const nav = $('#nav'); if (!nav) return;
   const { route } = parseHash();
   const q = norm($('#navSearch')?.value).trim();
@@ -265,6 +286,21 @@ function renderNav() {
   })}
   ${mostrarPista ? html`<p class="nav-hint">Tu menú muestra lo que usas a diario. Busca arriba para abrir otros ${nExtra} módulos a los que tienes acceso.</p>` : ''}`);
 }
+/** Menú horizontal: fila de familias + fila de pantallas de la familia activa. Solo se pinta
+ *  cuando la preferencia es "horizontal"; si no, el <nav id="topnav"> queda oculto. */
+function renderTopNav() {
+  const topnav = $('#topnav'); if (!topnav) return;
+  const horizontal = getMenuLayout() === 'horizontal';
+  if (!horizontal) { topnav.hidden = true; return; }
+  const { route } = parseHash();
+  const groups = visibleNav(state.role).filter((g) => g.items.length);
+  if (!groups.length) { topnav.hidden = true; return; }
+  const activeGroup = (horizFamilia && groups.find((g) => g.group === horizFamilia))
+    || groups.find((g) => g.items.some((i) => i.route === route)) || groups[0];
+  topnav.hidden = false;
+  render($('#topnavGroups'), groups.map((g) => html`<button type="button" class="${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}">${g.group}</button>`));
+  render($('#topnavTabs'), activeGroup.items.map((i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`));
+}
 function bindNav() {
   $('#nav').addEventListener('click', (e) => {
     if (e.target.closest('#navToggleAll')) {
@@ -302,11 +338,16 @@ function openUserMenu() {
   const pop = document.createElement('div');
   pop.className = 'menu-pop'; pop.setAttribute('role', 'menu');
   render(pop, html`<div class="who"><b>${state.profile.full_name || '—'}</b><span>${state.session.user.email}</span><br><span>${state.membership.role_name} · ${state.membership.organization}</span></div>
-    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><a role="menuitem" href="#/diagnostico">Diagnóstico</a>
+    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><button role="menuitem" data-menu-next>Menú: ${MENU_LAYOUT_NAME[getMenuLayout()]}</button><a role="menuitem" href="#/diagnostico">Diagnóstico</a>
     <button role="menuitem" data-out="local">Cerrar sesión</button><button role="menuitem" data-out="global">Cerrar sesión en todos los dispositivos</button>`);
   document.body.appendChild(pop); $('#userBtn').setAttribute('aria-expanded', 'true');
   pop.addEventListener('click', (e) => {
     if (e.target.closest('[data-theme-next]')) { const order = Object.keys(THEMES); applyTheme(order[(order.indexOf(getTheme()) + 1) % order.length]); e.target.closest('[data-theme-next]').textContent = `Tema: ${THEMES[getTheme()]}`; return; }
+    if (e.target.closest('[data-menu-next]')) {
+      setMenuLayout(getMenuLayout() === 'horizontal' ? 'lateral' : 'horizontal');
+      closeUserMenu(); layout(); route();
+      return;
+    }
     const b = e.target.closest('[data-out]'); if (b) signOut('salida', b.dataset.out); else closeUserMenu();
   });
   setTimeout(() => document.addEventListener('click', function h(ev) { if (!pop.contains(ev.target)) { closeUserMenu(); document.removeEventListener('click', h); } }), 0);
@@ -316,6 +357,7 @@ function openUserMenu() {
 let routeSeq = 0;
 async function route() {
   const my = ++routeSeq;
+  horizFamilia = null;
   toggleMenu(false); closeUserMenu(); if ($('#navSearch')) $('#navSearch').value = ''; renderNav();
   const main = $('#main'); const title = $('#pageTitle');
   let r;
