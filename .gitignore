@@ -1,0 +1,7 @@
+# Capacitor (ver docs/plan de app nativa): node_modules y las plataformas nativas se regeneran
+# con `npm install` y `npx cap add android|ios`; www/ se regenera con `node scripts/cap-prepare-www.js`.
+# GitHub Pages sigue sirviendo la app directo desde la raíz del repo, sin pasar por nada de esto.
+node_modules/
+www/
+android/
+ios/
