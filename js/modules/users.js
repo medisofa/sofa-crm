@@ -160,7 +160,8 @@ export async function render(main, ctx) {
           ${manage || canToggle ? html`<td data-l="Acciones de la cuenta">${!editable ? html`<p class="small muted">${self ? 'Tu cuenta: otro Super Admin debe realizar los cambios sensibles.' : protectedRow ? 'Cuenta protegida: requiere Super Admin.' : 'Identificador no disponible: revisa la cuenta.'}</p>` : html`
             ${manage && u.email && !u.sharedEmail ? html`
               ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
-              <button class="btn sm" data-act="resend" data-user="${u.user_id}" data-email="${u.email}">Enviar acceso</button>` : ''}
+              <button class="btn sm" data-act="resend" data-user="${u.user_id}" data-email="${u.email}">Enviar acceso</button>
+              ${ctx.role === 'super_admin' && !u.last_sign_in_at ? html`<button class="btn sm" data-act="forcePassword" data-user="${u.user_id}" data-email="${u.email}" data-name="${u.full_name || u.email}" title="Para cuando el correo de invitación o de recuperación nunca llega: confirma el correo y asigna una contraseña temporal sin depender del envío">Activar ahora con clave temporal</button>` : ''}` : ''}
             ${canToggle && u.is_active !== null ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar cuenta' : 'Activar cuenta'}</button>` : ''}
             ${ctx.role === 'super_admin' && u.user_id !== ctx.session?.user?.id && !u.protectedAdmin && u.memberships.length && !u.memberships.some((m) => m.conflict || !m.organization_id) ? html`<button class="btn sm" data-act="revoke" data-user="${u.user_id}">Revocar accesos seleccionados</button>` : ''}
             ${u.is_active === null ? html`<p class="small muted">Estados de acceso distintos o inconsistentes: valida cada acceso antes de activar la cuenta.</p>` : ''}`}</td>` : ''}</tr>`;
@@ -284,6 +285,7 @@ export async function render(main, ctx) {
       if (b.dataset.act === 'scope') { if (await scopeDialog(account.user_id, membership.organization_id, account.full_name || account.email, b.dataset.role)) { toast('Médicos asignados actualizados', 'ok'); load(); } return; }
       if (b.dataset.act === 'reset') { await resetPassword(account.user_id, account.full_name || account.email); return; }
       if (b.dataset.act === 'resend') { await busy(b, async () => { const r = await adminUsers({ action: 'resend', email: account.email }); toast(r.message, 'ok'); }); return; }
+      if (b.dataset.act === 'forcePassword') { const r = await forcePasswordDialog(account.email, account.full_name || account.email); if (r) { toast(r.message, 'ok'); load(); } return; }
       if (b.dataset.act === 'validate') {
         await validateUser(membership, load, { allowActivation: canToggle && account.memberships.length === 1 && account.is_active === false });
         return;
@@ -419,6 +421,39 @@ async function validateUser(u, reload, { allowActivation = false } = {}) {
       toast('Usuario validado y activado', 'ok');
       await reload();
       return true;
+    }
+  });
+}
+
+/**
+ * Super Admin: para una cuenta que ya existe pero nunca completó el enlace de correo (invitación o
+ * recuperación que nunca llegó, SMTP caído). Confirma el correo y asigna una contraseña temporal
+ * directamente, sin depender de que el correo se entregue.
+ */
+async function forcePasswordDialog(email, name) {
+  return formDialog({
+    title: `Activar ahora con clave temporal · ${name}`,
+    submitLabel: 'Confirmar correo y asignar clave',
+    body: html`<p class="small">Usa esto solo cuando la persona nunca pudo completar el acceso: el correo de invitación o de recuperación nunca llegó, quedó en spam, o el proveedor de correo lo bloqueó. Confirma el correo del lado del servidor y asigna la contraseña que escribas aquí; no se envía ningún correo. Entrégasela por un canal seguro (WhatsApp, en persona). Deberá cambiarla al iniciar sesión.</p>
+      ${f('password', 'Contraseña temporal *', html`<input id="f_password" name="password" type="password" required minlength="12" autocomplete="new-password"><button type="button" class="btn" id="generate-temporary-password">Generar contraseña segura</button><button type="button" class="btn" id="show-temporary-password">Mostrar</button>`, 'Mínimo 12 caracteres.')}`,
+    onOpen: (form) => {
+      form.querySelector('#generate-temporary-password')?.addEventListener('click', () => {
+        const bytes = crypto.getRandomValues(new Uint8Array(20));
+        form.elements.password.value = 'Aa9!' + Array.from(bytes, x => x.toString(16).padStart(2, '0')).join('');
+        form.elements.password.type = 'password';
+        form.querySelector('#show-temporary-password').textContent = 'Mostrar';
+      });
+      form.querySelector('#show-temporary-password')?.addEventListener('click', (event) => {
+        const input = form.elements.password;
+        input.type = input.type === 'password' ? 'text' : 'password';
+        event.currentTarget.textContent = input.type === 'password' ? 'Mostrar' : 'Ocultar';
+      });
+    },
+    onSubmit: async (d, form) => {
+      if (!requireFields(form, ['password'])) return false;
+      if (String(d.password || '').length < 12) { fieldError(form.elements.password, 'Usa al menos 12 caracteres.'); return false; }
+      if (!(await confirmDialog('Confirmar correo y asignar clave', `${name} quedará con el correo confirmado y la contraseña temporal que escribiste, lista para iniciar sesión. Deberá cambiarla en su primer acceso.`, 'Confirmar'))) return false;
+      return adminUsers({ action: 'force_password', email, password: d.password });
     }
   });
 }
