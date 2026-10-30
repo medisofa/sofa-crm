@@ -79,21 +79,37 @@ export async function render(root, ctx = {}) {
     if (!org()) { body.replaceChildren(note('Elija un cliente.')); return; }
     const d = await guarded(body, () => rpc('supply_catalog', { p_org: org() }));
     if (!d) return;
-    const list = d.supplies.length ? table(['Código', 'Insumo', 'Unidad', 'Costo', 'Facturable', 'Servicio con que se reclama', 'Activo'],
-      d.supplies.map((s) => [s.code, s.name, s.unit, s.unit_cost == null ? '—' : money(s.unit_cost), s.billable ? 'Sí' : 'No', s.procedure || '—', s.is_active ? 'Sí' : 'No']), [3]) : note('Sin insumos.');
-    if (!d.can_admin) { body.replaceChildren(list); return; }
+    const stockKpi = h('div', { class: 'i18-kpis' },
+      kpi('Insumos con existencia baja', String(d.low_stock_count), d.low_stock_count ? 'Igual o por debajo del punto de reorden' : 'Ninguno por debajo del punto de reorden'));
+    const list = d.supplies.length ? table(['Código', 'Insumo', 'Unidad', 'Costo', 'Existencia', 'Punto reorden', 'Facturable', 'Servicio con que se reclama', 'Activo'],
+      d.supplies.map((s) => [s.code, s.name, s.unit, s.unit_cost == null ? '—' : money(s.unit_cost),
+        s.low_stock ? h('b', { style: 'color:var(--bad,#b00)' }, num(s.stock_on_hand)) : num(s.stock_on_hand), num(s.reorder_point),
+        s.billable ? 'Sí' : 'No', s.procedure || '—', s.is_active ? 'Sí' : 'No']), [3, 4, 5]) : note('Sin insumos.');
+    if (!d.can_admin) { body.replaceChildren(stockKpi, list); return; }
     const code = h('input', { type: 'text', id: 'in-s-code', maxlength: '40' });
     const name = h('input', { type: 'text', id: 'in-s-name', maxlength: '160' });
     const unit = h('input', { type: 'text', id: 'in-s-unit', value: 'unidad', maxlength: '20' });
     const cost = h('input', { type: 'number', id: 'in-s-cost', min: '0', step: '0.01' });
     const bill = h('input', { type: 'checkbox', id: 'in-s-bill', checked: true });
+    const reorder = h('input', { type: 'number', id: 'in-s-reorder', min: '0', step: '1', value: '0' });
     const proc = h('select', { id: 'in-s-proc' }, h('option', { value: '' }, '— elija —'));
     try { const { sb } = await import('../supabase.js'); const { data } = await sb().from('procedures').select('id, internal_code, description').eq('is_active', true).order('description').limit(2000); (data || []).forEach((p) => proc.append(h('option', { value: p.id }, `${p.internal_code} · ${p.description}`))); } catch (_) { /* lista opcional */ }
     const save = h('button', { class: 'i18-btn', type: 'button' }, 'Agregar insumo');
     const out = h('div', { 'aria-live': 'polite' });
     save.addEventListener('click', async () => {
-      try { await rpc('supply_save', { p_org: org(), p_id: null, p_code: code.value, p_name: name.value, p_unit: unit.value, p_unit_cost: cost.value === '' ? null : Number(cost.value), p_billable: bill.checked, p_procedure: proc.value || null, p_active: true }); await catalogo(); }
+      try { await rpc('supply_save', { p_org: org(), p_id: null, p_code: code.value, p_name: name.value, p_unit: unit.value, p_unit_cost: cost.value === '' ? null : Number(cost.value), p_billable: bill.checked, p_procedure: proc.value || null, p_active: true, p_reorder_point: reorder.value === '' ? null : Number(reorder.value) }); await catalogo(); }
       catch (e) { out.replaceChildren(note(e.message, 'error')); }
+    });
+    const msup = h('select', { id: 'in-m-sup' }, d.supplies.filter((s) => s.is_active).map((s) => h('option', { value: s.id }, `${s.code} · ${s.name} (hay ${s.stock_on_hand})`)));
+    const mkind = h('select', { id: 'in-m-kind' }, h('option', { value: 'entrada' }, 'Entrada (compra o reposición)'), h('option', { value: 'ajuste' }, 'Ajuste (conteo físico, +/-)'));
+    const mqty = h('input', { type: 'number', id: 'in-m-qty', step: '1' });
+    const mref = h('input', { type: 'text', id: 'in-m-ref', maxlength: '120', placeholder: 'Factura, orden de compra (opcional)' });
+    const mday = h('input', { type: 'date', id: 'in-m-day', value: new Date().toISOString().slice(0, 10) });
+    const msave = h('button', { class: 'i18-btn', type: 'button' }, 'Registrar movimiento');
+    const mout = h('div', { 'aria-live': 'polite' });
+    msave.addEventListener('click', async () => {
+      try { await rpc('supply_movement_add', { p_org: org(), p_supply: msup.value, p_kind: mkind.value, p_qty: Number(mqty.value), p_moved_on: mday.value || null, p_reference: mref.value || null }); mqty.value = ''; mref.value = ''; await catalogo(); }
+      catch (e) { mout.replaceChildren(note(e.message, 'error')); }
     });
     const file = h('input', { type: 'file', id: 'in-x-file', accept: '.xlsx,.csv,.txt' });
     const chk = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Revisar archivo');
@@ -115,9 +131,18 @@ export async function render(root, ctx = {}) {
           rep.errors.length ? h('ul', {}, rep.errors.slice(0, 30).map((e) => h('li', {}, `Fila ${e.row}: ${e.errors.join('; ')}`))) : null, go);
       } catch (e) { xout.replaceChildren(note(e.message, 'error')); }
     });
-    body.replaceChildren(list, h('fieldset', { class: 'i18-fs i18-form' }, h('legend', {}, 'Agregar insumo'), h('label', { for: 'in-s-code' }, 'Código'), code,
+    const movements = d.movements.length ? table(['Fecha', 'Insumo', 'Tipo', 'Cantidad', 'Referencia', 'Registró'],
+      d.movements.map((m) => [m.moved_on, m.supply, m.kind === 'entrada' ? 'Entrada' : 'Ajuste', num(m.quantity), m.reference || '—', m.by || '—']), [3]) : note('Sin movimientos de existencia todavía.');
+    body.replaceChildren(stockKpi, list,
+      h('fieldset', { class: 'i18-fs i18-form' }, h('legend', {}, 'Agregar insumo'), h('label', { for: 'in-s-code' }, 'Código'), code,
       h('label', { for: 'in-s-name' }, 'Nombre'), name, h('label', { for: 'in-s-unit' }, 'Unidad'), unit, h('label', { for: 'in-s-cost' }, 'Costo unitario (RD$)'), cost,
-      h('label', { class: 'i18-chk' }, bill, ' Se factura a la ARS'), h('label', { for: 'in-s-proc' }, 'Servicio del catálogo con que se reclama'), proc, h('div', {}, save), out),
+      h('label', { class: 'i18-chk' }, bill, ' Se factura a la ARS'), h('label', { for: 'in-s-proc' }, 'Servicio del catálogo con que se reclama'), proc,
+      h('label', { for: 'in-s-reorder' }, 'Punto de reorden (avisar cuando la existencia baje de aquí)'), reorder, h('div', {}, save), out),
+      h('fieldset', { class: 'i18-fs i18-form' }, h('legend', {}, 'Entrada o ajuste de existencia'), h('p', { class: 'i18-sub' }, 'Entrada: lo que llega al almacén (compra, reposición). Ajuste: corrige la existencia tras un conteo físico (puede ser negativo).'),
+        h('label', { for: 'in-m-sup' }, 'Insumo'), msup, h('label', { for: 'in-m-kind' }, 'Tipo'), mkind,
+        h('label', { for: 'in-m-qty' }, 'Cantidad'), mqty, h('label', { for: 'in-m-day' }, 'Fecha'), mday,
+        h('label', { for: 'in-m-ref' }, 'Referencia'), mref, h('div', {}, msave), mout,
+        h('h3', { style: 'margin-top:14px' }, 'Movimientos recientes'), movements),
       h('fieldset', { class: 'i18-fs i18-form' }, h('legend', {}, 'Salidas de almacén desde Excel o CSV'), h('p', { class: 'i18-sub' }, 'Columnas: Código, Fecha, Cantidad y (opcional) Referencia. Cargar el mismo archivo dos veces no duplica las salidas con referencia.'),
         file, h('div', {}, chk), xout));
   }
