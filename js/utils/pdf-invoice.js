@@ -61,7 +61,7 @@ export function amountInWords(amount) {
 }
 
 // ---------------------------------------------------------------- documento
-const NAVY = [26, 54, 93]; const WINE = [139, 0, 0]; const SOFT = [243, 246, 250]; const GRAY = [96, 104, 120]; const LINE = [214, 219, 227];
+const NAVY = [34, 58, 93]; const WINE = [134, 29, 24]; const SOFT = [243, 246, 250]; const GRAY = [96, 104, 120]; const LINE = [214, 219, 227];
 let logoData = null;
 async function logo() {
   if (logoData) return logoData;
@@ -76,7 +76,7 @@ async function logo() {
  * Construye el PDF a partir de public.sofa_invoice_document(). Devuelve { doc, fileName }.
  * Formato (plantilla aprobada 02/10/2026): logo arriba a la izquierda; "Factura" y sus datos arriba a la derecha;
  * De / Facturar a; tabla Descripción · Tarifa · Cantidad · Impuesto · Importe; Instrucción de pago y totales con Saldo pendiente.
- * Colores corporativos: azul marino #1A365D y vino #8B0000. Carta, márgenes 14 mm.
+ * Colores corporativos: navy #223A5D y falu red #861D18. Carta, márgenes 14 mm.
  */
 export async function buildInvoicePdf(d) {
   const JsPDF = await loadPdfLib();
