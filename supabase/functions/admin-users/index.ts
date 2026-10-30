@@ -23,6 +23,8 @@ export type Deps = {
   deleteUser: (id: string) => Promise<void>;
   getUser: (id: string) => Promise<{ id: string; email: string; last_sign_in_at?: string | null } | null>;
   sendRecovery: (email: string, redirectTo: string) => Promise<void>;
+  setPasswordConfirmed: (id: string, password: string) => Promise<void>;
+  setMustChangePassword: (id: string) => Promise<void>;
   rateLimitCheck: (key: string, max: number, windowSeconds: number) => Promise<boolean>;
   appUrl: string;
   authRedirectUrl?: string;
@@ -100,11 +102,11 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const legacyStatic = /github\.io/i.test(appBase);
   const redirectTo = configuredRedirect || (appBase ? `${appBase}${legacyStatic ? '/login.html' : '/login'}` : 'https://medisofa.github.io/sofa-crm/login.html');
 
-  if (!['invite', 'resend', 'grant', 'create_active'].includes(action)) return reply(400, { ok: false, message: 'Acción desconocida' }, cors);
+  if (!['invite', 'resend', 'grant', 'create_active', 'force_password'].includes(action)) return reply(400, { ok: false, message: 'Acción desconocida' }, cors);
   if (!EMAIL.test(email)) return reply(400, { ok: false, message: 'Correo inválido' }, cors);
-  if (action !== 'resend' && !ASSIGNABLE_ROLES.includes(role)) return reply(400, { ok: false, message: 'Rol inválido. Elija uno de la lista de roles.' }, cors);
+  if (action !== 'resend' && action !== 'force_password' && !ASSIGNABLE_ROLES.includes(role)) return reply(400, { ok: false, message: 'Rol inválido. Elija uno de la lista de roles.' }, cors);
   if ((action === 'invite' || action === 'create_active') && fullName.length < 3) return reply(400, { ok: false, message: 'Escribe el nombre completo' }, cors);
-  if (action === 'create_active' && password.length < 12) return reply(400, { ok: false, message: 'La contraseña temporal debe tener al menos 12 caracteres' }, cors);
+  if ((action === 'create_active' || action === 'force_password') && password.length < 12) return reply(400, { ok: false, message: 'La contraseña temporal debe tener al menos 12 caracteres' }, cors);
 
   try {
     if (action === 'create_active') {
@@ -141,6 +143,15 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     if (action === 'grant') {
       const msg = await d.assignRole(caller.id, id, role, org, false);
       return reply(200, { ok: true, user_id: id, message: msg }, cors);
+    }
+    if (action === 'force_password') {
+      // Solo Super Admin: para una cuenta que ya existe pero nunca completó el enlace de correo
+      // (invitación o recuperación sin entregar, SMTP caído, correo que nunca llegó). Confirma el
+      // correo y asigna una contraseña temporal sin depender de que el correo llegue.
+      await d.assignRole(caller.id, null, 'super_admin', null, true);
+      await d.setPasswordConfirmed(id, password);
+      await d.setMustChangePassword(id);
+      return reply(200, { ok: true, user_id: id, must_change_password: true, message: `Correo confirmado y contraseña temporal asignada para ${email}. Debe cambiarla al iniciar sesión.` }, cors);
     }
     await d.assignRole(caller.id, null, 'super_admin', null, true);
     const u = await d.getUser(id);
@@ -193,6 +204,8 @@ Deno.serve((req) => handle(req, {
   deleteUser: async (id) => { const { error } = await admin.auth.admin.deleteUser(id); if (error) throw error; },
   getUser: async (id) => { const { data, error } = await admin.auth.admin.getUserById(id); if (error) throw error; return data.user as { id: string; email: string; last_sign_in_at?: string | null }; },
   sendRecovery: async (email, redirectTo) => { const { error } = await publicClient.auth.resetPasswordForEmail(email, { redirectTo }); if (error) throw error; },
+  setPasswordConfirmed: async (id, password) => { const { error } = await admin.auth.admin.updateUserById(id, { password, email_confirm: true }); if (error) throw error; },
+  setMustChangePassword: async (id) => { const { error } = await admin.from('profiles').update({ must_change_password: true }).eq('id', id); if (error) throw error; },
   // Si la comprobación misma falla (ej. hipo de base de datos), no bloquea: el rate limiting es
   // defensa adicional, no el control de acceso principal (eso lo hace RLS/assignRole).
   rateLimitCheck: async (key, max, windowSeconds) => unwrap(await admin.rpc('rate_limit_check', { p_key: key, p_max: max, p_window_seconds: windowSeconds })) as boolean
