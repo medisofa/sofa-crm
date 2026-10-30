@@ -68,7 +68,7 @@ function modelHtml(code, org, arsName = '') {
   const phone = escDoc(org.phone || org.whatsapp || '________________');
   const ars = escDoc(arsName || '________________');
   const legal = ['A','B'].includes(code)
-    ? '<p style="border:2px solid #8B0000;padding:10px"><b>MODELO DE TRABAJO — REQUIERE REVISIÓN LEGAL ANTES DE FIRMA O USO.</b></p>'
+    ? '<p style="border:2px solid #861D18;padding:10px"><b>MODELO DE TRABAJO — REQUIERE REVISIÓN LEGAL ANTES DE FIRMA O USO.</b></p>'
     : '<p style="border:1px solid #999;padding:10px"><b>MODELO OPERATIVO.</b> Revise y complete los campos pendientes antes de utilizarlo.</p>';
 
   const blocks = {
@@ -126,7 +126,7 @@ function modelHtml(code, org, arsName = '') {
   };
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escDoc(COMMERCIAL_DOCS[code])}</title>
-    <style>body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.45;margin:40px;color:#222}h1{color:#1A365D}h2{font-size:13pt;color:#1A365D}table{border-collapse:collapse}td{vertical-align:top}</style>
+    <style>body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.45;margin:40px;color:#222}h1{color:#223A5D}h2{font-size:13pt;color:#223A5D}table{border-collapse:collapse}td{vertical-align:top}</style>
     </head><body>${legal}${blocks[code] || ''}<hr><p style="font-size:9pt;color:#666">SOFA · Soluciones de Facturación Médica · Modelo ${code}. Complete y revise antes de usar.</p></body></html>`;
 }
 

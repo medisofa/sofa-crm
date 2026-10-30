@@ -44,7 +44,7 @@
       box.appendChild(pre);
     }
     var btn = document.createElement('button');
-    btn.textContent = 'Reintentar'; btn.style.cssText = 'padding:9px 16px;border-radius:6px;border:0;background:#1A365D;color:#fff;font-weight:600;cursor:pointer';
+    btn.textContent = 'Reintentar'; btn.style.cssText = 'padding:9px 16px;border-radius:6px;border:0;background:#223A5D;color:#fff;font-weight:600;cursor:pointer';
     btn.onclick = function () { location.reload(); };
     box.appendChild(btn);
     boot.replaceWith(box);
