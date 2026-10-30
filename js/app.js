@@ -298,8 +298,8 @@ function renderTopNav() {
   const activeGroup = (horizFamilia && groups.find((g) => g.group === horizFamilia))
     || groups.find((g) => g.items.some((i) => i.route === route)) || groups[0];
   topnav.hidden = false;
-  render($('#topnavGroups'), groups.map((g) => html`<button type="button" class="${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}">${g.group}</button>`));
-  render($('#topnavTabs'), activeGroup.items.map((i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`));
+  render($('#topnavGroups'), html`${groups.map((g) => html`<button type="button" class="${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}">${g.group}</button>`)}`);
+  render($('#topnavTabs'), html`${activeGroup.items.map((i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`)}`);
 }
 function bindNav() {
   $('#nav').addEventListener('click', (e) => {
