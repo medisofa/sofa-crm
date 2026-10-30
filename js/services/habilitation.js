@@ -29,16 +29,17 @@ export async function listCases({ group = 'activos', q = '', orgId = '', page = 
   const t = clean(q); if (t) query = query.or(`establishment_name.ilike.%${t}%,folio.ilike.%${t}%,client_name.ilike.%${t}%,lead_company.ilike.%${t}%`);
   return withCount(await query.order('target_date', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false }).range(page * size, page * size + size - 1));
 }
-export async function caseSummary() { return must(await sb().from('v_habilitation_cases').select('stage, license_days_left, days_to_target, critical_open').limit(5000)); }
+export async function caseSummary() { return must(await sb().from('v_habilitation_cases').select('stage, license_days_left, days_to_target, critical_open, renewal_seq').limit(5000)); }
 export async function getCase(id) { return must(await sb().from('v_habilitation_cases').select('*').eq('id', id).maybeSingle()); }
 export async function caseItems(id) {
   return must(await sb().from('habilitation_items').select('id, area, requirement, is_critical, status, notes, due_on, document_id, sort_order, requirement_id, client_note, client_submitted_at, habilitation_requirements(code, evidence_hint)').eq('case_id', id).order('sort_order'));
 }
 export async function updateItem(id, values) { return must(await sb().from('habilitation_items').update(values).eq('id', id).select('id, status').single()); }
 export async function updateCase(id, values) { return must(await sb().from('habilitation_cases').update(values).eq('id', id).select('id').single()); }
-export async function createCase({ name, type, orgId = null, leadId = null, kind = 'apertura', fee = 0, target = null, notes = null, subkind = null }) {
-  return must(await sb().rpc('create_habilitation_case', { p_name: name, p_type: type, p_org: orgId, p_lead: leadId, p_kind: kind, p_fee: fee, p_target: target, p_notes: notes, p_subkind: subkind }));
+export async function createCase({ name, type, orgId = null, leadId = null, kind = 'apertura', fee = 0, target = null, notes = null, subkind = null, renewalOf = null }) {
+  return must(await sb().rpc('create_habilitation_case', { p_name: name, p_type: type, p_org: orgId, p_lead: leadId, p_kind: kind, p_fee: fee, p_target: target, p_notes: notes, p_subkind: subkind, p_renewal_of: renewalOf }));
 }
+export async function casesForLead(leadId) { return must(await sb().rpc('habilitation_cases_for_lead', { p_lead: leadId })); }
 export async function moveCase(id, stage, comment = null, override = null) {
   return must(await sb().rpc('move_habilitation_case', { p_case: id, p_stage: stage, p_comment: comment, p_override: override }));
 }

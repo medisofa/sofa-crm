@@ -53,7 +53,7 @@ export async function render(main, ctx) {
 
     paint(box, html`
       <div class="page-head"><div class="t"><p class="no-print"><a href="#/habilitacion">← Habilitación</a></p>
-        <h2>${c.establishment_name} <span class="pill ${c.stage === 'habilitado' ? 'ok' : c.stage === 'cancelado' ? '' : 'info'}">${STAGE_LABEL[c.stage]}</span></h2>
+        <h2>${c.establishment_name} <span class="pill ${c.stage === 'habilitado' ? 'ok' : c.stage === 'cancelado' ? '' : 'info'}">${STAGE_LABEL[c.stage]}</span>${c.renewal_seq > 1 ? html` <span class="pill info" title="Van ${c.renewal_seq - 1} renovación(es) de este establecimiento">Renovación n.º ${c.renewal_seq - 1}</span>` : ''}</h2>
         <p><span class="mono">${c.folio}</span> · ${c.establishment_type} · ${CASE_KIND[c.case_kind]}${c.case_subkind ? ` (${MODIFICATION_SUBKIND[c.case_subkind] || c.case_subkind})` : ''}${staff && (c.client_name || c.lead_company) ? ` · ${c.client_name || c.lead_company}` : ''}${c.owner_name ? ` · Responsable: ${c.owner_name}` : ''}</p></div>
         <div class="toolbar no-print" style="margin:0">
           ${edit && NEXT[c.stage] ? html`<button class="btn primary" data-move="${NEXT[c.stage]}">${NEXT_LABEL[NEXT[c.stage]]}</button>` : ''}
@@ -139,7 +139,7 @@ export async function render(main, ctx) {
     $('#renew', box)?.addEventListener('click', async () => {
       const { caseDialog } = await import('./habilitation-dialogs.js');
       const c = S.c;
-      try { const nid = await caseDialog({ name: c.establishment_name, type: c.establishment_type, orgId: c.organization_id, kind: 'renovacion', target: c.license_valid_until }); if (nid) { toast('Renovación abierta', 'ok'); location.hash = `#/habilitacion/${nid}`; } }
+      try { const nid = await caseDialog({ name: c.establishment_name, type: c.establishment_type, orgId: c.organization_id, leadId: c.lead_id, kind: 'renovacion', target: c.license_valid_until, renewalOf: c.id }); if (nid) { toast(`Renovación n.º ${(c.renewal_seq || 1)} abierta`, 'ok'); location.hash = `#/habilitacion/${nid}`; } }
       catch (err) { toast(friendlyError(err), 'bad'); }
     });
     $('#fc', box)?.addEventListener('submit', async (e) => {

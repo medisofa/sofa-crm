@@ -24,11 +24,13 @@ export async function render(main, ctx) {
   caseSummary().then((rows) => {
     const act = rows.filter((r) => !['habilitado', 'cancelado'].includes(r.stage));
     const renew = rows.filter((r) => r.stage === 'habilitado' && r.license_days_left != null && r.license_days_left <= 60);
+    const renewed = rows.filter((r) => (r.renewal_seq || 1) > 1);
     paint($('#k', main), html`
       <div class="kpi"><div class="l">En proceso</div><div class="v">${num(act.length)}</div><div class="h">${num(act.filter((r) => r.critical_open > 0).length)} con requisitos críticos abiertos</div></div>
       <div class="kpi"><div class="l">Depositados o en inspección</div><div class="v">${num(rows.filter((r) => ['depositado', 'inspeccion'].includes(r.stage)).length)}</div></div>
       <div class="kpi"><div class="l">Habilitados</div><div class="v" style="color:var(--ok)">${num(rows.filter((r) => r.stage === 'habilitado').length)}</div></div>
-      <div class="kpi"><div class="l">Licencias por renovar (60 días)</div><div class="v" style="${renew.length ? 'color:var(--warn)' : ''}">${num(renew.length)}</div></div>`);
+      <div class="kpi"><div class="l">Licencias por renovar (60 días)</div><div class="v" style="${renew.length ? 'color:var(--warn)' : ''}">${num(renew.length)}</div></div>
+      <div class="kpi"><div class="l">Casos que ya son renovación</div><div class="v">${num(renewed.length)}</div><div class="h">Suman ${num(renewed.reduce((s, r) => s + (r.renewal_seq - 1), 0))} renovación(es) en total</div></div>`);
   }).catch((e) => paint($('#k', main), errorView(e)));
 
   const list = $('#l', main);
@@ -38,7 +40,7 @@ export async function render(main, ctx) {
     return loadInto(list, () => listCases({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
       <div class="table-wrap"><table class="t cards"><thead><tr><th>Establecimiento</th><th>Etapa</th><th>Semáforo</th><th class="n">Listo</th><th>Fecha objetivo</th><th>Licencia</th></tr></thead>
       <tbody>${data.map((c) => html`<tr data-id="${c.id}" style="cursor:pointer">
-        <td data-l="Establecimiento"><a href="#/habilitacion/${c.id}"><b>${c.establishment_name}</b></a><div class="small muted">${c.folio} · ${c.establishment_type} · ${CASE_KIND[c.case_kind]}${c.case_subkind ? ` (${MODIFICATION_SUBKIND[c.case_subkind] || c.case_subkind})` : ''}${staff && (c.client_name || c.lead_company) ? ` · ${c.client_name || c.lead_company}` : ''}</div></td>
+        <td data-l="Establecimiento"><a href="#/habilitacion/${c.id}"><b>${c.establishment_name}</b></a>${c.renewal_seq > 1 ? html` <span class="pill info" style="font-size:10.5px">Renov. n.º ${c.renewal_seq - 1}</span>` : ''}<div class="small muted">${c.folio} · ${c.establishment_type} · ${CASE_KIND[c.case_kind]}${c.case_subkind ? ` (${MODIFICATION_SUBKIND[c.case_subkind] || c.case_subkind})` : ''}${staff && (c.client_name || c.lead_company) ? ` · ${c.client_name || c.lead_company}` : ''}</div></td>
         <td data-l="Etapa"><span class="pill ${c.stage === 'habilitado' ? 'ok' : c.stage === 'cancelado' ? '' : 'info'}">${STAGE_LABEL[c.stage]}</span></td>
         <td data-l="Semáforo" class="small"><span class="pill ok">${c.verde}</span> <span class="pill warn">${c.amarillo}</span> <span class="pill bad">${c.rojo}</span>${c.pendiente ? html` <span class="pill">${c.pendiente} sin evaluar</span>` : ''}</td>
         <td data-l="Listo" class="n"><b>${c.ready_pct}%</b>${c.critical_open ? html`<div class="small" style="color:var(--bad)">${c.critical_open} críticos</div>` : ''}</td>

@@ -3,6 +3,7 @@ import { html, render as paint, raw, $ } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, busy, fieldError } from '../utils/ui.js';
 import { getOpportunity, updateOpportunity, updateLead, listDiagnostics, addDiagnostic, listActivities, addActivity, listContacts, listStaff, activePartners } from '../services/crm.js';
 import { listTasks, updateTask } from '../services/tasks.js';
+import { casesForLead, STAGE_LABEL } from '../services/habilitation.js';
 import { STAGES, OPEN_STAGES, SERVICES, SOURCES, ACTIVITY_TYPES, PRIORITIES, stageLabel, serviceName } from '../utils/constants.js';
 import { money, date, dateTime, num } from '../utils/formatters.js';
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
@@ -55,6 +56,8 @@ export async function render(main, ctx) {
           <div class="field"><label for="source">Canal</label><select id="source" name="source" ${edit ? '' : raw('disabled')}>${SOURCES.map((s) => opt(s, s, o.source))}</select></div>
           <div class="field"><label for="referral_partner_id">Aliado</label><select id="referral_partner_id" name="referral_partner_id" ${edit ? '' : raw('disabled')}><option value="">Ninguno</option>${partners.map((p) => opt(p.id, p.full_name, o.referral_partner_id))}</select></div>
         </div>${edit ? html`<button class="btn primary" type="submit">Guardar prospecto</button>` : ''}</form></div>` : ''}
+      ${o.lead_id ? html`<div class="card"><h2>Habilitación</h2><p class="sub">Trámite de licencia MISPAS y código PSS de este prospecto, si ya se inició.</p><div id="hab"></div>
+        ${can('hab.edit', ctx.role) ? html`<button class="btn sm" id="openHab" style="margin-top:8px">+ Abrir caso de habilitación</button>` : ''}</div>` : ''}
       <div class="card"><h2>Diagnóstico de fugas</h2><p class="sub">Cuánto dinero pierde hoy el prospecto: la base del cierre ("se paga con lo que hoy pierde").</p><div id="diag"></div></div>
       <div class="card"><h2>Actividad</h2>
         ${edit ? html`<button class="btn sm" id="fullAct" style="margin-bottom:8px">+ Interacción completa</button>` : ''}${edit ? html`<form id="fa" class="inline-form row3" novalidate><label class="sr-only" for="atype">Tipo</label><select class="input" id="atype" name="type">${Object.entries(ACTIVITY_TYPES).filter(([k]) => k !== 'sistema').map(([k, l]) => opt(k, l, 'llamada'))}</select>
@@ -148,6 +151,18 @@ export async function render(main, ctx) {
   const cBox = $('#contacts', main);
   const loadContacts = () => loadInto(cBox, () => listContacts(o.lead_id ? { leadId: o.lead_id } : { organizationId: o.organization_id }), (list) => contactList(list), { empty: () => emptyView('Sin contactos') });
   $('#addContact', main)?.addEventListener('click', async () => { if (await contactDialog(ctx, { leadId: o.lead_id, organizationId: o.lead_id ? null : o.organization_id, label: o.company })) loadContacts(); });
+
+  // Habilitación
+  const habBox = $('#hab', main);
+  const loadHab = () => habBox && loadInto(habBox, () => casesForLead(o.lead_id), (rows) => html`<div class="list">${rows.map((c) => html`<div class="li"><div class="b"><div class="t1"><a href="#/habilitacion/${c.id}">${c.establishment_name}</a>${c.renewal_seq > 1 ? html` <span class="pill info" style="font-size:10.5px">Renov. n.º ${c.renewal_seq - 1}</span>` : ''}</div>
+      <div class="t2"><span class="pill ${c.stage === 'habilitado' ? 'ok' : 'info'}">${STAGE_LABEL[c.stage]}</span> · ${c.ready_pct}% listo${c.license_valid_until ? ` · licencia hasta ${date(c.license_valid_until)}` : ''}</div></div></div>`)}</div>`,
+    { isEmpty: (r) => !r.length, empty: () => emptyView('Sin casos de habilitación todavía', can('hab.edit', ctx.role) ? 'Ábrelo con el botón de abajo cuando el prospecto lo necesite.' : '') });
+  if (habBox) loadHab();
+  $('#openHab', main)?.addEventListener('click', async () => {
+    const { caseDialog } = await import('./habilitation-dialogs.js');
+    try { const id = await caseDialog({ name: o.company, leadId: o.lead_id }); if (id) { toast('Caso de habilitación abierto', 'ok'); loadHab(); } }
+    catch (err) { toast(friendlyError(err), 'bad'); }
+  });
 
   loadDiag(); loadActs(); loadTasks(); loadContacts();
 }
