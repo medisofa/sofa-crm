@@ -1,0 +1,14 @@
+-- Ya aplicado en producción (30/10/2026). Hallazgo del auditor de seguridad de Supabase, al
+-- auditar el único ERROR restante tras el fix de v_habilitation_cases de este mismo día.
+--
+-- [CRÍTICO] v_submissions (radicado/pagado/saldo/glosas de TODAS las reclamaciones) era
+-- SECURITY DEFINER sin security_invoker, con SELECT otorgado directo a authenticated: cualquier
+-- usuario con sesión podía consultarla con privilegios de owner y ver los montos de organizaciones
+-- ajenas, saltándose la política RLS de "submissions" (organization_id in visible_org_ids()).
+-- Su vista base v_submission_balance ya tenía security_invoker=true; a esta le faltaba. Misma
+-- clase de fuga ya corregida antes en las 4 vistas BI y en v_habilitation_cases.
+--
+-- Verificado en producción con una cuenta médico QA desechable: "Reclamaciones" y "Mi dinero"
+-- (ambas leen de v_submissions) siguen funcionando igual para el acceso legítimo del propio
+-- médico a sus propias radicaciones.
+alter view public.v_submissions set (security_invoker = true);
