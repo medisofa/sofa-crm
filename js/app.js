@@ -38,7 +38,20 @@ const FAMILY_ICONS = {
   resultados: ICON('<path d="M3 21h18"/><rect x="5" y="11" width="3" height="7"/><rect x="10.5" y="7" width="3" height="11"/><rect x="16" y="3.5" width="3" height="14.5"/>'),
   admin: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
   cuenta: ICON('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6"/>'),
-  mas: ICON('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>')
+  mas: ICON('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'),
+  // 31/10/2026 · Las familias propias de Médico, Secretaria, Facturación, Cobros, Comercial y
+  // Operaciones (FAMILIAS_ROL, 30/10/2026) usaban claves que no estaban aquí, así que CADA grupo
+  // de su menú caía al ícono genérico de «Más» (•••) — el médico veía el mismo ícono repetido en
+  // "Mi día", "Mis pacientes", "Mi trabajo", "Mi dinero" y "Mi consultorio". Un ícono por clave.
+  pacientes: ICON('<circle cx="9" cy="7" r="3"/><path d="M3.3 20c.7-3.3 3-5 5.7-5s5 1.7 5.7 5"/><path d="M18 9v4M16 11h4"/>'),
+  trabajo: ICON('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3"/><path d="M8 11l2 2 4-4M8 16l2 2 4-4"/>'),
+  dinero: ICON('<circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M9.3 9.6c0-1.4 1.3-2.4 2.7-2.3 1.4.1 2.3 1 2.3 2 0 1.2-1.1 1.8-2.6 2.1-1.6.3-2.7 1-2.7 2.3 0 1.1 1 2 2.4 2 1.6 0 2.8-.9 2.9-2.2"/>'),
+  glosas: ICON('<path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5"/><path d="M12 11v4M12 17v.01"/>'),
+  cartera: ICON('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/>'),
+  crecimiento: ICON('<path d="M3 17l6-6 4 4 7-8"/><path d="M15 6h5v5"/>'),
+  habilitacion: ICON('<path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>'),
+  radicacion: ICON('<path d="M3 11l18-8-8 18-2.5-7.5z"/><path d="M11.5 13.5L21 3"/>'),
+  consulta: ICON('<path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M6 3H4M14 3h2"/><circle cx="18" cy="15.5" r="2.5"/><path d="M14 9v3a4 4 0 0 0 1.9 3.4"/>')
 };
 const state = { session: null, profile: null, memberships: [], membership: null, role: null, operatorId: null, viewAs: null };
 
