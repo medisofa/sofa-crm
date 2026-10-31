@@ -84,3 +84,11 @@ export async function usersRolesReport() { return must(await sb().rpc('users_rol
 /** 2.? · "Ver como" (modo soporte, solo lectura): auditoría solo interna de SOFA */
 export async function supportViewStart(orgId, targetUserId = null) { return must(await sb().rpc('support_view_start', { p_org: orgId, p_target_user: targetUserId })); }
 export async function supportViewEnd(sessionId) { return must(await sb().rpc('support_view_end', { p_session: sessionId })); }
+/** 31/10/2026 · Si quedó una sesión de "Ver como" sin cerrar (pestaña cerrada sin pulsar «Salir»),
+ *  esto permite que la pantalla la detecte al entrar de nuevo —en cualquier dispositivo— y avise,
+ *  en vez de dejar a la cuenta viendo un solo consultorio sin ninguna explicación en pantalla. */
+export async function supportViewActive() {
+  const { data, error } = await sb().rpc('support_view_active');
+  if (error) return null;
+  return data?.[0] || null;
+}

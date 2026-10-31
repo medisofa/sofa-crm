@@ -11,7 +11,7 @@ import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
-import { supportViewStart, supportViewEnd } from './services/admin.js';
+import { supportViewStart, supportViewEnd, supportViewActive } from './services/admin.js';
 import { viewAsState } from './utils/view-as-state.js';
 import { setDiagContext, setDiagRoute, logDiag } from './utils/diag-log.js';
 
@@ -164,6 +164,21 @@ async function boot() {
   if (await passwordGate()) return;   // 1.9 · cambio de clave obligatorio en el primer acceso
   // Organización operadora (SOFA) para crear registros del CRM; null para usuarios de clientes
   state.operatorId = (state.memberships.find((m) => m.kind === 'operator') || {}).organization_id || null;
+  // 31/10/2026 · Si quedó una sesión de "Ver como" sin cerrar (pestaña cerrada sin pulsar «Salir»),
+  // esto la detecta al entrar de nuevo —en cualquier dispositivo— y muestra el aviso con «Salir»,
+  // en vez de dejar a la cuenta viendo un solo consultorio sin ninguna explicación en pantalla.
+  if (state.role === 'super_admin') {
+    try {
+      const av = await supportViewActive();
+      if (av) {
+        state.real = { role: state.role, membership: state.membership };
+        state.role = av.role_code;
+        state.membership = { organization_id: av.org_id, organization: av.org_name, kind: 'client', role: av.role_code, role_name: VIEW_AS_ROLE_NAME[av.role_code] || av.role_code };
+        state.viewAs = { sessionId: av.session_id, orgId: av.org_id, orgName: av.org_name, targetName: av.target_name || null, role: av.role_code };
+        viewAsState.active = true;
+      }
+    } catch (_) { /* si no se pudo comprobar, se sigue con el rol normal: nunca bloquea el arranque */ }
+  }
   await menuConfigurado();
   layout();
   watchAuth();
