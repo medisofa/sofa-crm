@@ -3,11 +3,24 @@ import { sb } from '../supabase.js';
 const must = ({ data, error }) => { if (error) throw error; return data; };
 const clean = (q) => String(q || '').replace(/[%*,()\\]/g, ' ').trim();
 
+/** Un consultorio puede tener varios médicos (p. ej. "NutriTeam"); el nombre del cliente no
+ *  siempre es el del médico que se busca. Si el texto no aparece en el nombre del consultorio,
+ *  se complementa con los médicos (rol "client") cuyo nombre sí coincide. */
+async function orgIdsByDoctorName(t) {
+  const { data, error } = await sb().from('organization_users')
+    .select('organization_id, profiles!inner(full_name)')
+    .eq('role_code', 'client').eq('is_active', true).ilike('profiles.full_name', `%${t}%`).limit(50);
+  if (error) return [];
+  return [...new Set((data || []).map((r) => r.organization_id))];
+}
 export async function listClients({ q = '', status = '', page = 0, size = 25 } = {}) {
   let query = sb().from('v_client_360')
-    .select('organization_id, legal_name, status, started_on, submissions, submitted, radicado, pagado, glosado, saldo, tasa_pago, tasa_glosa, vencidas, codigos_pendientes', { count: 'exact' });
+    .select('organization_id, legal_name, status, started_on, submissions, submitted, radicado, pagado, glosado, saldo, tasa_pago, tasa_glosa, vencidas, codigos_pendientes, doctors', { count: 'exact' });
   const t = clean(q);
-  if (t) query = query.ilike('legal_name', `%${t}%`);
+  if (t) {
+    const byDoctor = await orgIdsByDoctorName(t);
+    query = byDoctor.length ? query.or(`legal_name.ilike.%${t}%,organization_id.in.(${byDoctor.join(',')})`) : query.ilike('legal_name', `%${t}%`);
+  }
   if (status) query = query.eq('status', status);
   const { data, error, count } = await query.order('legal_name').range(page * size, page * size + size - 1);
   if (error) throw error;

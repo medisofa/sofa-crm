@@ -25,7 +25,7 @@ export async function render(main, ctx) {
   const load = () => loadInto(list, () => listClients({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
     <div class="table-wrap"><table class="t cards"><thead><tr><th>Cliente</th><th>Estado</th><th class="n">Radicaciones</th><th class="n">Radicado</th><th class="n">Pagado</th><th class="n">Saldo</th><th class="n">% glosa</th><th class="n">Códigos pendientes</th></tr></thead>
     <tbody>${data.map((c) => html`<tr>
-      <td data-l="Cliente"><a href="#/clientes/${c.organization_id}"><b>${c.legal_name}</b></a><div class="small muted">Desde ${date(c.started_on)}</div></td>
+      <td data-l="Cliente"><a href="#/clientes/${c.organization_id}"><b>${c.legal_name}</b></a><div class="small muted">Desde ${date(c.started_on)}${c.doctors ? ` · ${c.doctors}` : ''}</div></td>
       <td data-l="Estado"><span class="pill ${(STATUS[c.status] || ['', ''])[1]}">${(STATUS[c.status] || [c.status])[0]}</span></td>
       <td data-l="Radicaciones" class="n">${num(c.submissions)}</td><td data-l="Radicado" class="n">${money(c.radicado)}</td>
       <td data-l="Pagado" class="n">${money(c.pagado)}</td><td data-l="Saldo" class="n">${money(c.saldo)}</td>
