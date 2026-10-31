@@ -675,8 +675,13 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
   .hosp-form{grid-template-columns:1fr!important}
   .i18-wrap,.card{min-width:0}
 
-  .page-head .t{min-width:0}
-  .page-head h2{overflow-wrap:anywhere}
+  /* 31/10/2026 · min-width:0 + overflow-wrap:anywhere partía títulos de una sola palabra
+     (p. ej. "NutriTeam") letra por letra cuando el renglón se apretaba contra los botones de
+     acción. flex-wrap:wrap (ya en .page-head) ya baja esos botones a su propio renglón solo con
+     dejarle un mínimo razonable al título; overflow-wrap:break-word sigue protegiendo un título
+     realmente más largo que la pantalla, sin partir uno que sí cabe. */
+  .page-head .t{min-width:160px}
+  .page-head h2{overflow-wrap:break-word}
 }
 
 
