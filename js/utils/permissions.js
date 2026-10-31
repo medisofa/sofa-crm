@@ -493,6 +493,15 @@ export const FAMILIAS_ROL = {
     { key: 'cuenta',      group: 'Mi cuenta',    routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
   ],
 
+  // 31/10/2026 · Asistente de consulta: el único de los tres roles de consultorio (junto a Médico
+  // y Secretaria) que todavía no tenía familias propias — caía en FAMILIES genéricas ("Consultorio",
+  // con 20 rutas que no usa) para un menú de apenas 4 rutas. Mismo criterio que Médico/Secretaria.
+  asistente: [
+    { key: 'dia',      group: 'Mi día',    routes: ['mi-dashboard'] },
+    { key: 'consulta', group: 'Consulta',  routes: ['flujo-pacientes', 'historia-clinica'] },
+    { key: 'cuenta',   group: 'Mi cuenta', routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
+  ],
+
   // 30/10/2026 · Operaciones: retira, valida, prepara y radica — no es "Facturación" en el
   // sentido de cobrarle al cliente, es la línea operativa de SOFA. Se separa la gestión de
   // clientes nuevos/en marcha (onboarding operativo) del trabajo diario de radicación.
