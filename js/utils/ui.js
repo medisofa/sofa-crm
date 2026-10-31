@@ -1,5 +1,6 @@
 /** SOFA · Estados de interfaz: carga, vacío, error, reintento, avisos y confirmaciones */
 import { html, render, raw } from './dom.js';
+import { logDiag } from './diag-log.js';
 
 export function toast(message, kind = '') {
   let host = document.querySelector('.toasts');
@@ -52,6 +53,7 @@ export async function loadInto(el, fetcher, view, { isEmpty = (d) => Array.isArr
     return data;
   } catch (err) {
     console.error(err);
+    logDiag('error', null, friendlyError(err), { code: err?.code || err?.status || null, raw: String(err?.message || err) });
     render(el, errorView(err, id));
     el.querySelector(`[data-retry="${id}"]`)?.addEventListener('click', () => loadInto(el, fetcher, view, { isEmpty, empty }));
     return null;
