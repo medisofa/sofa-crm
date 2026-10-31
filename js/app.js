@@ -13,6 +13,7 @@ import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
 import { supportViewStart, supportViewEnd } from './services/admin.js';
 import { viewAsState } from './utils/view-as-state.js';
+import { setDiagContext, setDiagRoute, logDiag } from './utils/diag-log.js';
 
 const app = document.getElementById('app');
 
@@ -149,6 +150,14 @@ async function boot() {
     $('#out').onclick = () => signOut('sin-acceso'); return;
   }
   state.role = state.membership.role;
+  // 31/10/2026 · Registro de diagnóstico (solo lo lee el Súper Admin): queda aquí, justo tras
+  // resolver el rol, el "aal" real de la sesión (aal1/aal2) — es el dato que hacía falta para
+  // saber si "el Súper Admin no ve los clientes" es MFA sin completar o algo más.
+  try {
+    const { data: aalData } = await sb().auth.mfa.getAuthenticatorAssuranceLevel();
+    setDiagContext({ userId: state.session.user.id, email: state.session.user.email, role: state.role, orgId: state.membership.organization_id, aal: aalData?.currentLevel || null });
+    logDiag('info', null, 'Inicio de sesión', { memberships: state.memberships.length, nextLevel: aalData?.nextLevel || null });
+  } catch (_) { /* el registro de diagnóstico nunca debe bloquear el arranque */ }
   // 4.7.0 · Si SOFA exige dos pasos al personal y esta cuenta no tiene factor, se guía a inscribirlo (falla cerrado)
   try { const mfa = await import('./modules/entrada-mfa.js'); if (await mfa.exigirInscripcion(app, state.role, { onSalir: () => signOut('salida') })) return; }
   catch (e) { fatal('No se pudo comprobar la política de seguridad', 'Por seguridad no se abre el sistema. Recargue la página; si sigue igual, avise al Administrador.', html`<button class="btn primary" id="rt">Reintentar</button> <button class="btn" id="out">Cerrar sesión</button>`); $('#rt').onclick = () => location.reload(); $('#out').onclick = () => signOut('salida'); return; }
@@ -357,6 +366,7 @@ function openUserMenu() {
 let routeSeq = 0;
 async function route() {
   const my = ++routeSeq;
+  setDiagRoute(location.hash || '#/');
   horizFamilia = null;
   toggleMenu(false); closeUserMenu(); if ($('#navSearch')) $('#navSearch').value = ''; renderNav();
   const main = $('#main'); const title = $('#pageTitle');
