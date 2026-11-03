@@ -54,7 +54,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
     document.body.append(a); a.click(); a.remove();
   });
 
-  let rows = null; let sources = []; let fname = ''; let busy = false; let saveButton = null;
+  let rows = null; let sources = []; let fname = ''; let busy = false; let saveButton = null; let saveFeedback = null;
   const contextControls = [ars, plan, prov, from, to, contract, file];
   const disabledBefore = new Map();
   function setBusy(value) {
@@ -70,7 +70,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
     }
   }
   function resetReview() {
-    rows = null; sources = []; saveButton = null;
+    rows = null; sources = []; saveButton = null; saveFeedback = null;
     out.replaceChildren(note('La selección cambió. Pulse «Revisar archivos» para validar los datos actuales.'));
   }
   contextControls.forEach((el) => el.addEventListener('change', resetReview));
@@ -101,11 +101,15 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
   }
   async function validate() {
     if (saveButton) { saveButton.disabled = true; saveButton.dataset.ready = 'false'; }
+    if (saveFeedback) saveFeedback.textContent = 'Validando el lote antes de habilitar el guardado…';
     setBusy(true);
     try {
       const rep = await rpc('import_contract_tariffs_v2', { p_rows: rows, p_commit: false, p_file: fname });
       preview(rep);
-    } catch (e) { out.append(note(e.message, 'error')); }
+    } catch (e) {
+      if (saveFeedback) saveFeedback.textContent = 'No se pudo validar. Pulse «Validar para guardar» para intentarlo de nuevo.';
+      out.append(note(e.message, 'error'));
+    }
     finally { setBusy(false); if (saveButton) saveButton.disabled = saveButton.dataset.ready !== 'true'; }
   }
   go.addEventListener('click', async () => {
@@ -164,8 +168,14 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
     const ok = !rep.errors.length;
     const approvals = sources.filter((source) => source.authorization);
     const ready = ok && ((rep.new + rep.changed) > 0 || approvals.length > 0);
-    const save = h('button', { class: 'i18-btn', type: 'button', disabled: !ready, 'data-ready': String(ready) }, `Confirmar: guardar ${rep.new + rep.changed} tarifa(s)${approvals.length ? ` y ${approvals.length} excepción(es)` : ''}`);
+    const save = h('button', { class: 'i18-btn ti-save-primary', type: 'button', disabled: !ready, 'data-ready': String(ready), 'aria-describedby': 'ti-save-help' }, `Guardar tarifario: ${rep.new + rep.changed} tarifa(s)${approvals.length ? ` y ${approvals.length} excepción(es)` : ''}`);
     saveButton = save;
+    const help = h('p', { id: 'ti-save-help', class: 'ti-save-help' }, !ok
+      ? `Guardado bloqueado: hay ${rep.errors.length} fila(s) con error. Corrija o excluya esas filas y pulse «Validar para guardar».`
+      : ready ? 'Lote validado. Pulse «Guardar tarifario» para confirmar los cambios.' : 'Todas las tarifas son iguales a las existentes y no hay excepciones nuevas. No hay cambios para guardar.');
+    saveFeedback = help;
+    const validateToSave = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Validar para guardar');
+    validateToSave.addEventListener('click', () => { if (!busy) validate(); });
     const status = h('p', { role: 'status' }, ok ? 'Revisión completa. Compruebe las tarifas antes de confirmar.' : '1. Revise los valores señalados. 2. Corrija aquí o excluya la fila. 3. Vuelva a validar.');
     const recheck = h('button', { class: 'i18-btn', type: 'button' }, 'Volver a validar correcciones');
     recheck.addEventListener('click', () => { if (!busy) validate(); });
@@ -176,6 +186,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
     ]));
     const dirty = () => {
       save.disabled = true; save.dataset.ready = 'false';
+      help.textContent = 'Guardado pendiente: hay cambios sin validar. Pulse «Validar para guardar»; después se habilitará «Guardar tarifario» si no quedan errores.';
       status.textContent = 'Hay cambios pendientes de validar. Pulse «Volver a validar correcciones» antes de confirmar.';
     };
     save.addEventListener('click', async () => {
@@ -184,7 +195,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
       try {
         const r = await rpc('import_contract_tariffs_v2', { p_rows: rows, p_commit: true, p_file: fname });
         out.replaceChildren(note(`Listo: ${r.imported} tarifa(s) guardadas. ${r.same} igual(es) se omitieron.${approvals.length ? ` ${approvals.length} excepción(es) de ARS guardada(s).` : ''}`, 'ok'));
-        rows = null; sources = []; saveButton = null; file.value = '';
+        rows = null; sources = []; saveButton = null; saveFeedback = null; file.value = '';
         selected.replaceChildren('Carga completada. Puede seleccionar nuevos archivos.');
         drawHistory(); drawExpiring();
       } catch (e) { out.append(note(e.message, 'error')); }
@@ -250,7 +261,8 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
         h('tbody', {}, rep.rows.map((r) => h('tr', {}, h('td', {}, location(r.row)), h('td', {}, r.service || '—'), h('td', {}, rows[Number(r.row) - 1]?.descripcion || '—'), h('td', {}, r.plan || 'General'), h('td', { class: 'i18-r' }, r.current != null ? money(r.current) : '—'),
           h('td', { class: 'i18-r' }, money(r.amount)), h('td', {}, h('span', { class: `ac-pill ${CHANGE[r.change][1]}` }, CHANGE[r.change][0]), r.diff_pct != null ? ` ${r.diff_pct > 0 ? '+' : ''}${r.diff_pct} %` : ''),
           h('td', {}, fmtDate(r.valid_from)), h('td', {}, r.valid_to ? fmtDate(r.valid_to) : 'Sin fin')))))) : '',
-      h('div', { class: 'i18-actions' }, save));
+      h('section', { class: 'ti-save-bar', 'aria-label': 'Validación y guardado del tarifario' },
+        h('strong', {}, 'Guardar cambios del tarifario'), help, h('div', { class: 'i18-actions' }, validateToSave, save)));
     out.querySelectorAll('.i18-table').forEach((table) => {
       const labels = [...table.querySelectorAll('thead th')].map((th) => th.textContent);
       table.querySelectorAll('tbody tr').forEach((tr) => [...tr.children].forEach((td, i) => { td.dataset.l = labels[i] || ''; }));

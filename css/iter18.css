@@ -1071,3 +1071,11 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .oh-wrap .i18-chk{display:flex;gap:8px;align-items:start;margin:10px 0}
 .oh-wrap .oh-detail,.oh-wrap .ti-error-card{overflow-wrap:anywhere}
 .oh-wrap td{overflow-wrap:anywhere;max-width:28rem}
+
+/* Guardado del tarifario: acción visible y motivo del bloqueo junto al botón. */
+.ti-save-bar{position:sticky;bottom:8px;z-index:5;margin-top:16px;padding:16px;border:2px solid var(--focus,#6984ab);border-radius:10px;background:var(--surface,#fff);color:var(--ink,#1c2a3d);box-shadow:0 4px 18px rgba(0,0,0,.2)}
+.ti-save-help{margin:8px 0 12px;line-height:1.5;color:var(--ink,#1c2a3d)}
+.ti-save-bar .ti-save-primary{background:#176d3a;color:#fff;font-weight:700;min-height:44px;border:2px solid transparent}
+.ti-save-bar .ti-save-primary:disabled{background:#475569;color:#fff;opacity:1;cursor:not-allowed;border-color:#94a3b8}
+.ti-save-bar .i18-sec{color:var(--ink,#1c2a3d);border-color:var(--focus,#6984ab);min-height:44px}
+@media(max-width:640px){.ti-save-bar{bottom:4px;padding:12px}.ti-save-bar .i18-actions>*{width:100%}}
