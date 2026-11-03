@@ -1032,3 +1032,17 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .users-detail .btn { min-height: 44px; }
 .users-detail td { display: block; }
 .users-detail [hidden] { display: none !important; }
+
+/* Los valores deben distinguirse de las etiquetas y del texto de ayuda. */
+.i18-form input:not([type=checkbox]):not([type=radio]),.i18-form select,.i18-form textarea,
+.i18-bar input,.i18-bar select,.hc-form input:not([type=checkbox]):not([type=radio]),.hc-form select,.hc-form textarea{
+  color:var(--ink,#1c2a3d);font-weight:600;caret-color:var(--ink,#1c2a3d);
+  min-width:0;max-width:100%;box-sizing:border-box;
+}
+.i18-form input:not([type=checkbox]):not([type=radio]),.i18-form select,.i18-form textarea{width:100%}
+.i18-form input::placeholder,.i18-form textarea::placeholder,.i18-bar input::placeholder,.hc-form input::placeholder,.hc-form textarea::placeholder{
+  color:var(--text-muted,#5b6674);font-weight:400;opacity:1;
+}
+.i18-form :is(input,select,textarea):focus,.i18-bar :is(input,select):focus,.hc-form :is(input,select,textarea):focus{
+  outline:2px solid var(--focus,#6984ab);outline-offset:2px;border-color:var(--focus,#6984ab);
+}
