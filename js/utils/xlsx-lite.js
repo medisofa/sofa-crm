@@ -68,7 +68,9 @@ export async function readXlsx(file) {
       else if (t === 'b') v = v === '1' ? 'VERDADERO' : 'FALSO';
       r[i] = String(v ?? '').trim();
     }
-    rows.push(Array.from(r, (x) => x ?? ''));
+    const cells = Array.from(r, (x) => x ?? '');
+    Object.defineProperty(cells, 'sourceRow', { value: Number(row.getAttribute('r')) || rows.length + 1 });
+    rows.push(cells);
   }
   return rows.filter((r) => r.some((x) => x !== ''));
 }
@@ -78,16 +80,19 @@ export function readDelimited(text) {
   const clean = text.replace(/^﻿/, '');
   const firstLine = clean.split(/\r?\n/)[0] || '';
   const sep = firstLine.includes('\t') ? '\t' : (firstLine.split(';').length >= firstLine.split(',').length ? ';' : ',');
-  const rows = []; let row = [], cell = '', q = false;
+  const rows = []; let row = [], cell = '', q = false; let line = 1, startLine = 1;
+  const pushRow = () => {
+    Object.defineProperty(row, 'sourceRow', { value: startLine }); rows.push(row);
+  };
   for (let i = 0; i < clean.length; i++) {
     const ch = clean[i];
-    if (q) { if (ch === '"') { if (clean[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
+    if (q) { if (ch === '\n') line++; if (ch === '"') { if (clean[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
     if (ch === '"') q = true;
     else if (ch === sep) { row.push(cell.trim()); cell = ''; }
-    else if (ch === '\n') { row.push(cell.trim()); rows.push(row); row = []; cell = ''; }
+    else if (ch === '\n') { row.push(cell.trim()); pushRow(); row = []; cell = ''; line++; startLine = line; }
     else if (ch !== '\r') cell += ch;
   }
-  if (cell !== '' || row.length) { row.push(cell.trim()); rows.push(row); }
+  if (cell !== '' || row.length) { row.push(cell.trim()); pushRow(); }
   return rows.filter((r) => r.some((x) => x !== ''));
 }
 

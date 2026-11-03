@@ -1046,3 +1046,10 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .i18-form :is(input,select,textarea):focus,.i18-bar :is(input,select):focus,.hc-form :is(input,select,textarea):focus{
   outline:2px solid var(--focus,#6984ab);outline-offset:2px;border-color:var(--focus,#6984ab);
 }
+
+/* Corrección de tarifarios: el dato original permanece visible junto al editor. */
+.ti-error-card{margin:12px 0;border-left:4px solid var(--bad,#861d18)}
+.ti-error-card h4{margin:0 0 8px;overflow-wrap:anywhere}
+.ti-error-card .ti-problems{color:var(--bad,#861d18);font-weight:600;overflow-wrap:anywhere}
+.ti-error-card .i18-form input[aria-invalid="true"]{border:2px solid var(--bad,#861d18);background:var(--bad-bg,#f6e7e6)}
+.ti-error-card .i18-sub{color:var(--text-muted,#4f5f78);font-size:.8rem}
