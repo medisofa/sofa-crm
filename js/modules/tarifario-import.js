@@ -39,14 +39,14 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
   const tpl = h('button', { class: 'i18-link', type: 'button' }, 'Descargar plantilla');
   const out = h('div', { 'aria-live': 'polite' });
   top.replaceChildren(h('section', { class: 'i18-card' }, h('h3', { style: 'margin-top:0' }, 'Cargar tarifario desde Excel'),
-    h('p', { class: 'i18-sub' }, 'Suba el Excel que manda la ARS. Columnas que se reconocen: Servicio o Código, SIMON, CUPS, Tarifa, Desde y Hasta (las dos últimas son opcionales: si faltan se usa la vigencia de abajo). Las ARS contratan por tiempo indefinido: deje «Hasta» vacío salvo que el contrato diga una fecha. Si el tarifario es de un plan (por ejemplo «Royal»), elíjalo: esa tarifa manda para los pacientes de ese plan. Nada se guarda hasta que usted confirme.'),
+    h('p', { class: 'i18-sub' }, 'Suba el Excel que manda la ARS. La plantilla incluye Descripción para identificar fácilmente el servicio; es informativa y no modifica el catálogo. Use Servicio o Código, SIMON o CUPS para identificar el servicio al importar. Columnas que se reconocen: Servicio o Código, SIMON, CUPS, Tarifa, Desde y Hasta (las dos últimas son opcionales: si faltan se usa la vigencia de abajo). Las ARS contratan por tiempo indefinido: deje «Hasta» vacío salvo que el contrato diga una fecha. Si el tarifario es de un plan (por ejemplo «Royal»), elíjalo: esa tarifa manda para los pacientes de ese plan. Nada se guarda hasta que usted confirme.'),
     h('div', { class: 'hc-grid i18-form', style: 'max-width:none' },
       h('label', { for: 'ti-ars' }, 'ARS', ars), h('label', { for: 'ti-plan' }, 'Plan', plan), h('label', { for: 'ti-prov' }, 'Médico', prov),
       h('label', { for: 'ti-from' }, 'Vigencia desde', from), h('label', { for: 'ti-to' }, 'Hasta (opcional)', to),
       h('label', { for: 'ti-ct' }, 'Contrato', contract), h('label', { for: 'ti-file' }, 'Archivo (.xlsx o .csv)', file)),
     h('div', { class: 'i18-actions' }, go, tpl), out));
   tpl.addEventListener('click', () => {
-    const csv = '﻿Servicio;SIMON;CUPS;Tarifa;Desde;Hasta\r\nSOFA-P07;;;1500.00;01/01/2026;\r\n';
+    const csv = '﻿Servicio;Descripción;SIMON;CUPS;Tarifa;Desde;Hasta\r\nSOFA-P07;Escriba aquí la descripción del servicio;;;1500.00;01/01/2026;\r\n';
     const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: 'plantilla_tarifario_ars.csv' });
     document.body.append(a); a.click(); a.remove();
   });
