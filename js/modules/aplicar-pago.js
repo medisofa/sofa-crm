@@ -1,3 +1,4 @@
+import { mountOpeningHistory } from './opening-history.js';
 /** SOFA · 4.8 · I58 · «Aplicar pago»: conciliación automática de la relación de pago de la ARS.
  *  1) Cargar el Excel o CSV de la relación (el mapeo de columnas se guarda por ARS y se reutiliza).
  *  2) El motor pone a cada línea un nivel de confianza: segura, dudosa o sin pareja (las reglas son visibles).
@@ -56,9 +57,10 @@ export async function render(root, ctx = {}) {
   const upload = h('div', { 'aria-live': 'polite' });
   const list = h('div', { 'aria-live': 'polite' });
   const detail = h('div', { 'aria-live': 'polite', id: 'ap-detail' });
+  const priorSlot = h('div');
   root.append(h('div', { class: 'i18-wrap ap-wrap' }, h('h2', {}, 'Aplicar pago'),
     h('p', { class: 'i18-sub' }, 'Cargue la relación de pago de la ARS: las coincidencias seguras se aplican con un clic, las dudosas se resuelven una por una y lo pagado de menos se convierte en glosa.'),
-    top, msg, kpis, upload, list, detail));
+    top, msg, kpis, upload, list, detail, priorSlot));
 
   const clients = await guarded(top, () => clientOptions());
   if (!clients) return;
@@ -71,6 +73,9 @@ export async function render(root, ctx = {}) {
   const fail = (e) => { msg.replaceChildren(note(e.message || String(e), 'error')); };
 
   async function loadAll() {
+    const priorBody = h('div'); const prior = h('details', { class: 'i18-card' }, h('summary', {}, 'Auditar pagos y reclamos de radicaciones anteriores a SOFA'), priorBody);
+    let mounted = false; prior.addEventListener('toggle', () => { if (prior.open && !mounted) { mounted = true; mountOpeningHistory(priorBody, { orgId: orgSel.value, role: ctx.role }); } });
+    priorSlot.replaceChildren(prior);
     msg.replaceChildren();
     await Promise.all([loadKpis(), loadList()]);
     if (canManage) await drawUpload();

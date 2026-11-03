@@ -3,12 +3,13 @@
  *  (pacientes, citas y cuentas por cobrar viejas) con validación por fila, reporte descargable y asistente «Pasar a real».
  *  Médico: ve su avance en solo lectura. El servidor vuelve a verificar el rol en cada función; ocultar botones no es un control. */
 import { rpc, h, fmtDate, note, kpi, guarded, downloadCsv, providerOptions, todayIso } from '../services/iter18.js';
-import { readTable, excelDate, detectColumns } from '../utils/xlsx-lite.js';
+import { mountOpeningHistory, OPENING_ROLES } from './opening-history.js';
+import { readTable, excelDate, detectColumns, normHead } from '../utils/xlsx-lite.js';
 
 const MODE = { prueba: 'En prueba', real: 'Real' };
 const ST = { pendiente: 'Pendiente', en_curso: 'En curso', completado: 'Completado', no_aplica: 'No aplica' };
 const OWNER = { sofa: 'SOFA', medico: 'Médico', secretaria: 'Secretaria', otro: 'Otro' };
-const KIND = { pacientes: 'Pacientes', citas: 'Citas', cuentas: 'Cuentas por cobrar viejas (reclamaciones pendientes)' };
+const KIND = { pacientes: 'Pacientes', citas: 'Citas', cuentas: 'Servicios anteriores sin radicar ni pagos previos' };
 
 /** Encabezados que se reconocen por tipo de carga (sin tildes ni mayúsculas) */
 const ALIASES = {
@@ -102,6 +103,11 @@ export async function render(root, ctx = {}) {
       parts.push(h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' }, h('thead', {}, h('tr', {}, ['Cuándo', 'Quién', 'Acción', 'Detalle'].map((x) => h('th', {}, x)))),
         h('tbody', {}, d.log.map((l) => h('tr', {}, h('td', {}, fmtDate(l.at)), h('td', {}, l.by || '—'), h('td', {}, l.action), h('td', {}, l.detail || '—')))))));
     }
+    if (OPENING_ROLES.includes(ctx.role)) {
+      const priorBody = h('div'); const prior = h('details', { class: 'i18-card' }, h('summary', {}, 'Cliente con códigos y operación previa: cargar cartera anterior y auditar pagos'), priorBody);
+      let mounted = false; prior.addEventListener('toggle', () => { if (prior.open && !mounted) { mounted = true; mountOpeningHistory(priorBody, { orgId: o, role: ctx.role }); } });
+      parts.push(prior);
+    }
     detail.replaceChildren(...parts);
     detail.scrollIntoView?.({ block: 'nearest' });
   }
@@ -183,7 +189,9 @@ export async function render(root, ctx = {}) {
       if (needsProv() && !prov.value) return out.replaceChildren(note('Elija el médico al que pertenece el archivo (un archivo por médico).', 'error'));
       go.disabled = true;
       try {
-        const t = await readTable(file.files[0]); fname = file.files[0].name;
+        const t = await readTable(file.files[0]);
+        if (kind.value === 'cuentas' && t[0]?.map(normHead).some((key) => ['radicacion', 'fecha radicacion', 'pagado', 'monto pagado', 'fecha pago', 'referencia pago'].includes(key))) throw new Error('Este archivo contiene radicaciones o pagos anteriores. Use «Cliente con códigos y operación previa: cargar cartera anterior y auditar pagos» para conservar sus estados y evitar capturarlos como reclamaciones nuevas.');
+        fname = file.files[0].name;
         if (t.length < 2) throw new Error('El archivo no tiene filas debajo de los encabezados. La primera fila debe tener los nombres de las columnas.');
         const map = detectColumns(t[0], ALIASES[kind.value]);
         const miss = REQUIRED[kind.value].filter((k) => map[k] == null);
@@ -223,7 +231,7 @@ export async function render(root, ctx = {}) {
       out.replaceChildren(note('Vista previa: todavía no se guardó nada.'), summary(rep), rowsTable(rep), rep.rows.length > 200 ? h('p', { class: 'i18-sub' }, `Se muestran 200 de ${rep.rows.length} filas; el CSV trae todas.`) : null, h('div', { class: 'i18-actions' }, commit, dl));
     }
     return h('section', { class: 'i18-card gl-load' }, h('h4', { style: 'margin-top:0' }, 'Carga inicial desde Excel o CSV'),
-      note('Una fila por registro. Se valida fila por fila: cédula con dígito verificador, sin duplicados y dentro del tope de meses. Las filas rechazadas no se cargan y el reporte dice por qué. Nada se guarda hasta que confirme.'),
+      note('Para radicaciones ya presentadas y pagos previos use la carga de cartera anterior de esta misma pantalla. Este importador captura servicios pendientes, pacientes o citas. Una fila por registro. Se valida fila por fila: cédula con dígito verificador, sin duplicados y dentro del tope de meses. Las filas rechazadas no se cargan y el reporte dice por qué. Nada se guarda hasta que confirme.'),
       h('div', { class: 'i18-bar' }, h('label', { for: 'gl-kind' }, 'Qué se carga', kind), h('label', { for: 'gl-prov' }, 'Médico (citas y cuentas)', prov), h('label', { for: 'gl-src' }, 'Sistema de origen', src),
         h('label', { for: 'gl-file' }, 'Archivo (.xlsx o .csv)', file)), h('div', { class: 'i18-actions' }, go, tpl), out);
   }

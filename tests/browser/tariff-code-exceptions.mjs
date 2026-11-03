@@ -52,7 +52,7 @@ try {
   const file = (code = '2467') => ({ name: 'exclusivo.csv', mimeType: 'text/csv', buffer: Buffer.from(`Servicio;Descripción;SIMON;CUPS;Tarifa;Desde\nSOFA-P04;Consulta especializada;${code};;850;01/01/2026`) });
   const prepare = () => page.getByRole('button', { name: 'Revisar propuesta de excepción', exact: true });
   const authorize = () => page.getByRole('button', { name: 'Autorizar excepción para esta ARS', exact: true });
-  const save = () => page.getByRole('button', { name: /^Confirmar: guardar/ });
+  const save = () => page.getByRole('button', { name: /^Guardar tarifario:/ });
   const confirm = () => page.getByRole('checkbox', { name: /^Autorizo esta asociación/ });
   await page.locator('#ti-ars').selectOption('ars');
   await page.locator('#ti-file').setInputFiles(file());
@@ -95,6 +95,12 @@ try {
   await page.getByText('Listo: 0 tarifa(s) guardadas. 1 igual(es) se omitieron. 1 excepción(es) de ARS guardada(s).', { exact: true }).waitFor();
   assert.deepEqual(await page.evaluate(() => scoped), { '2474': 'SOFA-P04' });
   assert.equal(await page.evaluate(() => calls.filter((c) => c.name === 'import_contract_tariffs_v2' && c.args.p_commit).length), 1);
+  // An unchanged tariff still shows the save action and explains why saving is unnecessary.
+  await page.locator('#ti-file').setInputFiles(file('2474'));
+  await page.getByRole('button', { name: 'Revisar archivos', exact: true }).click();
+  await page.getByText('Todas las tarifas son iguales a las existentes y no hay excepciones nuevas. No hay cambios para guardar.', { exact: true }).waitFor();
+  assert.equal(await save().isDisabled(), true);
+  assert.equal(await save().isVisible(), true);
   // Permission denial never produces an authorization button or modifies the code map.
   await page.evaluate(() => { deny = true; });
   await page.locator('#ti-file').setInputFiles(file('NEW'));
