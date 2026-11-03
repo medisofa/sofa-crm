@@ -1,3 +1,4 @@
+import { mountOpeningHistoryPicker, OPENING_ROLES } from './opening-history.js';
 /**
  * SOFA · Reclamaciones individuales (Iteración 12, §12–§14 y §17).
  * Listado con filtros por estado, ubicación, médico, ARS y fechas; acciones masivas
@@ -42,7 +43,13 @@ export async function render(main, ctx) {
     </div>
     <div id="bulk" class="no-print"></div>
     <div id="coreDup"></div>
-    <div id="l"></div>`);
+    <div id="l"></div><div id="opening-history-claims"></div>`);
+  if (OPENING_ROLES.includes(role)) {
+    const slot = $('#opening-history-claims', main); const prior = document.createElement('details'); prior.className = 'card';
+    const summary = document.createElement('summary'); summary.textContent = 'Reclamaciones y pagos anteriores al inicio SOFA'; const body = document.createElement('div');
+    prior.append(summary, body); slot.append(prior); let mounted = false;
+    prior.addEventListener('toggle', () => { if (prior.open && !mounted) { mounted = true; mountOpeningHistoryPicker(body, ctx); } });
+  }
 
   const drawTabs = () => $('#tabs', main) && paint($('#tabs', main), html`${Object.entries(CLAIM_GROUPS).map(([k, g]) => html`<button data-g="${k}" aria-pressed="${st.group === k && !st.status}">${g.label}</button>`)}`);
   drawTabs();

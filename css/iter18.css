@@ -1061,3 +1061,13 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .ti-exception-reason textarea{box-sizing:border-box;width:100%;padding:8px;background:var(--surface);color:var(--ink);font:inherit;border:1px solid var(--line);border-radius:6px}
 .ti-exception-confirm{display:flex;align-items:start;gap:8px;margin:12px 0;font-weight:600}
 .ti-error-card textarea{resize:vertical;min-height:64px}
+
+/* Cartera histórica: conserva el origen y separa apertura, auditoría y cobros posteriores. */
+.oh-wrap{margin-top:16px;min-width:0}
+.oh-wrap summary{cursor:pointer;font-weight:600}
+.oh-wrap .oh-field{display:grid;gap:6px;margin:10px 0}
+.oh-wrap textarea{box-sizing:border-box;max-width:100%;width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit;resize:vertical}
+.oh-wrap .i18-actions{margin:12px 0;align-items:center}
+.oh-wrap .i18-chk{display:flex;gap:8px;align-items:start;margin:10px 0}
+.oh-wrap .oh-detail,.oh-wrap .ti-error-card{overflow-wrap:anywhere}
+.oh-wrap td{overflow-wrap:anywhere;max-width:28rem}

@@ -1,3 +1,4 @@
+import { mountOpeningHistoryPicker, OPENING_ROLES } from './opening-history.js';
 /** SOFA · Pagos de ARS: registro, conciliación por ARS y cuentas por cobrar */
 import { html, render as paint, $ } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, confirmDialog } from '../utils/ui.js';
@@ -24,6 +25,7 @@ export async function render(main, ctx) {
       <label class="sr-only" for="ars">ARS</label><select class="input" id="ars" style="width:auto"><option value="">Todas las ARS</option></select></div>
     <div id="l"></div>`);
   const tabs = [['pagos', 'Pagos recibidos'], ['conciliacion', 'Conciliación por ARS'], ['cobrar', 'Por cobrar']];
+  if (OPENING_ROLES.includes(ctx.role)) tabs.push(['anteriores', 'Cartera anterior y auditoría']);
   const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-t="${k}" aria-pressed="${st.tab === k}">${l}</button>`)}`);
   drawTabs();
   listArs().then((a) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${a.map((x) => opt(x.id, x.name))}`)).catch(() => {});
@@ -31,7 +33,10 @@ export async function render(main, ctx) {
   const showFee = can('fees.view', ctx.role);
 
   const load = () => {
+    $('#tb', main).hidden = st.tab === 'anteriores';
+    const newPayment = $('#new', main); if (newPayment) newPayment.hidden = st.tab === 'anteriores';
     $('#q', main).style.display = st.tab === 'conciliacion' ? 'none' : '';
+    if (st.tab === 'anteriores') return mountOpeningHistoryPicker(list, ctx);
     if (st.tab === 'pagos') return loadInto(list, () => listPayments({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff }), ({ data, count }) => html`
       <div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th>${isStaff(ctx.role) ? html`<th>Cliente</th>` : ''}<th>ARS</th><th>Folio · referencia</th><th>Aplicado a</th><th class="n">Monto</th>${showFee ? html`<th class="n">Honorario SOFA</th>` : ''}${can('payments.void', ctx.role) ? html`<th></th>` : ''}</tr></thead>
       <tbody>${data.map((p) => html`<tr><td data-l="Fecha">${date(p.paid_on)}</td>${isStaff(ctx.role) ? html`<td data-l="Cliente">${p.client_name}</td>` : ''}<td data-l="ARS">${p.ars_name}</td>

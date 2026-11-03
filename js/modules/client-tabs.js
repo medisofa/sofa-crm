@@ -2,6 +2,7 @@
  *  client.js pinta sus tarjetas como antes; aquí se agrupan en pestañas según su título, sin tocar su lógica. */
 import { rpc, supabase, h, fmtDate, note, guarded } from '../services/iter18.js';
 import { can, isStaff, canOpen } from '../utils/permissions.js';
+import { mountOpeningHistory, OPENING_ROLES } from './opening-history.js';
 import { mountTariffImport } from './tarifario-import.js';
 
 const TABS = [
@@ -30,6 +31,8 @@ export function setupClientTabs(main, org, role = null) {
   const docs = h('div', { class: 'card', style: 'grid-column:1/-1', 'data-tab': 'documentos' }, h('h2', {}, 'Archivos del cliente'),
     h('p', { class: 'sub' }, 'Todos los archivos subidos a los expedientes de este cliente (radicaciones, reclamaciones y otros).'), h('div', { id: 'ctDocs' }));
   grid.prepend(tarif); grid.append(docs);
+  const prior = OPENING_ROLES.includes(role) ? h('div', { class: 'card', style: 'grid-column:1/-1', 'data-tab': 'radicaciones' }, h('h2', {}, 'Cartera anterior y auditoría de pagos'), h('div', { class: 'ct-opening-history' })) : null;
+  if (prior) grid.append(prior);
   const present = new Set([...grid.children].map((c) => c.dataset.tab));
   const tabs = TABS.filter(([k]) => present.has(k));
   let current = sessionStorage.getItem(KEY);
@@ -41,6 +44,7 @@ export function setupClientTabs(main, org, role = null) {
     bar.querySelectorAll('[role=tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === k)));
     [...grid.children].forEach((c) => { c.hidden = c.dataset.tab !== k; });
     if (k === 'tarifario' && !loaded.has(k)) { loaded.add(k); drawTariffs(tarif.querySelector('#ctTarif'), org.id, role); mountTariffImport(tarif.querySelector('#ctTarifImp'), { orgId: org.id, canEdit: can('contracts.edit', role), isStaff: isStaff(role) }); }
+    if (k === 'radicaciones' && prior && !loaded.has('opening-history')) { loaded.add('opening-history'); mountOpeningHistory(prior.querySelector('.ct-opening-history'), { orgId: org.id, role }); }
     if (k === 'documentos' && !loaded.has(k)) { loaded.add(k); drawDocs(docs.querySelector('#ctDocs'), org.id); }
   };
   bar.append(...tabs.map(([k, l]) => h('button', { type: 'button', role: 'tab', 'data-k': k, onclick: () => show(k) }, l)));

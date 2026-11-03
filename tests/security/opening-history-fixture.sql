@@ -1,0 +1,34 @@
+-- Synthetic local PostgreSQL only; never run against production.
+create role anon nologin;create role authenticated nologin;
+create schema app;create schema auth;grant usage on schema app,auth to authenticated;
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid',true),'')::uuid $$;
+create function app.is_active_user() returns boolean language sql stable as $$ select auth.uid() is not null and coalesce(current_setting('test.active',true),'true')='true' $$;
+create function app.role_for_org(uuid) returns text language sql stable as $$ select case when $1::text=current_setting('test.org',true) then current_setting('test.role',true) end $$;
+create table public.organizations(id uuid primary key,kind text default 'client',legal_name text,started_on date);
+create table public.providers(id uuid primary key,organization_id uuid,full_name text,is_active boolean default true,tax_id text,exequatur text,specialty text);
+create table public.ars(id uuid primary key,name text,is_active boolean default true);
+create table public.provider_ars_codes(id uuid primary key default gen_random_uuid(),organization_id uuid,provider_id uuid,ars_id uuid,code text,status text,notes text,updated_by uuid,updated_at timestamptz,unique(provider_id,ars_id));
+create table public.submissions(id uuid primary key,organization_id uuid,provider_id uuid,ars_id uuid,folio text,ars_receipt_number text);
+create table public.service_lines(id uuid primary key,organization_id uuid,submission_id uuid,service_date date,member_number text,authorization_number text,claim_folio text);
+create table public.payments(id uuid primary key default gen_random_uuid(),organization_id uuid,ars_id uuid,reference text,paid_on date,amount numeric);
+create table public.sofa_fees(id uuid primary key default gen_random_uuid(),amount numeric);
+create table public.audit_log(user_id uuid,table_name text,old_values jsonb,new_values jsonb);
+create function app.audit() returns trigger language plpgsql security definer set search_path='' as $$ begin insert into public.audit_log values(auth.uid(),tg_table_name,case when tg_op='UPDATE' then to_jsonb(old) end,to_jsonb(new));return null;end $$;
+create function app.parse_date_do(text) returns date language plpgsql immutable as $$ declare d date; begin if nullif(trim($1),'') is null then return null;end if;d:=to_date($1,'DD/MM/YYYY');if to_char(d,'DD/MM/YYYY')<>$1 then return null;end if;return d;exception when others then return null;end $$;
+create function app.pm_parse_amount(text) returns numeric language plpgsql immutable as $$ declare t text:=trim($1);begin if nullif(t,'') is null then return null;end if;t:=replace(t,'RD$','');if t~'^\d+,\d{1,2}$' then t:=replace(t,',','.');else t:=replace(t,',','');end if;return t::numeric;exception when others then return null;end $$;
+-- Dependencies of the existing onboarding functions replaced by this migration.
+create table public.documents(id uuid,organization_id uuid,entity_type text,entity_id uuid,document_type_code text,uploaded_at timestamptz);
+create table public.client_document_reviews(document_id uuid,status text,reviewed_at timestamptz,notes text);
+create function app.client_ars_letters_status(uuid) returns jsonb language sql as $$ select '{"ok":false,"detail":"pending"}'::jsonb $$;
+create table public.tariffs(organization_id uuid,provider_id uuid,ars_id uuid,status text,valid_during daterange);
+create table public.capturer_scopes(organization_id uuid);
+create table public.contacts(organization_id uuid,contact_role text,inducted_on date);
+create table public.onboarding_items(organization_id uuid,step_code text,done boolean,done_at timestamptz,notes text);
+create table public.commercial_documents(organization_id uuid,template_code text,status text,ars_id uuid);
+create table public.organization_users(organization_id uuid,user_id uuid,role_code text,is_active boolean);
+create table public.profiles(id uuid,is_active boolean);
+create table public.golive_load_batches(organization_id uuid,kind text,rows_accepted int);
+grant select on all tables in schema public to authenticated;
+insert into organizations values('10000000-0000-4000-8000-000000000001','client','Historic client','2026-10-01');
+insert into providers(id,organization_id,full_name) values('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','Historic doctor');
+insert into ars values('30000000-0000-4000-8000-000000000001','ARS Alpha',true);
