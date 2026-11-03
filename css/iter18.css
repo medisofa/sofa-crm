@@ -1053,3 +1053,11 @@ input[data-dq="advierte"]{border-color:var(--warn,#b7791f)}
 .ti-error-card .ti-problems{color:var(--bad,#861d18);font-weight:600;overflow-wrap:anywhere}
 .ti-error-card .i18-form input[aria-invalid="true"]{border:2px solid var(--bad,#861d18);background:var(--bad-bg,#f6e7e6)}
 .ti-error-card .i18-sub{color:var(--text-muted,#4f5f78);font-size:.8rem}
+
+/* La excepción se revisa y autoriza antes de la validación y el guardado. */
+.ti-code-exception{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+.ti-code-exception summary{cursor:pointer;font-weight:600}
+.ti-exception-reason{display:grid;gap:6px;margin:12px 0}
+.ti-exception-reason textarea{box-sizing:border-box;width:100%;padding:8px;background:var(--surface);color:var(--ink);font:inherit;border:1px solid var(--line);border-radius:6px}
+.ti-exception-confirm{display:flex;align-items:start;gap:8px;margin:12px 0;font-weight:600}
+.ti-error-card textarea{resize:vertical;min-height:64px}

@@ -3,6 +3,7 @@
  *  Pasos: elegir ARS, médico y vigencia → subir el archivo → revisar la vista previa (nueva, cambia, igual, con error) → confirmar.
  *  Usa public.import_contract_tariffs_v2 (116), que valida igual que el Tarifario contractual y omite las tarifas iguales. */
 import { rpc, h, money, fmtDate, note, guarded } from '../services/iter18.js';
+import { codeExceptionEditor } from './tariff-code-exceptions.js';
 import { readTable, excelDate, detectColumns, normHead } from '../utils/xlsx-lite.js';
 
 const ALIASES = {
@@ -55,10 +56,18 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
 
   let rows = null; let sources = []; let fname = ''; let busy = false; let saveButton = null;
   const contextControls = [ars, plan, prov, from, to, contract, file];
+  const disabledBefore = new Map();
   function setBusy(value) {
-    busy = value; go.disabled = value;
-    contextControls.forEach((el) => { el.disabled = value; });
-    out.querySelectorAll('button,input').forEach((el) => { el.disabled = value; });
+    if (value === busy) return;
+    busy = value;
+    if (value) {
+      [go, ...contextControls, ...out.querySelectorAll('button,input,select,textarea')].forEach((el) => {
+        disabledBefore.set(el, el.disabled); el.disabled = true;
+      });
+    } else {
+      disabledBefore.forEach((disabled, el) => { if (el.isConnected) el.disabled = disabled; });
+      disabledBefore.clear();
+    }
   }
   function resetReview() {
     rows = null; sources = []; saveButton = null;
@@ -153,8 +162,9 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
 
   function preview(rep) {
     const ok = !rep.errors.length;
-    const ready = ok && (rep.new + rep.changed) > 0;
-    const save = h('button', { class: 'i18-btn', type: 'button', disabled: !ready, 'data-ready': String(ready) }, `Confirmar: guardar ${rep.new + rep.changed} tarifa(s)`);
+    const approvals = sources.filter((source) => source.authorization);
+    const ready = ok && ((rep.new + rep.changed) > 0 || approvals.length > 0);
+    const save = h('button', { class: 'i18-btn', type: 'button', disabled: !ready, 'data-ready': String(ready) }, `Confirmar: guardar ${rep.new + rep.changed} tarifa(s)${approvals.length ? ` y ${approvals.length} excepción(es)` : ''}`);
     saveButton = save;
     const status = h('p', { role: 'status' }, ok ? 'Revisión completa. Compruebe las tarifas antes de confirmar.' : '1. Revise los valores señalados. 2. Corrija aquí o excluya la fila. 3. Vuelva a validar.');
     const recheck = h('button', { class: 'i18-btn', type: 'button' }, 'Volver a validar correcciones');
@@ -173,7 +183,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
       setBusy(true);
       try {
         const r = await rpc('import_contract_tariffs_v2', { p_rows: rows, p_commit: true, p_file: fname });
-        out.replaceChildren(note(`Listo: ${r.imported} tarifa(s) guardadas. ${r.same} igual(es) se omitieron.`, 'ok'));
+        out.replaceChildren(note(`Listo: ${r.imported} tarifa(s) guardadas. ${r.same} igual(es) se omitieron.${approvals.length ? ` ${approvals.length} excepción(es) de ARS guardada(s).` : ''}`, 'ok'));
         rows = null; sources = []; saveButton = null; file.value = '';
         selected.replaceChildren('Carga completada. Puede seleccionar nuevos archivos.');
         drawHistory(); drawExpiring();
@@ -186,6 +196,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
       if (!row || !source) return note(`No se pudo localizar ${location(error.row)}. Revise los archivos de nuevo.`, 'error');
       const messages = error.errors.map(explain);
       const problemId = `ti-error-${index}`;
+      let exceptionEditor = null;
       const inputs = fields.map(([key, label]) => {
         const invalid = key === 'descripcion' ? false : error.errors.some((m) => {
           const text = m.toLowerCase();
@@ -194,13 +205,16 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
           if (key === 'tarifa') return text.includes('tarifa inválida');
           return key === 'desde' ? /inicio|inicia|vigencia|duplicado/.test(text) : /fin|vigencia|duplicado/.test(text);
         });
-        const input = h('input', { value: row[key], 'aria-label': `${label} · ${location(error.row)}`, 'aria-invalid': String(invalid), 'aria-describedby': problemId });
-        input.addEventListener('input', () => { row[key] = input.value; dirty(); });
+        const input = h(key === 'descripcion' ? 'textarea' : 'input', { rows: key === 'descripcion' ? '2' : null, value: row[key], 'aria-label': `${label} · ${location(error.row)}`, 'aria-invalid': String(invalid), 'aria-describedby': problemId });
+        input.addEventListener('input', () => {
+          row[key] = input.value; delete row.code_authorization; delete source.authorization;
+          exceptionEditor?.invalidate(); dirty();
+        });
         const original = h('span', { class: 'i18-sub', style: 'overflow-wrap:anywhere' }, `Original: ${source.original[key] || '(vacío)'}`);
         return h('label', {}, label, input, original);
       });
       const tips = [];
-      if (error.errors.some((m) => /SIMON|CUPS/.test(m))) tips.push('Compruebe que Servicio, SIMON y CUPS identifiquen el mismo procedimiento. Corrija el código; si no dispone del código adicional, puede dejarlo vacío conservando al menos un identificador válido.');
+      if (error.errors.some((m) => /SIMON|CUPS/.test(m))) tips.push('Compruebe que Servicio, SIMON y CUPS identifiquen el mismo procedimiento. Corrija el código o proponga una excepción si el contrato de esta ARS usa una asociación exclusiva. Si no dispone del código adicional, puede dejarlo vacío conservando al menos un identificador válido.');
       if (error.errors.some((m) => /Tarifa inválida/.test(m))) tips.push('Indique un monto mayor que cero y hasta 10,000,000; por ejemplo 1500.00.');
       if (error.errors.some((m) => /fecha|vigencia|inicio|fin/i.test(m))) tips.push('Use DD/MM/AAAA. Revise las vigencias existentes; Hasta puede quedar vacío si el contrato no vence.');
       if (error.errors.some((m) => /Duplicado/.test(m))) tips.push('Compare con la fila indicada. Si es la misma tarifa, excluya una de las dos para evitar duplicarla.');
@@ -213,15 +227,22 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
         saveButton = null; out.replaceChildren(note('Revisando el lote sin la fila excluida…'));
         await validate();
       });
+      if (error.errors.some((m) => /SIMON|CUPS/.test(m))) {
+        exceptionEditor = codeExceptionEditor({ orgId, row, source, errors: error.errors, setBusy, isBusy: () => busy,
+          onInvalidate: () => { delete row.code_authorization; delete source.authorization; dirty(); },
+          onAuthorized: (approval) => { row.code_authorization = approval.id; source.authorization = approval; dirty(); } });
+      }
       return h('section', { class: 'i18-card ti-error-card' }, h('h4', {}, location(error.row)),
         h('ul', { id: problemId, class: 'ti-problems' }, messages.map((m) => h('li', {}, m))),
-        tips.map((tip) => h('p', {}, tip)), h('div', { class: 'hc-grid i18-form', style: 'max-width:none' }, inputs), exclude);
+        tips.map((tip) => h('p', {}, tip)), h('div', { class: 'hc-grid i18-form', style: 'max-width:none' }, inputs), exceptionEditor?.element || '', exclude);
     }
     out.replaceChildren(
       h('div', { class: 'ac-sum', style: 'margin:10px 0' },
         h('span', { class: 'ac-pill st-prep' }, `${rep.new} nuevas`), h('span', { class: 'ac-pill st-req' }, `${rep.changed} cambian`),
         h('span', { class: 'ac-pill st-none' }, `${rep.same} iguales`), h('span', { class: `ac-pill ${ok ? 'st-ok' : 'st-bad'}` }, `${rep.errors.length} con error`)),
       status,
+      approvals.length ? h('section', {}, h('h4', {}, 'Excepciones autorizadas pendientes de guardar'),
+        h('ul', {}, approvals.map((source) => h('li', {}, `${source.file} · fila ${source.line}: ${source.authorization.proposal.ars_name} · ${source.authorization.proposal.codes.map((code) => `${code.system} ${code.code}`).join(', ')} → ${source.authorization.proposal.service_code} · ${source.authorization.proposal.service_description}`)))) : '',
       rep.errors.length ? h('section', {}, note('Puede corregir los valores aquí sin editar el Excel. Se conserva el texto original para comparar. Los cambios no modifican el archivo de su equipo ni el catálogo de servicios.', 'error'), rep.errors.map(errorCard)) : '',
       h('div', { class: 'i18-actions' }, recheck, copy),
       rep.rows.length ? h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
