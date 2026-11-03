@@ -14,7 +14,7 @@ import { waLink, phoneFmt } from '../utils/whatsapp.js';
 import { can, isStaff, canOpen } from '../utils/permissions.js';
 import { isTaxId, isEmail, isPhone } from '../utils/validation.js';
 import { contactDialog, taskDialog, interactionDialog, activityExtra } from './crm-dialogs.js';
-import { setupClientTabs } from './client-tabs.js';
+import { setupClientTabs } from './client-tabs.js?v=5.23.2';
 import { mountArsCodes } from './ars-codes.js';
 import { taskList, taskAction, contactList } from './opportunity.js';
 

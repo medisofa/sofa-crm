@@ -2,11 +2,11 @@
  * SOFA · Arranque de la aplicación (index.html)
  * Login → Supabase Auth → perfil → organización → permisos → aplicación.
  */
-import { APP_VERSION } from './version.js';
+import { APP_VERSION } from './version.js?v=5.23.2';
 import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
-import { resolve, parseHash, DEFAULT_ROUTE } from './router.js';
+import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.23.2';
 import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
@@ -436,7 +436,9 @@ function swUpdateBanner() {
   bar.innerHTML = '<span>Hay una versión nueva de SOFA.</span> <button type="button">Recargar ahora</button>';
   bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--navy,#223A5D);color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font:14px/1.4 system-ui,sans-serif';
   bar.querySelector('button').style.cssText = 'padding:6px 14px;border-radius:6px;border:0;background:#fff;color:var(--navy,#223A5D);font-weight:600;cursor:pointer';
-  bar.querySelector('button').addEventListener('click', () => location.reload());
+  bar.querySelector('button').addEventListener('click', () => {
+    const url = new URL(location.href); url.searchParams.set('release', APP_VERSION); location.replace(url);
+  });
   document.body.appendChild(bar);
 }
 
@@ -446,7 +448,7 @@ function registerSW() {
   // de sw.js guardada en su caché HTTP normal y nunca detectar que había una versión nueva —
   // sobre todo en una PWA instalada, donde el navegador revisa actualizaciones con poca frecuencia.
   // Con 'none', cada revisión de actualización pide sw.js siempre a la red.
-  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+  navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(APP_VERSION)}`, { updateViaCache: 'none' }).then((reg) => {
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
       w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) swUpdateBanner(); });

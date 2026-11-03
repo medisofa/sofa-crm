@@ -1,3 +1,4 @@
+import { APP_VERSION } from './version.js?v=5.23.2';
 /**
  * SOFA · Enrutador por hash (#/ruta/parametro). Compatible con GitHub Pages
  * sin configuración de servidor.
@@ -84,14 +85,14 @@ export async function resolve(role) {
   if (!def) return { kind: 'notfound', route };
   if (!canSee(route, role)) return { kind: 'forbidden', def };
   if (!def.ready) {
-    const mod = await import('./modules/placeholder.js');
+    const mod = await import(`./modules/placeholder.js?v=${encodeURIComponent(APP_VERSION)}`);
     return { kind: 'module', def, mod, arg };
   }
   // 5.11.2 · Si la ruta está en el menú pero no en MODULES, antes se pedía «./modules/undefined»,
   // que da 404 y el navegador lo reporta como «Failed to fetch dynamically imported module»:
   // parecía un problema de red cuando en realidad faltaba actualizar este archivo.
   if (!MODULES[route]) return { kind: 'sinmodulo', def };
-  const mod = await import(`./modules/${MODULES[route]}`);
+  const mod = await import(`./modules/${MODULES[route]}?v=${encodeURIComponent(APP_VERSION)}`);
   return { kind: 'module', def, mod: conMedicion(route, mod), arg };
 }
 

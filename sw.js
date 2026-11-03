@@ -24,7 +24,8 @@
  * AL PUBLICAR UNA VERSIÓN NUEVA: cambia VERSION abajo para que se renueve la caché.
  * Mantenlo igual al APP_VERSION de js/version.js.
  */
-const VERSION = 'sofa-shell-5.23.1';
+const VERSION = 'sofa-shell-5.23.2';
+const ASSET_VERSION = VERSION.replace('sofa-shell-', '');
 
 /** Lo mínimo para que la aplicación arranque y pinte algo sin conexión. */
 const SHELL = [
@@ -44,9 +45,14 @@ const SHELL = [
 async function guardarCascaron() {
   const cache = await caches.open(VERSION);
   const faltantes = [];
-  await Promise.all(SHELL.map((url) =>
-    cache.add(new Request(url, { cache: 'reload' })).catch(() => faltantes.push(url))
-  ));
+  await Promise.all(SHELL.map(async (url) => {
+    try {
+      const req = new Request(new URL(url, self.location.href), { cache: 'reload' });
+      const res = await fetch(versionedAssetRequest(req), { cache: 'reload' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await cache.put(req, res);
+    } catch { faltantes.push(url); }
+  }));
   if (faltantes.length) {
     console.warn('SOFA · service worker: estos archivos del cascarón no se pudieron guardar y la app no funcionará sin conexión hasta que existan:', faltantes);
   }
@@ -60,7 +66,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('sofa-shell-') && k !== VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -75,10 +81,23 @@ self.addEventListener('fetch', (e) => {
   // una respuesta de minutos atrás hasta que esa caché expirara.
   // Toda respuesta buena se guarda, así una pantalla abierta una vez queda disponible sin conexión.
   e.respondWith(
-    fetch(req, { cache: 'no-store' }).then((res) => {
-      if (res.ok) { const copia = res.clone(); caches.open(VERSION).then((c) => c.put(req, copia)); }
+    fetch(versionedAssetRequest(req), { cache: 'no-store' }).then((res) => {
+      if (res.ok) {
+        const copia = res.clone();
+        e.waitUntil(caches.open(VERSION).then((c) => c.put(req, copia)).catch(() => {}));
+      }
       return res;
-    }).catch(() => caches.match(req, { ignoreSearch: true })
-      .then((r) => r || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
+    }).catch(() => caches.open(VERSION).then(async (cache) =>
+      (await cache.match(req, { ignoreSearch: true })) || (req.mode === 'navigate' ? cache.match('./index.html') : Response.error())))
   );
 });
+
+/** La URL de red cambia por entrega aunque un CDN conserve la ruta sin versión.
+ * La clave local sigue siendo la petición original y solo se consulta la caché de esta entrega.
+ * No modifica navegaciones ni peticiones a Supabase u otros orígenes. */
+function versionedAssetRequest(req) {
+  const url = new URL(req.url);
+  if (req.mode === 'navigate' || !/\.(js|css)$/i.test(url.pathname)) return req;
+  url.searchParams.set('sofa_v', ASSET_VERSION);
+  return new Request(url, req);
+}

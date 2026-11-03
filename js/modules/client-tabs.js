@@ -3,7 +3,7 @@
 import { rpc, supabase, h, fmtDate, note, guarded } from '../services/iter18.js';
 import { can, isStaff, canOpen } from '../utils/permissions.js';
 import { mountOpeningHistory, OPENING_ROLES } from './opening-history.js';
-import { mountTariffImport } from './tarifario-import.js';
+import { mountTariffImport } from './tarifario-import.js?v=5.23.2';
 
 const TABS = [
   ['resumen', 'Resumen'], ['codigos', 'Códigos ARS'], ['tarifario', 'Tarifario'], ['documentos', 'Documentos'],
