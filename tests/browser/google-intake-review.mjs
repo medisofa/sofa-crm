@@ -25,6 +25,8 @@ try{
    if(name==='google_intake_tariff_v1'){tariff=Number(args.p_data.amount);return {data:'tariff-new'};}
    if(name==='google_intake_review_v1'){
     const record=commits[args.p_record_id];
+    if(args.p_action==='duplicates'&&window.waitDuplicates)await new Promise(resolve=>{window.releaseDup=resolve});
+    if(args.p_action==='duplicates'&&window.failDuplicates)return {error:{message:'NetworkError'}};
     if(args.p_action==='duplicates')return record?{data:{duplicate:false,already_imported:true,result:record,removed:record.removed||false}}:{data:{duplicate:args.p_data.member==='EXIST',folios:args.p_data.member==='EXIST'?['F-existente']:[]}};
     if(args.p_action==='remove'){if(protect)return {error:{message:'La reclamación tiene pagos registrados',code:'23514'}};record.removed=true;return {data:{...record,removed:true}};}
     if(commitFail)return {error:{message:'No se pudo registrar la bitácora definitiva',code:'23514'}};
@@ -42,6 +44,29 @@ try{
  assert.equal(await page.locator('#preview tbody tr').count(),5);
  assert.equal(await page.locator('#preview script').count(),0);
  await page.getByText(/Ya existe en SoFa: F-existente/).waitFor();
+ const idleColor=await page.locator('#duplicates').evaluate(e=>getComputedStyle(e).backgroundColor);
+ await page.evaluate(()=>waitDuplicates=true);
+ await page.locator('#duplicates').click();
+ await page.waitForFunction(()=>document.querySelector('#duplicates').dataset.actionState==='running');
+ assert.equal(await page.locator('#duplicates').getAttribute('aria-busy'),'true');
+ assert.notEqual(await page.locator('#duplicates').evaluate(e=>getComputedStyle(e).backgroundColor),idleColor);
+ assert.equal(await page.locator('#duplicates').evaluate(e=>getComputedStyle(e,'::before').animationName),'sofa-action-spin');
+ assert.match(await page.locator('#gi-action-status').textContent(),/en proceso/);
+ await page.evaluate(()=>{waitDuplicates=false;releaseDup()});
+ await page.waitForFunction(()=>!document.querySelector('#gcsv').disabled);
+ assert.equal(await page.locator('#duplicates').getAttribute('data-action-state'),'warning');
+ assert.equal(await page.locator('#duplicates').isEnabled(),true);
+ assert.match(await page.locator('#gi-action-status').textContent(),/finalizada.*\d{1,2}:\d{2}:\d{2}.*Puede volver/);
+ const duplicateCalls=await page.evaluate(()=>calls.filter(c=>c.name==='google_intake_review_v1'&&c.args.p_action==='duplicates').length);
+ await page.locator('#duplicates').click();await page.waitForFunction(()=>!document.querySelector('#gcsv').disabled);
+ assert.ok(await page.evaluate(()=>calls.filter(c=>c.name==='google_intake_review_v1'&&c.args.p_action==='duplicates').length)>duplicateCalls);
+ await page.evaluate(()=>failDuplicates=true);
+ await page.locator('#duplicates').click();await page.waitForFunction(()=>!document.querySelector('#gcsv').disabled);
+ assert.equal(await page.locator('#duplicates').getAttribute('data-action-state'),'error');
+ assert.equal(await page.locator('#duplicates').isEnabled(),true);
+ await page.evaluate(()=>failDuplicates=false);
+ await page.locator('#duplicates').click();await page.waitForFunction(()=>!document.querySelector('#gcsv').disabled);
+
  await page.evaluate(()=>auditFail=true);
  await page.locator('[data-exclude-row="4"]').click();
  await page.locator('#gi-action-reason').fill('Duplicada identificada en el archivo');
@@ -57,6 +82,10 @@ try{
  await page.getByRole('button',{name:'Guardar corrección',exact:true}).click();
  await page.waitForFunction(()=>!document.querySelector('dialog'));
  assert.match(await page.locator('#preview tbody tr').nth(1).textContent(),/750/);
+ await page.locator('#approve').click();await page.getByRole('button',{name:'Cancelar',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('#gcsv').disabled);
+ assert.equal(await page.locator('#approve').getAttribute('data-action-state'),'cancelled');
+ assert.equal(await page.locator('#approve').isEnabled(),true);
  await page.locator('#approve').click();await page.getByRole('button',{name:'Aprobar',exact:true}).click();
  await page.waitForFunction(()=>!document.querySelector('#import').disabled);
  assert.match(await page.locator('#summary').textContent(),/3 aprobada/);
@@ -98,6 +127,13 @@ try{
  assert.equal(await page.locator('[data-edit-row="3"]').count(),1);
  assert.equal(await page.locator('[data-tariff-row]').count(),0);
  await page.getByText(/El ajuste de monto requiere autorización/).waitFor();
+
+ await upload(header+row('Paciente sin médico','900','AU900').replace('Médico Prueba','Médico desconocido'));
+ assert.equal(await page.locator('#duplicates').getAttribute('data-action-state'),null);
+ await page.locator('#duplicates').click();await page.waitForFunction(()=>!document.querySelector('#gcsv').disabled);
+ assert.equal(await page.locator('#duplicates').getAttribute('data-action-state'),'warning');
+ assert.match(await page.locator('#gi-action-status').textContent(),/0 fila\(s\) comprobadas.*1 sin comprobar/);
+ assert.equal(await page.locator('#duplicates').isEnabled(),true);
  assert.deepEqual(errors,[]);
- console.log('PASS: revisión obligatoria, edición con motivo, exclusión, duplicadas del archivo/SoFa, aprobación, monto real, bitácora fallida, recuperación de respuesta perdida, eliminación protegida, nueva vigencia autorizada y móvil.');
+ console.log('PASS: feedback en proceso/finalización/hora, repetición, errores y filas no comprobables; revisión obligatoria, edición con motivo, exclusión, duplicadas del archivo/SoFa, aprobación, monto real, bitácora fallida, recuperación de respuesta perdida, eliminación protegida, nueva vigencia autorizada y móvil.');
 }finally{await browser.close();}

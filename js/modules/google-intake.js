@@ -9,7 +9,7 @@ import { captureProviders, activeArs, contractedServices } from '../services/cla
 import { cie10Suggestions } from '../services/calidad-dato.js';
 import { rpc } from '../services/iter18.js';
 import { can } from '../utils/permissions.js';
-import { contractDialog } from './contracts.js?v=5.27.1';
+import { contractDialog } from './contracts.js?v=5.27.2';
 
 const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1VeUb9RQ_jGBN9chr6QCiV-8Gp-2b2JKaj159qo6a-ps/edit';
 const REQUIRED = ['Médico / Prestador *','ARS *','Fecha del servicio *','Paciente *','NSS / No. afiliado *','Servicio / Procedimiento *'];
@@ -103,7 +103,7 @@ export async function render(main, ctx){
       </div>
     </div>
     <div class="card" style="margin-top:14px"><div class="page-head"><div class="t"><h2>2 · Revisar, corregir y confirmar</h2><p id="summary">Carga un CSV para comenzar.</p></div>
-      <div class="toolbar"><button class="btn" id="duplicates" disabled>Verificar duplicadas</button><button class="btn" id="approve" disabled>Aprobar filas sin observaciones</button><button class="btn primary" id="import" disabled>Confirmar e importar aprobadas</button></div></div><div id="preview"></div></div>
+      <div class="toolbar"><button class="btn" id="duplicates" disabled>Verificar duplicadas</button><button class="btn" id="approve" disabled>Aprobar filas sin observaciones</button><button class="btn primary" id="import" disabled>Confirmar e importar aprobadas</button></div></div><div id="gi-action-status" class="gi-action-status" role="status" aria-live="polite" hidden></div><div id="preview"></div></div>
   `);
 
   const file=$('#gcsv',main), validate=$('#validate',main), imp=$('#import',main), preview=$('#preview',main), summary=$('#summary',main);
@@ -174,6 +174,7 @@ export async function render(main, ctx){
         <td data-l="Acción">${v.status==='imported'?html`<a class="btn sm" href="#/reclamaciones">Ver reclamaciones</a>${['super_admin','admin','billing'].includes(ctx.role)?html`<button class="btn sm" data-remove-row="${v.row}">Eliminar reclamación</button>`:''}`:v.status==='removed'?html`<span class="small">Eliminación registrada en bitácora</span>`:v.status==='excluded'?html`<button class="btn sm" data-restore-row="${v.row}">Restaurar fila</button>`:html`<button class="btn sm" data-edit-row="${v.row}">Completar / editar</button><button class="btn sm" data-exclude-row="${v.row}">Excluir / eliminar del lote</button>${v.status==='review'&&!v.errors.length?html`<button class="btn sm" data-review-row="${v.row}">Aprobar fila</button>`:''}`}</td>
       </tr>`)}
     </tbody></table></div>`);
+    paintActionFeedback();
     preview.setAttribute('aria-busy',String(S.busy));
     preview.querySelectorAll('button').forEach(button=>{button.disabled=S.busy;});
   }
@@ -300,6 +301,7 @@ export async function render(main, ctx){
       }
     });
     if(result!==null) draw();
+    return result;
   }
 
   function dataFor(v){
@@ -317,10 +319,10 @@ export async function render(main, ctx){
   }
   async function checkDuplicates(){
     const active=S.validated.filter(v=>!['excluded','imported','removed'].includes(v.status));
-    const seen=new Map();
+    const seen=new Map();let checked=0,failed=0,skipped=0;
     for(const v of active){v.errors=[...(v.validationErrors||[])];v.duplicateMessages=[];}
     for(const v of active){
-      if(!v.provider||!v.ars||!v.service||!v.serviceDate||v.member.length<3)continue;
+      if(!v.provider||!v.ars||!v.service||!v.serviceDate||v.member.length<3){skipped++;continue;}
       const scope=`${v.provider.organization_id}:${v.ars.id}:`;
       const keys=[scope+`member:${v.member}:${v.serviceDate}:${v.service.procedure_id}`];
       if(v.authorization)keys.push(scope+`auth:${v.authorization}`);
@@ -330,11 +332,13 @@ export async function render(main, ctx){
       }
       try{
         const result=await rpc('google_intake_review_v1',{p_record_id:recordId(v),p_action:'duplicates',p_data:dataFor(v)});
+        checked++;
         if(result.already_imported){v.status=result.removed?'removed':'imported';v.folio=result.result?.folio;v.claimId=result.result?.id;continue;}
         if(result.duplicate)v.duplicateMessages.push(`Ya existe en SoFa: ${(result.folios||[]).join(', ')}`);
-      }catch(error){v.duplicateMessages.push('No se pudo verificar duplicadas. Vuelva a intentarlo.');}
+      }catch(error){failed++;v.duplicateMessages.push('No se pudo verificar duplicadas. Vuelva a intentarlo.');}
     }
     for(const v of active){if(['imported','removed'].includes(v.status))continue;v.errors.push(...new Set(v.duplicateMessages));if(v.errors.length){v.status='error';v.reviewed=false;}else v.status=v.reviewed?'ready':'review';}
+    S.duplicateStats={checked,failed,skipped,duplicates:active.filter(v=>v.duplicateMessages.some(m=>!m.startsWith('No se pudo'))).length};
   }
   async function refreshReview(){
     for(let i=0;i<S.validated.length;i++){
@@ -343,10 +347,40 @@ export async function render(main, ctx){
     }
     await checkDuplicates();
   }
-  async function run(fn){
-    if(S.busy)return;S.busy=true;draw();
-    try{await fn();}catch(error){toast(friendlyError(error),'bad');}
-    finally{S.busy=false;draw();}
+  const actionFeedback=new Map();let lastAction=null;
+  const actionClock=()=>new Date().toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Santo_Domingo'});
+  function paintActionFeedback(){
+    for(const action of actionFeedback.values()){
+      const button=action.find();if(!button)continue;
+      button.dataset.actionState=action.state;
+      button.setAttribute('aria-busy',String(action.state==='running'));
+      button.title=action.state==='running'?action.message:`${action.message} · ${action.at}${button.disabled?'':'. Puede volver a ejecutar la acción.'}`;
+    }
+    const box=$('#gi-action-status',main);if(!box)return;
+    box.hidden=!lastAction;
+    if(lastAction){const available=lastAction.find();const repeat=available&&!available.disabled?'. Puede volver a ejecutar la acción.':'';box.dataset.state=lastAction.state;box.textContent=lastAction.state==='running'?lastAction.message:`${lastAction.message} · ${lastAction.at}${repeat}`;}
+  }
+  function clearActionFeedback(){
+    actionFeedback.clear();lastAction=null;validate.textContent='Validar archivo';
+    main.querySelectorAll('[data-action-state]').forEach(button=>{delete button.dataset.actionState;button.removeAttribute('aria-busy');button.removeAttribute('title');});
+  }
+  const topAction=(id,label)=>({id,label,find:()=>$('#'+id,main)});
+  function duplicateOutcome(){
+    const d=S.duplicateStats||{checked:0,failed:0,skipped:0,duplicates:0};
+    return {state:d.failed&&d.checked===0?'error':d.failed||d.skipped||d.duplicates?'warning':'success',
+      message:`Verificación de duplicadas finalizada: ${d.checked} fila(s) comprobadas, ${d.duplicates} con posibles coincidencias, ${d.skipped} sin comprobar por datos incompletos${d.failed?`, ${d.failed} con fallo de consulta`:''}`};
+  }
+  async function run(fn,descriptor=topAction('validate','Revisión')){
+    if(S.busy)return;
+    const action={...descriptor,state:'running',message:`${descriptor.label}: en proceso…`,at:null};
+    actionFeedback.set(action.id,action);lastAction=action;S.busy=true;draw();
+    try{
+      const result=await fn();
+      const outcome=result===null||result===false?{state:'cancelled',message:`${action.label}: cancelada; no se confirmó la acción`}
+        :result&&typeof result==='object'&&result.state?result:{state:'success',message:`${action.label}: proceso finalizado`};
+      Object.assign(action,outcome);
+    }catch(error){action.state='error';action.message=`${action.label}: ${friendlyError(error)}`;toast(friendlyError(error),'bad');}
+    finally{action.at=actionClock();S.busy=false;draw();}
   }
   async function approveRows(rows){
     await checkDuplicates();
@@ -369,8 +403,8 @@ export async function render(main, ctx){
         await checkDuplicates();return true;
       }});
   }
-  file.addEventListener('change',()=>{S.rows=[];S.validated=[];S.batchId=crypto.randomUUID();validate.disabled=!file.files?.length;draw();});
-  $('#clear',main).addEventListener('click',()=>{if(S.busy)return;file.value='';S.rows=[];S.validated=[];S.batchId=crypto.randomUUID();draw();summary.textContent='Carga un CSV para comenzar.';});
+  file.addEventListener('change',()=>{clearActionFeedback();S.rows=[];S.validated=[];S.batchId=crypto.randomUUID();validate.disabled=!file.files?.length;draw();});
+  $('#clear',main).addEventListener('click',()=>{if(S.busy)return;clearActionFeedback();file.value='';S.rows=[];S.validated=[];S.batchId=crypto.randomUUID();draw();summary.textContent='Carga un CSV para comenzar.';});
   validate.addEventListener('click',()=>run(async()=>{
     const f=file.files?.[0];if(!f)return;
     if(!S.validated.length){
@@ -381,31 +415,34 @@ export async function render(main, ctx){
       S.validated=[];for(const r of S.rows)S.validated.push(await validateRow(r));
     }
     await refreshReview();validate.textContent='Volver a validar correcciones';
-  }));
-  $('#duplicates',main).addEventListener('click',()=>run(checkDuplicates));
+    const issues=S.validated.filter(v=>v.errors.length).length;return {state:issues?'warning':'success',message:`Archivo revisado: ${S.validated.length} fila(s), ${issues} con observaciones`};
+  },topAction('validate','Revisar archivo')));
+  $('#duplicates',main).addEventListener('click',()=>run(async()=>{await checkDuplicates();return duplicateOutcome();},topAction('duplicates','Verificar duplicadas')));
   $('#approve',main).addEventListener('click',()=>run(async()=>{
     const rows=S.validated.filter(v=>v.status==='review'&&!v.errors.length);
-    if(await confirmDialog('Aprobar filas revisadas',`Se aprobarán ${rows.length} fila(s) sin observaciones. La decisión quedará en bitácora; todavía no se crean reclamaciones.`,'Aprobar'))await approveRows(rows);
-  }));
+    if(!await confirmDialog('Aprobar filas revisadas',`Se aprobarán ${rows.length} fila(s) sin observaciones. La decisión quedará en bitácora; todavía no se crean reclamaciones.`,'Aprobar'))return false;
+    await approveRows(rows);const approved=rows.filter(v=>v.status==='ready').length;return {state:approved===rows.length?'success':'warning',message:`Aprobación finalizada: ${approved} de ${rows.length} fila(s) aprobadas`};
+  },topAction('approve','Aprobar filas')));
   preview.addEventListener('click',e=>{
     const button=e.target.closest('[data-edit-row],[data-exclude-row],[data-restore-row],[data-review-row],[data-tariff-row],[data-remove-row]');if(!button||S.busy)return;
     const key=Object.keys(button.dataset).find(k=>k.endsWith('Row'));const v=S.validated.find(x=>String(x.row)===button.dataset[key]);if(!v)return;
     run(async()=>{
-      if(key==='editRow')await editRow(v);
-      else if(key==='reviewRow')await approveRows([v]);
-      else if(key==='excludeRow')await askReason(v,'Excluir fila');
-      else if(key==='restoreRow')await askReason(v,'Restaurar fila');
-      else if(key==='removeRow')await askReason(v,'Eliminar reclamación');
+      if(key==='editRow')return await editRow(v);
+      else if(key==='reviewRow'){await approveRows([v]);return {state:v.status==='ready'?'success':'warning',message:v.status==='ready'?`Fila ${v.row} aprobada`:`Fila ${v.row} sin aprobar; revise las observaciones`};}
+      else if(key==='excludeRow')return await askReason(v,'Excluir fila');
+      else if(key==='restoreRow')return await askReason(v,'Restaurar fila');
+      else if(key==='removeRow')return await askReason(v,'Eliminar reclamación');
       else if(key==='tariffRow'&&can('contracts.edit',ctx.role)){
         const changed=await contractDialog(S.providers,S.ars,{provider:v.provider.id,ars:v.ars.id,procedure:v.service.procedure_id,
           service:v.service.name,requireReason:true,onSave:data=>rpc('google_intake_tariff_v1',{p_record_id:recordId(v),p_data:data})});
         if(changed){await refreshReview();toast('Nueva vigencia registrada. Revise y apruebe nuevamente las filas afectadas.','ok');}
+        return changed;
       }
-    });
+    },{id:`${key}:${v.row}`,label:`${button.textContent} · fila ${v.row}`,find:()=>[...preview.querySelectorAll('button')].find(b=>b.dataset[key]===String(v.row))});
   });
   imp.addEventListener('click',()=>run(async()=>{
-    await checkDuplicates();const ready=S.validated.filter(v=>v.status==='ready'&&v.reviewed);if(!ready.length)return;
-    if(!await confirmDialog('Confirmación definitiva',`Se crearán ${ready.length} reclamación(es) aprobadas. Las demás filas no se importarán. El guardado y su bitácora se confirman juntos.`,'Confirmar e importar'))return;
+    await checkDuplicates();const ready=S.validated.filter(v=>v.status==='ready'&&v.reviewed);if(!ready.length)return {state:'warning',message:'No hay filas aprobadas disponibles para importar'};
+    if(!await confirmDialog('Confirmación definitiva',`Se crearán ${ready.length} reclamación(es) aprobadas. Las demás filas no se importarán. El guardado y su bitácora se confirman juntos.`,'Confirmar e importar'))return false;
     let ok=0,fail=0;
     for(const v of ready){
       try{
@@ -414,6 +451,7 @@ export async function render(main, ctx){
       }catch(error){v.status='failed';v.reviewed=false;v.errors=[friendlyError(error)];fail++;}
     }
     toast(`Resultado: ${ok} confirmada(s) · ${fail} por corregir`,fail?'bad':'ok');
-  }));
+    return {state:fail?'warning':'success',message:`Importación finalizada: ${ok} confirmada(s), ${fail} por corregir`};
+  },topAction('import','Confirmar importación')));
 }
 export default render;

@@ -53,3 +53,11 @@ Chromium con servicios simulados: CSV, edición, texto original, XSS, exclusión
 En producción solo se comprueban metadatos, ausencia de acceso anónimo/directo, rechazo de solicitudes sin sesión y archivos publicados. No se importan, editan ni eliminan reclamaciones reales para probar.
 
 Los borradores de revisión permanecen en memoria de la pestaña; las acciones auditadas son persistentes y las reclamaciones confirmadas quedan en la base. La reversión de frontend debe publicarse con una versión de caché nueva y conservar las tablas y bitácoras.
+
+## Indicadores de ejecución · 5.27.2
+
+Los botones de revisión muestran un indicador animado y estado accesible `aria-busy` durante el proceso. Al terminar conservan una marca y color de los tokens corporativos, con un mensaje persistente y hora de ejecución (America/Santo_Domingo). Se distinguen finalización, observaciones, errores y cancelación; terminar una acción no la deshabilita permanentemente. Las reglas existentes siguen evitando operaciones simultáneas e importaciones sin filas aprobadas.
+
+Verificar duplicadas informa cuántas filas se comprobaron, cuántas presentan coincidencias, cuáles no se pudieron comprobar por falta de datos y cuáles fallaron al consultar el servidor. Si no se identificó al médico/ARS/servicio, no muestra una comprobación satisfactoria de esas filas. El usuario puede volver a ejecutar la verificación. Cambiar o limpiar el archivo reinicia los indicadores.
+
+Probado en Chromium: cambio real de color, indicador animado durante una consulta pausada, finalización con hora, segunda ejecución efectiva, fallo y reintento, cancelación y filas no verificables, además de la regresión completa de revisión/importación y actualización de caché. No hay cambios de base de datos en esta entrega.

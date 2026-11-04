@@ -147,3 +147,19 @@ dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
 .flow-board .flow-card{flex-wrap:wrap;overflow-wrap:anywhere}
 @media(max-width:1199px){.flow-board{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:599px){.flow-board{grid-template-columns:minmax(0,1fr)}}
+
+/* Feedback de acciones: tokens corporativos SoFa, con texto además de color. */
+.btn[data-action-state="running"],.btn[data-action-state="success"]{background:var(--info-bg);color:var(--ink);border-color:var(--navy-3)}
+.btn[data-action-state="running"]{opacity:1;cursor:progress}
+.btn[data-action-state="running"]::before{content:"";display:inline-block;vertical-align:middle;width:.8em;height:.8em;margin-right:.5em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sofa-action-spin .8s linear infinite}
+.btn[data-action-state="success"]::before{content:"✓ ";font-weight:700}
+.btn[data-action-state="warning"]{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.btn[data-action-state="warning"]::before{content:"! ";font-weight:700}
+.btn[data-action-state="error"]{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+.btn[data-action-state="error"]::before{content:"! ";font-weight:700}
+.gi-action-status{margin:4px 0 16px;padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--navy-3);border-radius:var(--r);background:var(--info-bg);color:var(--ink);overflow-wrap:anywhere}
+.gi-action-status[data-state="warning"]{border-left-color:var(--warn);background:var(--warn-bg);color:var(--warn)}
+.gi-action-status[data-state="error"]{border-left-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.gi-action-status[data-state="cancelled"]{background:var(--surface-2);color:var(--ink-2)}
+@keyframes sofa-action-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.btn[data-action-state="running"]::before{animation:none}}

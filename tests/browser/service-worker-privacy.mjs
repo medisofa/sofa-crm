@@ -21,15 +21,15 @@ try{
  await page.waitForFunction(()=>navigator.serviceWorker.controller);
  await page.evaluate(async()=>{
  for(const path of ['/api/patients','/api/claims','/api/export.js','/reports/payments.json','/documents/receipt.pdf','/js/data.js','/js/private.js','/js/sample.js?patient_id=123'])await fetch(path,{cache:'no-store'});
- await fetch('/js/sample.js?sofa_v=5.27.1',{headers:{Authorization:'Bearer synthetic'},cache:'no-store'});
- await fetch('/js/sample.js?v=5.27.1',{cache:'no-store'});
+ await fetch('/js/sample.js?sofa_v=5.27.2',{headers:{Authorization:'Bearer synthetic'},cache:'no-store'});
+ await fetch('/js/sample.js?v=5.27.2',{cache:'no-store'});
  });
- await page.waitForFunction(async()=>{const c=await caches.open('sofa-shell-5.27.1');return !!await c.match('/js/sample.js?v=5.27.1')});
+ await page.waitForFunction(async()=>{const c=await caches.open('sofa-shell-5.27.2');return !!await c.match('/js/sample.js?v=5.27.2')});
  const urls=await page.evaluate(async()=>{const names=await caches.keys();return (await Promise.all(names.map(async n=>(await(await caches.open(n)).keys()).map(r=>r.url)))).flat()});
- assert.ok(urls.some(u=>u.endsWith('/js/sample.js?v=5.27.1')));
+ assert.ok(urls.some(u=>u.endsWith('/js/sample.js?v=5.27.2')));
  for(const u of urls){assert.ok(!/\/api\/|\/reports\/|\/documents\/|data\.js|private\.js|patient_id=|sample\.js\?sofa_v=/.test(u),u);}
  await context.setOffline(true);
  assert.equal(await page.evaluate(async()=>{try{await fetch('/api/patients');return false}catch{return true}}),true);
- assert.match(await page.evaluate(async()=>(await fetch('/js/sample.js?v=5.27.1')).text()),/staticAsset/);
+ assert.match(await page.evaluate(async()=>(await fetch('/js/sample.js?v=5.27.2')).text()),/staticAsset/);
  console.log('PASS: solo recursos estáticos; APIs, documentos, JSON, Authorization, parámetros de datos y respuestas privadas quedan fuera de CacheStorage. Recuperación estática sin conexión.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}

@@ -19,9 +19,9 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/' || url.pathname === '/index.html') return send(html, 'text/html');
     if (url.pathname === '/sw.js') { res.setHeader('Service-Worker-Allowed', '/'); return send(url.searchParams.has('legacy') ? oldWorker : await readFile(root + 'sw.js', 'utf8')); }
     if (url.pathname === '/js/supabase.js') return send('export const sb=()=>window.mockDB;');
-    if (url.pathname === '/js/modules/tarifario-import.js' && (!published || url.searchParams.get('sofa_v') !== '5.27.1')) return send(oldModule);
-    if (url.pathname === '/css/iter18.css' && (!published || url.searchParams.get('sofa_v') !== '5.27.1')) return send('button{background:transparent;color:#999}', 'text/css');
-    if (url.pathname === '/js/version.js' && url.searchParams.get('sofa_v') !== '5.27.1') return send("export const APP_VERSION='5.23.1';");
+    if (url.pathname === '/js/modules/tarifario-import.js' && (!published || url.searchParams.get('sofa_v') !== '5.27.2')) return send(oldModule);
+    if (url.pathname === '/css/iter18.css' && (!published || url.searchParams.get('sofa_v') !== '5.27.2')) return send('button{background:transparent;color:#999}', 'text/css');
+    if (url.pathname === '/js/version.js' && url.searchParams.get('sofa_v') !== '5.27.2') return send("export const APP_VERSION='5.23.1';");
     const body = await readFile(root + url.pathname.slice(1));
     return send(body, url.pathname.endsWith('.css') ? 'text/css' : url.pathname.endsWith('.html') ? 'text/html' : 'text/javascript');
   } catch { res.statusCode = 404; res.end('Missing'); }
@@ -45,8 +45,8 @@ try {
   await page.reload();
   await page.getByRole('button', { name: 'Confirmar: guardar 10 tarifa(s)' }).waitFor();
   // Switching the published version alone must not be mistaken for a successful client upgrade.
-  await page.evaluate(async () => { await navigator.serviceWorker.register('/sw.js?v=5.27.1', { updateViaCache: 'none' }); });
-  await page.waitForFunction(() => navigator.serviceWorker.controller?.scriptURL.includes('v=5.27.1'));
+  await page.evaluate(async () => { await navigator.serviceWorker.register('/sw.js?v=5.27.2', { updateViaCache: 'none' }); });
+  await page.waitForFunction(() => navigator.serviceWorker.controller?.scriptURL.includes('v=5.27.2'));
   await page.reload();
   await page.locator('#ti-file').waitFor();
   await page.locator('#ti-ars').selectOption('ars');
@@ -57,21 +57,21 @@ try {
   assert.equal(await save.evaluate((e) => getComputedStyle(e).backgroundColor), 'rgb(23, 109, 58)');
   assert.equal(await page.getByRole('button', { name: 'Confirmar: guardar 10 tarifa(s)' }).count(), 0);
   const keys = await page.evaluate(() => caches.keys());
-  assert.ok(keys.includes('sofa-shell-5.27.1'));
+  assert.ok(keys.includes('sofa-shell-5.27.2'));
   assert.ok(!keys.includes('sofa-shell-5.23.1'));
   assert.ok(keys.includes('unrelated-app-cache'));
   assert.equal(await page.evaluate(() => localStorage.getItem('session-marker')), 'preserve-this-session');
-  assert.ok(requests.some((u) => u.startsWith('/js/modules/tarifario-import.js?sofa_v=5.27.1')));
-  assert.ok(requests.some((u) => u.startsWith('/css/iter18.css?sofa_v=5.27.1')));
+  assert.ok(requests.some((u) => u.startsWith('/js/modules/tarifario-import.js?sofa_v=5.27.2')));
+  assert.ok(requests.some((u) => u.startsWith('/css/iter18.css?sofa_v=5.27.2')));
   await page.waitForFunction(async () => {
-    const c = await caches.open('sofa-shell-5.27.1');
+    const c = await caches.open('sofa-shell-5.27.2');
     return (await Promise.all(['/js/modules/tarifario-import.js','/js/modules/tariff-code-exceptions.js','/js/utils/xlsx-lite.js','/js/services/iter18.js','/js/supabase.js'].map((u) => c.match(u)))).every(Boolean);
   });
   await context.setOffline(true); await page.reload();
   await page.locator('#ti-file').waitFor();
   assert.equal(await page.locator('#ti-file').getAttribute('multiple'), '');
-  assert.equal(await page.evaluate(async () => (await import('/js/version.js?v=5.27.1')).APP_VERSION), '5.27.1');
+  assert.equal(await page.evaluate(async () => (await import('/js/version.js?v=5.27.2')).APP_VERSION), '5.27.2');
   assert.equal(await page.evaluate(() => localStorage.getItem('session-marker')), 'preserve-this-session');
   assert.deepEqual(errors, []);
-  console.log('PASS: sesión antigua conserva el botón viejo tras recargar; actualización 5.27.1 recibe botón verde, renueva solo caché SOFA, conserva sesión y funciona sin conexión con los módulos nuevos.');
+  console.log('PASS: sesión antigua conserva el botón viejo tras recargar; actualización 5.27.2 recibe botón verde, renueva solo caché SOFA, conserva sesión y funciona sin conexión con los módulos nuevos.');
 } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
