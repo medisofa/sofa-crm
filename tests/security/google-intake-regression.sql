@@ -1,0 +1,43 @@
+\set ON_ERROR_STOP on
+begin;
+do $$begin if has_function_privilege('anon','public.google_intake_review_v1(text,text,jsonb)','execute') then raise exception 'anon';end if;if has_table_privilege('authenticated','app.google_intake_commits','select') then raise exception 'direct read';end if;end$$;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
+select set_config('test.role','billing',true);
+do $$declare d jsonb:='{"provider":"33333333-3333-4333-8333-333333333333","ars":"55555555-5555-4555-8555-555555555555","procedure":"66666666-6666-4666-8666-666666666666","service_date":"2026-01-10","patient":"Prueba sin datos reales","member":"123456","authorization":"AUT123","amount":750,"expected_tariff":850,"discrepancy_reason":"Acuerdo específico documentado","review_confirmed":true}';r jsonb;r2 jsonb;begin
+ begin perform public.google_intake_review_v1('batch:1','commit',d||'{"review_confirmed":false}');raise exception 'unreviewed accepted';exception when invalid_parameter_value then null;end;
+ begin perform public.google_intake_review_v1('batch:1','commit',d||'{"expected_tariff":800}');raise exception 'stale tariff accepted';exception when serialization_failure then null;end;
+ perform set_config('test.audit_fail','on',true);
+ begin perform public.google_intake_review_v1('batch:fail','commit',d);raise exception 'audit failure accepted';exception when raise_exception then if SQLERRM<>'audit failed' then raise;end if;end;
+ perform set_config('test.audit_fail','off',true);
+ r:=public.google_intake_review_v1('batch:1','commit',d);if (r->>'amount')::numeric<>750 then raise exception 'wrong amount';end if;
+ r2:=public.google_intake_review_v1('batch:1','commit',d);if r2->>'id'<>r->>'id' then raise exception 'retry duplicated';end if;
+ if not (public.google_intake_review_v1('batch:1','duplicates',d)->>'already_imported')::boolean then raise exception 'lost response not recovered';end if;
+ if not (public.google_intake_review_v1('batch:other','duplicates',d)->>'duplicate')::boolean then raise exception 'existing duplicate missed';end if;
+ begin perform public.google_intake_review_v1('batch:other','commit',d);raise exception 'duplicate accepted';exception when unique_violation then null;end;
+ perform set_config('test.remove_protected','on',true);
+ begin perform public.google_intake_review_v1('batch:1','remove','{"reason":"Reclamación de prueba incorrecta"}');raise exception 'protected claim removed';exception when check_violation then null;end;
+ perform set_config('test.remove_protected','off',true);
+ perform set_config('test.audit_fail','on',true);
+ begin perform public.google_intake_review_v1('batch:1','remove','{"reason":"Reclamación de prueba incorrecta"}');raise exception 'remove audit failure accepted';exception when raise_exception then if SQLERRM<>'audit failed' then raise;end if;end;
+ perform set_config('test.audit_fail','off',true);
+ if (public.google_intake_review_v1('batch:1','duplicates',d)->>'removed')::boolean then raise exception 'remove rollback failed';end if;
+ r2:=public.google_intake_review_v1('batch:1','remove','{"reason":"Reclamación de prueba incorrecta"}');if not(r2->>'removed')::boolean then raise exception 'remove';end if;
+ r2:=public.google_intake_review_v1('batch:1','commit',d);if not(r2->>'removed')::boolean then raise exception 'removed recreated';end if;
+end$$;
+reset role;
+do $$begin if exists(select 1 from public.service_lines) then raise exception 'partial or removed claim remained';end if;if exists(select 1 from app.google_intake_commits where record_id='batch:fail') then raise exception 'partial mapping';end if;end$$;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',true);
+do $$begin begin perform public.google_intake_review_v1('other-user','duplicates','{"provider":"33333333-3333-4333-8333-333333333333"}');raise exception 'other org accepted';exception when insufficient_privilege then null;end;end$$;
+select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
+select set_config('test.role','operations',true);
+do $$begin begin perform public.google_intake_tariff_v1('tariff:1','{}');raise exception 'unauthorized tariff';exception when insufficient_privilege then null;end;end$$;
+select set_config('test.role','billing',true);
+do $$declare d jsonb:='{"provider":"33333333-3333-4333-8333-333333333333","ars":"55555555-5555-4555-8555-555555555555","procedure":"66666666-6666-4666-8666-666666666666","amount":900,"validFrom":"2027-01-01","notes":"Renegociación contractual autorizada"}';begin
+ perform set_config('test.audit_fail','on',true);begin perform public.google_intake_tariff_v1('tariff:1',d);raise exception 'tariff audit failure accepted';exception when raise_exception then if SQLERRM<>'audit failed' then raise;end if;end;perform set_config('test.audit_fail','off',true);
+ perform public.google_intake_tariff_v1('tariff:1',d);
+end$$;
+reset role;
+do $$begin if (select count(*) from public.tariffs)<>2 then raise exception 'tariff rollback failed';end if;end$$;
+rollback;

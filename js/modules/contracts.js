@@ -107,7 +107,7 @@ export async function render(main, ctx) {
 }
 
 /** Nueva tarifa o nueva vigencia (la anterior abierta se cierra el día previo; nunca se sobrescribe) */
-function contractDialog(provs, ars, preset = {}) {
+export function contractDialog(provs, ars, preset = {}) {
   let pick = preset.procedure ? { id: preset.procedure, name: preset.service } : null;
   return formDialog({
     title: preset.procedure ? 'Nueva vigencia de tarifa' : 'Nueva tarifa contractual', submitLabel: 'Registrar', wide: true,
@@ -121,7 +121,7 @@ function contractDialog(provs, ars, preset = {}) {
       <div class="field"><label for="k_t">Vigente hasta</label><input id="k_t" name="valid_to" type="date"><span class="hint">Vacío = abierta. Una vigencia nueva cierra la anterior abierta el día previo.</span></div>
       <div class="field"><label for="k_c">No. / referencia de contrato</label><input id="k_c" name="contract_ref" maxlength="80" value="${preset.contractRef || ''}"></div>
       <div class="field"><label for="k_ac">Código particular de la ARS / autorización</label><input id="k_ac" name="ars_code" maxlength="40"></div>
-      <div class="field"><label for="k_n">Observaciones</label><input id="k_n" name="notes" maxlength="300"></div></div>`,
+      <div class="field"><label for="k_n">${preset.requireReason ? 'Motivo del cambio (mínimo 10 caracteres)' : 'Observaciones'}</label><input id="k_n" name="notes" maxlength="300"></div></div>`,
     onOpen: (form) => {
       const q = form.querySelector('#k_q'); if (!q) return;
       const box = form.querySelector('#k_r'); let tm;
@@ -135,9 +135,10 @@ function contractDialog(provs, ars, preset = {}) {
       [['provider', 'Seleccione el médico'], ['ars', 'Seleccione la ARS'], ['valid_from', 'Indique la fecha']].forEach(([k, m]) => { if (!d[k]) { fieldError(form.elements[k], m); ok = false; } else fieldError(form.elements[k], ''); });
       if (!(Number(d.amount) > 0)) { fieldError(form.elements.amount, 'Debe ser mayor que cero'); ok = false; }
       if (d.valid_to && d.valid_to < d.valid_from) { fieldError(form.elements.valid_to, 'Anterior al inicio'); ok = false; }
+      if (preset.requireReason && String(d.notes || '').trim().length < 10) { fieldError(form.elements.notes, 'Indique el motivo del cambio (mínimo 10 caracteres)'); ok = false; }
       if (!pick) { toast('Seleccione el servicio del catálogo', 'bad'); ok = false; }
       if (!ok) return false;
-      return createContractTariff({ provider: d.provider, ars: d.ars, procedure: pick.id, amount: d.amount, validFrom: d.valid_from, validTo: d.valid_to, contractRef: d.contract_ref, arsCode: d.ars_code, notes: d.notes });
+      return (preset.onSave || createContractTariff)({ provider: d.provider, ars: d.ars, procedure: pick.id, amount: d.amount, validFrom: d.valid_from, validTo: d.valid_to, contractRef: d.contract_ref, arsCode: d.ars_code, notes: d.notes });
     }
   });
 }
