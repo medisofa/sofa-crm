@@ -1,0 +1,11 @@
+do $$begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon; end if; if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if; end$$;
+create schema auth; create schema app;
+create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+grant usage on schema public,auth,app to anon,authenticated;
+create table public.organizations(id uuid primary key);
+create table public.profiles(id uuid primary key);
+create table app.test_memberships(owner_id uuid,org_id uuid,role text,active boolean default true);
+create function app.can(p_org uuid,p_roles text[]) returns boolean language sql stable security definer set search_path='' as $$select coalesce((select active and role=any(p_roles) from app.test_memberships where owner_id=auth.uid() and org_id=p_org),false)$$;
+insert into public.organizations values('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222');
+insert into public.profiles values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+insert into app.test_memberships values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','client',true),('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','11111111-1111-4111-8111-111111111111','client',true),('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-1111-4111-8111-111111111111','billing',true);

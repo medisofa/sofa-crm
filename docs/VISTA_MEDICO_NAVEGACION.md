@@ -14,7 +14,7 @@ Esta entrega conserva las rutas existentes y los colores corporativos SoFa. No m
 
 ## Pendiente de desarrollo
 
-Las notas personales, cuentas por pagar elegidas por el médico y noticias por especialidad se identifican como «En construcción». No hay campos de captura ni persistencia local para simular su disponibilidad.
+Desde 5.26.0 las notas personales y cuentas por pagar están disponibles dentro de Seguimiento de hoy; véase RECORDATORIOS_MEDICO.md. Las noticias por especialidad siguen en construcción.
 
 La hospitalización actual reporta servicios para facturación; el vínculo a un episodio clínico hospitalario y su seguimiento tras el alta requiere una etapa adicional con autorización por rol y auditoría. El catálogo de centros actual es por cliente y no debe presentarse como un directorio nacional completo.
 

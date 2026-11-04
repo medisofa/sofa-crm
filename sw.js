@@ -24,7 +24,7 @@
  * AL PUBLICAR UNA VERSIÓN NUEVA: cambia VERSION abajo para que se renueve la caché.
  * Mantenlo igual al APP_VERSION de js/version.js.
  */
-const VERSION = 'sofa-shell-5.25.0';
+const VERSION = 'sofa-shell-5.26.0';
 const ASSET_VERSION = VERSION.replace('sofa-shell-', '');
 
 /** Lo mínimo para que la aplicación arranque y pinte algo sin conexión. */
@@ -49,7 +49,7 @@ async function guardarCascaron() {
     try {
       const req = new Request(new URL(url, self.location.href), { cache: 'reload' });
       const res = await fetch(versionedAssetRequest(req), { cache: 'reload' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!cacheableStaticResponse(req, res)) throw new Error(`Recurso no cacheable: HTTP ${res.status}`);
       await cache.put(req, res);
     } catch { faltantes.push(url); }
   }));
@@ -73,16 +73,15 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  const url = new URL(req.url);
-  if (req.method !== 'GET' || url.origin !== self.location.origin) return;   // Supabase y cualquier otro origen: siempre red
+  if (!staticShellRequest(req)) return;   // Las APIs y los documentos de usuario nunca pasan por esta caché.
   // Primero la red (siempre la versión publicada, incluido js/config.js). `cache: 'no-store'`
   // evita que un `fetch()` normal devuelva una copia de la caché HTTP del navegador (el origen
   // manda Cache-Control de varios minutos): sin esto, "siempre la red" podía en realidad servir
   // una respuesta de minutos atrás hasta que esa caché expirara.
-  // Toda respuesta buena se guarda, así una pantalla abierta una vez queda disponible sin conexión.
+  // Solo se guardan recursos estáticos permitidos y con tipo de contenido esperado.
   e.respondWith(
     fetch(versionedAssetRequest(req), { cache: 'no-store' }).then((res) => {
-      if (res.ok) {
+      if (cacheableStaticResponse(req, res)) {
         const copia = res.clone();
         e.waitUntil(caches.open(VERSION).then((c) => c.put(req, copia)).catch(() => {}));
       }
@@ -100,4 +99,28 @@ function versionedAssetRequest(req) {
   if (req.mode === 'navigate' || !/\.(js|css)$/i.test(url.pathname)) return req;
   url.searchParams.set('sofa_v', ASSET_VERSION);
   return new Request(url, req);
+}
+
+/** Lista positiva: nada de APIs, documentos, peticiones autenticadas ni parámetros de datos. */
+function staticShellRequest(req) {
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin || req.headers.has('Authorization')) return false;
+  if ([...url.searchParams.keys()].some((key) => !['v', 'sofa_v'].includes(key))) return false;
+  const base = new URL('./', self.location.href).pathname;
+  if (!url.pathname.startsWith(base)) return false;
+  const path = url.pathname.slice(base.length);
+  if (['', 'index.html', 'login.html', 'portal.html', 'manifest.json'].includes(path)) return true;
+  return /^(?:js|css|vendor|assets)\/[a-zA-Z0-9_./-]+\.(?:js|css|png|svg|jpg|jpeg|webp|ico|woff|woff2)$/i.test(path);
+}
+
+function cacheableStaticResponse(req, res) {
+  if (!staticShellRequest(req) || !res.ok || /(?:no-store|private)/i.test(res.headers.get('Cache-Control') || '')) return false;
+  const path = new URL(req.url).pathname;
+  const type = (res.headers.get('Content-Type') || '').toLowerCase();
+  if (/\.js$/i.test(path)) return /(?:java|ecma)script/.test(type);
+  if (/\.css$/i.test(path)) return type.startsWith('text/css');
+  if (/manifest\.json$/i.test(path)) return /application\/(?:manifest\+json|json)/.test(type);
+  if (/\.(?:png|svg|jpg|jpeg|webp|ico)$/i.test(path)) return type.startsWith('image/');
+  if (/\.woff2?$/i.test(path)) return type.startsWith('font/') || type.startsWith('application/font');
+  return type.startsWith('text/html');
 }

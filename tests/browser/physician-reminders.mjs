@@ -1,0 +1,70 @@
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const {chromium}=await import(process.env.SOFA_PLAYWRIGHT_MODULE||'playwright');
+const root=new URL('../../',import.meta.url);const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+try {
+ const page=await browser.newPage({viewport:{width:1200,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',async route=>{
+ const u=new URL(route.request().url());if(u.hostname!=='127.0.0.1')return route.abort();
+ if(u.pathname==='/preview.html')return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="es" data-theme="light"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/variables.css"><link rel="stylesheet" href="/css/components.css"><link rel="stylesheet" href="/css/iter18.css"><main class="page"></main></html>'});
+ if(u.pathname==='/js/supabase.js')return route.fulfill({contentType:'text/javascript',body:'export const sb=()=>window.mockDB;'});
+ try{return route.fulfill({body:await readFile(new URL(u.pathname.slice(1),root)),contentType:u.pathname.endsWith('.js')?'text/javascript':u.pathname.endsWith('.css')?'text/css':'text/plain'});}catch{return route.fulfill({status:404});}
+ });
+ await page.goto('http://127.0.0.1:8881/preview.html');
+ await page.evaluate(async()=>{
+ window.items=[];window.calls=[];window.enabled=true;window.failList=false;window.loseReply=false;window.lastLost=null;
+ window.mockDB={async rpc(name,args){calls.push({name,args:structuredClone(args)});
+ if(!enabled)return {data:{enabled:false,items:[]}};
+ if(args.p_action==='list')return failList?{error:{message:'No se pudo conectar'}}:{data:{enabled:true,items:structuredClone(items)}};
+ const data=args.p_data,old=items.find(i=>i.id===data.id);
+ if(old&&old.version!==data.version&&JSON.stringify({...old,version:0})!==JSON.stringify({...data,version:0}))return {error:{message:'Este recordatorio cambió en otra ventana. Actualice la lista antes de editarlo.'}};
+ const saved={...data,version:(old?.version||0)+1};items=[saved,...items.filter(i=>i.id!==data.id)];
+ if(loseReply){loseReply=false;lastLost=data.id;return {error:{message:'Respuesta perdida; vuelva a intentar'}};}
+ return {data:{enabled:true,item:saved}};
+ }};
+ window.module=await import('/js/modules/physician-reminders.js');window.mount=async()=>{document.querySelector('main').replaceChildren();await module.mountPhysicianReminders(document.querySelector('main'),{role:'client',membership:{organization_id:'org-a'}})};await mount();
+ });
+ await page.getByText('No hay recordatorios en esta selección.',{exact:true}).waitFor();
+ await page.getByLabel('Título',{exact:true}).fill('<script>texto personal</script>');
+ await page.getByLabel('Detalle personal',{exact:true}).fill('Recordar servicio');
+ await page.getByRole('button',{name:'Guardar recordatorio',exact:true}).click();
+ await page.getByText('Recordatorio guardado.',{exact:true}).waitFor();
+ assert.equal(await page.locator('main script').count(),0);
+ assert.equal(await page.locator('article').count(),1);
+ await page.getByRole('button',{name:'Completar',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('article'));
+ await page.getByLabel('Mostrar recordatorios').selectOption('done');
+ await page.getByRole('button',{name:'Reabrir',exact:true}).click();
+ await page.getByLabel('Mostrar recordatorios').selectOption('pending');
+ await page.getByLabel('Tipo',{exact:true}).selectOption('payment');
+ await page.getByLabel('Título',{exact:true}).fill('Servicio de internet');
+ await page.getByLabel('Fecha de recordatorio o vencimiento',{exact:true}).fill('2026-12-10');
+ await page.getByLabel('Monto (RD$)',{exact:true}).fill('2000');
+ await page.getByRole('button',{name:'Guardar recordatorio',exact:true}).click();
+ await page.getByRole('button',{name:'Marcar como pagada',exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>items.length),2);
+ await page.getByRole('button',{name:'Editar',exact:true}).first().click();
+ await page.evaluate(()=>{items[0].version+=1});
+ await page.getByLabel('Título',{exact:true}).fill('Cambio concurrente');
+ await page.getByRole('button',{name:'Guardar cambios',exact:true}).click();
+ await page.getByText(/Este recordatorio cambió en otra ventana/).waitFor();
+ assert.equal(await page.getByLabel('Título',{exact:true}).inputValue(),'Cambio concurrente');
+ await page.getByRole('button',{name:'Actualizar recordatorios',exact:true}).click();
+ await page.getByLabel('Título',{exact:true}).fill('Reintento con UUID estable');
+ await page.evaluate(()=>{loseReply=true});
+ await page.getByRole('button',{name:'Guardar recordatorio',exact:true}).click();
+ await page.getByText('Respuesta perdida; vuelva a intentar',{exact:true}).waitFor();
+ const id=await page.evaluate(()=>lastLost);
+ await page.getByRole('button',{name:'Guardar recordatorio',exact:true}).click();
+ assert.equal(await page.evaluate(id=>calls.filter(c=>c.args.p_action==='save'&&c.args.p_data.id===id).length,id),2);
+ assert.equal(await page.evaluate(id=>items.filter(i=>i.id===id).length,id),1);
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
+ await page.evaluate(async()=>{enabled=false;await mount()});
+ await page.getByText('Esta función todavía no está activada.',{exact:true}).waitFor();
+ assert.equal(await page.locator('form').count(),0);
+ await page.evaluate(async()=>{document.querySelector('main').replaceChildren();await module.mountPhysicianReminders(document.querySelector('main'),{role:'billing',membership:{organization_id:'org-a'}})});
+ assert.equal(await page.locator('main').textContent(),'');assert.deepEqual(errors,[]);
+ console.log('PASS: notas, cuentas por pagar, edición, completar/reabrir, conflicto concurrente, reintento con mismo UUID, móvil, sin almacenamiento local y flag desactivado.');
+}finally{await browser.close();}

@@ -8,6 +8,7 @@ try {
  await page.route('**/*',async route=>{
   const u=new URL(route.request().url());if(u.hostname!=='127.0.0.1')return route.abort();
   if(u.pathname==='/preview.html')return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="es" data-theme="light"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/variables.css"><link rel="stylesheet" href="/css/components.css"><main class="page"></main></html>'});
+  if(u.pathname==='/js/supabase.js')return route.fulfill({contentType:'text/javascript',body:'export const sb=()=>({});'});
   if(u.pathname==='/js/services/claims.js')return route.fulfill({contentType:'text/javascript',body:`export async function captureProviders(){return [{organization_id:'org-a',organizations:{legal_name:'Consultorio A'}},{organization_id:'org-b',organizations:{legal_name:'Consultorio B'}}]}`});
   if(u.pathname==='/js/services/consultorio.js')return route.fulfill({contentType:'text/javascript',body:`export async function flowBoard(org,date){window.reads.push({org,date});if(window.failRead)throw Error('NetworkError');return window.rows;} export async function setAppointmentStatus(id,status){window.writes.push({id,status});window.rows=window.rows.map(r=>r.id===id?{...r,status}:r);} export async function callAppointmentIn(){throw Error('No se espera en esta prueba');}`});
   if(u.pathname==='/js/utils/diag-log.js')return route.fulfill({contentType:'text/javascript',body:'export const logDiag=()=>{};'});

@@ -1,5 +1,6 @@
 /** Mi Día · Accesos del médico. No almacena información clínica en el navegador. */
 import { html, render as paint } from '../utils/dom.js';
+import { mountPhysicianReminders } from './physician-reminders.js';
 import { canSee } from '../utils/permissions.js';
 
 export async function render(root, ctx = {}) {
@@ -17,6 +18,7 @@ export async function render(root, ctx = {}) {
   paint(root, html`<div class="page-head"><div class="t"><h2>Seguimiento de hoy</h2><p>Su agenda, el recorrido de los pacientes y sus herramientas de seguimiento en un solo lugar.</p></div></div>
     <div class="grid two">${links.map(([route,title,description]) => html`<section class="card"><h3>${title}</h3><p>${description}</p><a class="btn" href="#/${route}">Abrir ${title}</a></section>`)}</div>
     <section class="card" style="margin-top:16px"><h3>Próximas funciones · En construcción</h3>
-      <p>Notas y recordatorios personales, cuentas por pagar elegidas por el médico y noticias filtradas por especialidad.</p>
-      <p class="small muted">Estas funciones todavía no permiten registrar información ni configurar alertas.</p></section>`);
+      <p>Noticias filtradas por especialidad.</p>
+      <p class="small muted">Las noticias por especialidad todavía no están disponibles.</p></section>`);
+  await mountPhysicianReminders(root, ctx);
 }
