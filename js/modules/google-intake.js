@@ -9,7 +9,7 @@ import { captureProviders, activeArs, contractedServices } from '../services/cla
 import { cie10Suggestions } from '../services/calidad-dato.js';
 import { rpc } from '../services/iter18.js';
 import { can } from '../utils/permissions.js';
-import { contractDialog } from './contracts.js';
+import { contractDialog } from './contracts.js?v=5.27.1';
 
 const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1VeUb9RQ_jGBN9chr6QCiV-8Gp-2b2JKaj159qo6a-ps/edit';
 const REQUIRED = ['Médico / Prestador *','ARS *','Fecha del servicio *','Paciente *','NSS / No. afiliado *','Servicio / Procedimiento *'];

@@ -2,11 +2,11 @@
  * SOFA · Arranque de la aplicación (index.html)
  * Login → Supabase Auth → perfil → organización → permisos → aplicación.
  */
-import { APP_VERSION } from './version.js?v=5.27.0';
+import { APP_VERSION } from './version.js?v=5.27.1';
 import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
-import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.27.0';
+import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.27.1';
 import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';

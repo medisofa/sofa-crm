@@ -1,4 +1,4 @@
-# Carga externa de reclamaciones · 5.27.0
+# Carga externa de reclamaciones · 5.27.1
 
 ## Flujo
 
