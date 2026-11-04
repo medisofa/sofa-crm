@@ -19,7 +19,7 @@ import {visibleNav,extraNav,ROLES,homeRoute} from '/js/utils/permissions.js';
 import {initials} from '/js/utils/formatters.js';
 const APP_VERSION='5.24.0', DEFAULT_ROUTE='inicio';
 const parseHash=()=>({route:location.hash.replace(/^#\\//,'')||'mi-dashboard'});
-const setDiagRoute=()=>{},sb=()=>({});
+const setDiagRoute=()=>{},sb=()=>({}),prepareProgressForUpdate=async()=>{};
 const resolve=async()=>({kind:'ok',def:{route:parseHash().route,label:'Vista de prueba'},mod:{render(main){main.textContent='Datos simulados';}}});
 `+body+`\nwindow.setTestUser=(id)=>{appearanceUserId=id;Object.assign(state,{session:{user:{id,email:'demo@example.test'}},profile:{full_name:'Médico de prueba'},role:'client',memberships:[],membership:{organization:'Consultorio de prueba',role_name:'Médico'}});applyTheme(getTheme());layout();}; window.setTestUser(window.localStorage.getItem('test-user')||'doctor-a');`;
    }

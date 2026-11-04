@@ -20,6 +20,14 @@ try{
  await page.evaluate(async()=>{
   window.calls=[];window.commits={};window.tariff=850;window.auditFail=false;window.commitFail=false;window.loseReply=false;window.protect=false;
   window.mockDB={async rpc(name,args){calls.push({name,args:structuredClone(args)});
+   if(name==='google_intake_drafts_v1'){
+    window.testDrafts??={};const d=testDrafts[args.p_id];
+    if(args.p_action==='list')return {data:{items:Object.entries(testDrafts).filter(([,r])=>!r.archived).map(([id,r])=>({id,source_name:r.payload.source_name,rows:r.payload.rows.length}))}};
+    if(args.p_action==='legacy_list')return {data:{items:[]}};
+    if(args.p_action==='latest')return {data:{draft:null}};
+    if(args.p_action==='save'){const version=(d?.version||0)+1;testDrafts[args.p_id]={version,payload:structuredClone(args.p_payload)};return {data:{version,updated_at:new Date().toISOString()}};}
+    if(args.p_action==='archive'){if(d)d.archived=true;return {data:{archived:true}};}
+   }
    if(name==='log_google_intake_edit')return auditFail?{error:{message:'No se pudo registrar la bitácora',code:'23514'}}:{data:1};
    if(name==='global_patient_lookup')return {data:{match:'none'}};
    if(name==='google_intake_tariff_v1'){tariff=Number(args.p_data.amount);return {data:'tariff-new'};}
@@ -34,7 +42,7 @@ try{
     if(loseReply){loseReply=false;return {error:{message:'No se recibió confirmación del servidor',code:'23514'}};}return {data:result};
    }throw Error('Unexpected '+name);
   }};
-  window.intake=await import('/js/modules/google-intake.js');await intake.render(document.querySelector('main'),{role:'billing'});
+  window.intake=await import('/js/modules/google-intake.js');await intake.render(document.querySelector('main'),{role:'billing',session:{user:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}}});
  });
  const header='Médico / Prestador *,ARS *,Fecha del servicio *,Paciente *,NSS / No. afiliado *,Servicio / Procedimiento *,No. autorización,Monto a reclamar,Cantidad\n';
  const row=(patient,member,auth,amount='',qty='1')=>`Médico Prueba,ARS Prueba,10/01/2026,${patient},${member},Consulta,${auth},${amount},${qty}\n`;
@@ -122,7 +130,7 @@ try{
  await page.waitForFunction(()=>!document.querySelector('dialog'));
  assert.equal(await page.evaluate(()=>tariff),900);assert.equal(await page.locator('#import').isDisabled(),true);
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await page.evaluate(async()=>{await intake.render(document.querySelector('main'),{role:'operations'});});
+ await page.evaluate(async()=>{await intake.render(document.querySelector('main'),{role:'operations',session:{user:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}}});});
  await upload(header+'\n'+row('Operaciones','999','AU9','750'));
  assert.equal(await page.locator('[data-edit-row="3"]').count(),1);
  assert.equal(await page.locator('[data-tariff-row]').count(),0);

@@ -52,7 +52,7 @@ Chromium con servicios simulados: CSV, edición, texto original, XSS, exclusión
 
 En producción solo se comprueban metadatos, ausencia de acceso anónimo/directo, rechazo de solicitudes sin sesión y archivos publicados. No se importan, editan ni eliminan reclamaciones reales para probar.
 
-Los borradores de revisión permanecen en memoria de la pestaña; las acciones auditadas son persistentes y las reclamaciones confirmadas quedan en la base. La reversión de frontend debe publicarse con una versión de caché nueva y conservar las tablas y bitácoras.
+Desde 5.28.0, la carga conserva borradores privados y protege el progreso antes de actualizar. Véase [Progreso de carga](PROGRESO_CARGA_RECLAMACIONES.md), incluyendo la transición de pestañas anteriores. Las reclamaciones confirmadas quedan en la base. La reversión de frontend debe publicarse con una versión de caché nueva y conservar las tablas y bitácoras.
 
 ## Indicadores de ejecución · 5.27.2
 

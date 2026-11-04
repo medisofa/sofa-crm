@@ -2,11 +2,12 @@
  * SOFA · Arranque de la aplicación (index.html)
  * Login → Supabase Auth → perfil → organización → permisos → aplicación.
  */
-import { APP_VERSION } from './version.js?v=5.27.2';
+import { prepareProgressForUpdate } from './utils/progress-guard.js';
+import { APP_VERSION } from './version.js?v=5.28.0';
 import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
-import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.27.2';
+import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.28.0';
 import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
@@ -261,7 +262,10 @@ function layout() {
   $('#scrim').onclick = () => toggleMenu(false);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleMenu(false); closeUserMenu(); } });
   $('#userBtn').onclick = (e) => { e.stopPropagation(); openUserMenu(); };
-  $('#orgSel')?.addEventListener('change', (e) => { rememberMembership(e.target.value); location.reload(); });
+  $('#orgSel')?.addEventListener('change', async (e) => {
+    try{await prepareProgressForUpdate();rememberMembership(e.target.value);location.reload();}
+    catch(error){e.target.value=state.membership.organization_id;toast(error.message,'bad');}
+  });
   $('#exitViewAs')?.addEventListener('click', () => exitViewAs());
   const net = () => { $('#offline').hidden = navigator.onLine; };
   window.addEventListener('online', net); window.addEventListener('offline', net); net();
@@ -382,10 +386,11 @@ function openUserMenu() {
     <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><span class="appearance-label">Distribución del menú</span>${Object.entries(MENU_LAYOUT_NAME).map(([value, label]) => html`<button role="menuitemradio" aria-checked="${getMenuLayout() === value}" data-menu-layout="${value}">${label}${getMenuLayout() === value ? ' ✓' : ''}</button>`)}<a role="menuitem" href="#/diagnostico">Diagnóstico</a>
     <button role="menuitem" data-out="local">Cerrar sesión</button><button role="menuitem" data-out="global">Cerrar sesión en todos los dispositivos</button>`);
   document.body.appendChild(pop); $('#userBtn').setAttribute('aria-expanded', 'true');
-  pop.addEventListener('click', (e) => {
+  pop.addEventListener('click', async (e) => {
     if (e.target.closest('[data-theme-next]')) { const order = Object.keys(THEMES); applyTheme(order[(order.indexOf(getTheme()) + 1) % order.length]); e.target.closest('[data-theme-next]').textContent = `Tema: ${THEMES[getTheme()]}`; return; }
     const menuChoice = e.target.closest('[data-menu-layout]');
     if (menuChoice) {
+      try{await prepareProgressForUpdate();}catch(error){toast(error.message,'bad');return;}
       setMenuLayout(menuChoice.dataset.menuLayout);
       closeUserMenu(); layout(); route();
       return;
@@ -397,7 +402,14 @@ function openUserMenu() {
 }
 
 let routeSeq = 0;
+let renderedHash = null;
 async function route() {
+  const targetHash=location.hash;
+  if(renderedHash!==null&&targetHash!==renderedHash){
+    try{await prepareProgressForUpdate();}
+    catch(error){if(targetHash===location.hash)history.replaceState(null,'',renderedHash);toast(error.message,'bad');return;}
+    if(targetHash!==location.hash)return;
+  }
   const my = ++routeSeq;
   setDiagRoute(location.hash || '#/');
   horizFamilia = null;
@@ -430,7 +442,7 @@ async function route() {
   const ctx = { ...state, def: r.def, arg: r.arg, setTitle, sb: sb() };
   try { await r.mod.render(main, ctx); }
   catch (e) { console.error(e); render(main, errorView(e)); }
-  if (my === routeSeq) main.focus({ preventScroll: true });
+  if (my === routeSeq) { renderedHash=targetHash; main.focus({ preventScroll: true }); }
 }
 
 function swUpdateBanner() {
@@ -438,11 +450,17 @@ function swUpdateBanner() {
   const bar = document.createElement('div');
   bar.className = 'sw-update-banner';
   bar.setAttribute('role', 'status');
-  bar.innerHTML = '<span>Hay una versión nueva de SOFA.</span> <button type="button">Recargar ahora</button>';
+  bar.innerHTML = '<span>Hay una versión nueva de SOFA. Puede continuar trabajando.</span> <button type="button">Guardar progreso y actualizar</button>';
   bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--navy,#223A5D);color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font:14px/1.4 system-ui,sans-serif';
   bar.querySelector('button').style.cssText = 'padding:6px 14px;border-radius:6px;border:0;background:#fff;color:var(--navy,#223A5D);font-weight:600;cursor:pointer';
-  bar.querySelector('button').addEventListener('click', () => {
-    const url = new URL(location.href); url.searchParams.set('release', APP_VERSION); location.replace(url);
+  bar.querySelector('button').addEventListener('click', async () => {
+    const button=bar.querySelector('button');button.disabled=true;button.textContent='Comprobando progreso…';
+    try {
+      await prepareProgressForUpdate();
+      const url = new URL(location.href); url.searchParams.set('release', APP_VERSION); location.replace(url);
+    } catch(error) {
+      bar.querySelector('span').textContent=error.message;button.disabled=false;button.textContent='Volver a intentar la actualización';
+    }
   });
   document.body.appendChild(bar);
 }

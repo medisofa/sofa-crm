@@ -7,9 +7,12 @@ import { toast, friendlyError, busy, confirmDialog, formDialog, opt, requireFiel
 import { money, todayISO } from '../utils/formatters.js';
 import { captureProviders, activeArs, contractedServices } from '../services/claims.js';
 import { cie10Suggestions } from '../services/calidad-dato.js';
+import { createIntakeAutosave } from '../utils/intake-autosave.js';
+import { intakeSnapshot, replayIntakeAudit } from '../utils/intake-draft.js';
+import { registerProgressGuard } from '../utils/progress-guard.js';
 import { rpc } from '../services/iter18.js';
 import { can } from '../utils/permissions.js';
-import { contractDialog } from './contracts.js?v=5.27.2';
+import { contractDialog } from './contracts.js?v=5.28.0';
 
 const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1VeUb9RQ_jGBN9chr6QCiV-8Gp-2b2JKaj159qo6a-ps/edit';
 const REQUIRED = ['Médico / Prestador *','ARS *','Fecha del servicio *','Paciente *','NSS / No. afiliado *','Servicio / Procedimiento *'];
@@ -56,7 +59,7 @@ function parseCsv(text){
 function toObjects(rows){
   if(!rows.length) return [];
   const headers=rows[0].map((h)=>String(h).trim());
-  return rows.slice(1).map((r,i)=>({__row:r.sourceRow||i+2,...Object.fromEntries(headers.map((h,j)=>[h,r[j]??'']))}));
+  return rows.slice(1).map((r,i)=>({...Object.fromEntries(headers.map((h,j)=>[h,r[j]??''])),__row:r.sourceRow||i+2}));
 }
 function exact(items, value, fields){
   const n=norm(value); if(!n) return null;
@@ -71,12 +74,18 @@ function changedValues(before, after){
 }
 
 export async function render(main, ctx){
-  const S={providers:[],ars:[],rows:[],validated:[],busy:false,batchId:crypto.randomUUID?.()||String(Date.now())};
+  const S={draftId:null,providers:[],ars:[],rows:[],validated:[],busy:false,initializing:true,sourceName:'',editor:null,auditCursor:0,batchId:crypto.randomUUID?.()||String(Date.now())};
   paint(main,html`
     <div class="page-head"><div class="t"><h2>Carga Google Sheets / Form</h2>
       <p>Importa reclamaciones capturadas fuera de SOFA. Si faltan datos, el mismo usuario puede completarlos aquí antes de importar; cada cambio queda en bitácora.</p></div>
       <div class="toolbar" style="margin:0"><a class="btn" href="${TEMPLATE_URL}" target="_blank" rel="noopener">Abrir plantilla Google Sheets</a></div>
     </div>
+    <section id="gi-draft-panel" class="card" style="margin-bottom:14px">
+      <h3>Progreso de la carga</h3><p id="gi-draft-status" role="status" aria-live="polite">Comprobando cargas guardadas…</p>
+      <p id="gi-source-name" class="small muted"></p>
+      <div class="toolbar"><button type="button" class="btn" id="gi-save-progress">Guardar progreso ahora</button><button type="button" class="btn" id="gi-fork-progress" hidden>Conservar cambios como copia</button><select id="gi-draft-list" aria-label="Cargas guardadas"></select><button type="button" class="btn" id="gi-resume-progress">Reanudar carga</button><button type="button" class="btn" id="gi-resume-editor" hidden>Reanudar edición pendiente</button><button type="button" class="btn" id="gi-discard-editor" hidden>Descartar edición pendiente</button></div>
+      <details><summary>Recuperar una revisión anterior al autoguardado</summary><p>Conserve abierta la pestaña anterior. Seleccione abajo el mismo CSV original y elija su revisión de bitácora. Compare el resultado antes de cerrar la pestaña anterior.</p><select id="gi-legacy-list" aria-label="Revisiones anteriores"></select><button type="button" class="btn" id="gi-legacy-progress">Recuperar revisión anterior</button></details>
+    </section>
     <div class="grid two" style="align-items:start">
       <div class="card">
         <h2>1 · Obtener las respuestas</h2>
@@ -154,7 +163,9 @@ export async function render(main, ctx){
     summary.textContent=`${S.busy?'Procesando revisión… ':''}${S.validated.length} fila(s): ${ok} aprobada(s) · ${bad} por revisar · ${excluded} excluida(s)${imported?` · ${imported} importada(s)`:''}.`;
     imp.disabled=S.busy||!ok;
     $('#duplicates',main).disabled=S.busy||!S.validated.length;$('#approve',main).disabled=S.busy||!S.validated.some(v=>v.status==='review'&&!v.errors.length);
-    validate.disabled=S.busy||!file.files?.length;file.disabled=S.busy;$('#clear',main).disabled=S.busy;
+    validate.disabled=S.busy||S.initializing||!(file.files?.length||S.rows.length||S.validated.length);file.disabled=S.busy||S.initializing||!owner;$('#clear',main).disabled=S.busy||S.initializing;
+    $('#gi-resume-editor',main).hidden=!S.editor;$('#gi-discard-editor',main).hidden=!S.editor;
+    progressPanel?.querySelectorAll('button,select').forEach(button=>{button.disabled=S.busy||S.initializing||!owner;});
     paint(preview,html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Fila</th><th>Paciente</th><th>Médico</th><th>ARS</th><th>Servicio</th><th>Tarifa / monto unitario</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
       ${S.validated.map((v)=>html`<tr>
         <td data-l="Fila">${v.row}</td>
@@ -180,6 +191,9 @@ export async function render(main, ctx){
   }
 
   async function editRow(v){
+    if(S.editor&&Number(S.editor.row)!==Number(v.row)){toast(`Reanude o descarte primero la edición pendiente de la fila ${S.editor.row}.`,'bad');return false;}
+    if(['excluded','imported','removed'].includes(v.status)){toast('Restaure la fila o revise la reclamación confirmada antes de editarla.','bad');return false;}
+    const pendingEditor=S.editor?.values||null;
     const r=v.raw;
     const currentProvider=v.provider||exact(S.providers,r['Médico / Prestador *'],['full_name']);
     const currentArs=v.ars||exact(S.ars,r['ARS *'],['name','code']);
@@ -202,10 +216,18 @@ export async function render(main, ctx){
           <div class="field" style="grid-column:1/-1"><label>Servicio / Procedimiento *</label><select name="service" required><option value="">Seleccione médico, ARS y fecha</option></select><div class="hint">Solo se muestran servicios contratados para la combinación seleccionada.</div></div>
           <div class="field"><label>Cantidad</label><input name="quantity" type="number" min="1" step="1" value="${num(r['Cantidad'])||1}"></div>
           <div class="field"><label>Monto unitario a reclamar</label><input name="amount" type="number" min="0" step="0.01" value="${num(r['Monto a reclamar'])??''}"><div class="hint">Déjalo vacío para usar la tarifa contractual.</div></div>
+          <div class="field" style="grid-column:1/-1"><button type="button" class="btn" data-editor-copy hidden>Conservar esta edición como copia</button></div>
           <div class="field" style="grid-column:1/-1"><label for="gie_reason">Motivo del ajuste de monto</label><textarea id="gie_reason" name="discrepancy_reason" minlength="10">${r['Motivo ajuste']||''}</textarea><div class="hint">Obligatorio si el monto unitario difiere de la tarifa. Solo afecta esta reclamación.</div><button type="button" class="btn sm" data-use-tariff>Usar tarifa contractual</button></div><div class="field" style="grid-column:1/-1"><label>Observaciones</label><textarea name="notes" rows="2">${r['Observaciones']||''}</textarea></div>
         </div>`,
       onOpen:(form)=>{
-        form.querySelector('[data-use-tariff]').addEventListener('click',()=>{form.elements.amount.value='';form.elements.discrepancy_reason.value='';});
+        S.editorForm=form;
+        form.querySelector('[data-editor-copy]').addEventListener('click',event=>busy(event.currentTarget,async()=>{try{await forkCurrentDraft();}catch(error){paint(form.querySelector('.fd-msg'),html`<div class="note bad" role="alert">${error.message}</div>`);}}));
+        let captureEnabled=false;
+        const captureEditor=()=>{if(!captureEnabled)return;S.editor={row:v.row,values:Object.fromEntries(new FormData(form).entries())};snapshotChanged();};
+        form.addEventListener('input',captureEditor);form.addEventListener('change',captureEditor);
+        if(pendingEditor)for(const [name,value] of Object.entries(pendingEditor)){if(name!=='service'&&form.elements[name])form.elements[name].value=value;}
+
+        form.querySelector('[data-use-tariff]').addEventListener('click',()=>{form.elements.amount.value='';form.elements.discrepancy_reason.value='';captureEditor();});
         const globalBox=form.querySelector('#gie_global');
         let gseq=0;
         const checkGlobal=async()=>{
@@ -241,7 +263,7 @@ export async function render(main, ctx){
             const rows=await cie10Suggestions(procedure,null,8);
             if(!rows.length){paint(box,html`<span class="muted">Sin sugerencia automática. Escribe el código documentado.</span>`);return;}
             paint(box,html`<div class="toolbar" style="gap:6px;flex-wrap:wrap">${rows.map((x)=>html`<button class="btn sm" type="button" data-gdx="${x.code}" title="${x.rationale||''}">${x.code} · ${x.title_es}</button>`)}</div><div class="small muted">Sugerencias administrativas; confirma el diagnóstico documentado.</div>`);
-            box.querySelectorAll('[data-gdx]').forEach((b)=>b.addEventListener('click',()=>{form.elements.diagnosis.value=b.dataset.gdx;}));
+            box.querySelectorAll('[data-gdx]').forEach((b)=>b.addEventListener('click',()=>{form.elements.diagnosis.value=b.dataset.gdx;captureEditor();}));
           }catch(_){paint(box,html`<span class="muted">Puedes escribir el CIE-10 manualmente.</span>`);}
         };
         const loadServices=async()=>{
@@ -253,11 +275,11 @@ export async function render(main, ctx){
             const current=norm(r['Servicio / Procedimiento *']);
             paint(s,html`<option value="">Seleccione…</option>${rows.map((x)=>html`<option value="${x.procedure_id}" data-name="${x.name}" ${[x.name,x.cups,x.simon,x.internal_code,x.ars_service_code].some((y)=>norm(y)===current)?'selected':''}>${x.name}${x.cups?` · CUPS ${x.cups}`:''}${x.simon?` · SIMON ${x.simon}`:''} · ${money(x.amount)}</option>`) }`);
           }catch(e){paint(s,html`<option value="">No se pudieron cargar los servicios</option>`);}
-          await loadDx();
+          await loadDx();captureEditor();
         };
         ['provider','ars','service_date'].forEach((n)=>form.elements[n].addEventListener('change',loadServices));
         form.elements.service.addEventListener('change',loadDx);
-        loadServices();
+        loadServices().then(()=>{if(pendingEditor?.service&&[...form.elements.service.options].some(option=>option.value===pendingEditor.service))form.elements.service.value=pendingEditor.service;captureEnabled=true;captureEditor();});
       },
       onSubmit:async(d,form)=>{
         if(!requireFields(form,['provider','ars','service_date','patient','member','service']))return false;
@@ -284,14 +306,16 @@ export async function render(main, ctx){
         };
         const diff=changedValues(r,after);
         if(!diff.fields.length){toast('No hay cambios para guardar.');return true;}
+        snapshotChanged();await autosave.flush();
         const recordId=`${S.batchId}:row:${v.row}`;
-        await rpc('log_google_intake_edit',{
+        const auditId=await rpc('log_google_intake_edit',{
           p_record_id:recordId,
           p_org:provider?.organization_id||v.provider?.organization_id||null,
           p_before:diff.oldValues,
           p_after:diff.newValues,
           p_fields:diff.fields
         });
+        S.auditCursor=Math.max(S.auditCursor,Number(auditId)||0);S.editor=null;
         const updated=await validateRow(after,{...v,editCount:(v.editCount||0)+1});
         const ix=S.validated.findIndex((x)=>x.row===v.row);
         S.validated[ix]=updated;
@@ -301,6 +325,7 @@ export async function render(main, ctx){
       }
     });
     if(result!==null) draw();
+    S.editor=null;S.editorForm=null;snapshotChanged();
     return result;
   }
 
@@ -314,8 +339,9 @@ export async function render(main, ctx){
   }
   const recordId=v=>`${S.batchId}:row:${v.row}`;
   async function auditDecision(v,action,reason){
-    await rpc('log_google_intake_edit',{p_record_id:recordId(v),p_org:v.provider?.organization_id||null,
+    const auditId=await rpc('log_google_intake_edit',{p_record_id:recordId(v),p_org:v.provider?.organization_id||null,
       p_before:{estado:v.status},p_after:{accion:action,motivo:reason,valores:Object.fromEntries(EDITABLE.map(key=>[key,v.raw[key]??'']))},p_fields:['estado','accion','motivo']});
+    S.auditCursor=Math.max(S.auditCursor,Number(auditId)||0);
   }
   async function checkDuplicates(){
     const active=S.validated.filter(v=>!['excluded','imported','removed'].includes(v.status));
@@ -371,16 +397,18 @@ export async function render(main, ctx){
       message:`Verificación de duplicadas finalizada: ${d.checked} fila(s) comprobadas, ${d.duplicates} con posibles coincidencias, ${d.skipped} sin comprobar por datos incompletos${d.failed?`, ${d.failed} con fallo de consulta`:''}`};
   }
   async function run(fn,descriptor=topAction('validate','Revisión')){
-    if(S.busy)return;
+    if(S.busy||S.initializing||!owner)return;
+    try{await autosave.flush();}catch(error){toast('No se continuará hasta guardar el progreso. '+error.message,'bad');return;}
     const action={...descriptor,state:'running',message:`${descriptor.label}: en proceso…`,at:null};
     actionFeedback.set(action.id,action);lastAction=action;S.busy=true;draw();
     try{
+      snapshotChanged();await autosave.flush();
       const result=await fn();
       const outcome=result===null||result===false?{state:'cancelled',message:`${action.label}: cancelada; no se confirmó la acción`}
         :result&&typeof result==='object'&&result.state?result:{state:'success',message:`${action.label}: proceso finalizado`};
       Object.assign(action,outcome);
     }catch(error){action.state='error';action.message=`${action.label}: ${friendlyError(error)}`;toast(friendlyError(error),'bad');}
-    finally{action.at=actionClock();S.busy=false;draw();}
+    finally{action.at=actionClock();actionFeedback.set(action.id,action);lastAction=action;snapshotChanged();try{await autosave.flush();await refreshDraftOptions();}catch(error){toast(error.message,'bad');}S.busy=false;draw();}
   }
   async function approveRows(rows){
     await checkDuplicates();
@@ -394,6 +422,7 @@ export async function render(main, ctx){
       body:html`<p>${v.patient||'Fila sin paciente identificado'}</p><div class="field"><label for="gi-action-reason">Motivo (mínimo 10 caracteres)</label><textarea id="gi-action-reason" name="reason" minlength="10" required></textarea></div>`,
       onSubmit:async(d)=>{
         const reason=String(d.reason||'').trim();if(reason.length<10){toast('Indique un motivo de al menos 10 caracteres','bad');return false;}
+        snapshotChanged();await autosave.flush();
         if(action==='Eliminar reclamación'){
           await rpc('google_intake_review_v1',{p_record_id:recordId(v),p_action:'remove',p_data:{reason}});v.status='removed';
         }else{
@@ -403,15 +432,143 @@ export async function render(main, ctx){
         await checkDuplicates();return true;
       }});
   }
-  file.addEventListener('change',()=>{clearActionFeedback();S.rows=[];S.validated=[];S.batchId=crypto.randomUUID();validate.disabled=!file.files?.length;draw();});
-  $('#clear',main).addEventListener('click',()=>{if(S.busy)return;clearActionFeedback();file.value='';S.rows=[];S.validated=[];S.batchId=crypto.randomUUID();draw();summary.textContent='Carga un CSV para comenzar.';});
+  const owner=ctx.session?.user?.id;
+  const progressPanel=$('#gi-draft-panel',main),progressStatus=$('#gi-draft-status',main);
+  const draftSelect=$('#gi-draft-list',main),legacySelect=$('#gi-legacy-list',main);
+  const draftCall=(action,id=null,extra={})=>rpc('google_intake_drafts_v1',{p_action:action,p_id:id,p_owner:owner,...extra});
+  const serializeFeedback=()=>({actions:[...actionFeedback.values()].map(({id,label,state,message,at})=>({id,label,state,message,at})),last:lastAction?.id||null});
+  const autosave=createIntakeAutosave({rpc,owner,id:()=>S.draftId||S.batchId,serialize:()=>intakeSnapshot(S,EDITABLE,serializeFeedback()),
+    onStatus:(state,text)=>{progressStatus.dataset.state=state;progressStatus.textContent=text;const conflict=state==='error'&&/otra pestaña|otra ventana|sobrescrib/i.test(text);progressPanel.querySelector('#gi-fork-progress').hidden=!conflict;if(S.editorForm?.isConnected)S.editorForm.querySelector('[data-editor-copy]').hidden=!conflict;}});
+  const snapshotChanged=()=>{if(owner&&(S.rows.length||S.validated.length||S.editor))autosave.mark();};
+  registerProgressGuard(progressPanel,{pending:()=>autosave.pending()||S.busy,
+    flush:async()=>{if(S.busy)throw Error('Hay una acción de la carga en proceso. Termine o cancele la acción antes de actualizar.');await autosave.flush();}});
+  const onlineSave=()=>{if(autosave.pending())autosave.flush().catch(()=>{});};
+  window.addEventListener('online',onlineSave);
+  window.addEventListener('hashchange',()=>{if(autosave.pending())autosave.flush().catch(()=>{});},{once:true});
+  function restoreFeedback(saved){
+    clearActionFeedback();
+    for(const item of saved?.actions||[]){
+      if(!['success','warning','error','cancelled','running'].includes(item.state))continue;
+      const [key,row]=String(item.id).split(':');
+      const find=['validate','duplicates','approve','import'].includes(key)?()=>$('#'+key,main)
+        :()=>[...preview.querySelectorAll('button')].find(button=>button.dataset[key]===String(row));
+      const action={...item,find};
+      if(action.state==='running'){action.state='warning';action.message='La acción anterior quedó interrumpida. Revise el resultado antes de repetirla.';}
+      actionFeedback.set(action.id,action);
+    }
+    lastAction=actionFeedback.get(saved?.last)||null;
+  }
+  let legacyOptions=null;
+  async function refreshDraftOptions(){
+    const drafts=await draftCall('list');
+    const legacy=legacyOptions||await draftCall('legacy_list');legacyOptions=legacy;
+    paint(draftSelect,html`<option value="">Seleccione una carga guardada…</option>${(drafts.items||[]).map(item=>html`<option value="${item.id}" ${item.id===(S.draftId||S.batchId)?'selected':''}>${item.source_name} · ${item.rows} fila(s)</option>`)}`);
+    paint(legacySelect,html`<option value="">Seleccione una revisión anterior…</option>${(legacy.items||[]).map(item=>html`<option value="${item.id}">${new Date(item.updated_at).toLocaleString('es-DO',{timeZone:'America/Santo_Domingo'})} · ${item.rows} fila(s) con bitácora</option>`)}`);
+  }
+  async function hydrate(saved,{legacy=false,commits=[]}={}){
+    const payload=saved.payload;
+    if(payload.schema!==1||!Array.isArray(payload.rows))throw Error('La versión de este borrador no es compatible. No se reemplazó su revisión.');
+    S.draftId=saved.id;S.batchId=payload.origin_id||saved.id;S.sourceName=payload.source_name;
+    let recoveredRows=payload.rows,recoveryCursor=payload.audit_cursor||0,recoveredEditor=payload.editor||null;
+    if(!legacy){
+      const audit=await draftCall('events',S.batchId);
+      const newer=(audit.events||[]).filter(event=>Number(event.id)>recoveryCursor);
+      if(newer.length){
+        const replay=replayIntakeAudit(payload.rows.map(row=>row.raw),newer,{trustSavedSource:true,baseRows:payload.rows});
+        if(!replay.conflicts.length){recoveredRows=replay.rows;recoveryCursor=Math.max(recoveryCursor,...newer.map(event=>Number(event.id)));
+
+        }
+        else toast('Se conserva su copia. Hay cambios de otra pestaña en la bitácora que requieren comparación.','bad');
+      }
+      commits=audit.commits||commits;
+    }
+    S.rows=recoveredRows.map(row=>({...row.raw}));S.validated=[];
+    S.editor=recoveredEditor;S.auditCursor=recoveryCursor;
+    for(const row of recoveredRows){
+      const current=await validateRow(row.raw,{original:row.original||row.raw,editCount:row.editCount||0});
+      if(row.status==='excluded')current.status='excluded';
+      else if(!legacy&&row.reviewed&&!current.errors.length&&current.tariff===row.tariff){current.reviewed=true;current.status='ready';}
+      S.validated.push(current);
+    }
+    await checkDuplicates();
+    for(const stored of commits){
+      const row=S.validated.find(candidate=>candidate.row===Number(stored.row));if(!row)continue;
+      row.status=stored.removed?'removed':'imported';row.folio=stored.result?.folio;row.claimId=stored.result?.id;row.errors=[];
+    }
+    autosave.adopt(S.draftId,saved.version||0);restoreFeedback(payload.feedback);file.value='';
+    $('#gi-resume-editor',main).hidden=!S.editor;$('#gi-discard-editor',main).hidden=!S.editor;
+    $('#gi-source-name',main).textContent=`Carga recuperada: ${S.sourceName}. Puede continuar sin volver a seleccionar el archivo.`;
+    snapshotChanged();await autosave.flush();
+  }
+  async function resumeDraft(id){
+    if(S.busy)return;await autosave.flush();S.busy=true;draw();
+    try{const result=await draftCall('get',id);await hydrate(result.draft,{commits:result.commits||[]});await refreshDraftOptions();}
+    catch(error){progressStatus.dataset.state='error';progressStatus.textContent=error.message;}
+    finally{S.busy=false;draw();}
+  }
+  function parsedFile(table){
+    if(table.length<2)throw Error('El archivo no contiene filas para importar.');
+    const headers=table[0].map(value=>String(value).trim());const missing=REQUIRED.filter(key=>!headers.includes(key));
+    if(missing.length)throw Error(`Faltan columnas obligatorias: ${missing.join(', ')}`);
+    const rows=toObjects(table);if(rows.length>1000)throw Error('El máximo por carga es de 1,000 filas.');return rows;
+  }
+  $('#gi-save-progress',main).addEventListener('click',async()=>{try{snapshotChanged();await autosave.flush();await refreshDraftOptions();}catch(error){toast(error.message,'bad');}});
+  $('#gi-resume-progress',main).addEventListener('click',()=>{if(draftSelect.value)resumeDraft(draftSelect.value).catch(error=>toast(error.message,'bad'));});
+  $('#gi-resume-editor',main).addEventListener('click',()=>{
+    const row=S.validated.find(item=>item.row===Number(S.editor?.row));if(!row)return;
+    if(['imported','removed'].includes(row.status))run(()=>formDialog({title:'Edición pendiente conservada',submitLabel:'Cerrar',body:html`<p>Esta fila ya tiene una reclamación confirmada o eliminada. Su texto pendiente se conserva aquí; no modifica la reclamación.</p><dl>${Object.entries(S.editor.values||{}).map(([key,value])=>html`<dt>${key}</dt><dd>${value||'(vacío)'}</dd>`)}</dl>`,onSubmit:()=>true}),topAction('gi-resume-editor','Consultar edición conservada'));
+    else run(()=>editRow(row),topAction('validate',`Reanudar edición · fila ${row.row}`));
+  });
+  $('#gi-legacy-progress',main).addEventListener('click',()=>run(async()=>{
+    const chosen=file.files?.[0];if(!chosen||!legacySelect.value)throw Error('Seleccione el mismo CSV original y una revisión de la bitácora.');
+    if(!await confirmDialog('Recuperar revisión anterior','Confirme que seleccionó el mismo CSV original. Se recuperarán correcciones y exclusiones; las filas se volverán a validar y deberá aprobarlas antes de importar. No se crean reclamaciones al recuperar.','Recuperar revisión'))return false;
+    const rows=parsedFile(parseCsv(await chosen.text()));const result=await draftCall('legacy_get',legacySelect.value);
+    const replay=replayIntakeAudit(rows,result.events||[]);
+    if(replay.conflicts.length)throw Error(`No se aplicó la recuperación: ${replay.conflicts.slice(0,3).join(' · ')}. Compare el archivo con la pestaña anterior.`);
+    if(!replay.applied)throw Error('No se encontraron correcciones o revisiones compatibles con ese archivo.');
+    await autosave.flush();
+    await hydrate({id:legacySelect.value,version:0,payload:{schema:1,source_name:chosen.name,rows:replay.rows,audit_cursor:Math.max(0,...(result.events||[]).map(event=>Number(event.id)))}}, {legacy:true,commits:result.commits||[]});
+    legacyOptions=null;await refreshDraftOptions();return {state:'success',message:`Recuperadas ${replay.applied} acciones de la bitácora. Compare las filas antes de cerrar la pestaña anterior`};
+  },topAction('gi-legacy-progress','Recuperar revisión anterior')));
+  $('#gi-discard-editor',main).addEventListener('click',()=>run(async()=>{if(!await confirmDialog('Descartar edición pendiente','Se descartará únicamente el texto de esa edición sin confirmar. La fila y sus correcciones ya guardadas se conservan.','Descartar edición'))return false;S.editor=null;snapshotChanged();},topAction('gi-discard-editor','Descartar edición pendiente')));
+  async function forkCurrentDraft(){
+    S.draftId=crypto.randomUUID();S.sourceName=(S.sourceName+' · copia').slice(0,255);autosave.adopt(S.draftId,0);snapshotChanged();await autosave.flush();await refreshDraftOptions();$('#gi-source-name',main).textContent=`Copia conservada: ${S.sourceName}. La versión de la otra pestaña no se modificó.`;
+  }
+  $('#gi-fork-progress',main).addEventListener('click',async()=>{
+    if(S.busy)return;S.busy=true;draw();
+    try{await forkCurrentDraft();}catch(error){toast(error.message,'bad');}finally{S.busy=false;draw();}
+  });
+  async function initializeDraft(){
+    if(!owner)throw Error('No se pudo identificar su sesión para proteger el progreso. Vuelva a entrar.');
+    const result=await draftCall('latest');
+    if(result.draft)await hydrate(result.draft,{commits:result.commits||[]});
+    else{progressStatus.dataset.state='saved';progressStatus.textContent='El progreso se guardará en SoFa al revisar un archivo.';}
+    await refreshDraftOptions();
+  }
+  file.addEventListener('change',async()=>{
+    if(S.busy||S.initializing||!owner)return;
+    const selected=file.files?.[0];
+    try{await autosave.flush();}catch(error){toast('La carga anterior no se ha guardado. '+error.message,'bad');file.value='';return;}
+    clearActionFeedback();S.rows=[];S.validated=[];S.editor=null;S.auditCursor=0;S.sourceName=selected?.name||'';S.batchId=crypto.randomUUID();S.draftId=S.batchId;autosave.adopt(S.draftId,0);
+    $('#gi-source-name',main).textContent=selected?`Archivo seleccionado: ${selected.name}`:'';draw();
+  });
+  $('#clear',main).textContent='Descartar esta revisión';
+  $('#clear',main).addEventListener('click',async()=>{
+    if(S.busy||S.initializing||!owner)return;
+    if(!await confirmDialog('Descartar revisión','Se archivará este borrador. No se eliminan reclamaciones confirmadas ni registros de bitácora.','Descartar revisión'))return;
+    try{await autosave.flush();await draftCall('archive',S.draftId||S.batchId,{p_version:autosave.version(S.draftId||S.batchId)});}
+    catch(error){toast(error.message,'bad');return;}
+    clearActionFeedback();file.value='';S.rows=[];S.validated=[];S.editor=null;S.auditCursor=0;S.sourceName='';S.batchId=crypto.randomUUID();S.draftId=S.batchId;autosave.adopt(S.draftId,0);
+    $('#gi-source-name',main).textContent='';progressStatus.textContent='Revisión descartada. Puede seleccionar otro archivo.';draw();await refreshDraftOptions();
+  });
   validate.addEventListener('click',()=>run(async()=>{
-    const f=file.files?.[0];if(!f)return;
+    const f=file.files?.[0];if(!f&&!S.rows.length&&!S.validated.length)return;
     if(!S.validated.length){
-      const rows=parseCsv(await f.text());if(rows.length<2){throw Error('El archivo no contiene filas para importar');}
-      const headers=rows[0].map(x=>String(x).trim());const missing=REQUIRED.filter(h=>!headers.includes(h));
+      const rows=f?parseCsv(await f.text()):null;if(f)S.sourceName=f.name;if(rows&&rows.length<2){throw Error('El archivo no contiene filas para importar');}
+      const headers=rows?rows[0].map(x=>String(x).trim()):REQUIRED;const missing=REQUIRED.filter(h=>!headers.includes(h));
       if(missing.length)throw Error(`Faltan columnas obligatorias: ${missing.join(', ')}. Use la plantilla oficial.`);
-      S.rows=toObjects(rows);if(S.rows.length>1000)throw Error('El máximo por carga es de 1,000 filas. Divida el archivo.');
+      if(rows)S.rows=toObjects(rows);if(S.rows.length>1000)throw Error('El máximo por carga es de 1,000 filas. Divida el archivo.');
+      snapshotChanged();await autosave.flush();
       S.validated=[];for(const r of S.rows)S.validated.push(await validateRow(r));
     }
     await refreshReview();validate.textContent='Volver a validar correcciones';
@@ -434,7 +591,7 @@ export async function render(main, ctx){
       else if(key==='removeRow')return await askReason(v,'Eliminar reclamación');
       else if(key==='tariffRow'&&can('contracts.edit',ctx.role)){
         const changed=await contractDialog(S.providers,S.ars,{provider:v.provider.id,ars:v.ars.id,procedure:v.service.procedure_id,
-          service:v.service.name,requireReason:true,onSave:data=>rpc('google_intake_tariff_v1',{p_record_id:recordId(v),p_data:data})});
+          service:v.service.name,requireReason:true,onSave:async data=>{snapshotChanged();await autosave.flush();return rpc('google_intake_tariff_v1',{p_record_id:recordId(v),p_data:data});}});
         if(changed){await refreshReview();toast('Nueva vigencia registrada. Revise y apruebe nuevamente las filas afectadas.','ok');}
         return changed;
       }
@@ -447,11 +604,13 @@ export async function render(main, ctx){
     for(const v of ready){
       try{
         const result=await rpc('google_intake_review_v1',{p_record_id:recordId(v),p_action:'commit',p_data:dataFor(v)});
-        v.status=result.removed?'removed':'imported';v.folio=result.folio;v.claimId=result.id;ok++;
+        v.status=result.removed?'removed':'imported';v.folio=result.folio;v.claimId=result.id;ok++;snapshotChanged();
       }catch(error){v.status='failed';v.reviewed=false;v.errors=[friendlyError(error)];fail++;}
     }
     toast(`Resultado: ${ok} confirmada(s) · ${fail} por corregir`,fail?'bad':'ok');
     return {state:fail?'warning':'success',message:`Importación finalizada: ${ok} confirmada(s), ${fail} por corregir`};
   },topAction('import','Confirmar importación')));
+  try{await initializeDraft();}catch(error){progressStatus.dataset.state='error';progressStatus.textContent=error.message;toast(error.message,'bad');}
+  finally{S.initializing=false;draw();}
 }
 export default render;
