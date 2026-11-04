@@ -443,7 +443,8 @@ export const FAMILIES = [
 export const FAMILIAS_ROL = {
   client: [
     { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda'] },
-    { key: 'pacientes',   group: 'Mis pacientes', routes: ['flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes'] },
+    { key: 'pacientes',   group: 'Mis pacientes', routes: ['pacientes', 'flujo-pacientes', 'saldos-pacientes'] },
+    { key: 'consulta',    group: 'Historia clínica', routes: ['historia-clinica'] },
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
     { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados'] },
     { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica'] },

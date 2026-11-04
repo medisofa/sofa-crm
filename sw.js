@@ -24,7 +24,7 @@
  * AL PUBLICAR UNA VERSIÓN NUEVA: cambia VERSION abajo para que se renueve la caché.
  * Mantenlo igual al APP_VERSION de js/version.js.
  */
-const VERSION = 'sofa-shell-5.23.2';
+const VERSION = 'sofa-shell-5.24.0';
 const ASSET_VERSION = VERSION.replace('sofa-shell-', '');
 
 /** Lo mínimo para que la aplicación arranque y pinte algo sin conexión. */

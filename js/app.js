@@ -2,12 +2,12 @@
  * SOFA · Arranque de la aplicación (index.html)
  * Login → Supabase Auth → perfil → organización → permisos → aplicación.
  */
-import { APP_VERSION } from './version.js?v=5.23.2';
+import { APP_VERSION } from './version.js?v=5.24.0';
 import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
-import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.23.2';
-import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
+import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.24.0';
+import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js?v=5.24.0';
 import { html, render, raw, $, $$ } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
@@ -18,12 +18,14 @@ import { setDiagContext, setDiagRoute, logDiag } from './utils/diag-log.js';
 const app = document.getElementById('app');
 
 /** 2.1 · Tema claro / oscuro / del sistema (preferencia de este navegador; variables en css/variables.css) */
+let appearanceUserId = null;
+const preferenceKey = (key) => appearanceUserId ? `${key}.${appearanceUserId}` : key;
 const THEME_KEY = 'sofa.tema';
 const THEMES = { sistema: 'Del sistema', light: 'Claro', dark: 'Oscuro' };
-const getTheme = () => { try { return localStorage.getItem(THEME_KEY) || 'sistema'; } catch (_) { return 'sistema'; } };
+const getTheme = () => { try { const value = localStorage.getItem(preferenceKey(THEME_KEY)) || localStorage.getItem(THEME_KEY); return Object.hasOwn(THEMES, value) ? value : 'sistema'; } catch (_) { return 'sistema'; } };
 function applyTheme(t) {
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
-  try { localStorage.setItem(THEME_KEY, t); } catch (_) { /* sin almacenamiento */ }
+  try { localStorage.setItem(preferenceKey(THEME_KEY), t); } catch (_) { /* sin almacenamiento */ }
 }
 applyTheme(getTheme());
 
@@ -192,6 +194,8 @@ async function boot() {
       }
     } catch (_) { /* si no se pudo comprobar, se sigue con el rol normal: nunca bloquea el arranque */ }
   }
+  appearanceUserId = state.session.user.id;
+  applyTheme(getTheme());
   await menuConfigurado();
   layout();
   watchAuth();
@@ -267,9 +271,9 @@ function layout() {
  *  igual que el tema claro/oscuro). Solo tiene sentido con ancho de escritorio — en pantallas
  *  angostas siempre se usa el lateral como cajón, sea cual sea la preferencia (ver CSS). */
 const MENU_LAYOUT_KEY = 'sofa.menu.layout';
-const MENU_LAYOUT_NAME = { lateral: 'Lateral', horizontal: 'Horizontal' };
-const getMenuLayout = () => { try { return localStorage.getItem(MENU_LAYOUT_KEY) === 'horizontal' ? 'horizontal' : 'lateral'; } catch (_) { return 'lateral'; } };
-function setMenuLayout(v) { try { localStorage.setItem(MENU_LAYOUT_KEY, v); } catch (_) { /* sin almacenamiento: no se recuerda */ } }
+const MENU_LAYOUT_NAME = { lateral: 'En cascada', horizontal: 'Horizontal' };
+const getMenuLayout = () => { try { return (localStorage.getItem(preferenceKey(MENU_LAYOUT_KEY)) || localStorage.getItem(MENU_LAYOUT_KEY)) === 'horizontal' ? 'horizontal' : 'lateral'; } catch (_) { return 'lateral'; } };
+function setMenuLayout(v) { try { localStorage.setItem(preferenceKey(MENU_LAYOUT_KEY), v); } catch (_) { /* sin almacenamiento: no se recuerda */ } }
 /** Familia elegida a mano en el menú horizontal (para previsualizar sus pantallas antes de
  *  entrar a alguna); se olvida en cada navegación real, momento en que vuelve a seguir la ruta activa. */
 let horizFamilia = null;
@@ -305,7 +309,7 @@ function renderNav() {
     return;
   }
   const total = groups.reduce((n, g) => n + g.items.length, 0);
-  if (total <= FLAT_NAV_THRESHOLD) {
+  if (total <= FLAT_NAV_THRESHOLD && state.role !== 'client') {
     render(nav, html`<div class="nav-items nav-flat">${groups.flatMap((g) => g.items).map(link)}</div>`);
     return;
   }
@@ -375,13 +379,14 @@ function openUserMenu() {
   const pop = document.createElement('div');
   pop.className = 'menu-pop'; pop.setAttribute('role', 'menu');
   render(pop, html`<div class="who"><b>${state.profile.full_name || '—'}</b><span>${state.session.user.email}</span><br><span>${state.membership.role_name} · ${state.membership.organization}</span></div>
-    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><button role="menuitem" data-menu-next>Menú: ${MENU_LAYOUT_NAME[getMenuLayout()]}</button><a role="menuitem" href="#/diagnostico">Diagnóstico</a>
+    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><span class="appearance-label">Distribución del menú</span>${Object.entries(MENU_LAYOUT_NAME).map(([value, label]) => html`<button role="menuitemradio" aria-checked="${getMenuLayout() === value}" data-menu-layout="${value}">${label}${getMenuLayout() === value ? ' ✓' : ''}</button>`)}<a role="menuitem" href="#/diagnostico">Diagnóstico</a>
     <button role="menuitem" data-out="local">Cerrar sesión</button><button role="menuitem" data-out="global">Cerrar sesión en todos los dispositivos</button>`);
   document.body.appendChild(pop); $('#userBtn').setAttribute('aria-expanded', 'true');
   pop.addEventListener('click', (e) => {
     if (e.target.closest('[data-theme-next]')) { const order = Object.keys(THEMES); applyTheme(order[(order.indexOf(getTheme()) + 1) % order.length]); e.target.closest('[data-theme-next]').textContent = `Tema: ${THEMES[getTheme()]}`; return; }
-    if (e.target.closest('[data-menu-next]')) {
-      setMenuLayout(getMenuLayout() === 'horizontal' ? 'lateral' : 'horizontal');
+    const menuChoice = e.target.closest('[data-menu-layout]');
+    if (menuChoice) {
+      setMenuLayout(menuChoice.dataset.menuLayout);
       closeUserMenu(); layout(); route();
       return;
     }

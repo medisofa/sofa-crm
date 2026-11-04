@@ -144,3 +144,7 @@ main.page:focus { outline: none; }
   table.t th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: #000; text-decoration: none; }
 }
+
+.appearance-label{display:block;padding:12px 12px 4px;font-size:.75rem;font-weight:700;color:var(--ink-2)}
+.menu-pop [role="menuitemradio"][aria-checked="true"]{background:var(--surface-2);font-weight:700;box-shadow:inset 3px 0 var(--focus)}
+.menu-pop{max-height:calc(100dvh - 80px);overflow-y:auto}
