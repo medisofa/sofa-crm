@@ -43,6 +43,7 @@ export const NAV = [
     { route: 'inicio', label: 'Panel SOFA', roles: STAFF, ready: true },   // 2.0: el panel general queda para el personal de SOFA
     { route: 'hoy', label: 'Trabajo de hoy', roles: [...ALL, 'capturer', 'asistente'], ready: true },
     { route: 'mi-bandeja', label: 'Mi bandeja', roles: ['super_admin', 'admin', 'operations', 'billing'], ready: true },   // 4.9 · I59
+    { route: 'seguimiento-hoy', label: 'Seguimiento de hoy', roles: ['client'], ready: true },
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
     { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.7 · I68a
@@ -209,7 +210,7 @@ export const ESENCIALES = {
   // 16/10/2026: ningún médico usaba las pantallas del equipo de facturación. Las sustituyen
   // Mi dinero, Mis glosas y Mi productividad, que dicen lo mismo en su idioma.
   client: {
-    menu: ['mi-dashboard', 'agenda', 'flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes',
+    menu: ['mi-dashboard', 'agenda', 'seguimiento-hoy', 'flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes',
            'captura', 'hospitalizacion',
            'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados',
            'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros',
@@ -442,7 +443,7 @@ export const FAMILIES = [
  */
 export const FAMILIAS_ROL = {
   client: [
-    { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda'] },
+    { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda', 'seguimiento-hoy'] },
     { key: 'pacientes',   group: 'Mis pacientes', routes: ['pacientes', 'flujo-pacientes', 'saldos-pacientes'] },
     { key: 'consulta',    group: 'Historia clínica', routes: ['historia-clinica'] },
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
@@ -523,7 +524,7 @@ export const visibleNav = (role) => {
   const groups = (FAMILIAS_ROL[role] || FAMILIES).map((f) => ({ key: f.key, group: f.group, items: f.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
   const rest = allRoutes().filter((i) => ok(i) && !used.has(i.route));
   if (rest.length) groups.push({ key: 'mas', group: 'Más', items: rest });
-  return groups.filter((g) => g.items.length);
+  return groups.filter((g) => g.items.length).map((g) => role === 'client' ? { ...g, items: g.items.map((i) => i.route === 'flujo-pacientes' ? { ...i, label: 'Plan del día' } : i) } : g);
 };
 /**
  * 5.11.0 · Lo que este rol PUEDE abrir pero no está en su menú.

@@ -10,17 +10,18 @@ import { setAppointmentStatus, callAppointmentIn, flowBoard } from '../services/
 
 const REFRESH_MS = 25000;
 const COLS = [
-  { key: 'esperado', title: 'Esperado', match: (a) => ['programada', 'confirmada'].includes(a.status) },
-  { key: 'esperando', title: 'Esperando', match: (a) => a.status === 'en_espera' },
+  { key: 'agendados', title: 'Agendados', match: (a) => a.status === 'programada' },
+  { key: 'confirmados', title: 'Confirmados', match: (a) => a.status === 'confirmada' },
+  { key: 'esperando', title: 'En sala', match: (a) => a.status === 'en_espera' },
   { key: 'consulta', title: 'En consulta', match: (a) => a.status === 'en_consulta' },
-  { key: 'atendido', title: 'Atendido', match: (a) => a.status === 'atendida' }
+  { key: 'atendido', title: 'Atendidos', match: (a) => a.status === 'atendida' }
 ];
 const mem = { org: '', date: '' };
 
 const minsSince = (iso) => (iso ? Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)) : null);
 
 export async function render(main, ctx) {
-  paint(main, html`<div class="page-head"><div class="t"><h2>Flujo de pacientes</h2><p>Quién está por llegar, quién espera, quién está en consulta y quién ya fue atendido — de todos los médicos del consultorio, hoy.</p></div></div><div id="fp"></div>`);
+  paint(main, html`<div class="page-head"><div class="t"><h2>${ctx.role === 'client' ? 'Plan del día' : 'Flujo de pacientes'}</h2><p>Quién está por llegar, quién espera, quién está en consulta y quién ya fue atendido — de todos los médicos del consultorio, hoy.</p></div></div><div id="fp"></div>`);
   return renderBoard($('#fp', main), ctx);
 }
 
@@ -49,7 +50,7 @@ async function renderBoard(box, ctx) {
         <label for="fp-date">Fecha</label><input id="fp-date" type="date" value="${mem.date}">
         <span class="small muted" style="margin-left:auto">Se actualiza solo cada ${REFRESH_MS / 1000}s</span>
       </div>
-      <div class="grid four flow-board">
+      <div class="grid flow-board">
         ${COLS.map((c) => { const items = rows.filter(c.match); return html`
           <section class="card flow-col">
             <h3>${c.title} <span class="pill">${items.length}</span></h3>
@@ -85,7 +86,7 @@ function flowCard(a, col) {
       <div class="t1">${a.patient}${a.time ? ` · ${a.time}` : ''}</div>
       <div class="t2">${a.doctor}${a.type ? ` · ${a.type}` : ''}${col === 'consulta' && a.room ? ` · ${a.room}` : ''}${wait != null ? ` · ${wait} min` : ''}</div>
     </div>
-    ${col === 'esperado' ? html`<button class="btn sm" data-arrive="${a.id}">Llegó</button>` : ''}
+    ${['agendados', 'confirmados'].includes(col) ? html`<button class="btn sm" data-arrive="${a.id}">Llegó</button>` : ''}
     ${col === 'esperando' ? html`<button class="btn sm primary" data-call="${a.id}">Llamar a consulta</button>` : ''}
     ${col === 'consulta' ? html`<button class="btn sm" data-back="${a.id}" title="La atención se cierra al capturar la reclamación o el cobro en Agenda">Volver a espera</button>` : ''}
   </div>`;

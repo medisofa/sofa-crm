@@ -1,4 +1,4 @@
-import { APP_VERSION } from './version.js?v=5.24.1';
+import { APP_VERSION } from './version.js?v=5.25.0';
 /**
  * SOFA · Enrutador por hash (#/ruta/parametro). Compatible con GitHub Pages
  * sin configuración de servidor.
@@ -21,6 +21,7 @@ export const MODULES = {
   preradicacion: 'prerad.js', requisitos: 'requirements.js',
   // Iteraciones 18 a 28 (SOFA 1.9.0)
   'mi-dashboard': 'dashboard-rol.js',
+  'seguimiento-hoy': 'seguimiento-hoy.js',
   'estado-cuenta': 'statement.js', 'calendario-cobros': 'collections-calendar.js', mensajes: 'weekly.js', rentabilidad: 'profitability.js',
   pacientes: 'pacientes.js', 'saldos-pacientes': 'saldos-pacientes.js', 'indicadores-agenda': 'indicadores-agenda.js',
   seguimiento: 'seguimiento.js', 'avisos-pacientes': 'avisos-pacientes.js', 'mis-secretarias': 'mis-secretarias.js', 'mis-asistentes': 'mis-asistentes.js',

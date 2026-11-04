@@ -140,3 +140,10 @@ dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
 .hab-item .ctl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
 .hab-item .ctl select, .hab-item .ctl input { min-height: 34px; padding: 4px 8px; font-size: 13px; }
 @media (max-width: 680px) { .hab-item { grid-template-columns: 14px minmax(0, 1fr); } .hab-item .ctl { grid-column: 2; justify-content: flex-start; } }
+
+/* Plan del día: cinco estados sin cambiar las transiciones clínicas existentes. */
+.flow-board{grid-template-columns:repeat(5,minmax(0,1fr));align-items:start}
+.flow-board .flow-col{min-width:0}
+.flow-board .flow-card{flex-wrap:wrap;overflow-wrap:anywhere}
+@media(max-width:1199px){.flow-board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:599px){.flow-board{grid-template-columns:minmax(0,1fr)}}
