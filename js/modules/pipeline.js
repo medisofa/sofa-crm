@@ -34,11 +34,13 @@ export async function render(main, ctx) {
     const open = data.filter((o) => OPEN_STAGES.includes(o.stage));
     const month = new Date().toISOString().slice(0, 7);
     const won = data.filter((o) => o.stage === 'cliente' && String(o.closed_on || '').startsWith(month));
+    const impl = data.filter((o) => POST_SALE_STAGES.slice(0, 2).includes(o.stage));
     paint($('#k', main), html`
       <div class="kpi"><div class="l">Pipeline abierto (mensual)</div><div class="v">${money(open.reduce((t, o) => t + Number(o.estimated_value), 0))}</div><div class="h">${num(open.length)} oportunidades</div></div>
       <div class="kpi"><div class="l">Ponderado por probabilidad</div><div class="v">${money(open.reduce((t, o) => t + Number(o.weighted_value), 0))}</div></div>
       <div class="kpi"><div class="l">Seguimientos vencidos</div><div class="v" style="${open.some((o) => o.overdue) ? 'color:var(--bad)' : ''}">${num(open.filter((o) => o.overdue).length)}</div></div>
-      <div class="kpi"><div class="l">Ganadas este mes</div><div class="v" style="color:var(--ok)">${st.closed ? num(won.length) : '—'}</div><div class="h">${st.closed ? money(won.reduce((t, o) => t + Number(o.estimated_value), 0)) : 'Activa "Incluir ganadas"'}</div></div>`);
+      <div class="kpi"><div class="l">Ganadas este mes</div><div class="v" style="color:var(--ok)">${st.closed ? num(won.length) : '—'}</div><div class="h">${st.closed ? money(won.reduce((t, o) => t + Number(o.estimated_value), 0)) : 'Activa "Incluir ganadas"'}</div></div>
+      <div class="kpi"><div class="l">Post-venta en curso</div><div class="v" style="${impl.length ? 'color:var(--ok)' : ''}">${num(impl.length)}</div><div class="h">Contratados e implementación</div></div>`);
     if (view === 'lista') return listView(data, edit);
     const stages = STAGES.filter((s) => st.closed || OPEN_STAGES.includes(s.code));
     return html`<div class="kanban" role="list">${stages.map((s) => {
