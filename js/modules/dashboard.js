@@ -1,5 +1,5 @@
 /** SOFA · Dashboard: operación y cobro (todos) · crecimiento de SOFA (roles con honorarios) */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, updateSidebarBadges } from '../utils/dom.js';
 import { loadingView, errorView, emptyView } from '../utils/ui.js';
 import { financialEvents, collectionDays, serviceMix, openBalances, feesInRange, monthsBetween, monthKey, BUCKETS,
   growthMonthly, mrr, pipelineTotals, growthTargets, settings } from '../services/bi.js';
@@ -53,6 +53,8 @@ export async function render(main, ctx) {
     const mixBy = {}; mix.forEach((r) => { mixBy[r.description] = (mixBy[r.description] || 0) + Number(r.amount); });
     const arsRad = {}; k('radicado').forEach((e) => { arsRad[e.ars_id] = (arsRad[e.ars_id] || 0) + Number(e.amount); });
 
+    const glosasAbiertas = k('glosado').length, vencidas = open.filter((r) => r.age_days > 90).length;
+    updateSidebarBadges({ glosas: glosasAbiertas, aging: vencidas });
     if (!rad && !cob && !saldo && !mix.length) { paint(body, emptyView('Sin movimientos en este período', 'Cambia el rango de meses o los filtros. Las cifras aparecen cuando hay radicaciones enviadas, pagos o glosas.')); return; }
     const kLink = (href, content) => canOpen(href, ctx.role) ? html`<a href="${href}" class="kpi" style="text-decoration:none;color:inherit">${content}</a>` : html`<div class="kpi">${content}</div>`;
     paint(body, html`

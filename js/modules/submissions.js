@@ -53,12 +53,12 @@ export async function render(main, ctx) {
       const d = daysTo(s.payment_deadline);
       return html`<tr data-id="${s.id}" style="cursor:pointer">
         <td data-l="Radicación"><a href="#/radicaciones/${s.id}"><b class="mono">${s.folio}</b></a>${s.sequence > 1 ? html` <span class="pill">#${s.sequence}</span>` : ''}</td>
-        <td data-l="Prestador">${s.provider_name}${staff ? html`<div class="small muted">${s.client_name}</div>` : ''}</td>
-        <td data-l="ARS">${s.ars_name}${s.provider_code_status !== 'codificado' ? html`<div><span class="pill bad" title="El prestador no tiene código en esta ARS">Sin código</span></div>` : ''}</td>
+        <td data-l="Prestador" title="${s.provider_name}">${s.provider_name}${staff ? html`<div class="small muted">${s.client_name}</div>` : ''}</td>
+        <td data-l="ARS" title="${s.ars_name}">${s.ars_name}${s.provider_code_status !== 'codificado' ? html`<div><span class="pill bad" title="El prestador no tiene código en esta ARS">Sin código</span></div>` : ''}</td>
         <td data-l="Período">${period(s.period)}</td>
         <td data-l="Servicios" class="n">${num(s.lines)}</td>
         <td data-l="Reclamado" class="n">${money(s.claimed)}</td>
-        <td data-l="Estado"><span class="pill ${cls}">${lbl}</span>${s.submitted_on ? html`<div class="small muted">Radicada ${date(s.submitted_on)}</div>` : ''}</td>
+        <td data-l="Estado"><span class="pill ${cls}" title="${lbl} · ${s.display_status}">${lbl}</span>${s.submitted_on ? html`<div class="small muted">Radicada ${date(s.submitted_on)}</div>` : ''}</td>
         <td data-l="Expediente" class="n">${s.lines ? `${s.docs_pct}%` : '—'}${s.last_total ? html`<div class="small muted">Validación ${s.last_passed}/${s.last_total}</div>` : ''}</td>
         <td data-l="Saldo" class="n">${s.submitted_on ? money(s.balance) : '—'}${d != null && Number(s.balance) > 0 ? html`<div class="small" style="${d < 0 ? 'color:var(--bad);font-weight:600' : ''}">${d < 0 ? `Vencida hace ${-d} días` : `Vence en ${d} días`}</div>` : ''}</td></tr>`;
     })}</tbody></table></div>${pager(count, st.page)}`,

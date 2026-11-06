@@ -163,8 +163,8 @@ export async function render(main, ctx) {
     <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer">
       <td data-l="Seleccionar"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Seleccionar ${c.folio}"></td>
       <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
-      <td data-l="Servicio">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
-      <td data-l="Paciente">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
+      <td data-l="Servicio" title="${c.service_name}">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
+      <td data-l="Paciente" title="${c.patient_name}">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
       <td data-l="Duplicado"><div class="dup-cell">${(() => {
         const d = (dupMap.get(c.id) || [])[0];
         if (!d) return html`<span class="pill ok">Sin coincidencias</span>`;
@@ -178,7 +178,7 @@ export async function render(main, ctx) {
       })()}</div></td>
       <td data-l="Médico · ARS">${c.provider_name}<div class="small muted">${c.ars_name}</div></td>
       <td data-l="Reclamado" class="n">${money(c.claimed)}${c.tariff_amount != null && Math.abs(Number(c.claimed) - Number(c.tariff_amount) * 1) > 0.005 && c.discrepancy_status ? html`<div><span class="pill ${DISCREPANCY_STATUS[c.discrepancy_status]?.[1] || ''}" title="Tarifa contractual ${money(c.tariff_amount)}">${DISCREPANCY_STATUS[c.discrepancy_status]?.[0] || ''}</span></div>` : ''}${!c.contracted ? html`<div><span class="pill bad">No contratado</span></div>` : ''}</td>
-      <td data-l="Estado"><span class="pill ${cl}">${l}</span><div class="small muted">${dateTime(c.status_changed_at)}</div></td>
+      <td data-l="Estado"><span class="pill ${cl}" title="${l} desde ${dateTime(c.status_changed_at)}">${l}</span><div class="small muted">${dateTime(c.status_changed_at)}</div></td>
       <td data-l="Expediente">${c.dossier_ok ? (c.dossier_missing ? html`<span class="pill warn">Con excepción</span>` : html`<span class="pill ok">Completo</span>`) : html`<span class="pill bad">Faltan ${c.dossier_missing}</span>`}</td>
       <td data-l="Dónde está">${c.location_name || '—'}<div class="small muted">${c.custodian_name || 'Sin responsable asignado'}</div><div class="small">→ ${c.next_step}</div></td>
       ${money_ ? html`<td data-l="Saldo" class="n">${['radicada', 'en_proceso_ars', 'pago_parcial', 'glosada', 'pagada', 'cerrada', 'devuelta'].includes(c.claim_status) ? money(c.balance) : '—'}${Number(c.glosado) > 0 ? html`<div class="small" style="color:var(--bad)">Glosado ${money(c.glosado)}</div>` : ''}</td>` : ''}

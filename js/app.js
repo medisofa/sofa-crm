@@ -9,7 +9,7 @@ import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
 import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.28.0';
 import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
-import { html, render, raw, $, $$ } from './utils/dom.js';
+import { html, render, raw, $, $$, applySidebarBadges } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
 import { supportViewStart, supportViewEnd, supportViewActive } from './services/admin.js';
@@ -321,12 +321,12 @@ function renderNav() {
       ? html`${hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : ''}
              ${otros.length ? html`<div class="nav-otros"><p class="nav-otros-t">Otros módulos a los que tienes acceso</p><div class="nav-hits">${otros.map(link)}</div></div>` : ''}`
       : html`<p class="nav-empty">No hay ningún módulo con «${$('#navSearch').value}» al que tengas acceso. Borra la búsqueda para ver tu menú.</p>`);
-    return;
+    applySidebarBadges(); return;
   }
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   if (total <= FLAT_NAV_THRESHOLD && state.role !== 'client') {
     render(nav, html`<div class="nav-items nav-flat">${groups.flatMap((g) => g.items).map(link)}</div>`);
-    return;
+    applySidebarBadges(); return;
   }
   // 28/10/2026: con muchos grupos, abrirlos uno por uno (o cerrarlos uno por uno) para buscar
   // algo se vuelve lento. Un botón arriba abre o cierra todos de una vez; el grupo de la ruta
@@ -341,6 +341,7 @@ function renderNav() {
       <div class="nav-items" ${open ? '' : raw('hidden')}>${g.items.map(link)}</div></div>`;
   })}
   ${mostrarPista ? html`<p class="nav-hint">Tu menú muestra lo que usas a diario. Busca arriba para abrir otros ${nExtra} módulos a los que tienes acceso.</p>` : ''}`);
+  applySidebarBadges();
 }
 /** Menú horizontal: fila de familias + fila de pantallas de la familia activa. Solo se pinta
  *  cuando la preferencia es "horizontal"; si no, el <nav id="topnav"> queda oculto. */
