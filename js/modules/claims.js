@@ -30,6 +30,7 @@ export async function render(main, ctx) {
         ${can('claims.capture', role) ? html`<a class="btn primary" href="#/captura">+ Captura rápida</a>` : ''}
         <button class="btn" id="csv">Exportar CSV</button></div></div>
     <div class="grid kpis" id="k"></div>
+    <div id="funnel"></div>
     <div class="tabs" id="tabs" role="group" aria-label="Grupo" style="margin-top:14px"></div>
     <div class="toolbar">
       <label class="sr-only" for="q">Buscar</label><input class="input grow" id="q" type="search" placeholder="Folio, paciente, NSS, autorización o radicación">
@@ -70,6 +71,17 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">En SOFA / validación</div><div class="v">${num(c(CLAIM_GROUPS.custodia.statuses))}</div></div>
       <div class="kpi"><div class="l">En la ARS</div><div class="v">${num(c(CLAIM_GROUPS.ars.statuses))}</div></div>
       <div class="kpi"><div class="l">Requieren atención</div><div class="v" style="${c(CLAIM_GROUPS.atencion.statuses) ? 'color:var(--bad)' : ''}">${num(c(CLAIM_GROUPS.atencion.statuses))}</div><div class="h">Sin configurar, con inconsistencia o devueltas</div></div>`);
+    const funnel = $('#funnel', main);
+    if (funnel) {
+      const stages = [
+        { key: 'captura', label: 'Captura',   bg: 'var(--info-bg)', fg: 'var(--info)' },
+        { key: 'custodia', label: 'En SOFA',  bg: 'var(--warn-bg)', fg: 'var(--warn)' },
+        { key: 'ars',     label: 'En ARS',    bg: 'var(--ok-bg)',   fg: 'var(--ok)'   },
+        { key: 'cobro',   label: 'Cobradas',  bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
+      ];
+      const sc = stages.map((s) => ({ ...s, n: c(CLAIM_GROUPS[s.key]?.statuses || []) }));
+      paint(funnel, html`<div role="img" aria-label="Distribución de reclamaciones por etapa" style="display:flex;gap:2px;height:36px;border-radius:6px;overflow:hidden;margin-bottom:12px">${sc.map((s) => html`<div title="${s.label}: ${num(s.n)}" style="flex:${Math.max(s.n, 1)};display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;background:${s.bg};color:${s.fg};font-size:11px;font-weight:700;min-width:48px;cursor:default;overflow:hidden;white-space:nowrap"><span style="overflow:hidden;text-overflow:ellipsis">${s.label}</span><strong>${num(s.n)}</strong></div>`)}</div>`);
+    }
   }).catch(() => { toast('No se pudieron cargar los conteos', 'warn'); });
 
   /** Acciones masivas: solo las transiciones que el rol puede hacer desde TODOS los estados seleccionados */
