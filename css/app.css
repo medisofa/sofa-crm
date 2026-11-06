@@ -13,6 +13,8 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .sidebar { background: var(--sb-bg-solid); } }
 .sidebar.open { transform: none; }
 @media (min-width: 1000px) { .sidebar { position: sticky; top: 0; height: 100vh; width: auto; transform: none; } }
+@media (prefers-color-scheme: dark) { .sidebar:not([data-theme="light"] .sidebar) { background: var(--sb-bg); } }
+:root[data-theme="dark"] .sidebar { background: var(--sb-bg); }
 @media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
 .brand { display: flex; gap: 10px; align-items: center; padding: 16px 16px 14px; border-bottom: 3px solid var(--red); }
 .brand img { width: 34px; height: 34px; border-radius: 7px; }
