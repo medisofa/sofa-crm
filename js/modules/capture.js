@@ -20,6 +20,7 @@ import { revisarCaptura, capturarConDiagnostico, mostrarAviso, limpiarAvisos, pi
 
 /** Se conserva entre visitas dentro de la misma sesión: médico, ARS, fecha y clínica */
 const memory = { provider: '', ars: '', date: '', clinic: '', careMode: 'ambulatorio' };
+let sessionCount = 0;
 const pct = (a, b) => (b ? Math.round((10000 * (a - b)) / b) / 100 : 0);
 
 export async function render(main, ctx) {
@@ -30,7 +31,7 @@ export async function render(main, ctx) {
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Captura rápida</h2>
       <p>Registra cada servicio como una reclamación individual. Los códigos SIMON/CUPS y la tarifa salen del contrato del médico con la ARS.</p></div>
-      <div class="toolbar no-print" style="margin:0"><a class="btn" href="#/reclamaciones">Ver reclamaciones</a></div></div>
+      <div class="toolbar no-print" style="margin:0">${sessionCount ? html`<span class="pill info" id="sessCnt">${sessionCount} registrada${sessionCount > 1 ? 's' : ''} esta sesión</span>` : ''}<a class="btn" href="#/reclamaciones">Ver reclamaciones</a></div></div>
     <div class="grid two" style="align-items:start">
       <form class="card" id="cf" novalidate autocomplete="off" aria-describedby="kbhelp">
         <h2>Nueva reclamación</h2>
@@ -415,6 +416,10 @@ export async function render(main, ctx) {
       }
       const [lbl] = claimStatus(r.status);
       toast(`${r.folio} registrada · ${lbl}${r.discrepancy ? ` · ${DISCREPANCY_STATUS[r.discrepancy]?.[0] || r.discrepancy}` : ''}`, r.status === 'pendiente_configuracion' ? 'bad' : 'ok');
+      sessionCount++;
+      const badge = document.getElementById('sessCnt');
+      if (badge) badge.textContent = `${sessionCount} registrada${sessionCount > 1 ? 's' : ''} esta sesión`;
+      else { const s = document.createElement('span'); s.className = 'pill info'; s.id = 'sessCnt'; s.textContent = `${sessionCount} registrada esta sesión`; main.querySelector('.page-head .toolbar')?.prepend(s); }
       const keep = el('c_keep').checked;
       const kept = keep ? { p: el('c_pat').value, n: el('c_nss').value, d: el('c_doc').value } : null;
       clearPatient();
