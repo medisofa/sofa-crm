@@ -21,7 +21,7 @@ export async function render(main, ctx) {
   const money_ = can('claims.money', role);
   const st = { dossier: '', group: role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas', status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
   const sel = new Set();
-  let rows = []; let transitions = []; let locations = []; let dupMap = new Map(); let coreDupPairs = [];
+  let rows = []; let transitions = []; let locations = []; let dupMap = new Map(); let coreDupPairs = []; let cachedCounts = [];
 
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Reclamaciones</h2>
@@ -71,18 +71,48 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">En SOFA / validación</div><div class="v">${num(c(CLAIM_GROUPS.custodia.statuses))}</div></div>
       <div class="kpi"><div class="l">En la ARS</div><div class="v">${num(c(CLAIM_GROUPS.ars.statuses))}</div></div>
       <div class="kpi"><div class="l">Requieren atención</div><div class="v" style="${c(CLAIM_GROUPS.atencion.statuses) ? 'color:var(--bad)' : ''}">${num(c(CLAIM_GROUPS.atencion.statuses))}</div><div class="h">Sin configurar, con inconsistencia o devueltas</div></div>`);
-    const funnel = $('#funnel', main);
-    if (funnel) {
-      const stages = [
-        { key: 'captura', label: 'Captura',   bg: 'var(--info-bg)', fg: 'var(--info)' },
-        { key: 'custodia', label: 'En SOFA',  bg: 'var(--warn-bg)', fg: 'var(--warn)' },
-        { key: 'ars',     label: 'En ARS',    bg: 'var(--ok-bg)',   fg: 'var(--ok)'   },
-        { key: 'cobro',   label: 'Cobradas',  bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
-      ];
-      const sc = stages.map((s) => ({ ...s, n: c(CLAIM_GROUPS[s.key]?.statuses || []) }));
-      paint(funnel, html`<div role="img" aria-label="Distribución de reclamaciones por etapa" style="display:flex;gap:2px;height:36px;border-radius:6px;overflow:hidden;margin-bottom:12px">${sc.map((s) => html`<div title="${s.label}: ${num(s.n)}" style="flex:${Math.max(s.n, 1)};display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;background:${s.bg};color:${s.fg};font-size:11px;font-weight:700;min-width:48px;cursor:default;overflow:hidden;white-space:nowrap"><span style="overflow:hidden;text-overflow:ellipsis">${s.label}</span><strong>${num(s.n)}</strong></div>`)}</div>`);
-    }
+    cachedCounts = all; drawFunnel();
   }).catch(() => { toast('No se pudieron cargar los conteos', 'warn'); });
+
+  /** Pipeline progresivo con callouts de próximo paso accionable */
+  function drawFunnel() {
+    const funnel = $('#funnel', main); if (!funnel) return;
+    const c = (ss) => cachedCounts.filter((r) => ss.includes(r.claim_status)).length;
+    const TAB_STEP = { captura: 0, custodia: 1, ars: 2, cobro: 3 };
+    const cur = TAB_STEP[st.group] ?? -1;
+    const STEPS = [
+      { label: 'Captura',  ss: CLAIM_GROUPS.captura.statuses },
+      { label: 'En SOFA',  ss: CLAIM_GROUPS.custodia.statuses },
+      { label: 'En ARS',   ss: CLAIM_GROUPS.ars.statuses },
+      { label: 'Cobradas', ss: CLAIM_GROUPS.cobro.statuses },
+    ];
+    const listaPR = c(['lista_para_radicar']);
+    const inconsist = c(['con_inconsistencia']);
+    const devueltas = c(['devuelta']);
+    const hasNote = listaPR || inconsist || devueltas;
+    paint(funnel, html`
+      <ul class="stepper" aria-label="Flujo de reclamaciones" style="margin-bottom:${hasNote ? '8px' : '14px'}">
+        ${STEPS.map((s, i) => {
+          const n = c(s.ss); const done = cur > -1 && i < cur; const now = i === cur;
+          return html`<li class="${done ? 'done' : now ? 'now' : ''}" title="${s.label}: ${num(n)} reclamaciones">${s.label} · <b>${num(n)}</b></li>`;
+        })}
+      </ul>
+      ${listaPR && can('submissions.send', role) ? html`<div class="note ok" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${num(listaPR)} lista${listaPR > 1 ? 's' : ''} para radicar</b> — agruparlas en una radicación y enviarlas a la ARS.</div>
+        <a class="btn" href="#/radicaciones">Ir a radicaciones →</a>
+      </div>` : false}
+      ${inconsist ? html`<div class="note warn" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${num(inconsist)} con inconsistencia</b> — revisar y corregir antes de radicar.</div>
+        <button class="btn" id="filter-inc">Ver inconsistencias</button>
+      </div>` : false}
+      ${devueltas && !listaPR ? html`<div class="note bad" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${num(devueltas)} devuelta${devueltas > 1 ? 's' : ''} por la ARS</b> — verificar motivo y reenviar.</div>
+        <button class="btn" id="filter-dev">Ver devueltas</button>
+      </div>` : false}
+    `);
+    $('#filter-inc', funnel)?.addEventListener('click', () => { st.status = 'con_inconsistencia'; $('#fs', main).value = 'con_inconsistencia'; st.page = 0; drawTabs(); drawFunnel(); load(); });
+    $('#filter-dev', funnel)?.addEventListener('click', () => { st.status = 'devuelta'; $('#fs', main).value = 'devuelta'; st.page = 0; drawTabs(); drawFunnel(); load(); });
+  }
 
   /** Acciones masivas: solo las transiciones que el rol puede hacer desde TODOS los estados seleccionados */
   function drawBulk() {
@@ -230,7 +260,7 @@ export async function render(main, ctx) {
   }
 
   // ------------------------------------------------------------ eventos
-  $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (!b) return; st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0; drawTabs(); load(); });
+  $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (!b) return; st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0; drawTabs(); drawFunnel(); load(); });
   debounceSearch($('#q', main), st, load);
   [['#fx', 'dossier'], ['#fs', 'status'], ['#fl', 'location'], ['#fp', 'providerId'], ['#fa', 'arsId'], ['#ff', 'from'], ['#ft', 'to']].forEach(([s, k]) =>
     $(s, main).addEventListener('change', (e) => { st[k] = e.target.value; st.page = 0; if (k === 'status') drawTabs(); load(); }));
