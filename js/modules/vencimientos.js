@@ -24,6 +24,7 @@ export async function render(root) {
   // Alimentar badge de sidebar con la cantidad de tarifarios próximos a vencer (30 días)
   try {
     const exp = await rpc('tariffs_expiring', { p_days: 30 });
-    if (Array.isArray(exp) && exp.length > 0) updateSidebarBadges({ vencimientos: exp.length });
+    const n = exp?.tariffs?.length ?? 0;
+    if (n > 0) updateSidebarBadges({ vencimientos: n });
   } catch { /* no crítico */ }
 }
