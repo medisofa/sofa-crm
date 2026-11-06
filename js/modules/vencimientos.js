@@ -1,6 +1,7 @@
 /** SOFA · 2.2 · 2.6.1 · Renegociación de tarifarios (solo personal SOFA). Las ARS contratan por tiempo indefinido:
  *  cada tarifario se revisa a los 2 años de su última vigencia para ofrecer al cliente el servicio de renegociación. */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, updateSidebarBadges } from '../utils/dom.js';
+import { rpc } from '../services/iter18.js';
 import { mountExpiring } from './tarifario-import.js';
 
 export async function render(root) {
@@ -20,4 +21,9 @@ export async function render(root) {
   const draw = () => mountExpiring($('#vc-box', root), { days: Number($('#vc-days', root).value) });
   $('#vc-days', root).addEventListener('change', draw);
   await draw();
+  // Alimentar badge de sidebar con la cantidad de tarifarios próximos a vencer (30 días)
+  try {
+    const exp = await rpc('tariffs_expiring', { p_days: 30 });
+    if (Array.isArray(exp) && exp.length > 0) updateSidebarBadges({ vencimientos: exp.length });
+  } catch { /* no crítico */ }
 }

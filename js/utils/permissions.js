@@ -164,7 +164,8 @@ export const NAV = [
     { route: 'suscripciones', label: 'Suscripciones y pre-facturas', roles: ['super_admin', 'admin'], ready: true },   // 4.9 · P2
     { route: 'puesta-en-marcha', label: 'Puesta en marcha de clientes', roles: ['super_admin', 'admin', 'operations'], ready: true },   // 4.9 · I56
     { route: 'cola-correos', label: 'Cola de correos', roles: ['super_admin', 'admin'], ready: true },   // 5.0 · I63
-    { route: 'rendimiento', label: 'Rendimiento y archivo', roles: ['super_admin', 'admin', 'operations'], ready: true }   // 5.0 · I64 (Operaciones solo consulta)
+    { route: 'rendimiento', label: 'Rendimiento y archivo', roles: ['super_admin', 'admin', 'operations'], ready: true },   // 5.0 · I64 (Operaciones solo consulta)
+    { route: 'historial', label: 'Historial de acciones', roles: ['super_admin', 'admin'], ready: true }   // 5.28.0
   ]},
   { group: 'Mi cuenta', items: [
     { route: 'mi-cuenta-sofa', label: 'Mi cuenta con SOFA', roles: ['client'], ready: true },   // 3.0 · Iteración 40
@@ -433,7 +434,7 @@ export const FAMILIES = [
   { key: 'cobros', group: 'Cobros, Conciliación y Glosas', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas'] },
   { key: 'consultorio', group: 'Consultorio', routes: ['flujo-pacientes', 'mi-ficha', 'documentos-consultorio', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'pagos-privados', 'insumos', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
-  { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos'] },
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'historial'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
 ];
 

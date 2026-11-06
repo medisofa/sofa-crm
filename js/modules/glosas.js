@@ -12,6 +12,17 @@ import { pager } from './clients.js';
 
 const pct = (a, b) => (Number(b) > 0 ? Math.round((1000 * Number(a)) / Number(b)) / 10 : 0);
 const bar = (v, max, color = 'var(--navy-2)') => html`<div style="height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-top:4px"><div style="height:100%;width:${max ? Math.max(2, Math.round((100 * v) / max)) : 0}%;background:${color}"></div></div>`;
+/** Score heurístico de prioridad para glosas abiertas: urgencia del plazo + monto. */
+const glosaRisk = (g) => {
+  if (!GLOSA_OPEN.includes(g.status)) return null;
+  const dl = Number(g.days_left), amt = Number(g.amount);
+  if (dl < 0) return ['Vencida', 'bad'];
+  if (dl <= 3) return ['Urgente', 'bad'];
+  if (dl <= 7 && amt > 30000) return ['Urgente', 'bad'];
+  if (dl <= 7) return ['Urgente', 'warn'];
+  if (dl <= 15 && amt > 50000) return ['Revisar', 'warn'];
+  return null;
+};
 
 export async function render(main, ctx) {
   if (ctx.arg) return renderDetail(main, ctx);
@@ -37,11 +48,13 @@ export async function render(main, ctx) {
     const tot = rows.reduce((t, r) => t + Number(r.amount), 0), disp = rows.reduce((t, r) => t + Number(r.in_dispute), 0);
     const recov = rows.reduce((t, r) => t + Number(r.recovered), 0), acc = rows.reduce((t, r) => t + Number(r.accepted), 0);
     const soon = rows.filter((r) => GLOSA_OPEN.includes(r.status) && r.days_left <= 7);
+    const sla15 = rows.filter((r) => GLOSA_OPEN.includes(r.status) && r.days_left >= 0 && r.days_left <= 15);
     paint($('#k', main), html`
       <div class="kpi"><div class="l">Glosado</div><div class="v">${money(tot)}</div><div class="h">${num(rows.length)} glosas</div></div>
       <div class="kpi"><div class="l">En disputa</div><div class="v">${money(disp)}</div></div>
       <div class="kpi"><div class="l">Recuperado</div><div class="v" style="color:var(--ok)">${money(recov)}</div><div class="h">${pct(recov, recov + acc)}% de lo resuelto</div></div>
-      <div class="kpi"><div class="l">Vencen en 7 días o menos</div><div class="v" style="${soon.length ? 'color:var(--bad)' : ''}">${num(soon.length)}</div><div class="h">Incluye las vencidas</div></div>`);
+      <div class="kpi"><div class="l">Vencen en 7 días o menos</div><div class="v" style="${soon.length ? 'color:var(--bad)' : ''}">${num(soon.length)}</div><div class="h">Incluye las vencidas</div></div>
+      <div class="kpi" title="Glosas abiertas que deben responderse en los próximos 15 días (SLA interno SOFA)"><div class="l">SLA ≤ 15 días</div><div class="v" style="${sla15.length > 5 ? 'color:var(--warn)' : ''}">${num(sla15.length)}</div><div class="h">${money(sla15.reduce((t, r) => t + Number(r.amount), 0))}</div></div>`);
     const byReason = {}; par.forEach((p) => { byReason[p.reason_name] = (byReason[p.reason_name] || 0) + Number(p.amount); });
     const reasons = Object.entries(byReason).sort((a, b) => b[1] - a[1]).slice(0, 8); const maxR = reasons[0]?.[1] || 0;
     paint($('#par', main), reasons.length ? html`${reasons.map(([n, v]) => html`<div style="margin:8px 0"><div class="small" style="display:flex;justify-content:space-between"><span>${n}</span><b>${money(v)}</b></div>${bar(v, maxR, 'var(--red)')}</div>`)}` : html`<p class="small muted">Aún no hay glosas.</p>`);
@@ -53,14 +66,15 @@ export async function render(main, ctx) {
 
   const list = $('#l', main);
   const load = () => loadInto(list, () => listGlosas({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff }), ({ data, count }) => html`
-    <div class="table-wrap"><table class="t cards"><thead><tr><th>Glosa · radicación</th><th>Prestador</th><th>ARS</th><th>Motivo principal</th><th class="n">Glosado</th><th class="n">En disputa</th><th>Estado</th><th>Responder antes de</th></tr></thead>
-    <tbody>${data.map((g) => { const [l, c] = glosaStatus(g.status); const open = GLOSA_OPEN.includes(g.status); return html`<tr data-id="${g.id}" style="cursor:pointer">
+    <div class="table-wrap"><table class="t cards"><thead><tr><th>Glosa · radicación</th><th>Prestador</th><th>ARS</th><th>Motivo principal</th><th class="n">Glosado</th><th class="n">En disputa</th><th>Estado</th><th>Responder antes de</th><th title="Score de prioridad: urgencia del plazo + monto (SLA interno SOFA)">Prioridad</th></tr></thead>
+    <tbody>${data.map((g) => { const [l, c] = glosaStatus(g.status); const open = GLOSA_OPEN.includes(g.status); const risk = glosaRisk(g); return html`<tr data-id="${g.id}" style="cursor:pointer">
       <td data-l="Radicación"><a href="#/glosas/${g.id}" class="mono"><b>${g.glosa_folio || g.folio}</b></a>${g.glosa_folio ? html`<div class="small mono">${g.folio}</div>` : ''}<div class="small muted">${period(g.period)}${g.ars_reference ? ` · ${g.ars_reference}` : ''}</div></td>
       <td data-l="Prestador" title="${g.provider_name}">${g.provider_name}${isStaff(ctx.role) ? html`<div class="small muted">${g.client_name}</div>` : ''}</td>
       <td data-l="ARS" title="${g.ars_name}">${g.ars_name}</td><td data-l="Motivo" title="${g.main_reason || ''}">${g.main_reason || '—'}${g.items > 1 ? html` <span class="small muted">(${g.items} servicios)</span>` : ''}</td>
       <td data-l="Glosado" class="n">${money(g.amount)}</td><td data-l="En disputa" class="n">${money(g.in_dispute)}</td>
       <td data-l="Estado"><span class="pill ${c}" title="${l} · ${g.status}">${l}</span></td>
-      <td data-l="Plazo">${open ? html`${date(g.appeal_deadline)}<div class="small" style="${g.days_left < 0 ? 'color:var(--bad);font-weight:600' : g.days_left <= 7 ? 'color:var(--warn);font-weight:600' : ''}">${g.days_left < 0 ? `Vencida hace ${-g.days_left} días` : `Faltan ${g.days_left} días`}</div>` : '—'}</td></tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
+      <td data-l="Plazo">${open ? html`${date(g.appeal_deadline)}<div class="small" style="${g.days_left < 0 ? 'color:var(--bad);font-weight:600' : g.days_left <= 7 ? 'color:var(--warn);font-weight:600' : ''}">${g.days_left < 0 ? `Vencida hace ${-g.days_left} días` : `Faltan ${g.days_left} días`}</div>` : '—'}</td>
+      <td data-l="Prioridad">${risk ? html`<span class="pill ${risk[1]}">${risk[0]}</span>` : ''}</td></tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
   { isEmpty: (r) => !r.data.length, empty: () => emptyView(st.group === 'abiertas' ? 'Sin glosas abiertas' : 'Sin glosas', 'Las glosas se registran desde la ficha de una radicación ya radicada.', html`<a class="btn" href="#/radicaciones">Ir a radicaciones</a>`) });
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (b) { st.group = b.dataset.g; st.page = 0; drawTabs(); load(); } });
   debounceSearch($('#q', main), st, load);
