@@ -3,7 +3,7 @@
  * El servicio define QUÉ se factura; el contrato Médico × ARS define CUÁNTO, con vigencia.
  * Nunca se edita un monto: un cambio crea una nueva vigencia y la anterior se conserva.
  */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, busy, formDialog, fieldError, loadingView } from '../utils/ui.js';
 import { money, num, date, todayISO } from '../utils/formatters.js';
 import { CONTRACT_STATUS } from '../utils/constants.js';
@@ -74,7 +74,7 @@ export async function render(main, ctx) {
 
   let current = [];
   const reload = () => load().then((r) => { current = r?.data || []; });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; reload(); }, 350); });
+  debounceSearch($('#q', main), st, reload);
   $('#cp', main).addEventListener('change', (e) => { st.providerId = e.target.value; st.page = 0; reload(); });
   $('#ca', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; reload(); });
   $('#cs', main).addEventListener('change', (e) => { st.status = e.target.value; st.page = 0; reload(); });

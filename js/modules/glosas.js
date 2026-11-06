@@ -1,5 +1,5 @@
 /** SOFA · Glosas: bandeja con plazos, Pareto de motivos, tasa por ARS y ficha de cada glosa */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, errorView, loadingView, toast, friendlyError, opt, busy } from '../utils/ui.js';
 import { listGlosas, glosaSummary, glosaPareto, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs } from '../services/finance.js';
 import { profileNames } from '../services/submissions.js';
@@ -31,7 +31,7 @@ export async function render(main, ctx) {
   const tabs = [['abiertas', 'Abiertas'], ['resueltas', 'Resueltas'], ['todas', 'Todas']];
   const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-g="${k}" aria-pressed="${st.group === k}">${l}</button>`)}`);
   drawTabs();
-  listArs().then((a) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${a.map((x) => opt(x.id, x.name))}`)).catch(() => {});
+  listArs().then((a) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${a.map((x) => opt(x.id, x.name))}`)).catch(() => { toast('No se pudieron cargar las ARS', 'warn'); });
 
   Promise.all([glosaSummary({ realOnly: staff }), glosaPareto({ realOnly: staff }), arsReconciliation({ realOnly: staff })]).then(([rows, par, rec]) => {
     const tot = rows.reduce((t, r) => t + Number(r.amount), 0), disp = rows.reduce((t, r) => t + Number(r.in_dispute), 0);
@@ -63,7 +63,7 @@ export async function render(main, ctx) {
       <td data-l="Plazo">${open ? html`${date(g.appeal_deadline)}<div class="small" style="${g.days_left < 0 ? 'color:var(--bad);font-weight:600' : g.days_left <= 7 ? 'color:var(--warn);font-weight:600' : ''}">${g.days_left < 0 ? `Vencida hace ${-g.days_left} días` : `Faltan ${g.days_left} días`}</div>` : '—'}</td></tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
   { isEmpty: (r) => !r.data.length, empty: () => emptyView(st.group === 'abiertas' ? 'Sin glosas abiertas' : 'Sin glosas', 'Las glosas se registran desde la ficha de una radicación ya radicada.') });
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (b) { st.group = b.dataset.g; st.page = 0; drawTabs(); load(); } });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+  debounceSearch($('#q', main), st, load);
   $('#ars', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });
   list.addEventListener('click', (e) => {
     const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); load(); return; }

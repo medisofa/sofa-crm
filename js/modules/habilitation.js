@@ -1,5 +1,5 @@
 /** SOFA · Habilitación Express ante MISPAS: casos y checklist maestro */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, errorView } from '../utils/ui.js';
 import { listCases, caseSummary, requirementsCatalog, saveRequirement, STAGE_LABEL, CASE_KIND, MODIFICATION_SUBKIND } from '../services/habilitation.js';
 import { money, num, date } from '../utils/formatters.js';
@@ -65,7 +65,7 @@ export async function render(main, ctx) {
   });
 
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (b) { st.group = b.dataset.g; st.page = 0; drawTabs(); load(); } });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+  debounceSearch($('#q', main), st, load);
   list.addEventListener('click', (e) => {
     const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); load(); return; }
     const row = e.target.closest('tr[data-id]'); if (row && !e.target.closest('a')) location.hash = `#/habilitacion/${row.dataset.id}`;

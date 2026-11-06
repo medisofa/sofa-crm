@@ -1,5 +1,5 @@
 /** SOFA · Radicaciones: listado con filtros y cifras */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt } from '../utils/ui.js';
 import { listSubmissions, submissionSummary, GROUPS } from '../services/submissions.js';
 import { listArs } from '../services/catalog.js';
@@ -29,7 +29,7 @@ export async function render(main, ctx) {
 
   const drawTabs = () => paint($('#tabs', main), html`${Object.entries(GROUPS).map(([k, g]) => html`<button data-g="${k}" aria-pressed="${st.group === k}">${g.label}</button>`)}`);
   drawTabs();
-  listArs().then((ars) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`)).catch(() => {});
+  listArs().then((ars) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`)).catch(() => { toast('No se pudieron cargar las ARS', 'warn'); });
 
   // Tarjetas
   submissionSummary({ realOnly: staff }).then((rows) => {
@@ -67,7 +67,7 @@ export async function render(main, ctx) {
       can('subs.create', ctx.role) ? html`<button class="btn primary" data-new>+ Nueva radicación</button>` : '') });
 
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (b) { st.group = b.dataset.g; st.page = 0; drawTabs(); load(); } });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+  debounceSearch($('#q', main), st, load);
   $('#ars', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });
   $('#per', main).addEventListener('change', (e) => { st.period = e.target.value; st.page = 0; load(); });
   list.addEventListener('click', (e) => {
