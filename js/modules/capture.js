@@ -334,7 +334,7 @@ export async function render(main, ctx) {
           if (r.patient.ars_id && S.ars.some((a) => a.id === r.patient.ars_id)) { el('c_ars').value = r.patient.ars_id; await onArs(); }
           const orgId = S.providers.find((p) => p.id === el('c_prov').value)?.organization_id;
           if (orgId) {
-            try { const { rpc } = await import('../services/iter18.js'); await rpc('attach_global_patient', { p_global: r.patient.id, p_org: orgId }); } catch (_) {}
+            try { const { rpc } = await import('../services/iter18.js'); await rpc('attach_global_patient', { p_global: r.patient.id, p_org: orgId }); } catch (_) { console.warn('attach_global_patient falló', _); }
           }
           paint(box, html`<div class="note ok">Datos administrativos reutilizados. La nueva consulta continúa limpia.</div>`);
         });

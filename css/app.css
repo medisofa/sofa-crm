@@ -75,7 +75,7 @@
   .menu-pop { top: calc(100% + 4px); max-width: calc(100vw - 32px); }
 }
 .user-btn { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px 3px 3px; cursor: pointer; min-height: 40px; }
-.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: var(--on-navy); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
 .user-btn .nm { font-size: 13px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 480px) { .user-btn .nm { display: none; } .user-btn { padding: 3px; } }
 .menu-pop { position: absolute; right: 16px; top: calc(var(--topbar) + env(safe-area-inset-top, 0px)); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); min-width: 240px; padding: 6px; z-index: 50; }

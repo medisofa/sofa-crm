@@ -1,5 +1,5 @@
 /** SOFA · Pipeline comercial (tablero de 8 etapas y lista) */
-import { html, render as paint, raw, $ } from '../utils/dom.js';
+import { html, render as paint, raw, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt } from '../utils/ui.js';
 import { listOpportunities, listStaff, updateOpportunity } from '../services/crm.js';
 import { STAGES, OPEN_STAGES, SERVICES, serviceName, stageLabel, POST_SALE_STAGES } from '../utils/constants.js';
@@ -51,7 +51,7 @@ export async function render(main, ctx) {
     { isEmpty: (d) => !d.length, empty: () => emptyView('Sin oportunidades', st.q || st.owner || st.service ? 'Prueba con otros filtros.' : 'Registra tu primer prospecto con el botón "Nuevo prospecto".') });
 
   $('#new', main)?.addEventListener('click', async () => { const id = await newProspectDialog(); if (id) location.hash = `#/oportunidades/${id}`; });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; load(); }, 350); });
+  debounceSearch($('#q', main), st, load, { resetPage: false });
   $('#own', main).addEventListener('change', (e) => { st.owner = e.target.value; load(); });
   $('#svc', main).addEventListener('change', (e) => { st.service = e.target.value; load(); });
   $('#closed', main).addEventListener('change', (e) => { st.closed = e.target.checked; load(); });

@@ -28,3 +28,9 @@ export function render(el, tpl) {
 }
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+/** Conecta un input de búsqueda con debounce a un state + load. */
+export function debounceSearch(el, st, load, { key = 'q', resetPage = true, delay = 350 } = {}) {
+  let t;
+  el.addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st[key] = e.target.value; if (resetPage && 'page' in st) st.page = 0; load(); }, delay); });
+}

@@ -1,5 +1,5 @@
 /** SOFA · Inteligencia de mercado: resumen, noticias del sector, competencia y referentes, ideas de servicios y fuentes */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, errorView, loadingView, toast, friendlyError, opt, busy, confirmDialog } from '../utils/ui.js';
 import { listItems, topItems, itemCounts, setItemStatus, listEntities, getEntity, entityNotes, deleteEntity, listIdeas, saveIdea, listSources, saveSource, deleteSource, lastRuns, refreshNow } from '../services/intel.js';
 import { profileNames } from '../services/submissions.js';
@@ -81,7 +81,7 @@ export async function render(main, ctx) {
     const load = () => loadInto(l, async () => { const r = await listItems({ ...st }); items = r.data; return r; },
       ({ data, count }) => html`<div class="card"><div class="list">${data.map((i) => itemCard(i, { actions: edit }))}</div>${pager(count, st.page)}</div>`,
       { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin noticias con estos filtros', admin ? 'Pulsa "Actualizar ahora" o ajusta los filtros.' : 'Ajusta los filtros.') });
-    let t; $('#q', body).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+    debounceSearch($('#q', body), st, load);
     [['#tp', 'topic'], ['#rl', 'minRel'], ['#ss', 'status']].forEach(([sel, k]) => $(sel, body).addEventListener('change', (e) => { st[k] = k === 'minRel' ? Number(e.target.value) : e.target.value; st.page = 0; load(); }));
     l.addEventListener('click', async (e) => {
       const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); load(); return; }
