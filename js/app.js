@@ -452,6 +452,11 @@ async function route() {
   if (r.kind === 'notfound') { setTitle('No encontrado'); render(main, emptyView('Página no encontrada', 'La dirección no existe.', html`<a class="btn primary" href="#/${home}">Ir al inicio</a>`)); return; }
   if (r.kind === 'forbidden') { setTitle(r.def.label); render(main, emptyView('Sin acceso a este módulo', `Tu rol (${ROLES[state.role]?.name}) no incluye "${r.def.label}". Si lo necesitas, pide al Super Admin que revise tus permisos.`, html`<a class="btn" href="#/${home}">Volver al inicio</a>`)); return; }
   setTitle(r.def.label);
+  render(main, html`<div class="loading-skeleton" aria-busy="true" aria-label="Cargando…">
+    <div class="sk-bar sk-title"></div>
+    <div class="sk-row"><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div></div>
+    <div class="sk-bar sk-table"></div>
+  </div>`);
   const ctx = { ...state, def: r.def, arg: r.arg, setTitle, sb: sb() };
   try { await r.mod.render(main, ctx); }
   catch (e) { console.error(e); render(main, errorView(e)); }

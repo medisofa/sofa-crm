@@ -148,6 +148,15 @@ main.page:focus { outline: none; }
   a { color: #000; text-decoration: none; }
 }
 
+/* Loading skeleton — se muestra mientras el módulo carga */
+@keyframes sk-pulse{0%,100%{opacity:.08}50%{opacity:.16}}
+.loading-skeleton{display:grid;gap:16px;padding:8px 0;animation:sk-pulse 1.2s ease-in-out infinite}
+.sk-bar{border-radius:var(--r,8px);background:var(--ink,#1c2a3d)}
+.sk-title{height:24px;width:40%;opacity:.12}
+.sk-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sk-kpi{height:80px;opacity:.08}
+.sk-table{height:200px;opacity:.06}
+
 .appearance-label{display:block;padding:12px 12px 4px;font-size:.75rem;font-weight:700;color:var(--ink-2)}
 .menu-pop [role="menuitemradio"][aria-checked="true"]{background:var(--surface-2);font-weight:700;box-shadow:inset 3px 0 var(--focus)}
 .menu-pop{max-height:calc(100dvh - 80px);overflow-y:auto}

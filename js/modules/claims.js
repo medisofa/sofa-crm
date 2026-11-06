@@ -113,26 +113,27 @@ export async function render(main, ctx) {
       paint(box, html`<div class="note ok" style="margin-bottom:12px"><b>Control de coincidencias:</b> no se detectaron reclamaciones con NSS + fecha de servicio + fecha de autorización iguales.</div>`);
       return;
     }
-    paint(box, html`<div class="card" style="margin-bottom:14px">
-      <div class="page-head"><div class="t"><h2>Coincidencias exactas · NSS + fechas</h2>
-        <p>Estas reclamaciones comparten <b>NSS</b>, <b>fecha de servicio</b> y <b>fecha de autorización</b>. Revísalas antes de radicar.</p></div>
+    paint(box, html`<div class="dup-card">
+      <div class="dup-card-head">
+        <div class="t"><h2>Coincidencias exactas · NSS + fechas</h2>
+          <p>Estas reclamaciones comparten <b>NSS</b>, <b>fecha de servicio</b> y <b>fecha de autorización</b>. Revísalas antes de radicar.</p></div>
         <span class="pill bad">${pairs.length} grupo(s)</span>
       </div>
-      <div class="list">
-        ${pairs.map((d) => html`<div class="li" style="align-items:flex-start">
+      ${pairs.map((d) => html`<div class="dup-group">
+        <div class="dup-group-head">
           <span class="pill bad">3/3 iguales</span>
-          <div class="b">
-            <div class="t1"><a class="mono" href="#/reclamaciones/${d.line_id}">${d.folio || d.line_id.slice(0,8)}</a>
-              ↔ <a class="mono" href="#/reclamaciones/${d.other_line_id}">${d.other_folio || d.other_line_id.slice(0,8)}</a></div>
-            <div class="t2">${d.patient_name} · NSS ${d.member_number}</div>
-            <div class="small"><b>Fecha servicio:</b> ${date(d.service_date)} · <b>Fecha autorización:</b> ${date(d.authorization_date)}</div>
-            <div class="small"><b>Autorizaciones:</b> ${d.authorization_number || '—'} ↔ ${d.other_authorization_number || '—'}</div>
-            <div class="small"><b>Servicios:</b> ${d.service_name || '—'} ↔ ${d.other_service_name || '—'}</div>
-            <div class="small"><b>SOFA sugiere:</b> ${d.suggested_solution}</div>
-            <div class="toolbar" style="margin-top:6px"><button class="btn sm" data-core-review="${d.line_id}" data-core-other="${d.other_line_id}">Revisar coincidencia</button></div>
-          </div>
-        </div>`)}
-      </div>
+          <span class="dup-group-ids"><a href="#/reclamaciones/${d.line_id}">${d.folio || d.line_id.slice(0,8)}</a> ↔ <a href="#/reclamaciones/${d.other_line_id}">${d.other_folio || d.other_line_id.slice(0,8)}</a></span>
+          <span class="dup-group-patient">${d.patient_name} · NSS ${d.member_number}</span>
+        </div>
+        <div class="dup-group-meta">
+          <div><b>Fecha servicio:</b> ${date(d.service_date)}</div>
+          <div><b>Fecha autorización:</b> ${date(d.authorization_date)}</div>
+          <div><b>Autorizaciones:</b> ${d.authorization_number || '—'} ↔ ${d.other_authorization_number || '—'}</div>
+          <div><b>Servicios:</b> ${d.service_name || '—'} ↔ ${d.other_service_name || '—'}</div>
+        </div>
+        <div class="dup-suggest"><b>SOFA sugiere:</b> ${d.suggested_solution}</div>
+        <button class="btn sm" data-core-review="${d.line_id}" data-core-other="${d.other_line_id}">Revisar coincidencia</button>
+      </div>`)}
     </div>`);
   }
 
@@ -164,7 +165,7 @@ export async function render(main, ctx) {
       <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
       <td data-l="Servicio">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
       <td data-l="Paciente">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
-      <td data-l="Duplicado">${(() => {
+      <td data-l="Duplicado"><div class="dup-cell">${(() => {
         const d = (dupMap.get(c.id) || [])[0];
         if (!d) return html`<span class="pill ok">Sin coincidencias</span>`;
         const exactCore = coreMatch(d);
@@ -174,7 +175,7 @@ export async function render(main, ctx) {
           <div class="small muted">${(d.matched_fields || []).join(' · ')}</div>
           <div class="small">${d.suggested_solution}</div>
           <button class="btn sm" data-review-dup="${d.line_id}" data-other="${d.other_line_id}">Revisar</button>`;
-      })()}</td>
+      })()}</div></td>
       <td data-l="Médico · ARS">${c.provider_name}<div class="small muted">${c.ars_name}</div></td>
       <td data-l="Reclamado" class="n">${money(c.claimed)}${c.tariff_amount != null && Math.abs(Number(c.claimed) - Number(c.tariff_amount) * 1) > 0.005 && c.discrepancy_status ? html`<div><span class="pill ${DISCREPANCY_STATUS[c.discrepancy_status]?.[1] || ''}" title="Tarifa contractual ${money(c.tariff_amount)}">${DISCREPANCY_STATUS[c.discrepancy_status]?.[0] || ''}</span></div>` : ''}${!c.contracted ? html`<div><span class="pill bad">No contratado</span></div>` : ''}</td>
       <td data-l="Estado"><span class="pill ${cl}">${l}</span><div class="small muted">${dateTime(c.status_changed_at)}</div></td>
