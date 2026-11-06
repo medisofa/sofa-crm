@@ -146,7 +146,7 @@ export async function manualInvoiceDialog(ctx) {
         let t = 0; f.querySelectorAll('[data-item]').forEach((r) => { const i = r.dataset.item; t += Number(f.elements[`q${i}`].value || 0) * Number(f.elements[`u${i}`].value || 0); });
         const ym = f.elements.month.value; const pend = f.elements.pending.checked ? pending.filter((p) => p.period <= `${ym}-01`).reduce((a, p) => a + Number(p.amount), 0) : 0;
         f.querySelector('#mi_pa').textContent = f.elements.org.value ? `(${money(pending.filter((p) => p.period <= `${ym}-01`).reduce((a, p) => a + Number(p.amount), 0))})` : '';
-        f.querySelector('#mi_tot').innerHTML = `Total de la factura: <b>${money(t + pend)}</b>`;
+        paint(f.querySelector('#mi_tot'), html`Total de la factura: <b>${money(t + pend)}</b>`);
       };
       f.elements.org.addEventListener('change', async () => { pending = f.elements.org.value ? await pendingFeesOf(f.elements.org.value).catch(() => []) : []; upd(); });
       f.querySelector('#mi_add').addEventListener('click', () => { f.querySelector('#mi_items').insertAdjacentHTML('beforeend', itemRow(n).s); n += 1; upd(); });

@@ -185,7 +185,7 @@ export async function renderAgenda(box, ctx) {
         <p id="ch_tot" class="small" aria-live="polite"></p>`,
       onOpen: (f) => {
         const upd = () => { const s = services.find((x) => x.procedure_id === f.elements.procedure.value); const t = (s?.amount || 0) * Number(f.elements.quantity.value || 1) - Number(f.elements.discount.value || 0);
-          f.querySelector('#ch_tot').innerHTML = `Total a cobrar: <b>${money(t)}</b>`; f.elements.reference.disabled = ['efectivo', 'pendiente'].includes(f.elements.method.value); };
+          paint(f.querySelector('#ch_tot'), html`Total a cobrar: <b>${money(t)}</b>`); f.elements.reference.disabled = ['efectivo', 'pendiente'].includes(f.elements.method.value); };
         f.addEventListener('input', upd); f.addEventListener('change', upd); upd();
       },
       onSubmit: async (d, f) => {
