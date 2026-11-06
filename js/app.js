@@ -30,6 +30,16 @@ function applyTheme(t) {
 }
 applyTheme(getTheme());
 
+/** 2.1b · Paleta del sidebar (preferencia por usuario/navegador; variables --sb-bg en css/variables.css) */
+const PALETTE_KEY = 'sofa.paleta';
+const PALETTES = { navy: 'Navy oscuro', sutil: 'Navy claro', medio: 'Bermuda medio', bermuda: 'Bermuda claro' };
+const getPalette = () => { try { const v = localStorage.getItem(preferenceKey(PALETTE_KEY)) || localStorage.getItem(PALETTE_KEY); return Object.hasOwn(PALETTES, v) ? v : 'navy'; } catch (_) { return 'navy'; } };
+function applyPalette(p) {
+  if (p && p !== 'navy') document.documentElement.dataset.palette = p; else delete document.documentElement.dataset.palette;
+  try { localStorage.setItem(preferenceKey(PALETTE_KEY), p); } catch (_) { /* sin almacenamiento */ }
+}
+applyPalette(getPalette());
+
 /** 2.1 · Íconos de las familias del menú (SVG de línea, sin archivos externos) */
 const ICON = (d) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const FAMILY_ICONS = {
@@ -197,6 +207,7 @@ async function boot() {
   }
   appearanceUserId = state.session.user.id;
   applyTheme(getTheme());
+  applyPalette(getPalette());
   await menuConfigurado();
   layout();
   watchAuth();
@@ -383,11 +394,13 @@ function openUserMenu() {
   const pop = document.createElement('div');
   pop.className = 'menu-pop'; pop.setAttribute('role', 'menu');
   render(pop, html`<div class="who"><b>${state.profile.full_name || '—'}</b><span>${state.session.user.email}</span><br><span>${state.membership.role_name} · ${state.membership.organization}</span></div>
-    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><span class="appearance-label">Distribución del menú</span>${Object.entries(MENU_LAYOUT_NAME).map(([value, label]) => html`<button role="menuitemradio" aria-checked="${getMenuLayout() === value}" data-menu-layout="${value}">${label}${getMenuLayout() === value ? ' ✓' : ''}</button>`)}<a role="menuitem" href="#/diagnostico">Diagnóstico</a>
+    <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><span class="appearance-label">Color del sidebar</span>${Object.entries(PALETTES).map(([value, label]) => html`<button role="menuitemradio" aria-checked="${getPalette() === value}" data-palette-pick="${value}">${label}${getPalette() === value ? ' ✓' : ''}</button>`)}<span class="appearance-label">Distribución del menú</span>${Object.entries(MENU_LAYOUT_NAME).map(([value, label]) => html`<button role="menuitemradio" aria-checked="${getMenuLayout() === value}" data-menu-layout="${value}">${label}${getMenuLayout() === value ? ' ✓' : ''}</button>`)}<a role="menuitem" href="#/diagnostico">Diagnóstico</a>
     <button role="menuitem" data-out="local">Cerrar sesión</button><button role="menuitem" data-out="global">Cerrar sesión en todos los dispositivos</button>`);
   document.body.appendChild(pop); $('#userBtn').setAttribute('aria-expanded', 'true');
   pop.addEventListener('click', async (e) => {
     if (e.target.closest('[data-theme-next]')) { const order = Object.keys(THEMES); applyTheme(order[(order.indexOf(getTheme()) + 1) % order.length]); e.target.closest('[data-theme-next]').textContent = `Tema: ${THEMES[getTheme()]}`; return; }
+    const palPick = e.target.closest('[data-palette-pick]');
+    if (palPick) { applyPalette(palPick.dataset.palettePick); closeUserMenu(); openUserMenu(); return; }
     const menuChoice = e.target.closest('[data-menu-layout]');
     if (menuChoice) {
       try{await prepareProgressForUpdate();}catch(error){toast(error.message,'bad');return;}
