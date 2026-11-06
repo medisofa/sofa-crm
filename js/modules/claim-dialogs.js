@@ -1,5 +1,5 @@
 /** SOFA · Diálogos de reclamaciones: mover de estado, auditar (D5), decidir diferencia tarifaria y ajustar reparto de pago (D4) */
-import { html } from '../utils/dom.js';
+import { html, render as paint, raw } from '../utils/dom.js';
 import { formDialog, opt, fieldError } from '../utils/ui.js';
 import { money, num } from '../utils/formatters.js';
 import { claimStatus, CLAIM_MOVE_LABELS } from '../utils/constants.js';
@@ -87,7 +87,7 @@ export function adjustDialog(allocation, current) {
     onOpen: (form) => {
       const sum = () => { const s = current.reduce((t, c) => t + Number(form.elements[`a_${c.service_line_id}`].value || 0), 0);
         const d = Math.round((s - total) * 100) / 100;
-        form.querySelector('#aj_sum').innerHTML = `Suma: <b>${money(s)}</b> · ${d === 0 ? '<span style="color:var(--ok)">cuadra con el pago</span>' : `<span style="color:var(--bad)">diferencia ${money(d)}</span>`}`; };
+        paint(form.querySelector('#aj_sum'), html`Suma: <b>${money(s)}</b> · ${d === 0 ? html`<span style="color:var(--ok)">cuadra con el pago</span>` : html`<span style="color:var(--bad)">diferencia ${money(d)}</span>`}`); };
       form.addEventListener('input', sum); sum();
     },
     onSubmit: async (d, form) => {

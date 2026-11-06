@@ -74,8 +74,9 @@ export async function busy(btn, fn) {
 export function confirmDialog(title, text, okLabel = 'Confirmar', danger = false) {
   return new Promise((resolve) => {
     const d = document.createElement('dialog');
-    d.className = 'dlg'; d.setAttribute('aria-labelledby', 'dlgT');
-    render(d, html`<div class="dh" id="dlgT">${title}</div><div class="db">${text}</div><div class="df"><button class="btn" value="no">Cancelar</button><button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${okLabel}</button></div>`);
+    const tid = `dlg-${++seq}`;
+    d.className = 'dlg'; d.setAttribute('aria-labelledby', tid);
+    render(d, html`<div class="dh" id="${tid}">${title}</div><div class="db">${text}</div><div class="df"><button class="btn" value="no">Cancelar</button><button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${okLabel}</button></div>`);
     document.body.appendChild(d);
     d.addEventListener('click', (e) => { const v = e.target.closest('button')?.value; if (v) { d.close(v); } });
     d.addEventListener('close', () => { resolve(d.returnValue === 'ok'); d.remove(); });
@@ -104,8 +105,9 @@ export function formDialog({ title, body, submitLabel = 'Guardar', wide = false,
   return new Promise((resolve) => {
     const d = document.createElement('dialog');
     d.className = 'dlg'; if (wide) d.style.width = 'min(720px, 96vw)';
-    d.setAttribute('aria-labelledby', 'fdT');
-    render(d, html`<form novalidate><div class="dh" id="fdT">${title}</div><div class="db form-body">${body}<div class="fd-msg" aria-live="assertive"></div></div>
+    const tid = `dlg-${++seq}`;
+    d.setAttribute('aria-labelledby', tid);
+    render(d, html`<form novalidate><div class="dh" id="${tid}">${title}</div><div class="db form-body">${body}<div class="fd-msg" aria-live="assertive"></div></div>
       <div class="df"><button type="button" class="btn" data-cancel>Cancelar</button><button type="submit" class="btn primary">${submitLabel}</button></div></form>`);
     document.body.appendChild(d);
     const form = d.querySelector('form');

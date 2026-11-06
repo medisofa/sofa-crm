@@ -99,6 +99,7 @@ export async function render(main, ctx) {
     } catch (err) { toast(friendlyError(err), 'bad'); }
   }
   if (!S.providers.some((p) => p.id === memory.provider)) memory.provider = S.providers.length === 1 ? S.providers[0].id : '';
+  if (!S.ars.some((a) => a.id === memory.ars)) memory.ars = S.ars.length === 1 ? S.ars[0].id : '';
   paint(el('c_prov'), html`<option value="">Seleccione…</option>${S.providers.map((p) => opt(p.id, staff && p.organizations?.legal_name && p.organizations.legal_name !== p.full_name ? `${p.full_name} · ${p.organizations.legal_name}` : p.full_name, memory.provider))}`);
   paint(el('c_ars'), html`<option value="">Seleccione…</option>${S.ars.map((a) => opt(a.id, a.name, memory.ars))}`);
 
