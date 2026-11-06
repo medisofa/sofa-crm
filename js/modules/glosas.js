@@ -61,7 +61,7 @@ export async function render(main, ctx) {
       <td data-l="Glosado" class="n">${money(g.amount)}</td><td data-l="En disputa" class="n">${money(g.in_dispute)}</td>
       <td data-l="Estado"><span class="pill ${c}">${l}</span></td>
       <td data-l="Plazo">${open ? html`${date(g.appeal_deadline)}<div class="small" style="${g.days_left < 0 ? 'color:var(--bad);font-weight:600' : g.days_left <= 7 ? 'color:var(--warn);font-weight:600' : ''}">${g.days_left < 0 ? `Vencida hace ${-g.days_left} días` : `Faltan ${g.days_left} días`}</div>` : '—'}</td></tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
-  { isEmpty: (r) => !r.data.length, empty: () => emptyView(st.group === 'abiertas' ? 'Sin glosas abiertas' : 'Sin glosas', 'Las glosas se registran desde la ficha de una radicación ya radicada.') });
+  { isEmpty: (r) => !r.data.length, empty: () => emptyView(st.group === 'abiertas' ? 'Sin glosas abiertas' : 'Sin glosas', 'Las glosas se registran desde la ficha de una radicación ya radicada.', html`<a class="btn" href="#/radicaciones">Ir a radicaciones</a>`) });
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (b) { st.group = b.dataset.g; st.page = 0; drawTabs(); load(); } });
   debounceSearch($('#q', main), st, load);
   $('#ars', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });

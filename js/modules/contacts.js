@@ -22,7 +22,7 @@ export async function render(main, ctx) {
       <td data-l="Teléfono">${wa ? html`<a href="${wa}" target="_blank" rel="noopener">WhatsApp ${phoneFmt(c.whatsapp)}</a>` : phoneFmt(c.phone) || '—'}</td>
       <td data-l="Correo">${c.email ? html`<a href="mailto:${c.email}">${c.email}</a>` : '—'}</td>
       <td data-l="">${edit ? html`<button class="btn sm" data-edit="${c.id}">Editar</button>` : ''} ${del ? html`<button class="btn sm danger" data-del="${c.id}">Eliminar</button>` : ''}</td></tr>`; })}</tbody></table></div>`,
-  { empty: () => emptyView(st.q ? 'Sin resultados' : 'Aún no hay contactos') });
+  { empty: () => emptyView(st.q ? 'Sin resultados' : 'Aún no hay contactos', st.q ? 'Intenta con otro término de búsqueda.' : 'Los contactos se agregan desde la ficha de cada cliente o prospecto.', !st.q ? html`<a class="btn" href="#/clientes">Ir a clientes</a>` : '') });
   box.addEventListener('click', async (e) => {
     const ed = e.target.closest('[data-edit]'), dl = e.target.closest('[data-del]');
     if (ed) { const c = rows.find((x) => x.id === ed.dataset.edit); if (await contactDialog(ctx, null, c)) load(); }
