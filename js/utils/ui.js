@@ -46,6 +46,7 @@ let seq = 0;
  */
 export async function loadInto(el, fetcher, view, { isEmpty = (d) => Array.isArray(d) && d.length === 0, empty = () => emptyView('Sin registros', 'No hay información para mostrar.') } = {}) {
   const id = `r${++seq}`;
+  if (!el.getAttribute('aria-live')) el.setAttribute('aria-live', 'polite');
   render(el, loadingView());
   try {
     const data = await fetcher();

@@ -12,7 +12,7 @@ export async function render(main) {
     <div class="page-head"><div class="t"><h2>Documentos</h2><p>Los 200 documentos más recientes de los expedientes que tu rol puede ver. Para subir uno, abre la radicación.</p></div></div>
     <div class="toolbar"><label class="sr-only" for="dt">Tipo</label><select class="input" id="dt" style="width:auto"><option value="">Todos los tipos</option></select></div>
     <div id="docLink"></div><div id="l"></div>`);
-  documentTypes().then((t) => paint($('#dt', main), html`<option value="">Todos los tipos</option>${t.map((x) => opt(x.code, x.name))}`)).catch(() => {});
+  documentTypes().then((t) => paint($('#dt', main), html`<option value="">Todos los tipos</option>${t.map((x) => opt(x.code, x.name))}`)).catch(() => { toast('No se pudieron cargar los tipos', 'warn'); });
   const list = $('#l', main);
   let docs = [];
   const load = () => loadInto(list, async () => {

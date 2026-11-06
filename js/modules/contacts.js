@@ -1,5 +1,5 @@
 /** SOFA · Contactos de clientes y prospectos */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, confirmDialog } from '../utils/ui.js';
 import { listContacts, deleteContact } from '../services/crm.js';
 import { waLink, phoneFmt } from '../utils/whatsapp.js';
@@ -32,6 +32,6 @@ export async function render(main, ctx) {
       try { await deleteContact(c.id); toast('Contacto eliminado', 'ok'); load(); } catch (err) { toast(friendlyError(err), 'bad'); }
     }
   });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; load(); }, 350); });
+  debounceSearch($('#q', main), st, load, { resetPage: false });
   load();
 }

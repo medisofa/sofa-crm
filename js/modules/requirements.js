@@ -3,7 +3,7 @@
  * Para cada documento gana la regla más específica (servicio > tipo de servicio; con ARS > sin ARS; con modalidad > sin ella).
  * Una regla "No requerido" exime el documento (p. ej., una ARS que no pide copia del carnet).
  */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, formDialog, fieldError } from '../utils/ui.js';
 import { dateTime } from '../utils/formatters.js';
 import { can } from '../utils/permissions.js';
@@ -43,7 +43,7 @@ export async function render(main, ctx) {
       ${edit ? html`<td><button class="btn sm" data-edit="${x.id}">Editar</button></td>` : ''}</tr>`; })}</tbody></table></div>`; },
   { isEmpty: (r) => !r.length, empty: () => emptyView('Sin reglas', 'No hay reglas con estos filtros.') });
 
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; load(); }, 300); });
+  debounceSearch($('#q', main), st, load, { resetPage: false });
   [['#fd', 'docType'], ['#fs', 'serviceType'], ['#fa', 'arsId'], ['#fm', 'careMode']].forEach(([s, k]) => $(s, main).addEventListener('change', (e) => { st[k] = e.target.value; load(); }));
   $('#act', main).addEventListener('change', (e) => { st.onlyActive = e.target.checked; load(); });
   const open = async (rule = null) => { try { if (await ruleDialog(rule, { types, stypes, ars })) { toast('Regla guardada', 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } };

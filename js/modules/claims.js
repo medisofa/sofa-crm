@@ -4,7 +4,7 @@ import { mountOpeningHistoryPicker, OPENING_ROLES } from './opening-history.js';
  * Listado con filtros por estado, ubicación, médico, ARS y fechas; acciones masivas
  * (mover de estado con ubicación y responsable, auditar) y exportación CSV.
  */
-import { html, render as paint, $, $$ } from '../utils/dom.js';
+import { html, render as paint, $, $$, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, busy, formDialog, fieldError } from '../utils/ui.js';
 import { money, num, date, dateTime, todayISO } from '../utils/formatters.js';
 import { claimStatus, CLAIM_GROUPS, CLAIM_STATUS, CLAIM_MOVE_LABELS, DISCREPANCY_STATUS } from '../utils/constants.js';
@@ -70,7 +70,7 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">En SOFA / validación</div><div class="v">${num(c(CLAIM_GROUPS.custodia.statuses))}</div></div>
       <div class="kpi"><div class="l">En la ARS</div><div class="v">${num(c(CLAIM_GROUPS.ars.statuses))}</div></div>
       <div class="kpi"><div class="l">Requieren atención</div><div class="v" style="${c(CLAIM_GROUPS.atencion.statuses) ? 'color:var(--bad)' : ''}">${num(c(CLAIM_GROUPS.atencion.statuses))}</div><div class="h">Sin configurar, con inconsistencia o devueltas</div></div>`);
-  }).catch(() => {});
+  }).catch(() => { toast('No se pudieron cargar los conteos', 'warn'); });
 
   /** Acciones masivas: solo las transiciones que el rol puede hacer desde TODOS los estados seleccionados */
   function drawBulk() {
@@ -219,7 +219,7 @@ export async function render(main, ctx) {
 
   // ------------------------------------------------------------ eventos
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (!b) return; st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0; drawTabs(); load(); });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+  debounceSearch($('#q', main), st, load);
   [['#fx', 'dossier'], ['#fs', 'status'], ['#fl', 'location'], ['#fp', 'providerId'], ['#fa', 'arsId'], ['#ff', 'from'], ['#ft', 'to']].forEach(([s, k]) =>
     $(s, main).addEventListener('change', (e) => { st[k] = e.target.value; st.page = 0; if (k === 'status') drawTabs(); load(); }));
   list.addEventListener('change', (e) => {

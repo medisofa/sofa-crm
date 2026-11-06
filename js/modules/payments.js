@@ -1,6 +1,6 @@
 import { mountOpeningHistoryPicker, OPENING_ROLES } from './opening-history.js';
 /** SOFA · Pagos de ARS: registro, conciliación por ARS y cuentas por cobrar */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, confirmDialog } from '../utils/ui.js';
 import { listPayments, arsReconciliation, voidPayment } from '../services/finance.js';
 import { listSubmissions } from '../services/submissions.js';
@@ -28,7 +28,7 @@ export async function render(main, ctx) {
   if (OPENING_ROLES.includes(ctx.role)) tabs.push(['anteriores', 'Cartera anterior y auditoría']);
   const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-t="${k}" aria-pressed="${st.tab === k}">${l}</button>`)}`);
   drawTabs();
-  listArs().then((a) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${a.map((x) => opt(x.id, x.name))}`)).catch(() => {});
+  listArs().then((a) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${a.map((x) => opt(x.id, x.name))}`)).catch(() => { toast('No se pudieron cargar las ARS', 'warn'); });
   const list = $('#l', main);
   const showFee = can('fees.view', ctx.role);
 
@@ -70,7 +70,7 @@ export async function render(main, ctx) {
   };
   $('#new', main)?.addEventListener('click', () => pay());
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (b) { st.tab = b.dataset.t; st.page = 0; drawTabs(); load(); } });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+  debounceSearch($('#q', main), st, load);
   $('#ars', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });
   list.addEventListener('click', async (e) => {
     const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); load(); return; }

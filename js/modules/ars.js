@@ -93,7 +93,7 @@ export async function render(root, ctx = {}) {
       h('label', { class: 'i18-chk' }, active, ' Activo (se puede elegir en pacientes y tarifarios)'), h('div', { class: 'i18-actions' }, save), msg));
     name.focus();
   }
-  q.addEventListener('input', draw);
+  let dt; q.addEventListener('input', () => { clearTimeout(dt); dt = setTimeout(draw, 250); });
   inactive.addEventListener('change', load);
   await load();
 }

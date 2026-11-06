@@ -3,7 +3,7 @@
  * contratos por ARS, clínicas, secretarias, reclamaciones por estado, montos y últimos lotes.
  * Todo respeta RLS: cada rol ve solo lo suyo (el Capturador, sus médicos y sin lo pagado).
  */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, loadingView, emptyView, errorView } from '../utils/ui.js';
 import { money, num, date, period } from '../utils/formatters.js';
 import { claimStatus, subStatus } from '../utils/constants.js';
@@ -28,7 +28,7 @@ export async function render(main, ctx) {
       <div class="b"><div class="t1">${p.full_name}${p.is_active ? '' : html` <span class="pill">Inactivo</span>`}</div><div class="t2">${[p.specialty, p.organizations?.legal_name].filter(Boolean).join(' · ')}</div></div>
       ${p.organizations?.status === 'incorporacion' ? html`<span class="pill warn">En implementación</span>` : ''}</a>`)}</div>`,
     { isEmpty: (r) => !r.length, empty: () => emptyView('Sin médicos', 'No hay médicos visibles para tu usuario con ese nombre.') });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => load(e.target.value.trim()), 300); });
+  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => load(e.target.value.trim()), 350); });
   load();
 }
 

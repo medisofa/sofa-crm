@@ -1,5 +1,5 @@
 /** SOFA · Clientes PSS (lectura). La creación llega con el CRM (Iteración 4). */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView } from '../utils/ui.js';
 import { listClients } from '../services/clients.js';
 import { money, date, num } from '../utils/formatters.js';
@@ -33,8 +33,7 @@ export async function render(main, ctx) {
       <td data-l="Códigos pendientes" class="n">${c.codigos_pendientes ? html`<span class="pill warn">${c.codigos_pendientes}</span>` : '0'}</td></tr>`)}</tbody></table></div>
     ${pager(count, st.page)}`,
   { isEmpty: (r) => !r.data.length, empty: () => emptyView(st.q || st.status ? 'Sin resultados' : 'Aún no hay clientes', st.q || st.status ? 'Prueba con otra búsqueda.' : 'Crea uno con "Nuevo cliente" o convirtiendo una oportunidad ganada del pipeline.') });
-  let t;
-  $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+  debounceSearch($('#q', main), st, load);
   $('#st', main).addEventListener('change', (e) => { st.status = e.target.value; st.page = 0; load(); });
   list.addEventListener('click', (e) => { const b = e.target.closest('[data-page]'); if (b) { st.page = Number(b.dataset.page); load(); } });
   $('#newc', main)?.addEventListener('click', async () => { const id = await clientDialog(); if (id) location.hash = `#/clientes/${id}`; });

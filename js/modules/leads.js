@@ -1,5 +1,5 @@
 /** SOFA · Prospectos: todos los contactos comerciales y su última oportunidad */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, opt } from '../utils/ui.js';
 import { listLeads } from '../services/crm.js';
 import { SOURCES, stageLabel, serviceName } from '../utils/constants.js';
@@ -53,7 +53,7 @@ export async function render(main, ctx) {
     })}</tbody></table></div>`;
   }, { empty: () => emptyView(st.q || st.source ? 'Sin resultados' : 'Aún no hay prospectos', st.q || st.source ? 'Prueba con otros filtros.' : 'Registra el primero con "Nuevo prospecto".') });
   $('#new', main)?.addEventListener('click', async () => { const id = await newProspectDialog(); if (id) location.hash = `#/oportunidades/${id}`; });
-  let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; load(); }, 350); });
+  debounceSearch($('#q', main), st, load, { resetPage: false });
   $('#src', main).addEventListener('change', (e) => { st.source = e.target.value; load(); });
   load();
 }

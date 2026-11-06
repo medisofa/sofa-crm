@@ -1,5 +1,5 @@
 /** SOFA · Codificación y tarifarios: buscador, tarifario por ARS, negociadas, brechas e importación */
-import { html, render as paint, $ } from '../utils/dom.js';
+import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, friendlyError, toast, opt, confirmDialog } from '../utils/ui.js';
 import { listArs, searchProcedures, codesFor, tariffsFor, codedProcedureIds } from '../services/catalog.js';
 import { listCurrentTariffs, tariffGaps } from '../services/tariffs.js';
@@ -87,8 +87,7 @@ export async function render(main, ctx) {
 
   const redraw = () => { drawTabs(); drawToolbar(); bindToolbar(); load(); };
   function bindToolbar() {
-    let tm;
-    $('#q', main)?.addEventListener('input', (e) => { clearTimeout(tm); tm = setTimeout(() => { st.q = e.target.value; st.page = 0; load(); }, 350); });
+    if ($('#q', main)) debounceSearch($('#q', main), st, load);
     $('#fam', main)?.addEventListener('change', (e) => { st.family = e.target.value; st.page = 0; load(); });
     $('#unc', main)?.addEventListener('change', (e) => { st.onlyUncoded = e.target.checked; st.page = 0; load(); });
     $('#ars', main)?.addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });
