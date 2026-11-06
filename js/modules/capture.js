@@ -42,6 +42,7 @@ export async function render(main, ctx) {
           <div class="field"><label for="c_mode">Modalidad</label><select id="c_mode" name="care_mode">${CARE_MODES.map(([v, l]) => opt(v, l, memory.careMode))}</select></div>
           <div class="field" style="grid-column:1/-1"><label for="c_pat">4 · Paciente *</label><input id="c_pat" name="patient_name" list="c_pats" required maxlength="150" placeholder="Nombre completo (escriba 2 letras o el NSS para buscar)"><datalist id="c_pats"></datalist></div>
           <div class="field"><label for="c_nss">NSS / No. afiliado *</label><input id="c_nss" name="member" required maxlength="40" inputmode="numeric"></div>
+          <div class="hint" style="grid-column:1/-1;margin-top:-8px;font-size:12px;color:var(--ink-2)">Verifica la elegibilidad del paciente en el portal web de su ARS o en SISALRIL antes de radicar — la cobertura no se valida automáticamente en este paso.</div>
           <div class="field"><label for="c_auth">No. de autorización <span id="authReq">*</span></label><input id="c_auth" name="authorization" maxlength="60"></div>
           <div class="field"><label for="c_authdate">Fecha de la autorización</label><input id="c_authdate" name="authdate" type="date" max="${todayISO()}"><span class="hint">Avisa a los 150 días si no se ha radicado</span></div>
           <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div><div id="globalPatientMatch" style="grid-column:1/-1"></div>

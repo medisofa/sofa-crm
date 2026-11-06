@@ -148,6 +148,16 @@ export async function render(root, ctx = {}) {
     const bank = h('input', { id: 'bk-bank', list: 'bk-banks', placeholder: 'Ej.: Banreservas' });
     const acct = h('input', { id: 'bk-acct', maxlength: '20', placeholder: 'Últimos 4 dígitos' });
     const file = h('input', { id: 'bk-file', type: 'file', accept: '.xlsx,.csv,.txt' });
+    // Guía de exportación por banco (para cuando el usuario tiene el estado de cuenta en PDF)
+    const pdfGuide = h('details', { style: 'margin-top:8px;font-size:13px' },
+      h('summary', { style: 'cursor:pointer;color:var(--link)' }, '¿El estado de cuenta es PDF? Ver cómo exportar a Excel por banco'),
+      h('ul', { style: 'margin:8px 0 0 16px;line-height:1.8' },
+        h('li', {}, 'Banreservas: Mi portal → Movimientos → Exportar → Excel (.xlsx)'),
+        h('li', {}, 'Banco Popular: app/portal web → Mi cuenta → Exportar movimientos'),
+        h('li', {}, 'BHD: portal web → Consultas → Descargar → Excel'),
+        h('li', {}, 'Scotiabank: portal web → Movimientos → Exportar CSV'),
+        h('li', {}, 'Banco Santa Cruz: portal → Estado de cuenta → Descargar Excel'),
+        h('li', {}, 'Banesco: portal → Cuentas → Exportar → CSV o Excel')));
     const go = h('button', { class: 'i18-btn', type: 'button' }, 'Revisar el archivo');
     const out = h('div', { 'aria-live': 'polite' });
     let rows = null; let fname = '';
@@ -190,6 +200,6 @@ export async function render(root, ctx = {}) {
     }
     return h('section', { class: 'i18-card' }, h('h3', { style: 'margin-top:0' }, 'Cargar estado de cuenta'),
       h('datalist', { id: 'bk-banks' }, BANKS.map((b) => h('option', { value: b }))),
-      h('div', { class: 'i18-bar' }, h('label', { for: 'bk-bank' }, 'Banco', bank), h('label', { for: 'bk-acct' }, 'Cuenta', acct), h('label', { for: 'bk-file' }, 'Archivo (.xlsx o .csv)', file), go), out);
+      h('div', { class: 'i18-bar' }, h('label', { for: 'bk-bank' }, 'Banco', bank), h('label', { for: 'bk-acct' }, 'Cuenta', acct), h('label', { for: 'bk-file' }, 'Archivo (.xlsx o .csv)', file), go), pdfGuide, out);
   }
 }

@@ -9,7 +9,7 @@ export async function render(root) {
   const clientLbl = h('label', {}, 'Consultorio ', clientSel);   // 5.22.0: se esconde si hay uno solo
   const desde = h('input', { type: 'month', 'aria-label': 'Desde' });
   const hasta = h('input', { type: 'month', value: monthNow(), max: monthNow(), 'aria-label': 'Hasta' });
-  const grupo = h('select', { 'aria-label': 'Agrupar por' }, h('option', { value: 'ars' }, 'Por ARS'), h('option', { value: 'procedure' }, 'Por procedimiento'));
+  const grupo = h('select', { 'aria-label': 'Agrupar por' }, h('option', { value: 'ars' }, 'Por ARS'), h('option', { value: 'procedure' }, 'Por procedimiento'), h('option', { value: 'provider' }, 'Por médico'));
   // por defecto, últimos 3 meses
   { const d = new Date(); d.setMonth(d.getMonth() - 2); desde.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 
@@ -25,7 +25,7 @@ export async function render(root) {
 
   root.append(h('div', { class: 'i18-wrap' },
     h('h2', {}, 'Mi productividad'),
-    h('p', { class: 'i18-sub' }, 'Cuánto produces, tu ticket promedio y tu tasa de glosa, por ARS o por procedimiento.'),
+    h('p', { class: 'i18-sub' }, 'Cuánto produces, tu ticket promedio y tu tasa de glosa, por ARS, por procedimiento o por médico.'),
     h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Desde ', desde), h('label', {}, 'Hasta ', hasta), h('label', {}, 'Ver ', grupo)),
     out));
   try {
@@ -44,6 +44,7 @@ function rango(a, b) { const x = mesCorto(a), y = mesCorto(b); return !x || !y ?
 function view(d, ventana) {
   const t = d.totals || {}, rows = Array.isArray(d.rows) ? d.rows : [];
   const esArs = d.group === 'ars';
+  const esMedico = d.group === 'provider';
   const gr = t.glosa_rate_pct;
   const glosaRisk = gr == null ? null : gr > 0.25 ? ['alto', '#861D18', '#F6E7E6'] : gr > 0.15 ? ['medio', '#8A5A00', '#FBEFD5'] : null;
   return h('div', {},
@@ -55,9 +56,9 @@ function view(d, ventana) {
       kpi('Tasa de glosa', t.glosa_rate_pct != null ? pct(t.glosa_rate_pct) : '—', `${money(t.glosado)} glosado · ${ventana}`)),
     glosaRisk ? h('div', { style: 'margin-bottom:12px' },
       h('span', { style: `padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;background:${glosaRisk[2]};color:${glosaRisk[1]}` }, `Riesgo de glosa ${glosaRisk[0]} (${pct(gr)})`)) : null,
-    h('h3', {}, esArs ? 'Por ARS' : 'Por procedimiento'),
+    h('h3', {}, esArs ? 'Por ARS' : esMedico ? 'Por médico' : 'Por procedimiento'),
     table(
-      [{ label: esArs ? 'ARS' : 'Procedimiento', get: (r) => (esArs ? r.ars : r.procedure) || '—' },
+      [{ label: esArs ? 'ARS' : esMedico ? 'Médico' : 'Procedimiento', get: (r) => (esArs ? r.ars : esMedico ? (r.provider || r.doctor_name) : r.procedure) || '—' },
        { label: 'Reclam.', right: true, get: (r) => num(r.lines) },
        { label: 'Reclamado', right: true, get: (r) => money(r.claimed) },
        { label: 'Ticket', right: true, get: (r) => money(r.avg_ticket) },

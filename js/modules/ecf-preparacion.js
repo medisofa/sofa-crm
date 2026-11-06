@@ -16,6 +16,15 @@ export async function render(root) {
     h('p', { class: 'i18-sub' }, 'Desde la fecha de obligación, un lote sin e-NCF E31 aceptado por la DGII no se puede radicar. Aquí se ve quién está listo, qué paso le falta y qué lotes quedarían bloqueados.'),
     box, detail, prov));
 
+  // Banner de urgencia: la obligación de emitir e-NCF E31 rige desde el 15/11/2026
+  const ECF_OBLIGACION = new Date('2026-11-15T00:00:00');
+  const daysToObligation = Math.ceil((ECF_OBLIGACION - Date.now()) / 86400000);
+  if (daysToObligation > 0 && daysToObligation <= 30) {
+    root.insertAdjacentHTML('afterbegin', `<div role="status" style="background:var(--warn-bg,#FBEFD5);border-left:4px solid var(--warn,#D97706);padding:10px 16px;border-radius:0 6px 6px 0;margin-bottom:16px;font-size:14px"><b>⚠ Faltan ${daysToObligation} días para la obligación de e-CF</b> — a partir del 15/11/2026, un lote sin e-NCF E31 aceptado por la DGII no puede radicarse.</div>`);
+  } else if (daysToObligation <= 0) {
+    root.insertAdjacentHTML('afterbegin', `<div role="alert" style="background:var(--bad-bg,#F6E7E6);border-left:4px solid var(--bad,#DC2626);padding:10px 16px;border-radius:0 6px 6px 0;margin-bottom:16px;font-size:14px"><b>🔴 La obligación de e-CF ya está vigente</b> — los clientes marcados en Rojo no pueden radicar hasta obtener su primer e-NCF E31 aceptado por la DGII.</div>`);
+  }
+
   async function load() {
     const d = await guarded(box, () => rpc('ecf_readiness_board'));
     if (!d) return;

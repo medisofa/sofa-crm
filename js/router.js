@@ -69,7 +69,9 @@ export const MODULES = {
   // 5.17.0 · I73 · permisos y menús por rol
   'permisos': 'permisos.js',
   // 5.12.0 · médico · reporte para el contador
-  'reporte-contador': 'reporte-contador.js'
+  'reporte-contador': 'reporte-contador.js',
+  // 5.28.0 · admin · historial de acciones del sistema
+  'historial': 'historial-acciones.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
