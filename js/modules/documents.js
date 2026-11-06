@@ -30,7 +30,7 @@ export async function render(main) {
       <td data-l="Radicación">${d.sub ? html`<a href="#/radicaciones/${d.sub.id}" class="mono">${d.sub.folio}</a><div class="small muted">${d.sub.provider_name} · ${d.sub.ars_name}</div>` : '—'}</td>
       <td data-l="Tamaño">${sizeLabel(d.size_bytes)}</td><td data-l="Subido">${dateTime(d.uploaded_at)}</td>
       <td data-l=""><button class="btn sm" data-open="${d.id}">Abrir</button></td></tr>`)}</tbody></table></div>`,
-  { empty: () => emptyView('Sin documentos', 'Los documentos se suben desde cada radicación.') });
+  { empty: () => emptyView('Sin documentos', 'Los documentos se suben desde cada radicación.', html`<a class="btn" href="#/radicaciones">Ir a radicaciones</a>`) });
   $('#dt', main).addEventListener('change', (e) => { st.type = e.target.value; load(); });
   list.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-open]'); if (!b) return;

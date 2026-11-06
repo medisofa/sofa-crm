@@ -54,15 +54,16 @@ export async function render(main, ctx) {
     const arsRad = {}; k('radicado').forEach((e) => { arsRad[e.ars_id] = (arsRad[e.ars_id] || 0) + Number(e.amount); });
 
     if (!rad && !cob && !saldo && !mix.length) { paint(body, emptyView('Sin movimientos en este período', 'Cambia el rango de meses o los filtros. Las cifras aparecen cuando hay radicaciones enviadas, pagos o glosas.')); return; }
+    const kLink = (href, content) => canOpen(href, ctx.role) ? html`<a href="${href}" class="kpi" style="text-decoration:none;color:inherit">${content}</a>` : html`<div class="kpi">${content}</div>`;
     paint(body, html`
       <div class="grid kpis">
-        <div class="kpi"><div class="l">Radicado</div><div class="v">${money(rad)}</div><div class="h">${period(`${f.from}-01`)} a ${period(`${f.to}-01`)}</div></div>
-        <div class="kpi"><div class="l">Cobrado</div><div class="v" style="color:var(--ok)">${money(cob)}</div><div class="h">${pctTxt(pct(cob, rad))} de lo radicado</div></div>
-        <div class="kpi"><div class="l">Glosa sobre lo radicado</div><div class="v" style="${pct(glo, rad) > 5 ? 'color:var(--bad)' : ''}">${pctTxt(pct(glo, rad))}</div><div class="h">${money(glo)} glosado · meta &lt; 5%</div></div>
-        <div class="kpi"><div class="l">Recuperación de glosas</div><div class="v">${pctTxt(pct(rec, rec + acc))}</div><div class="h">${money(rec)} recuperado · meta &gt; 75%</div></div>
-        <div class="kpi"><div class="l">Días promedio de cobro</div><div class="v" style="${dso > 60 ? 'color:var(--warn)' : ''}">${dso == null ? '—' : num(dso)}</div><div class="h">${num(cd.length)} radicaciones pagadas · meta &lt; 60</div></div>
-        <div class="kpi"><div class="l">Saldo por cobrar hoy</div><div class="v">${money(saldo)}</div><div class="h" style="${vencido ? 'color:var(--bad);font-weight:600' : ''}">${money(vencido)} con más de 90 días</div></div>
-        ${can('fees.view', ctx.role) ? html`<div class="kpi"><div class="l">Honorarios SOFA del período</div><div class="v">${money(feeTot)}</div><div class="h">${feeTot > 0 ? `RD$${(cob / feeTot).toFixed(1)} cobrados por cada RD$1 de honorario` : 'Sin honorarios en el período'}</div></div>` : ''}
+        ${kLink('#/radicaciones', html`<div class="l">Radicado</div><div class="v">${money(rad)}</div><div class="h">${period(`${f.from}-01`)} a ${period(`${f.to}-01`)}</div>`)}
+        ${kLink('#/pagos', html`<div class="l">Cobrado</div><div class="v" style="color:var(--ok)">${money(cob)}</div><div class="h">${pctTxt(pct(cob, rad))} de lo radicado</div>`)}
+        ${kLink('#/glosas', html`<div class="l">Glosa sobre lo radicado</div><div class="v" style="${pct(glo, rad) > 5 ? 'color:var(--bad)' : ''}">${pctTxt(pct(glo, rad))}</div><div class="h">${money(glo)} glosado · meta &lt; 5%</div>`)}
+        ${kLink('#/glosas', html`<div class="l">Recuperación de glosas</div><div class="v">${pctTxt(pct(rec, rec + acc))}</div><div class="h">${money(rec)} recuperado · meta &gt; 75%</div>`)}
+        ${kLink('#/pagos', html`<div class="l">Días promedio de cobro</div><div class="v" style="${dso > 60 ? 'color:var(--warn)' : ''}">${dso == null ? '—' : num(dso)}</div><div class="h">${num(cd.length)} radicaciones pagadas · meta &lt; 60</div>`)}
+        ${kLink('#/aging', html`<div class="l">Saldo por cobrar hoy</div><div class="v">${money(saldo)}</div><div class="h" style="${vencido ? 'color:var(--bad);font-weight:600' : ''}">${money(vencido)} con más de 90 días</div>`)}
+        ${can('fees.view', ctx.role) ? kLink('#/pagos', html`<div class="l">Honorarios SOFA del período</div><div class="v">${money(feeTot)}</div><div class="h">${feeTot > 0 ? `RD$${(cob / feeTot).toFixed(1)} cobrados por cada RD$1 de honorario` : 'Sin honorarios en el período'}</div>`) : ''}
       </div>
       <div class="card" style="margin-top:14px"><h2>Radicado y cobrado por mes</h2>${barChart({ labels: months.map((m) => period(`${m}-01`).replace(/ \d{4}$/, (y) => ` ${y.trim().slice(2)}`)), series: [
         { name: 'Radicado', color: 'var(--navy-2)', values: byMonth('radicado') }, { name: 'Cobrado', color: 'var(--ok)', values: byMonth('cobrado') }, { name: 'Glosado', color: 'var(--red)', values: byMonth('glosado') }] })}</div>

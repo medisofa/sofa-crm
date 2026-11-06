@@ -44,7 +44,7 @@ export async function render(main, ctx) {
         <td data-l="Aplicado a" class="small">${p.folios || '—'}</td><td data-l="Monto" class="n"><b>${money(p.amount)}</b></td>
         ${showFee ? html`<td data-l="Honorario" class="n">${p.sofa_fee == null ? '—' : money(p.sofa_fee)}</td>` : ''}
         ${can('payments.void', ctx.role) ? html`<td data-l=""><button class="btn sm danger" data-void="${p.id}" data-ref="${p.reference}">Anular</button></td>` : ''}</tr>`)}</tbody></table></div>${pager(count, st.page)}`,
-    { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin pagos registrados', 'Registra el primer pago de una ARS y repártelo entre sus radicaciones.') });
+    { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin pagos registrados', 'Registra el primer pago de una ARS y repártelo entre sus radicaciones.', can('payments.create', ctx.role) ? html`<button class="btn primary" data-first-pay>+ Registrar pago</button>` : '') });
 
     if (st.tab === 'conciliacion') return loadInto(list, async () => (await arsReconciliation({ realOnly: staff })).filter((r) => !st.arsId || r.ars_id === st.arsId), (rows) => {
       const by = {}; rows.forEach((r) => { const k = r.ars_id; by[k] = by[k] || { ars: r.ars, radicado: 0, pagado: 0, glosa: 0, saldo: 0 }; by[k].radicado += Number(r.radicado || 0); by[k].pagado += Number(r.pagado || 0); by[k].glosa += Number(r.glosa_aceptada || 0); by[k].saldo += Number(r.saldo || 0); });
@@ -61,7 +61,7 @@ export async function render(main, ctx) {
         <td data-l="Prestador">${s.provider_name}</td><td data-l="ARS">${s.ars_name}</td><td data-l="Radicada">${date(s.submitted_on)}</td><td data-l="Saldo" class="n"><b>${money(s.balance)}</b></td>
         <td data-l="Plazo"><span style="${d < 0 ? 'color:var(--bad);font-weight:600' : d <= 15 ? 'color:var(--warn);font-weight:600' : ''}">${d < 0 ? `Vencido hace ${-d} días` : `Vence en ${d} días`}</span></td>
         ${can('payments.create', ctx.role) ? html`<td data-l=""><button class="btn sm" data-pay="${s.id}" data-org="${s.organization_id}" data-ars="${s.ars_id}">Registrar pago</button></td>` : ''}</tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
-    { isEmpty: (r) => !r.data.length, empty: () => emptyView('Nada por cobrar', 'No hay radicaciones con saldo pendiente.') });
+    { isEmpty: (r) => !r.data.length, empty: () => emptyView('Nada por cobrar', 'No hay radicaciones con saldo pendiente.', html`<a class="btn" href="#/radicaciones">Ver radicaciones</a>`) });
   };
 
   const pay = async (preset = {}) => {
@@ -74,6 +74,7 @@ export async function render(main, ctx) {
   $('#ars', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });
   list.addEventListener('click', async (e) => {
     const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); load(); return; }
+    const fp = e.target.closest('[data-first-pay]'); if (fp) { pay(); return; }
     const pb = e.target.closest('[data-pay]'); if (pb) { pay({ orgId: pb.dataset.org, arsId: pb.dataset.ars, submissionId: pb.dataset.pay }); return; }
     const v = e.target.closest('[data-void]');
     if (v) {
