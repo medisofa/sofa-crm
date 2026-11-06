@@ -16,9 +16,6 @@ export async function render(root, ctx = {}) {
     ['novedades', 'Novedades SoFa', 'Consulte las novedades disponibles en SoFa.']
   ].filter(([route]) => canSee(route, ctx.role));
   paint(root, html`<div class="page-head"><div class="t"><h2>Seguimiento de hoy</h2><p>Su agenda, el recorrido de los pacientes y sus herramientas de seguimiento en un solo lugar.</p></div></div>
-    <div class="grid two">${links.map(([route,title,description]) => html`<section class="card"><h3>${title}</h3><p>${description}</p><a class="btn" href="#/${route}">Abrir ${title}</a></section>`)}</div>
-    <section class="card" style="margin-top:16px"><h3>Próximas funciones · En construcción</h3>
-      <p>Noticias filtradas por especialidad.</p>
-      <p class="small muted">Las noticias por especialidad todavía no están disponibles.</p></section>`);
+    <div class="grid two">${links.map(([route,title,description]) => html`<section class="card"><h3>${title}</h3><p>${description}</p><a class="btn" href="#/${route}">Abrir ${title}</a></section>`)}</div>`);
   await mountPhysicianReminders(root, ctx);
 }
