@@ -44,11 +44,24 @@
    familia activa (pestañas, acento rojo en la activa). Oculto por defecto (atributo `hidden`,
    que JS controla); bajo 1000px se fuerza oculto también por CSS como respaldo. */
 .topnav { background: var(--surface); }
-.topnav-groups { background: var(--navy); display: flex; gap: 2px; overflow-x: auto; padding: 8px 16px; scrollbar-width: none; }
+/* topnav P2 (grupos) + P1 (usuario) — barra navy superior del menú horizontal */
+.topnav-groups { background: var(--navy); display: flex; align-items: center; gap: 0; overflow-x: hidden; padding: 6px 12px; scrollbar-width: none; }
 .topnav-groups::-webkit-scrollbar { display: none; }
-.topnav-groups button { white-space: nowrap; padding: 7px 13px; border-radius: 999px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, .72); background: transparent; border: 0; cursor: pointer; }
-.topnav-groups button:hover { background: rgba(255, 255, 255, .1); color: #fff; }
-.topnav-groups button.activo { background: #fff; color: var(--navy); }
+/* P2: lista de familias con icono + texto en la activa */
+.tnav-p2 { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tnav-p2::-webkit-scrollbar { display: none; }
+.tnb { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 7px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.72); background: transparent; border: 0; cursor: pointer; flex-shrink: 0; }
+.tnb svg { flex-shrink: 0; }
+.tnb:hover { background: rgba(255,255,255,.1); color: #fff; }
+.tnb.activo { background: #fff; color: var(--navy); }
+.tnb-label { display: none; }
+.tnb.activo .tnb-label { display: inline; }
+/* P1: mini-panel de usuario a la derecha */
+.tnav-p1 { flex-shrink: 0; display: flex; align-items: center; padding-left: 10px; margin-left: 6px; border-left: 1px solid rgba(255,255,255,.2); }
+.tnav-user { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); border-radius: 999px; padding: 3px 10px 3px 3px; cursor: pointer; min-height: 36px; }
+.tnav-user:hover { background: rgba(255,255,255,.18); }
+.tnav-av { width: 28px; height: 28px; min-width: 28px; font-size: 11px; background: rgba(255,255,255,.2); color: #fff; }
+.tnav-nm { font-size: 12px; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,.85); }
 .topnav-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); padding: 0 16px; scrollbar-width: none; }
 .topnav-tabs::-webkit-scrollbar { display: none; }
 .topnav-tabs a { position: relative; white-space: nowrap; padding: 11px 13px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }

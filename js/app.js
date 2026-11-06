@@ -343,8 +343,8 @@ function renderNav() {
   ${mostrarPista ? html`<p class="nav-hint">Tu menú muestra lo que usas a diario. Busca arriba para abrir otros ${nExtra} módulos a los que tienes acceso.</p>` : ''}`);
   applySidebarBadges();
 }
-/** Menú horizontal: fila de familias + fila de pantallas de la familia activa. Solo se pinta
- *  cuando la preferencia es "horizontal"; si no, el <nav id="topnav"> queda oculto. */
+/** Menú horizontal: P2 (familias con icono) + P1 (usuario) en fila navy + fila de pestañas de la familia activa.
+ *  Solo se pinta cuando la preferencia es "horizontal"; si no, el <nav id="topnav"> queda oculto. */
 function renderTopNav() {
   const topnav = $('#topnav'); if (!topnav) return;
   const horizontal = getMenuLayout() === 'horizontal';
@@ -355,8 +355,19 @@ function renderTopNav() {
   const activeGroup = (horizFamilia && groups.find((g) => g.group === horizFamilia))
     || groups.find((g) => g.items.some((i) => i.route === route)) || groups[0];
   topnav.hidden = false;
-  render($('#topnavGroups'), html`${groups.map((g) => html`<button type="button" class="${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}">${g.group}</button>`)}`);
+  const uname = state.profile?.full_name || state.session?.user?.email || '';
+  render($('#topnavGroups'), html`
+    <div class="tnav-p2">
+      ${groups.map((g) => html`<button type="button" class="tnb ${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}<span class="tnb-label">${g.group}</span></button>`)}
+    </div>
+    <div class="tnav-p1">
+      <button type="button" class="tnav-user" id="topnavUserBtn" aria-haspopup="menu" aria-expanded="false">
+        <span class="avatar tnav-av" aria-hidden="true">${initials(uname)}</span>
+        <span class="tnav-nm">${uname}</span>
+      </button>
+    </div>`);
   render($('#topnavTabs'), html`${activeGroup.items.map((i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`)}`);
+  $('#topnavUserBtn')?.addEventListener('click', (e) => { e.stopPropagation(); openUserMenu(); });
 }
 function bindNav() {
   $('#nav').addEventListener('click', (e) => {
