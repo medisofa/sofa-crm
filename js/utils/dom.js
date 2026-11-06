@@ -29,6 +29,24 @@ export function render(el, tpl) {
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+/** Badges de pendientes en el sidebar: {route: count}. Se re-aplican tras cada renderNav. */
+const _badges = {};
+export function updateSidebarBadges(counts) {
+  Object.assign(_badges, counts);
+  applySidebarBadges();
+}
+export function applySidebarBadges() {
+  document.querySelectorAll('.nav a[href]').forEach((a) => {
+    const route = a.getAttribute('href').replace(/^#\//, '');
+    const existing = a.querySelector('.nav-badge');
+    const n = _badges[route];
+    if (n > 0) {
+      if (existing) { existing.textContent = n > 99 ? '99+' : n; existing.hidden = false; }
+      else { const b = document.createElement('span'); b.className = 'nav-badge'; b.textContent = n > 99 ? '99+' : n; a.appendChild(b); }
+    } else if (existing) { existing.hidden = true; }
+  });
+}
+
 /** Conecta un input de búsqueda con debounce a un state + load. */
 export function debounceSearch(el, st, load, { key = 'q', resetPage = true, delay = 350 } = {}) {
   let t;

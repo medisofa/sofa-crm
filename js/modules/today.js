@@ -49,13 +49,13 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">Monto involucrado en cobros</div><div class="v">${money(rows.filter((i) => i.kind === 'cobro').reduce((t, i) => t + Number(i.amount || 0), 0))}</div></div>`);
     if (!rows.length) { paint($('#l', main), emptyView('Todo al día', mode === 'todo' ? 'No hay pendientes accionables hoy.' : 'Nada pendiente con este filtro. Prueba con "Todo".')); return; }
     const groups = ORDER.map((k) => [k, rows.filter((i) => i.kind === k)]).filter(([, r]) => r.length);
-    paint($('#l', main), html`${groups.map(([k, r]) => html`<div class="card" style="margin-bottom:14px"><h2>${GROUPS[k]} · ${r.length}</h2><div class="list">
+    paint($('#l', main), html`${groups.map(([k, r]) => html`<details class="card" style="margin-bottom:14px" open><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px"><h2 style="margin:0">${GROUPS[k]} · ${r.length}</h2><span class="small muted" style="margin-left:auto">▾</span></summary><div class="list" style="margin-top:10px">
       ${r.sort((a, b) => ['critica', 'alta', 'media', 'info'].indexOf(a.severity) - ['critica', 'alta', 'media', 'info'].indexOf(b.severity) || String(a.due_on || '9').localeCompare(String(b.due_on || '9'))).map((i) => html`<div class="li">
         <span class="pill ${SEV[i.severity]?.[1] || ''}" style="min-width:64px;justify-content:center">${SEV[i.severity]?.[0] || i.severity}</span>
         <div class="b"><div class="t1">${canOpen(link(i), ctx.role) ? html`<a href="${link(i)}">${i.title}</a>` : html`<b>${i.title}</b>`}${i.mine ? html` <span class="pill info">Mío</span>` : ''}</div>
           <div class="t2">${i.detail || ''}${i.client_name && isStaff(ctx.role) ? ` · ${i.client_name}` : ''}${i.due_on ? ` · ${date(i.due_on)}` : ''}</div></div>
         ${i.amount != null && Number(i.amount) > 0 ? html`<b class="small">${money(i.amount)}</b>` : ''}
-        ${i.kind === 'tarea' && isStaff(ctx.role) ? html`<button class="btn sm" data-done="${i.entity_id}">Completar</button>` : ''}</div>`)}</div></div>`)}`);
+        ${i.kind === 'tarea' && isStaff(ctx.role) ? html`<button class="btn sm" data-done="${i.entity_id}">Completar</button>` : ''}</div>`)}</div></details>`)}`);
   };
   const load = async () => {
     paint($('#l', main), loadingView(5));

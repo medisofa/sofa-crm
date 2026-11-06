@@ -21,12 +21,17 @@ export async function render(root) {
     const d = await guarded(out, () => rpc('glosa_analytics', { p_org: org.value || null, p_from: from.value, p_to: to.value }));
     if (!d) return;
     const t = d.totals, r = d.rates;
+    const glosaRisk = r.glosa_pct == null ? null : r.glosa_pct > 0.25 ? ['alto', '#861D18', '#F6E7E6'] : r.glosa_pct > 0.15 ? ['medio', '#8A5A00', '#FBEFD5'] : ['normal', '#23703B', '#E2F2E6'];
+    const recupRisk = r.recuperacion_pct == null ? null : r.recuperacion_pct < 0.5 ? ['baja', '#861D18', '#F6E7E6'] : r.recuperacion_pct < 0.7 ? ['media', '#8A5A00', '#FBEFD5'] : ['alta', '#23703B', '#E2F2E6'];
     out.replaceChildren(
       h('div', { class: 'i18-kpis' },
         kpi('Glosado', money(t.glosado), `${num(t.glosas)} glosa(s)`),
         kpi('% glosado de lo radicado', r.glosa_pct == null ? '—' : pct(r.glosa_pct), `Radicado: ${money(t.radicado)}`),
         kpi('Recuperado', money(t.recuperado), r.recuperacion_pct == null ? null : `Recuperación ${pct(r.recuperacion_pct)}`),
         kpi('Aceptado (perdido)', money(t.aceptado)), kpi('En disputa', money(t.en_disputa))),
+      (glosaRisk || recupRisk) ? h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px' },
+        glosaRisk ? h('span', { style: `padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;background:${glosaRisk[2]};color:${glosaRisk[1]}` }, `Riesgo de glosa: ${glosaRisk[0]}`) : null,
+        recupRisk ? h('span', { style: `padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;background:${recupRisk[2]};color:${recupRisk[1]}` }, `Recuperación: ${recupRisk[0]}`) : null) : null,
       h('h3', {}, 'Por motivo y cómo prevenirlo'),
       table([{ label: 'Motivo', get: (x) => x.reason }, { label: 'Servicios', right: true, get: (x) => num(x.items) },
         { label: 'Glosado', right: true, get: (x) => money(x.glosado) }, { label: 'Recuperado', right: true, get: (x) => money(x.recuperado) },

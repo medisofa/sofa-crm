@@ -56,12 +56,12 @@ export async function render(main, ctx) {
     <div class="table-wrap"><table class="t cards"><thead><tr><th>Glosa · radicación</th><th>Prestador</th><th>ARS</th><th>Motivo principal</th><th class="n">Glosado</th><th class="n">En disputa</th><th>Estado</th><th>Responder antes de</th></tr></thead>
     <tbody>${data.map((g) => { const [l, c] = glosaStatus(g.status); const open = GLOSA_OPEN.includes(g.status); return html`<tr data-id="${g.id}" style="cursor:pointer">
       <td data-l="Radicación"><a href="#/glosas/${g.id}" class="mono"><b>${g.glosa_folio || g.folio}</b></a>${g.glosa_folio ? html`<div class="small mono">${g.folio}</div>` : ''}<div class="small muted">${period(g.period)}${g.ars_reference ? ` · ${g.ars_reference}` : ''}</div></td>
-      <td data-l="Prestador">${g.provider_name}${isStaff(ctx.role) ? html`<div class="small muted">${g.client_name}</div>` : ''}</td>
-      <td data-l="ARS">${g.ars_name}</td><td data-l="Motivo">${g.main_reason || '—'}${g.items > 1 ? html` <span class="small muted">(${g.items} servicios)</span>` : ''}</td>
+      <td data-l="Prestador" title="${g.provider_name}">${g.provider_name}${isStaff(ctx.role) ? html`<div class="small muted">${g.client_name}</div>` : ''}</td>
+      <td data-l="ARS" title="${g.ars_name}">${g.ars_name}</td><td data-l="Motivo" title="${g.main_reason || ''}">${g.main_reason || '—'}${g.items > 1 ? html` <span class="small muted">(${g.items} servicios)</span>` : ''}</td>
       <td data-l="Glosado" class="n">${money(g.amount)}</td><td data-l="En disputa" class="n">${money(g.in_dispute)}</td>
-      <td data-l="Estado"><span class="pill ${c}">${l}</span></td>
+      <td data-l="Estado"><span class="pill ${c}" title="${l} · ${g.status}">${l}</span></td>
       <td data-l="Plazo">${open ? html`${date(g.appeal_deadline)}<div class="small" style="${g.days_left < 0 ? 'color:var(--bad);font-weight:600' : g.days_left <= 7 ? 'color:var(--warn);font-weight:600' : ''}">${g.days_left < 0 ? `Vencida hace ${-g.days_left} días` : `Faltan ${g.days_left} días`}</div>` : '—'}</td></tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
-  { isEmpty: (r) => !r.data.length, empty: () => emptyView(st.group === 'abiertas' ? 'Sin glosas abiertas' : 'Sin glosas', 'Las glosas se registran desde la ficha de una radicación ya radicada.') });
+  { isEmpty: (r) => !r.data.length, empty: () => emptyView(st.group === 'abiertas' ? 'Sin glosas abiertas' : 'Sin glosas', 'Las glosas se registran desde la ficha de una radicación ya radicada.', html`<a class="btn" href="#/radicaciones">Ir a radicaciones</a>`) });
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (b) { st.group = b.dataset.g; st.page = 0; drawTabs(); load(); } });
   debounceSearch($('#q', main), st, load);
   $('#ars', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; load(); });

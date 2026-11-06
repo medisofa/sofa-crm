@@ -365,7 +365,7 @@ export async function render(root, ctx = {}) {
 
   function uploadForm(patientId, pane, main, st) {
     const org = orgSel.value;
-    const file = h('input', { id: 'hc-file', type: 'file', accept: 'application/pdf,image/jpeg,image/png' });
+    const file = h('input', { id: 'hc-file', type: 'file', accept: 'application/pdf,image/jpeg,image/png,image/webp' });
     const kind = h('select', { id: 'hc-fk' }, Object.entries(KIND).map(([k, v]) => h('option', { value: k }, v)));
     const desc = h('input', { id: 'hc-fd', maxlength: '300', placeholder: 'Ej.: Historia del Dr. X, 2019-2025' });
     const msg = h('div', { 'aria-live': 'polite' });
@@ -373,10 +373,10 @@ export async function render(root, ctx = {}) {
     go.addEventListener('click', async () => {
       const f = file.files[0];
       if (!f) { msg.replaceChildren(note('Elija un archivo PDF, JPG o PNG.', 'error')); return; }
-      if (f.size > 20 * 1024 * 1024) { msg.replaceChildren(note('El archivo pasa de 20 MB. Divídalo o redúzcalo e intente de nuevo.', 'error')); return; }
-      if (!['application/pdf', 'image/jpeg', 'image/png'].includes(f.type)) { msg.replaceChildren(note('Solo se aceptan PDF, JPG o PNG.', 'error')); return; }
+      if (f.size > 10 * 1024 * 1024) { msg.replaceChildren(note('El archivo pasa de 10 MB. Divídalo o redúzcalo e intente de nuevo.', 'error')); return; }
+      if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(f.type)) { msg.replaceChildren(note('Solo se aceptan PDF, JPG, PNG o WEBP.', 'error')); return; }
       go.disabled = true; msg.replaceChildren(note('Subiendo…'));
-      const ext = f.type === 'application/pdf' ? 'pdf' : f.type === 'image/png' ? 'png' : 'jpg';
+      const ext = f.type === 'application/pdf' ? 'pdf' : f.type === 'image/png' ? 'png' : f.type === 'image/webp' ? 'webp' : 'jpg';
       const path = `${org}/${patientId}/${crypto.randomUUID()}.${ext}`;
       try {
         const { error } = await supabase.storage.from('clinical-records').upload(path, f, { contentType: f.type, upsert: false });
@@ -387,7 +387,7 @@ export async function render(root, ctx = {}) {
     });
     pane.replaceChildren(h('section', { class: 'hc-note hc-form' }, h('header', {}, h('strong', {}, 'Adjuntar documento'), h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
       h('p', { class: 'i18-sub' }, 'Para pacientes que traen su historia de otro sistema: súbala en PDF o foto. Los adjuntos no se pueden borrar ni reemplazar.'),
-      h('label', { for: 'hc-file' }, 'Archivo (PDF, JPG o PNG, máximo 20 MB)', file), h('label', { for: 'hc-fk' }, 'Tipo', kind), h('label', { for: 'hc-fd' }, 'Descripción', desc),
+      h('label', { for: 'hc-file' }, 'Archivo (PDF, JPG, PNG o WEBP, máximo 10 MB)', file), h('label', { for: 'hc-fk' }, 'Tipo', kind), h('label', { for: 'hc-fd' }, 'Descripción', desc),
       h('div', { class: 'i18-actions' }, go), msg));
   }
 

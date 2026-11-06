@@ -44,6 +44,8 @@ function rango(a, b) { const x = mesCorto(a), y = mesCorto(b); return !x || !y ?
 function view(d, ventana) {
   const t = d.totals || {}, rows = Array.isArray(d.rows) ? d.rows : [];
   const esArs = d.group === 'ars';
+  const gr = t.glosa_rate_pct;
+  const glosaRisk = gr == null ? null : gr > 0.25 ? ['alto', '#861D18', '#F6E7E6'] : gr > 0.15 ? ['medio', '#8A5A00', '#FBEFD5'] : null;
   return h('div', {},
     h('div', { class: 'i18-kpis' },
       // 5.22.0: el período va EN la tarjeta, no solo en el filtro de arriba.
@@ -51,6 +53,8 @@ function view(d, ventana) {
       kpi('Reclamado', money(t.claimed), (t.collected_pct != null ? `${pct(t.collected_pct)} cobrado · ` : '') + ventana),
       kpi('Promedio por servicio', money(rows.length ? promedioTicket(t, rows) : 0), ventana),
       kpi('Tasa de glosa', t.glosa_rate_pct != null ? pct(t.glosa_rate_pct) : '—', `${money(t.glosado)} glosado · ${ventana}`)),
+    glosaRisk ? h('div', { style: 'margin-bottom:12px' },
+      h('span', { style: `padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;background:${glosaRisk[2]};color:${glosaRisk[1]}` }, `Riesgo de glosa ${glosaRisk[0]} (${pct(gr)})`)) : null,
     h('h3', {}, esArs ? 'Por ARS' : 'Por procedimiento'),
     table(
       [{ label: esArs ? 'ARS' : 'Procedimiento', get: (r) => (esArs ? r.ars : r.procedure) || '—' },

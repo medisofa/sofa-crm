@@ -30,6 +30,7 @@ export async function render(main, ctx) {
         ${can('claims.capture', role) ? html`<a class="btn primary" href="#/captura">+ Captura rápida</a>` : ''}
         <button class="btn" id="csv">Exportar CSV</button></div></div>
     <div class="grid kpis" id="k"></div>
+    <div id="funnel"></div>
     <div class="tabs" id="tabs" role="group" aria-label="Grupo" style="margin-top:14px"></div>
     <div class="toolbar">
       <label class="sr-only" for="q">Buscar</label><input class="input grow" id="q" type="search" placeholder="Folio, paciente, NSS, autorización o radicación">
@@ -70,6 +71,17 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">En SOFA / validación</div><div class="v">${num(c(CLAIM_GROUPS.custodia.statuses))}</div></div>
       <div class="kpi"><div class="l">En la ARS</div><div class="v">${num(c(CLAIM_GROUPS.ars.statuses))}</div></div>
       <div class="kpi"><div class="l">Requieren atención</div><div class="v" style="${c(CLAIM_GROUPS.atencion.statuses) ? 'color:var(--bad)' : ''}">${num(c(CLAIM_GROUPS.atencion.statuses))}</div><div class="h">Sin configurar, con inconsistencia o devueltas</div></div>`);
+    const funnel = $('#funnel', main);
+    if (funnel) {
+      const stages = [
+        { key: 'captura', label: 'Captura',   bg: 'var(--info-bg)', fg: 'var(--info)' },
+        { key: 'custodia', label: 'En SOFA',  bg: 'var(--warn-bg)', fg: 'var(--warn)' },
+        { key: 'ars',     label: 'En ARS',    bg: 'var(--ok-bg)',   fg: 'var(--ok)'   },
+        { key: 'cobro',   label: 'Cobradas',  bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
+      ];
+      const sc = stages.map((s) => ({ ...s, n: c(CLAIM_GROUPS[s.key]?.statuses || []) }));
+      paint(funnel, html`<div role="img" aria-label="Distribución de reclamaciones por etapa" style="display:flex;gap:2px;height:36px;border-radius:6px;overflow:hidden;margin-bottom:12px">${sc.map((s) => html`<div title="${s.label}: ${num(s.n)}" style="flex:${Math.max(s.n, 1)};display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;background:${s.bg};color:${s.fg};font-size:11px;font-weight:700;min-width:48px;cursor:default;overflow:hidden;white-space:nowrap"><span style="overflow:hidden;text-overflow:ellipsis">${s.label}</span><strong>${num(s.n)}</strong></div>`)}</div>`);
+    }
   }).catch(() => { toast('No se pudieron cargar los conteos', 'warn'); });
 
   /** Acciones masivas: solo las transiciones que el rol puede hacer desde TODOS los estados seleccionados */
@@ -163,8 +175,8 @@ export async function render(main, ctx) {
     <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer">
       <td data-l="Seleccionar"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Seleccionar ${c.folio}"></td>
       <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
-      <td data-l="Servicio">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
-      <td data-l="Paciente">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
+      <td data-l="Servicio" title="${c.service_name}">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
+      <td data-l="Paciente" title="${c.patient_name}">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
       <td data-l="Duplicado"><div class="dup-cell">${(() => {
         const d = (dupMap.get(c.id) || [])[0];
         if (!d) return html`<span class="pill ok">Sin coincidencias</span>`;
@@ -178,7 +190,7 @@ export async function render(main, ctx) {
       })()}</div></td>
       <td data-l="Médico · ARS">${c.provider_name}<div class="small muted">${c.ars_name}</div></td>
       <td data-l="Reclamado" class="n">${money(c.claimed)}${c.tariff_amount != null && Math.abs(Number(c.claimed) - Number(c.tariff_amount) * 1) > 0.005 && c.discrepancy_status ? html`<div><span class="pill ${DISCREPANCY_STATUS[c.discrepancy_status]?.[1] || ''}" title="Tarifa contractual ${money(c.tariff_amount)}">${DISCREPANCY_STATUS[c.discrepancy_status]?.[0] || ''}</span></div>` : ''}${!c.contracted ? html`<div><span class="pill bad">No contratado</span></div>` : ''}</td>
-      <td data-l="Estado"><span class="pill ${cl}">${l}</span><div class="small muted">${dateTime(c.status_changed_at)}</div></td>
+      <td data-l="Estado"><span class="pill ${cl}" title="${l} desde ${dateTime(c.status_changed_at)}">${l}</span><div class="small muted">${dateTime(c.status_changed_at)}</div></td>
       <td data-l="Expediente">${c.dossier_ok ? (c.dossier_missing ? html`<span class="pill warn">Con excepción</span>` : html`<span class="pill ok">Completo</span>`) : html`<span class="pill bad">Faltan ${c.dossier_missing}</span>`}</td>
       <td data-l="Dónde está">${c.location_name || '—'}<div class="small muted">${c.custodian_name || 'Sin responsable asignado'}</div><div class="small">→ ${c.next_step}</div></td>
       ${money_ ? html`<td data-l="Saldo" class="n">${['radicada', 'en_proceso_ars', 'pago_parcial', 'glosada', 'pagada', 'cerrada', 'devuelta'].includes(c.claim_status) ? money(c.balance) : '—'}${Number(c.glosado) > 0 ? html`<div class="small" style="color:var(--bad)">Glosado ${money(c.glosado)}</div>` : ''}</td>` : ''}
