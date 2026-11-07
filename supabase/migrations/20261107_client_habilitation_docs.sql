@@ -72,8 +72,8 @@ begin
              group by i.area
           ) a
         )
-      )
-    ) order by c.created_at desc
+      ) order by c.created_at desc
+    )
     from public.habilitation_cases c
    where c.organization_id = p_org and c.stage <> 'cancelado'),
     '[]'::jsonb
