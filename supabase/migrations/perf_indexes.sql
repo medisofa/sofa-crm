@@ -17,10 +17,7 @@ CREATE INDEX IF NOT EXISTS idx_submissions_org_status
 CREATE INDEX IF NOT EXISTS idx_submissions_ars_period
   ON submissions (ars_id, period);
 
--- tasks: listTasks filtra por bucket, assignee, entity
-CREATE INDEX IF NOT EXISTS idx_tasks_bucket_due
-  ON tasks (bucket, due_date);
-
+-- tasks: listTasks filtra por assignee y entity (bucket es columna de v_tasks, no de tasks base)
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee
   ON tasks (assignee_id);
 
