@@ -99,7 +99,7 @@ export async function render(main, ctx) {
             <div><div style="font-weight:500">${i.requirement}${i.is_critical ? html` <span class="pill bad" style="font-size:10.5px">Crítico</span>` : ''}</div>
               <div class="small muted">${i.habilitation_requirements?.code || ''}${i.habilitation_requirements?.evidence_hint ? ` · Evidencia: ${i.habilitation_requirements.evidence_hint}` : ''}</div>
               ${edit ? html`<input class="input small" data-notes="${i.id}" value="${i.notes || ''}" placeholder="Observación o acción correctiva" maxlength="300" style="margin-top:6px;min-height:34px" aria-label="Observación">` : i.notes ? html`<div class="small" style="margin-top:4px">${i.notes}</div>` : ''}
-              ${i.client_submitted_at ? html`<div class="small" style="margin-top:4px;color:var(--navy)"><b>Entregado por el cliente</b> · ${dateTime(i.client_submitted_at)}${i.client_note ? html`<div class="muted">"${i.client_note}"</div>` : ''}</div>` : ''}
+              ${i.client_submitted_at ? html`<div class="small" style="margin-top:4px;color:var(--navy)"><b>Entregado por el cliente</b> · ${dateTime(i.client_submitted_at)}${i.client_note ? html`<div class="muted">"${i.client_note}"</div>` : ''}${i.client_storage_path && i.client_file_name ? html`<div style="margin-top:2px"><button class="btn link" data-open-client="${i.client_storage_path}" data-client-name="${i.client_file_name}">📎 ${i.client_file_name}</button></div>` : ''}</div>` : ''}
               ${i.document_id && docName[i.document_id] ? html`<div class="small" style="margin-top:4px"><button class="btn link" data-open="${i.document_id}">Evidencia: ${docName[i.document_id].file_name}</button></div>` : ''}</div>
             <div class="ctl">
               ${edit ? html`<label class="sr-only" for="st-${i.id}">Estado</label><select id="st-${i.id}" class="input" data-status="${i.id}">${Object.entries(ITEM_STATUS).map(([k, [l]]) => opt(k, l, i.status))}</select>
@@ -175,6 +175,11 @@ export async function render(main, ctx) {
     box.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', async () => {
       const doc = S.docs.find((d) => d.id === b.dataset.open); if (!doc) return;
       try { const url = await openDocument(doc); if (url) paint($('#docLink', box), html`<div class="note">Tu navegador bloqueó la ventana. <a href="${url}" target="_blank" rel="noopener">Abrir ${doc.file_name}</a> (válido ${doc.bucket === 'habilitation-documents' ? '60 segundos' : '5 minutos'}).</div>`); }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    }));
+    box.querySelectorAll('[data-open-client]').forEach((b) => b.addEventListener('click', async () => {
+      const pseudo = { storage_path: b.dataset.openClient, bucket: 'habilitation-documents', file_name: b.dataset.clientName };
+      try { const url = await openDocument(pseudo); if (url) paint($('#docLink', box), html`<div class="note">Tu navegador bloqueó la ventana. <a href="${url}" target="_blank" rel="noopener">Abrir ${pseudo.file_name}</a> (válido 60 segundos).</div>`); }
       catch (err) { toast(friendlyError(err), 'bad'); }
     }));
   }
