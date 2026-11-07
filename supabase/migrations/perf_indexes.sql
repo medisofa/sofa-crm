@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_entity
 
 -- claim_status_history: consultado en cada apertura de reclamación
 CREATE INDEX IF NOT EXISTS idx_claim_status_history_claim
-  ON claim_status_history (claim_id, changed_at DESC);
+  ON claim_status_history (service_line_id, changed_at DESC);
 
 -- receptions: filtrado por organización y estado en retiros
 CREATE INDEX IF NOT EXISTS idx_receptions_org_status
