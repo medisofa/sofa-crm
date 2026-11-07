@@ -36,6 +36,7 @@ export async function render(main, ctx) {
       <button class="btn" id="reload">Actualizar</button></div>
     <div class="tabs" id="tabs" role="group" aria-label="Filtro"></div>
     ${['client', 'capturer'].includes(ctx.role) ? html`<div class="card" style="margin-bottom:14px"><h2>Consultorio de hoy</h2><div id="agz"></div></div>` : ''}
+    <div id="focus"></div>
     <div class="grid kpis" id="k"></div><div id="l" style="margin-top:14px"></div>`);
   if ($('#agz', main)) import('./agenda.js').then((m) => m.renderAgenda($('#agz', main), ctx)).catch(() => {});
   const drawTabs = () => paint($('#tabs', main), html`${roleKinds ? html`<button data-m="rol" aria-pressed="${mode === 'rol'}">Para mi rol</button>` : ''}${isStaff(ctx.role) ? html`<button data-m="mio" aria-pressed="${mode === 'mio'}">Asignado a mí</button>` : ''}<button data-m="todo" aria-pressed="${mode === 'todo'}">Todo</button>`);
@@ -47,6 +48,22 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">Urgentes</div><div class="v" style="${crit.length ? 'color:var(--bad)' : ''}">${crit.length}</div></div>
       <div class="kpi"><div class="l">Pendientes</div><div class="v">${rows.length}</div></div>
       <div class="kpi"><div class="l">Monto involucrado en cobros</div><div class="v">${money(rows.filter((i) => i.kind === 'cobro').reduce((t, i) => t + Number(i.amount || 0), 0))}</div></div>`);
+    const rCount = (k) => rows.filter((i) => i.kind === k).length;
+    const nRadicar = rCount('radicar'), nRetiro = rCount('retiro'), nInconsist = rCount('inconsistencia'), nReenvio = rCount('reenvio');
+    const focus = $('#focus', main);
+    if (focus) paint(focus, nRadicar ? html`<div class="note ok" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nRadicar} lista${nRadicar > 1 ? 's' : ''} para radicar</b> — el siguiente paso es agruparlas y enviarlas a la ARS.</div>
+        <a class="btn" href="#/radicaciones">Ir a radicaciones →</a>
+      </div>` : nRetiro ? html`<div class="note info" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nRetiro} reclamación${nRetiro > 1 ? 'es' : ''} por retirar</b> — pendientes de búsqueda y retiro físico.</div>
+        <a class="btn" href="#/retiros">Ir a retiros →</a>
+      </div>` : nInconsist ? html`<div class="note warn" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nInconsist} con inconsistencia</b> — revisar y corregir antes de radicar.</div>
+        <a class="btn" href="#/reclamaciones">Ver reclamaciones →</a>
+      </div>` : nReenvio ? html`<div class="note bad" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nReenvio} devuelta${nReenvio > 1 ? 's' : ''} por la ARS</b> — verificar motivo y reenviar.</div>
+        <a class="btn" href="#/reclamaciones">Ver reclamaciones →</a>
+      </div>` : html``);
     if (!rows.length) { paint($('#l', main), emptyView('Todo al día', mode === 'todo' ? 'No hay pendientes accionables hoy.' : 'Nada pendiente con este filtro. Prueba con "Todo".')); return; }
     const groups = ORDER.map((k) => [k, rows.filter((i) => i.kind === k)]).filter(([, r]) => r.length);
     paint($('#l', main), html`${groups.map(([k, r]) => html`<details class="card" style="margin-bottom:14px" open><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px"><h2 style="margin:0">${GROUPS[k]} · ${r.length}</h2><span class="small muted" style="margin-left:auto">▾</span></summary><div class="list" style="margin-top:10px">
