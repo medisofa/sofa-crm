@@ -2,9 +2,12 @@
  *  Muestra el avance de su oportunidad con SOFA y de su habilitación MISPAS. Al convertirse en cliente pasa a Médico.
  *  28/10/2026: el checklist de habilitación deja de ser solo lectura — el prospecto puede marcar
  *  cada requisito como entregado, con una nota de qué envió y cómo (habilitation_item_submit).
- *  Documentos adjuntos: pendiente (requiere decidir cómo guardar el archivo de alguien sin
- *  organización todavía; por ahora la entrega se registra como nota, igual que ya hace Mi habilitación). */
+ *  07/11/2026: documentos adjuntos — el prospecto puede adjuntar un PDF o imagen al marcar un
+ *  requisito como entregado. El archivo va al bucket "habilitation-documents" (ruta
+ *  prospects/{item_id}/{uuid}-{nombre}); la ruta queda en habilitation_items.client_storage_path. */
 import { rpc, h, fmtDate, note, guarded } from '../services/iter18.js';
+import { sb } from '../supabase.js';
+import { compressImage, fileProblem, safeName, sizeLabel } from '../services/documents.js';
 
 // 4.7.0: todas las etapas que puede devolver prospect_portal tienen su texto en español (antes «prospecto» salía tal cual)
 const STAGE = { prospecto: 'Primer contacto', nuevo: 'Nuevo', contactado: 'Contactado', reunion: 'Presentación', evaluacion: 'Seguimiento', propuesta: 'Propuesta enviada', negociacion: 'Negociación',
@@ -28,18 +31,59 @@ function checklistCard(c, onSubmitted) {
         i.hint ? h('div', { class: 'i18-sub' }, `Evidencia: ${i.hint}`) : null,
         h('div', { class: `i18-badge ${cls}`.trim() }, label));
       if (i.client_note) {
-        row.append(h('div', { class: 'i18-sub' }, `Ya informado: «${i.client_note}»${i.submitted_at ? ` (${fmtDate(i.submitted_at)})` : ''} — en revisión por SOFA.`));
+        const submittedInfo = h('div', { class: 'i18-sub' },
+          `Ya informado: «${i.client_note}»${i.submitted_at ? ` (${fmtDate(i.submitted_at)})` : ''} — en revisión por SOFA.`);
+        row.append(submittedInfo);
+        if (i.storage_path && i.file_name) {
+          const openBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', style: 'margin-top:4px' }, `📎 ${i.file_name}`);
+          openBtn.addEventListener('click', async () => {
+            openBtn.disabled = true;
+            try {
+              const { data, error } = await sb().storage.from('habilitation-documents').createSignedUrl(i.storage_path, 120);
+              if (error || !data?.signedUrl) throw error || new Error('No se pudo generar el enlace.');
+              const win = window.open('', '_blank');
+              if (win) { win.opener = null; win.location.href = data.signedUrl; }
+              else { row.append(note(`Abre el archivo manualmente: ${data.signedUrl}`, 'info')); }
+            } catch (err) {
+              row.append(note(err.message || 'No se pudo abrir el documento.', 'error'));
+            } finally { openBtn.disabled = false; }
+          });
+          row.append(openBtn);
+        }
       } else if (i.can_submit) {
         const input = h('input', { type: 'text', maxlength: '500', placeholder: 'Ej.: copia del exequátur enviada por WhatsApp hoy', 'aria-label': `Nota de entrega para ${i.requirement}` });
+        const fileInput = h('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png,image/webp', style: 'display:none', 'aria-label': `Adjuntar archivo para ${i.requirement}` });
+        const fileLabel = h('label', { class: 'i18-btn i18-sec', style: 'cursor:pointer' }, '📎 Adjuntar');
+        fileLabel.appendChild(fileInput);
+        const fileStatus = h('span', { class: 'i18-sub', style: 'display:none' });
+        fileInput.addEventListener('change', () => {
+          const f = fileInput.files[0];
+          if (!f) { fileStatus.style.display = 'none'; return; }
+          const prob = fileProblem(f);
+          fileStatus.textContent = prob ? `⚠ ${prob}` : `📎 ${f.name} · ${sizeLabel(f.size)}`;
+          fileStatus.style.display = '';
+        });
         const btn = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Marcar como entregado');
         btn.addEventListener('click', async () => {
           const val = input.value.trim();
           if (val.length < 5) { input.focus(); row.append(note('Cuente qué entregó y cómo (al menos 5 caracteres).', 'error')); return; }
+          const f = fileInput.files[0];
+          if (f) { const prob = fileProblem(f); if (prob) { row.append(note(prob, 'error')); return; } }
           btn.disabled = true;
-          try { await rpc('habilitation_item_submit', { p_item: i.id, p_note: val }); await onSubmitted(); }
-          catch (err) { btn.disabled = false; row.append(note(err.message || 'No se pudo registrar la entrega.', 'error')); }
+          try {
+            let storagePath = null; let storedName = null;
+            if (f) {
+              const ready = await compressImage(f);
+              const path = `prospects/${i.id}/${crypto.randomUUID()}-${safeName(ready.name)}`;
+              const { error: upErr } = await sb().storage.from('habilitation-documents').upload(path, ready, { contentType: ready.type, upsert: false, cacheControl: '3600' });
+              if (upErr) throw upErr;
+              storagePath = path; storedName = ready.name;
+            }
+            await rpc('habilitation_item_submit', { p_item: i.id, p_note: val, p_storage_path: storagePath, p_file_name: storedName });
+            await onSubmitted();
+          } catch (err) { btn.disabled = false; row.append(note(err.message || 'No se pudo registrar la entrega.', 'error')); }
         });
-        row.append(h('div', { class: 'i18-actions' }, input, btn));
+        row.append(h('div', { class: 'i18-actions' }, input, fileLabel, fileStatus, btn));
       }
       card.append(row);
     }
