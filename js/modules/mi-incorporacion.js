@@ -51,6 +51,7 @@ function checklistCard(c, onSubmitted) {
           row.append(openBtn);
         }
       } else if (i.can_submit) {
+        if (i.sofa_reset_note) row.append(h('div', { class: 'i18-sub', style: 'color:var(--warn,#b45309);margin-top:4px' }, `💬 Nota de SOFA: "${i.sofa_reset_note}"` ));
         const input = h('input', { type: 'text', maxlength: '500', placeholder: 'Ej.: copia del exequátur enviada por WhatsApp hoy', 'aria-label': `Nota de entrega para ${i.requirement}` });
         const fileInput = h('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png,image/webp', style: 'display:none', 'aria-label': `Adjuntar archivo para ${i.requirement}` });
         const fileLabel = h('label', { class: 'i18-btn i18-sec', style: 'cursor:pointer' }, '📎 Adjuntar');
