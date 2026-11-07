@@ -139,7 +139,7 @@ create policy "prospect_hab_docs_insert"
   to authenticated
   with check (
     bucket_id = 'habilitation-documents'
-    and (storage.foldername(name))[1] = 'prospects'
+    and split_part(name, '/', 1) = 'prospects'
   );
 
 -- SELECT: sólo puede leer sus propios archivos bajo prospects/
@@ -148,5 +148,5 @@ create policy "prospect_hab_docs_select"
   to authenticated
   using (
     bucket_id = 'habilitation-documents'
-    and (storage.foldername(name))[1] = 'prospects'
+    and split_part(name, '/', 1) = 'prospects'
   );
