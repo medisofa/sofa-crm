@@ -102,7 +102,7 @@ export async function saveContact(operatorId, v, id = null) {
 export async function deleteContact(id) { const { error } = await sb().from('contacts').delete().eq('id', id); if (error) throw error; }
 
 // ---- Aliados referidores
-export async function listPartners() { return must(await sb().from('v_referral_stats').select('*').order('full_name')); }
+export async function listPartners() { return must(await sb().from('v_referral_stats').select('id, full_name, is_active, phone, partner_type, leads, won, commission_rate, est_commission_year').order('full_name')); }
 export async function activePartners() { return must(await sb().from('referral_partners').select('id, full_name').eq('is_active', true).order('full_name')); }
 export async function savePartner(operatorId, v, id = null) {
   const row = { full_name: v.full_name.trim(), partner_type: v.partner_type, phone: v.phone || null, commission_rate: Number(v.commission_rate || 0), is_active: v.is_active !== false };

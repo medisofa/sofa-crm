@@ -19,11 +19,12 @@ export async function callAppointmentIn(id, room) { await rpc('call_appointment_
 export async function flowBoard(orgId, dateIso) { return rpc('flow_board', { p_org: orgId, p_date: dateIso }); }
 export async function linkAppointmentClaim(appointmentId, lineId) { await rpc('link_appointment_claim', { p_appointment: appointmentId, p_line: lineId }); return true; }
 
+const CHARGE_COLS = 'id, charge_date, collected_on, folio, patient_name, amount, service_name, discount, discount_reason, payment_method, reference, status';
 export async function listPrivateCharges(providerId, date) {
-  return must(await sb().from('private_charges').select('*').eq('provider_id', providerId).or(`charge_date.eq.${date},collected_on.eq.${date}`).order('created_at'));
+  return must(await sb().from('private_charges').select(CHARGE_COLS).eq('provider_id', providerId).or(`charge_date.eq.${date},collected_on.eq.${date}`).order('created_at'));
 }
 export async function pendingPrivateCharges(providerId) {
-  return must(await sb().from('private_charges').select('*').eq('provider_id', providerId).eq('status', 'pendiente').order('charge_date'));
+  return must(await sb().from('private_charges').select(CHARGE_COLS).eq('provider_id', providerId).eq('status', 'pendiente').order('charge_date'));
 }
 export async function registerPrivateCharge(v) {
   return rpc('register_private_charge', { p_provider: v.provider, p_date: v.date, p_patient: v.patient, p_doc: v.doc || null, p_procedure: v.procedure, p_quantity: v.quantity || 1,
