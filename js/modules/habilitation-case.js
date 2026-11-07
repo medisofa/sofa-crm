@@ -184,10 +184,12 @@ export async function render(main, ctx) {
       catch (err) { toast(friendlyError(err), 'bad'); }
     }));
     box.querySelectorAll('[data-reset-client]').forEach((b) => b.addEventListener('click', async () => {
-      if (!confirm('¿Descartar la entrega del cliente? El cliente podrá someter el requisito nuevamente.')) return;
+      const d = await import('./habilitation-dialogs.js');
+      const r = await d.commentDialog('Descartar entrega del cliente', false);
+      if (r === null) return;
       await busy(b, async () => {
         try {
-          const oldPath = await resetClientSubmission(b.dataset.resetClient);
+          const oldPath = await resetClientSubmission(b.dataset.resetClient, r.comment);
           if (oldPath) await sb().storage.from('habilitation-documents').remove([oldPath]).catch(() => {});
           toast('Entrega descartada. El cliente puede volver a someter el requisito.', 'ok');
           await refresh();
