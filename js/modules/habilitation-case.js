@@ -101,7 +101,7 @@ export async function render(main, ctx) {
             <div><div style="font-weight:500">${i.requirement}${i.is_critical ? html` <span class="pill bad" style="font-size:10.5px">Crítico</span>` : ''}</div>
               <div class="small muted">${i.habilitation_requirements?.code || ''}${i.habilitation_requirements?.evidence_hint ? ` · Evidencia: ${i.habilitation_requirements.evidence_hint}` : ''}</div>
               ${edit ? html`<input class="input small" data-notes="${i.id}" value="${i.notes || ''}" placeholder="Observación o acción correctiva" maxlength="300" style="margin-top:6px;min-height:34px" aria-label="Observación">` : i.notes ? html`<div class="small" style="margin-top:4px">${i.notes}</div>` : ''}
-              ${i.client_submitted_at ? html`<div class="small" style="margin-top:4px;color:var(--navy)"><b>Entregado por el cliente</b> · ${dateTime(i.client_submitted_at)}${edit ? html` <button class="btn link" style="color:var(--bad);font-size:11px" data-reset-client="${i.id}" data-client-path="${i.client_storage_path || ''}">✕ Descartar</button>` : ''}${i.client_note ? html`<div class="muted">"${i.client_note}"</div>` : ''}${i.client_storage_path && i.client_file_name ? html`<div style="margin-top:2px"><button class="btn link" data-open-client="${i.client_storage_path}" data-client-name="${i.client_file_name}">📎 ${i.client_file_name}</button></div>` : ''}</div>` : ''}
+              ${i.client_submitted_at ? html`<div class="small" style="margin-top:4px;color:var(--navy)"><b>Entregado por el cliente</b> · ${dateTime(i.client_submitted_at)}${edit ? html`${i.status !== 'verde' ? html` <button class="btn link" style="color:var(--ok);font-size:11px" data-approve-client="${i.id}">✓ Listo</button>` : ''} <button class="btn link" style="color:var(--bad);font-size:11px" data-reset-client="${i.id}" data-client-path="${i.client_storage_path || ''}">✕ Descartar</button>` : ''}${i.client_note ? html`<div class="muted">"${i.client_note}"</div>` : ''}${i.client_storage_path && i.client_file_name ? html`<div style="margin-top:2px"><button class="btn link" data-open-client="${i.client_storage_path}" data-client-name="${i.client_file_name}">📎 ${i.client_file_name}</button></div>` : ''}</div>` : ''}
               ${i.document_id && docName[i.document_id] ? html`<div class="small" style="margin-top:4px"><button class="btn link" data-open="${i.document_id}">Evidencia: ${docName[i.document_id].file_name}</button></div>` : ''}</div>
             <div class="ctl">
               ${edit ? html`<label class="sr-only" for="st-${i.id}">Estado</label><select id="st-${i.id}" class="input" data-status="${i.id}">${Object.entries(ITEM_STATUS).map(([k, [l]]) => opt(k, l, i.status))}</select>
@@ -198,6 +198,15 @@ export async function render(main, ctx) {
       slot.querySelector('#wa-dismiss')?.addEventListener('click', () => slot.remove());
     }
 
+    box.querySelectorAll('[data-approve-client]').forEach((b) => b.addEventListener('click', async () => {
+      await busy(b, async () => {
+        try {
+          await updateItem(b.dataset.approveClient, { status: 'verde', due_on: null });
+          toast('Requisito marcado como listo (verde).', 'ok');
+          await refresh();
+        } catch (err) { toast(friendlyError(err), 'bad'); }
+      });
+    }));
     box.querySelectorAll('[data-reset-client]').forEach((b) => b.addEventListener('click', async () => {
       const d = await import('./habilitation-dialogs.js');
       const r = await d.commentDialog('Descartar entrega del cliente', false);
