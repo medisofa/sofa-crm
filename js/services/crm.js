@@ -46,7 +46,7 @@ export async function updateLead(id, values) { return must(await sb().from('lead
 
 // ---- Diagnóstico de fugas
 export async function listDiagnostics({ leadId, organizationId }) {
-  let q = sb().from('leak_diagnostics').select('*').order('created_at', { ascending: false }).limit(5);
+  let q = sb().from('leak_diagnostics').select('id, monthly_billing, glosa_monthly, recoverable_monthly, trapped_by_dso, created_at, glosa_pct, recoverable_pct, dso_days').order('created_at', { ascending: false }).limit(5);
   q = leadId ? q.eq('lead_id', leadId) : q.eq('organization_id', organizationId);
   return must(await q);
 }

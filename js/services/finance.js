@@ -34,8 +34,8 @@ export async function getGlosa(id) { return must(await sb().from('v_glosas').sel
 export async function glosaItems(id) {
   return must(await sb().from('glosa_items').select('id, service_line_id, reason_code, amount, accepted_amount, recovered_amount, notes, glosa_reasons(name, category), service_lines(claim_folio, patient_name, service_date, member_number, procedures(description))').eq('glosa_id', id));
 }
-export async function glosaAppeals(id) { return must(await sb().from('glosa_appeals').select('*').eq('glosa_id', id).order('submitted_on', { ascending: false })); }
-export async function glosaHistory(id) { return must(await sb().from('glosa_status_history').select('*').eq('glosa_id', id).order('changed_at', { ascending: false })); }
+export async function glosaAppeals(id) { return must(await sb().from('glosa_appeals').select('id, submitted_on, outcome, argument, created_by').eq('glosa_id', id).order('submitted_on', { ascending: false })); }
+export async function glosaHistory(id) { return must(await sb().from('glosa_status_history').select('id, from_status, to_status, changed_at, changed_by, comment').eq('glosa_id', id).order('changed_at', { ascending: false })); }
 export async function glosaReasons() { return must(await sb().from('glosa_reasons').select('code, name, category').eq('is_active', true).order('name')); }
 export async function glosadoByLine(lineIds) {
   if (!lineIds.length) return {};
@@ -145,8 +145,8 @@ export async function registerConciliationAct(id, v) {
   return must(await sb().rpc('register_conciliation_act', { p_glosa: id, p_held_on: v.heldOn, p_result: v.result, p_ars_rep: v.arsRep, p_sofa_rep: v.sofaRep, p_agreements: v.agreements, p_items: v.items || [] }));
 }
 export async function startArbitration(id, filedOn, reference, comment) { must(await sb().rpc('start_arbitration', { p_glosa: id, p_filed_on: filedOn, p_reference: reference, p_comment: comment || null })); return true; }
-export async function conciliationActs(glosaId) { return must(await sb().from('glosa_conciliation_acts').select('*').eq('glosa_id', glosaId).order('created_at')); }
-export async function glosaTemplates() { return must(await sb().from('v_glosa_template_stats').select('*').order('reason_name').order('title')); }
+export async function conciliationActs(glosaId) { return must(await sb().from('glosa_conciliation_acts').select('id, folio, held_on, result, ars_representative, sofa_representative, recovered_total, accepted_total, agreements').eq('glosa_id', glosaId).order('created_at')); }
+export async function glosaTemplates() { return must(await sb().from('v_glosa_template_stats').select('id, reason_name, reason_code, title, is_active, body, ars_id').order('reason_name').order('title')); }
 export async function saveGlosaTemplate(v) {
   return must(await sb().rpc('save_glosa_template', { p_id: v.id || null, p_reason: v.reason, p_ars: v.ars || null, p_title: v.title, p_body: v.body, p_active: v.active !== false }));
 }

@@ -47,7 +47,7 @@ export async function moveCase(id, stage, comment = null, override = null) {
 export async function caseActivity(id) {
   return must(await sb().from('activities').select('id, activity_type, body, occurred_at, created_by').eq('entity_type', 'habilitation').eq('entity_id', id).order('occurred_at', { ascending: false }).limit(100));
 }
-export async function requirementsCatalog() { return must(await sb().from('habilitation_requirements').select('*').order('sort_order')); }
+export async function requirementsCatalog() { return must(await sb().from('habilitation_requirements').select('id, area, code, requirement, evidence_hint, applies_to, is_critical, is_active, sort_order').order('sort_order')); }
 export async function saveRequirement(v, id = null) {
   if (id) return must(await sb().from('habilitation_requirements').update(v).eq('id', id).select('id').single());
   return must(await sb().from('habilitation_requirements').insert(v).select('id').single());
