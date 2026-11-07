@@ -33,7 +33,7 @@ export async function listCases({ group = 'activos', q = '', orgId = '', page = 
 export async function caseSummary() { return must(await sb().from('v_habilitation_cases').select('stage, license_days_left, days_to_target, critical_open, renewal_seq').limit(5000)); }
 export async function getCase(id) { return must(await sb().from('v_habilitation_cases').select('*').eq('id', id).maybeSingle()); }
 export async function caseItems(id) {
-  return must(await sb().from('habilitation_items').select('id, area, requirement, is_critical, status, notes, due_on, document_id, sort_order, requirement_id, client_note, client_submitted_at, habilitation_requirements(code, evidence_hint)').eq('case_id', id).order('sort_order'));
+  return must(await sb().from('habilitation_items').select('id, area, requirement, is_critical, status, notes, due_on, document_id, sort_order, requirement_id, client_note, client_submitted_at, client_storage_path, client_file_name, habilitation_requirements(code, evidence_hint)').eq('case_id', id).order('sort_order'));
 }
 export async function updateItem(id, values) { return must(await sb().from('habilitation_items').update(values).eq('id', id).select('id, status').single()); }
 export async function updateCase(id, values) { return must(await sb().from('habilitation_cases').update(values).eq('id', id).select('id').single()); }
@@ -54,3 +54,4 @@ export async function saveRequirement(v, id = null) {
 }
 export async function leadOptions() { return must(await sb().from('leads').select('id, company, whatsapp').is('converted_org_id', null).order('company').limit(1000)); }
 export async function leadContact(id) { return must(await sb().from('leads').select('id, company, whatsapp').eq('id', id).maybeSingle()); }
+export async function resetClientSubmission(itemId) { return must(await sb().rpc('habilitation_item_reset_client', { p_item: itemId })); }
