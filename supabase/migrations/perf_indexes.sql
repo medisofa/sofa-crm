@@ -1,5 +1,5 @@
 -- Mejoras de rendimiento: índices para las consultas de mayor tráfico
--- NOTA: ya aplicado en producción (2026-11-07)
+-- NOTA: ya aplicado en producción (2026-11-07) ✓ 13 índices creados correctamente
 -- Sin CONCURRENTLY: el SQL Editor de Supabase corre en transacción y no lo admite.
 -- El bloqueo breve de escritura es aceptable en mantenimiento programado.
 
