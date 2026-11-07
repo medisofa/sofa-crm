@@ -32,9 +32,12 @@ CREATE INDEX IF NOT EXISTS idx_claim_status_history_claim
 CREATE INDEX IF NOT EXISTS idx_receptions_org_status
   ON receptions (organization_id, status);
 
--- glosa_items: por radicación, accedido en el detalle de glosas
-CREATE INDEX IF NOT EXISTS idx_glosa_items_submission
-  ON glosa_items (submission_id);
+-- glosa_items: accedido por glosa (detalle) y por service_line (reclamación)
+CREATE INDEX IF NOT EXISTS idx_glosa_items_glosa
+  ON glosa_items (glosa_id);
+
+CREATE INDEX IF NOT EXISTS idx_glosa_items_line
+  ON glosa_items (service_line_id);
 
 -- payment_line_allocations: consultado al calcular saldo de radicación
 CREATE INDEX IF NOT EXISTS idx_payment_line_alloc_submission
