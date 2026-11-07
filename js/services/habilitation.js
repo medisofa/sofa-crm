@@ -20,8 +20,9 @@ export const MODIFICATION_SUBKIND = {
   cambio_razon_social: 'Cambio de razón social'
 };
 
+const CASE_LIST_COLS = 'id, establishment_name, renewal_seq, folio, establishment_type, case_kind, case_subkind, client_name, lead_company, stage, critical_open, ready_pct, target_date, days_to_target, license_valid_until, license_days_left';
 export async function listCases({ group = 'activos', q = '', orgId = '', page = 0, size = 25 } = {}) {
-  let query = sb().from('v_habilitation_cases').select('*', { count: 'exact' });
+  let query = sb().from('v_habilitation_cases').select(CASE_LIST_COLS, { count: 'exact' });
   if (group === 'activos') query = query.not('stage', 'in', '(habilitado,cancelado)');
   if (group === 'habilitados') query = query.eq('stage', 'habilitado');
   if (group === 'cancelados') query = query.eq('stage', 'cancelado');

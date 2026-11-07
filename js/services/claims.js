@@ -147,8 +147,9 @@ export async function confirmPickup(id, { received, deliveredBy, receivedBy = nu
 export async function cancelPickup(id, reason) { return must(await sb().rpc('cancel_pickup', { p_reception: id, p_reason: reason })); }
 
 // ---------------------------------------------------------------- Tarifario contractual
+const CONTRACT_LIST_COLS = 'id, provider_name, client_name, ars_name, service_name, internal_code, ars_service_code, simon, cups, amount, currency, valid_from, valid_to, is_current, contract_ref, source, claims, provider_id, ars_id, procedure_id, status';
 export async function listContracts({ providerId = '', arsId = '', q = '', status = '', onlyCurrent = false, page = 0, size = 50 } = {}) {
-  let query = sb().from('v_contract_tariffs').select('*', { count: 'exact' });
+  let query = sb().from('v_contract_tariffs').select(CONTRACT_LIST_COLS, { count: 'exact' });
   if (providerId) query = query.eq('provider_id', providerId);
   if (arsId) query = query.eq('ars_id', arsId);
   if (status) query = query.eq('status', status);
@@ -223,7 +224,8 @@ export async function claimResubmissions(id) {
   return must(await sb().from('claim_resubmissions').select('id, reason, created_at, created_by, from:from_submission_id(id, folio), to:to_submission_id(id, folio)').eq('service_line_id', id).order('created_at'));
 }
 /** Tiempos por etapa (días) por ARS y total */
-export async function stageTimes({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_stage_times_real' : 'v_stage_times').select('*')); }
+const STAGE_TIME_COLS = 'ars_id, ars_name, claims, captura_retiro, retiro_validacion, validacion_radicacion, radicacion_primer_pago, mediana_radicacion_pago, radicacion_pago_total, glosa_respuesta, ciclo_total';
+export async function stageTimes({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_stage_times_real' : 'v_stage_times').select(STAGE_TIME_COLS)); }
 /** Lote original y complementarios de una radicación */
 export async function submissionFamily(id) {
   const self = must(await sb().from('submissions').select('id, parent_submission_id, is_complementary, parent:parent_submission_id(id, folio, status)').eq('id', id).maybeSingle());
@@ -239,7 +241,7 @@ export async function submissionClaimMoney(id) {
 export async function setSubmissionEcf(id, v) { must(await sb().rpc('set_submission_ecf', { p_submission: id, p_ncf: v.ncf, p_security_code: v.code, p_signed_on: v.signed, p_dgii_status: v.status })); return true; }
 export async function setClientEcf(orgId, v) { must(await sb().rpc('set_client_ecf', { p_org: orgId, p_status: v.status, p_provider: v.provider || null, p_required_from: v.from, p_ready_on: v.ready || null })); return true; }
 export async function ecfReadiness({ realOnly = false } = {}) {
-  let q = sb().from('v_ecf_readiness').select('*');
+  let q = sb().from('v_ecf_readiness').select('id, legal_name, ecf_status, ecf_required_from, days_left, ecf_provider, open_submissions');
   if (realOnly) {
     const ids = await realOrgIds();
     q = ids.length ? q.in('id', ids) : q.eq('id', '00000000-0000-0000-0000-000000000000');

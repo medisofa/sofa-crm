@@ -69,8 +69,9 @@ export async function saveRule(rule) {
 }
 
 // ---------------------------------------------------------------- pre-radicación y envío
+const PRERAD_COLS = 'submission_id, folio, period, status, claims_ready, fiscal_ok, sent_on, sent_via, sent_tracking, claimed, provider_name, ars_name, claims, validated, dossier_ok, fiscal_amount, in_clinic, in_review, inconsistent';
 export async function preradBatches({ providerId = '', arsId = '', readyOnly = false } = {}) {
-  let q = sb().from('v_prerad_batches').select('*');
+  let q = sb().from('v_prerad_batches').select(PRERAD_COLS);
   if (providerId) q = q.eq('provider_id', providerId);
   if (arsId) q = q.eq('ars_id', arsId);
   if (readyOnly) q = q.eq('claims_ready', true).eq('fiscal_ok', true);
