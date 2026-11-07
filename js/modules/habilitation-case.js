@@ -1,7 +1,8 @@
 /** SOFA · Ficha de un caso de habilitación: etapas, datos del trámite, semáforo por requisito, evidencias e historial */
 import { html, render as paint, raw, $ } from '../utils/dom.js';
 import { loadingView, emptyView, errorView, toast, friendlyError, busy, opt, fieldError } from '../utils/ui.js';
-import { getCase, caseItems, updateItem, updateCase, moveCase, caseActivity, leadContact, STAGES, STAGE_LABEL, ITEM_STATUS, CASE_KIND, MODIFICATION_SUBKIND } from '../services/habilitation.js';
+import { sb } from '../supabase.js';
+import { getCase, caseItems, updateItem, updateCase, moveCase, caseActivity, leadContact, resetClientSubmission, STAGES, STAGE_LABEL, ITEM_STATUS, CASE_KIND, MODIFICATION_SUBKIND } from '../services/habilitation.js';
 import { organizationContact, profileNames } from '../services/submissions.js';
 import { listDocuments, uploadDocument, openDocument, fileProblem, sizeLabel } from '../services/documents.js';
 import { money, date, dateTime, todayISO } from '../utils/formatters.js';
@@ -99,14 +100,14 @@ export async function render(main, ctx) {
             <div><div style="font-weight:500">${i.requirement}${i.is_critical ? html` <span class="pill bad" style="font-size:10.5px">Crítico</span>` : ''}</div>
               <div class="small muted">${i.habilitation_requirements?.code || ''}${i.habilitation_requirements?.evidence_hint ? ` · Evidencia: ${i.habilitation_requirements.evidence_hint}` : ''}</div>
               ${edit ? html`<input class="input small" data-notes="${i.id}" value="${i.notes || ''}" placeholder="Observación o acción correctiva" maxlength="300" style="margin-top:6px;min-height:34px" aria-label="Observación">` : i.notes ? html`<div class="small" style="margin-top:4px">${i.notes}</div>` : ''}
-              ${i.client_submitted_at ? html`<div class="small" style="margin-top:4px;color:var(--navy)"><b>Entregado por el cliente</b> · ${dateTime(i.client_submitted_at)}${i.client_note ? html`<div class="muted">"${i.client_note}"</div>` : ''}${i.client_storage_path && i.client_file_name ? html`<div style="margin-top:2px"><button class="btn link" data-open-client="${i.client_storage_path}" data-client-name="${i.client_file_name}">📎 ${i.client_file_name}</button></div>` : ''}</div>` : ''}
+              ${i.client_submitted_at ? html`<div class="small" style="margin-top:4px;color:var(--navy)"><b>Entregado por el cliente</b> · ${dateTime(i.client_submitted_at)}${edit ? html` <button class="btn link" style="color:var(--bad);font-size:11px" data-reset-client="${i.id}" data-client-path="${i.client_storage_path || ''}">&#x2715; Descartar</button>` : ''}${i.client_note ? html`<div class="muted">"${i.client_note}"</div>` : ''}${i.client_storage_path && i.client_file_name ? html`<div style="margin-top:2px"><button class="btn link" data-open-client="${i.client_storage_path}" data-client-name="${i.client_file_name}">📎 ${i.client_file_name}</button></div>` : ''}</div>` : ''}
               ${i.document_id && docName[i.document_id] ? html`<div class="small" style="margin-top:4px"><button class="btn link" data-open="${i.document_id}">Evidencia: ${docName[i.document_id].file_name}</button></div>` : ''}</div>
             <div class="ctl">
               ${edit ? html`<label class="sr-only" for="st-${i.id}">Estado</label><select id="st-${i.id}" class="input" data-status="${i.id}">${Object.entries(ITEM_STATUS).map(([k, [l]]) => opt(k, l, i.status))}</select>
                 ${['amarillo', 'rojo'].includes(i.status) ? html`<label class="sr-only" for="due-${i.id}">Corregir antes de</label><input id="due-${i.id}" class="input" type="date" data-due="${i.id}" value="${i.due_on || ''}" title="Corregir antes de">` : ''}
                 <label class="btn sm" style="cursor:pointer">Evidencia<input type="file" data-up="${i.id}" accept="application/pdf,image/jpeg,image/png,image/webp" hidden></label>`
               : html`<span class="pill ${ITEM_STATUS[i.status][1]}">${ITEM_STATUS[i.status][0]}</span>${i.due_on ? html`<span class="small muted">antes del ${date(i.due_on)}</span>` : ''}`}
-            </div></div>`)}`)
+            </div></div>`)}`)}
           : html`<p class="small muted">Ningún requisito con este filtro.</p>`}
       </div>
 
@@ -181,6 +182,17 @@ export async function render(main, ctx) {
       const pseudo = { storage_path: b.dataset.openClient, bucket: 'habilitation-documents', file_name: b.dataset.clientName };
       try { const url = await openDocument(pseudo); if (url) paint($('#docLink', box), html`<div class="note">Tu navegador bloqueó la ventana. <a href="${url}" target="_blank" rel="noopener">Abrir ${pseudo.file_name}</a> (válido 60 segundos).</div>`); }
       catch (err) { toast(friendlyError(err), 'bad'); }
+    }));
+    box.querySelectorAll('[data-reset-client]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('\u00bfDescartar la entrega del cliente? El cliente podrá someter el requisito nuevamente.')) return;
+      await busy(b, async () => {
+        try {
+          const oldPath = await resetClientSubmission(b.dataset.resetClient);
+          if (oldPath) await sb().storage.from('habilitation-documents').remove([oldPath]).catch(() => {});
+          toast('Entrega descartada. El cliente puede volver a someter el requisito.', 'ok');
+          await refresh();
+        } catch (err) { toast(friendlyError(err), 'bad'); }
+      });
     }));
   }
   await refresh();
