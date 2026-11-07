@@ -54,3 +54,4 @@ export async function saveRequirement(v, id = null) {
 }
 export async function leadOptions() { return must(await sb().from('leads').select('id, company, whatsapp').is('converted_org_id', null).order('company').limit(1000)); }
 export async function leadContact(id) { return must(await sb().from('leads').select('id, company, whatsapp').eq('id', id).maybeSingle()); }
+export async function resetClientSubmission(itemId) { return must(await sb().rpc('habilitation_item_reset_client', { p_item: itemId })); }
