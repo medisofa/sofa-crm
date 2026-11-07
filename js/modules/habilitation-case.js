@@ -18,6 +18,7 @@ export async function render(main, ctx) {
   const box = $('#h', main);
   let S = {};
   let areaFilter = '';
+  let _pendingWa = null; // WhatsApp notification pendiente tras un descarte
 
   async function refresh() {
     try {
@@ -183,15 +184,41 @@ export async function render(main, ctx) {
       try { const url = await openDocument(pseudo); if (url) paint($('#docLink', box), html`<div class="note">Tu navegador bloqueó la ventana. <a href="${url}" target="_blank" rel="noopener">Abrir ${pseudo.file_name}</a> (válido 60 segundos).</div>`); }
       catch (err) { toast(friendlyError(err), 'bad'); }
     }));
+    // Banner WhatsApp pendiente tras un descarte (se genera en el handler y se consume aquí tras el refresh)
+    if (_pendingWa) {
+      const wa = _pendingWa; _pendingWa = null;
+      const slot = document.createElement('div');
+      slot.className = 'no-print';
+      box.prepend(slot);
+      paint(slot, html`<div class="note" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <a class="btn sm" href="${waLink(wa.whatsapp, wa.message)}" target="_blank" rel="noopener">💬 Notificar al cliente por WhatsApp</a>
+        <span class="small muted">Se abre WhatsApp con el mensaje pre-escrito</span>
+        <button class="btn link small" id="wa-dismiss">Cerrar</button>
+      </div>`);
+      slot.querySelector('#wa-dismiss')?.addEventListener('click', () => slot.remove());
+    }
+
     box.querySelectorAll('[data-reset-client]').forEach((b) => b.addEventListener('click', async () => {
       const d = await import('./habilitation-dialogs.js');
       const r = await d.commentDialog('Descartar entrega del cliente', false);
       if (r === null) return;
       await busy(b, async () => {
         try {
+          const item = S.items.find((i) => i.id === b.dataset.resetClient);
           const oldPath = await resetClientSubmission(b.dataset.resetClient, r.comment);
           if (oldPath) await sb().storage.from('habilitation-documents').remove([oldPath]).catch(() => {});
           toast('Entrega descartada. El cliente puede volver a someter el requisito.', 'ok');
+          if (S.contact?.whatsapp && item) {
+            _pendingWa = {
+              whatsapp: S.contact.whatsapp,
+              message: [
+                `Hola, revisamos su entrega en la habilitación MISPAS con SOFA.`,
+                `El requisito «${item.requirement}» necesita una nueva entrega.`,
+                r.comment ? r.comment : null,
+                `Ingrese a su portal SOFA para volver a someterlo. ¡Gracias!`
+              ].filter(Boolean).join('\n\n')
+            };
+          }
           await refresh();
         } catch (err) { toast(friendlyError(err), 'bad'); }
       });
