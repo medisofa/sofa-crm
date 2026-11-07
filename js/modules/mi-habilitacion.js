@@ -8,7 +8,7 @@ import { rpc, h, fmtDate, note, guarded, clientOptions, clientName } from '../se
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 import { sb } from '../supabase.js';
 import { compressImage, fileProblem, safeName, sizeLabel } from '../services/documents.js';
-import { friendlyError } from '../utils/dom.js';
+import { friendlyError } from '../utils/ui.js';
 
 const ST = { verde: 'Listo', amarillo: 'Corregible (menos de 15 días)', rojo: 'Requiere inversión u obra', pendiente: 'Pendiente' };
 
@@ -36,6 +36,8 @@ export async function render(root, ctx = {}) {
     const sim = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Revisión interna previa a la auditoría oficial. No genera efectos legales ni ante el MISPAS.' }, 'Simulacro de inspección (imprimir)');
     sim.addEventListener('click', () => simulacro(c));
     return h('section', { class: 'i18-card' }, h('h3', {}, `${c.name} · ${c.type}`),
+      c.sofa_reset_note ? note(`⚠ Caso reiniciado por SOFA: ${c.sofa_reset_note}`, 'warn') : null,
+      c.license_valid_until && c.license_days_left != null && c.license_days_left <= 30 ? note(`Su licencia de operación vence en ${c.license_days_left} día(s) (${fmtDate(c.license_valid_until)}). Gestione la renovación para evitar retrasos en la habilitación.`, 'warn') : null,
       h('div', { class: 'i18-sub' }, `${c.folio || ''} · ${c.stage_label}${c.target_date ? ` · meta ${fmtDate(c.target_date)}` : ''}${c.license_valid_until ? ` · licencia vence ${fmtDate(c.license_valid_until)} (${c.license_days_left} días)` : ''}${c.pss_code ? ` · PSS ${c.pss_code}` : ''}`),
       h('div', { class: 'mh-bar', role: 'img', 'aria-label': `${pct} % listo` }, h('span', { style: `width:${pct}%` })),
       h('p', {}, `${pct} % listo · ${k.verde} listos · ${k.amarillo} corregibles · ${k.rojo} con obra · ${k.pendiente} pendientes${k.critical_open ? ` · ${k.critical_open} crítico(s) abiertos` : ''}`),

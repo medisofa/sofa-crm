@@ -17,10 +17,13 @@ const ITEM_STATUS = { pendiente: ['Sin evaluar', ''], verde: ['Verde · listo', 
 
 function checklistCard(c, onSubmitted) {
   const counts = c.counts || {};
+  const pct = counts.applicable ? Math.round(100 * (counts.verde || 0) / counts.applicable) : 0;
   const card = h('section', { class: 'i18-card', 'aria-label': `Checklist de ${c.name}` },
     h('div', { class: 'i18-sub' }, `${c.name} · ${c.type}${c.kind === 'renovacion' ? ' · Renovación' : ''}`),
     h('div', {}, h('span', { class: 'i18-badge i18-esta_semana' }, HAB[c.stage] || c.stage_label || c.stage)),
-    h('p', { class: 'i18-sub' }, `${counts.verde || 0} de ${counts.applicable || 0} requisitos en verde${counts.critical_open ? ` · ${counts.critical_open} crítico(s) pendiente(s)` : ''}`));
+    c.sofa_reset_note ? note(`⚠ Caso reiniciado por SOFA: ${c.sofa_reset_note}`, 'warn') : null,
+    h('p', { class: 'i18-sub' }, `${counts.verde || 0} de ${counts.applicable || 0} requisitos en verde${counts.critical_open ? ` · ${counts.critical_open} crítico(s) pendiente(s)` : ''}`),
+    h('div', { class: 'ac-progress', 'aria-hidden': 'true' }, h('div', { style: `width:${pct}%` })));
 
   for (const a of (c.areas || [])) {
     card.append(h('h4', { style: 'margin:14px 0 4px' }, a.area));
