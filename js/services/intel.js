@@ -6,8 +6,9 @@ const clean = (q) => String(q || '').replace(/[%*,()\\]/g, ' ').trim();
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 
 // ---- Noticias
+const INTEL_ITEM_COLS = 'id, topic, url, title, status, publisher, published_at, fetched_at, entity_name, relevance, implication, is_ai';
 export async function listItems({ topic = '', status = 'activas', minRel = 0, q = '', entityId = '', page = 0, size = 25 } = {}) {
-  let query = sb().from('v_intel_items').select('*', { count: 'exact' });
+  let query = sb().from('v_intel_items').select(INTEL_ITEM_COLS, { count: 'exact' });
   if (status === 'activas') query = query.in('status', ['nuevo', 'leido', 'destacado']);
   else if (status) query = query.eq('status', status);
   if (topic) query = query.eq('topic', topic);
@@ -17,7 +18,7 @@ export async function listItems({ topic = '', status = 'activas', minRel = 0, q 
   return withCount(await query.order('published_at', { ascending: false, nullsFirst: false }).order('relevance', { ascending: false }).range(page * size, page * size + size - 1));
 }
 export async function topItems({ days = 14, limit = 8, entitiesOnly = false } = {}) {
-  let q = sb().from('v_intel_items').select('*').neq('status', 'descartado').gte('fetched_at', daysAgo(days));
+  let q = sb().from('v_intel_items').select(INTEL_ITEM_COLS).neq('status', 'descartado').gte('fetched_at', daysAgo(days));
   if (entitiesOnly) q = q.not('entity_id', 'is', null);
   return must(await q.order('relevance', { ascending: false }).order('published_at', { ascending: false, nullsFirst: false }).limit(limit));
 }
@@ -30,7 +31,7 @@ export async function setItemStatus(id, status) { return must(await sb().from('i
 
 // ---- Competencia y referentes
 export async function listEntities({ kind = '', q = '' } = {}) {
-  let query = sb().from('v_intel_entities').select('*');
+  let query = sb().from('v_intel_entities').select('id, name, kind, threat_level, monitor, description, services, news_30d, notes, last_reviewed_on');
   if (kind === 'competencia') query = query.in('kind', ['competidor_directo', 'competidor_indirecto', 'referente_local']);
   else if (kind === 'sector') query = query.in('kind', ['regulador', 'gremio', 'aliado_potencial']);
   else if (kind) query = query.eq('kind', kind);
@@ -50,7 +51,7 @@ export async function addNote(operatorId, entityId, { note, sourceUrl = null, ob
 
 // ---- Ideas de servicios
 export async function listIdeas({ status = '' } = {}) {
-  let q = sb().from('intel_ideas').select('*');
+  let q = sb().from('intel_ideas').select('id, score, title, description, value_prop, segment, revenue_model, impact, fit, effort, status');
   if (status) q = q.eq('status', status);
   return must(await q.order('score', { ascending: false }).order('updated_at', { ascending: false }).limit(500));
 }
@@ -66,7 +67,7 @@ export async function saveSource(operatorId, v, id = null) {
   return must(await sb().from('intel_sources').insert({ ...v, operator_id: operatorId }).select('id').single());
 }
 export async function deleteSource(id) { const { error } = await sb().from('intel_sources').delete().eq('id', id); if (error) throw error; }
-export async function lastRuns(limit = 10) { return must(await sb().from('intel_runs').select('*').order('started_at', { ascending: false }).limit(limit)); }
+export async function lastRuns(limit = 10) { return must(await sb().from('intel_runs').select('started_at, finished_at, trigger, sources, fetched, inserted, ai_enriched, errors').order('started_at', { ascending: false }).limit(limit)); }
 
 /** Pide a la Edge Function "market-intel" que busque noticias ahora (Admin y Super Admin) */
 export async function refreshNow() {

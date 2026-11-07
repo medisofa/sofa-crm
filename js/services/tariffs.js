@@ -4,8 +4,9 @@ const must = ({ data, error }) => { if (error) throw error; return data; };
 const withCount = ({ data, error, count }) => { if (error) throw error; return { data, count: count ?? data.length }; };
 const clean = (q) => String(q || '').replace(/[%*,()\\]/g, ' ').trim();
 
+const TARIFF_LIST_COLS = 'procedure_id, description, internal_code, plan_name, provider_name, client_name, ars_name, ars_id, amount, valid_from, valid_to';
 export async function listCurrentTariffs({ arsId = '', scope = '', orgId = '', q = '', page = 0, size = 50 } = {}) {
-  let query = sb().from('v_tariffs_current').select('*', { count: 'exact' });
+  let query = sb().from('v_tariffs_current').select(TARIFF_LIST_COLS, { count: 'exact' });
   if (arsId) query = query.eq('ars_id', arsId);
   if (scope) query = query.eq('scope', scope);
   if (orgId) query = query.eq('organization_id', orgId);
@@ -17,7 +18,7 @@ export async function tariffHistory(procedureId) {
     .eq('procedure_id', procedureId).order('valid_during', { ascending: false }).limit(500));
 }
 export async function tariffGaps({ onlyDiff = true } = {}) {
-  let q = sb().from('v_tariff_gaps').select('*');
+  let q = sb().from('v_tariff_gaps').select('procedure_id, description, internal_code, detail, ars_count, min_amount, max_amount, gap_pct, lowest_ars, highest_ars');
   if (onlyDiff) q = q.gt('gap_pct', 0);
   return must(await q.order('gap_pct', { ascending: false }).limit(1000));
 }

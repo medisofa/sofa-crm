@@ -4,8 +4,9 @@ const must = ({ data, error }) => { if (error) throw error; return data; };
 const clean = (q) => String(q || '').replace(/[%*,()\\]/g, ' ').trim();
 
 // ---- Oportunidades
+const OPP_LIST_COLS = 'id, company, stage, closed_on, estimated_value, weighted_value, overdue, next_action, next_action_date, days_in_stage, owner_name, owner_id, probability, service_code, source, lead_id, converted_org_id, organization_id';
 export async function listOpportunities({ q = '', owner = '', service = '', includeClosed = false, organizationId = null } = {}) {
-  let query = sb().from('v_opportunities').select('*');
+  let query = sb().from('v_opportunities').select(OPP_LIST_COLS);
   if (!includeClosed) query = query.not('stage', 'in', '(cliente,perdido)');
   if (q) query = query.ilike('company', `%${clean(q)}%`);
   if (owner) query = query.eq('owner_id', owner);
@@ -101,7 +102,7 @@ export async function saveContact(operatorId, v, id = null) {
 export async function deleteContact(id) { const { error } = await sb().from('contacts').delete().eq('id', id); if (error) throw error; }
 
 // ---- Aliados referidores
-export async function listPartners() { return must(await sb().from('v_referral_stats').select('*').order('full_name')); }
+export async function listPartners() { return must(await sb().from('v_referral_stats').select('id, full_name, is_active, phone, partner_type, leads, won, commission_rate, est_commission_year').order('full_name')); }
 export async function activePartners() { return must(await sb().from('referral_partners').select('id, full_name').eq('is_active', true).order('full_name')); }
 export async function savePartner(operatorId, v, id = null) {
   const row = { full_name: v.full_name.trim(), partner_type: v.partner_type, phone: v.phone || null, commission_rate: Number(v.commission_rate || 0), is_active: v.is_active !== false };

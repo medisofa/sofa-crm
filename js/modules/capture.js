@@ -32,6 +32,13 @@ export async function render(main, ctx) {
     <div class="page-head"><div class="t"><h2>Captura rápida</h2>
       <p>Registra cada servicio como una reclamación individual. Los códigos SIMON/CUPS y la tarifa salen del contrato del médico con la ARS.</p></div>
       <div class="toolbar no-print" style="margin:0">${sessionCount ? html`<span class="pill info" id="sessCnt">${sessionCount} registrada${sessionCount > 1 ? 's' : ''} esta sesión</span>` : ''}<a class="btn" href="#/reclamaciones">Ver reclamaciones</a></div></div>
+    <ul class="stepper" aria-label="Flujo de reclamación">
+      <li class="now">1 · Captura</li>
+      <li>2 · Validación</li>
+      <li>3 · En ARS</li>
+      <li>4 · Cobrada</li>
+    </ul>
+    <div class="note info" style="margin-bottom:16px">Estás en el <b>primer paso</b>. Una vez guardada, la reclamación entra a validación para ser radicada a la ARS.</div>
     <div class="grid two" style="align-items:start">
       <form class="card" id="cf" novalidate autocomplete="off" aria-describedby="kbhelp">
         <h2>Nueva reclamación</h2>

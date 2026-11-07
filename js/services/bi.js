@@ -39,7 +39,7 @@ export async function collectionDays(f) {
   return must(await q.eq('fully_paid', true).gte('last_paid_on', first(f.from)).lte('last_paid_on', last(f.to)).limit(20000));
 }
 export async function serviceMix(f) {
-  const q = applyScoped(sb().from('v_service_mix').select('*'), f, await scopeIds(f));
+  const q = applyScoped(sb().from('v_service_mix').select('internal_code, description, lines, quantity, amount'), f, await scopeIds(f));
   return must(await q.gte('period', first(f.from)).lte('period', first(f.to)).limit(20000));
 }
 export async function openBalances(f = {}) {
@@ -62,10 +62,10 @@ export async function workQueue({ realOnly = false } = {}) {
   const ids = new Set(await realClientIds());
   return rows.filter((r) => !r.organization_id || ids.has(r.organization_id));
 }
-export async function growthMonthly({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_growth_monthly_real' : 'v_growth_monthly').select('*').order('month')); }
+export async function growthMonthly({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_growth_monthly_real' : 'v_growth_monthly').select('month, fees_fixed, fees_variable, new_leads, diagnostics, new_clients').order('month')); }
 export async function mrr({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_mrr_real' : 'v_mrr').select('*').limit(1).maybeSingle()); }
 export async function pipelineTotals() { return must(await sb().from('v_pipeline_real').select('stage, opportunities, monthly_value, weighted_value')); }
-export async function growthTargets() { return must(await sb().from('growth_targets').select('*').order('ends_on')); }
+export async function growthTargets() { return must(await sb().from('growth_targets').select('metric, ends_on, name').order('ends_on')); }
 export async function settings() { const { getSettings } = await import('./admin.js'); return getSettings(); }   // 4.7.0 (SEG-29): por app_settings_staff()
-export async function glosaPareto(f = {}) { const q = applyScoped(sb().from('v_glosa_pareto').select('*'), f, await scopeIds(f)); return must(await q.limit(5000)); }
-export async function feeSummaryAll({ realOnly = false } = {}) { let q = sb().from('v_fee_summary').select('*'); if (realOnly) { const ids = await realClientIds(); q = ids.length ? q.in('organization_id', ids) : q.eq('organization_id', '00000000-0000-0000-0000-000000000000'); } return must(await q.order('client_name')); }
+export async function glosaPareto(f = {}) { const q = applyScoped(sb().from('v_glosa_pareto').select('reason_name, category, items, amount, accepted, recovered'), f, await scopeIds(f)); return must(await q.limit(5000)); }
+export async function feeSummaryAll({ realOnly = false } = {}) { let q = sb().from('v_fee_summary').select('client_name, rules, accrued, uninvoiced, invoiced, collected, organization_id'); if (realOnly) { const ids = await realClientIds(); q = ids.length ? q.in('organization_id', ids) : q.eq('organization_id', '00000000-0000-0000-0000-000000000000'); } return must(await q.order('client_name')); }

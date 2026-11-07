@@ -10,8 +10,9 @@ async function realOrgIds() {
 function applyTaskScope(q, ids) {
   return ids.length ? q.or(`organization_id.is.null,organization_id.in.(${ids.join(',')})`) : q.is('organization_id', null);
 }
+const TASK_LIST_COLS = 'id, title, priority, notes, entity_type, entity_id, entity_label, due_date, bucket, assignee_name, assignee_id, status, organization_id';
 export async function listTasks({ bucket = '', assignee = '', entityType = '', entityId = '', realOnly = false } = {}) {
-  let q = sb().from('v_tasks').select('*');
+  let q = sb().from('v_tasks').select(TASK_LIST_COLS);
   if (realOnly) q = applyTaskScope(q, await realOrgIds());
   if (bucket) q = q.eq('bucket', bucket);
   if (assignee) q = q.eq('assignee_id', assignee);

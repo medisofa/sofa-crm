@@ -91,72 +91,7 @@ export async function render(main, ctx) {
   state.seenRoutes = Array.isArray(state.seenRoutes) ? state.seenRoutes : [];
   state.seenActions = Array.isArray(state.seenActions) ? state.seenActions : [];
 
-  const newRoutes = routes.filter((r) => !state.seenRoutes.includes(r.route));
-  const newActions = actions.filter((a) => !state.seenActions.includes(a));
   const currentSignature = signature(routes, actions);
-  const changed = !!state.signature && state.signature !== currentSignature;
-
-  const doneCount = routes.filter((r) => state.completed[r.route]).length;
-  const pct = routes.length ? Math.round((doneCount / routes.length) * 100) : 100;
-
-  paint(main, html`
-    <div class="page-head">
-      <div class="t"><h2>Mi autoentrenamiento</h2>
-        <p>${roleName} · contenido generado desde los módulos y funciones que tu rol puede usar actualmente.</p>
-      </div>
-      <button class="btn" id="syncTraining">Actualizar contenido</button>
-    </div>
-
-    ${changed || newRoutes.length || newActions.length ? html`
-      <div class="card" style="margin-bottom:14px;border-left:4px solid var(--warn)">
-        <h2>Hay cambios en tu entrenamiento</h2>
-        <p class="sub">SOFA detectó módulos o funciones nuevas para tu rol. Revísalas antes de continuar trabajando.</p>
-        <div class="small"><b>${newRoutes.length}</b> ventana(s) nueva(s) · <b>${newActions.length}</b> función(es) nueva(s).</div>
-      </div>` : ''}
-
-    <div class="grid kpis">
-      <div class="kpi"><div class="l">Rol</div><div class="v" style="font-size:1.05rem">${roleName}</div></div>
-      <div class="kpi"><div class="l">Módulos para aprender</div><div class="v">${routes.length}</div></div>
-      <div class="kpi"><div class="l">Funciones habilitadas</div><div class="v">${actions.length}</div></div>
-      <div class="kpi"><div class="l">Progreso</div><div class="v">${pct}%</div><div class="h">${doneCount} de ${routes.length} módulos</div></div>
-    </div>
-
-    <div class="card" style="margin-top:14px">
-      <h2>Ruta de aprendizaje de tu rol</h2>
-      <p class="sub">La lista se actualiza con el catálogo de permisos de SOFA. Si se agrega una ventana nueva a tu rol, aparecerá aquí automáticamente.</p>
-      <div style="height:10px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin:8px 0 14px">
-        <div style="height:100%;width:${pct}%;background:var(--ok)"></div>
-      </div>
-      <div class="list" id="trainingList">
-        ${routes.map((r) => {
-          const steps = GUIDE[r.route] || genericGuide(r.label);
-          const done = !!state.completed[r.route];
-          const fresh = newRoutes.some((x) => x.route === r.route);
-          return html`<div class="li" style="align-items:flex-start">
-            <span class="pill ${done ? 'ok' : fresh ? 'warn' : ''}">${done ? 'Completado' : fresh ? 'Nuevo' : 'Pendiente'}</span>
-            <div class="b">
-              <div class="t1">${r.label} <span class="small muted">· ${r.group}</span></div>
-              <ol class="small" style="margin:6px 0 8px;padding-left:20px">${steps.map((s) => html`<li>${s}</li>`)}</ol>
-              <div class="toolbar" style="margin:0">
-                <a class="btn sm" href="#/${r.route}">Abrir módulo</a>
-                <button class="btn sm ${done ? '' : 'primary'}" data-train="${r.route}">${done ? 'Marcar pendiente' : 'Marcar completado'}</button>
-              </div>
-            </div>
-          </div>`;
-        })}
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:14px">
-      <h2>Funciones de tu rol</h2>
-      <p class="sub">Estas funciones combinan el contrato local con la matriz gobernada <span class="mono">role_capabilities</span>. Una capacidad nueva aparece al asignarse al rol.</p>
-      <div class="list">${actions.map((a) => html`<div class="li"><div class="b"><div class="t1">${prettyAction(a)}</div><div class="t2 mono">${a}</div></div>${newActions.includes(a) ? html`<span class="pill warn">Nueva</span>` : html`<span class="pill ok">Habilitada</span>`}</div>`)}</div>
-    </div>
-
-    <div class="card" style="margin-top:14px">
-      <h2>Cómo se mantiene actualizado</h2>
-      <p class="small">Versión actual de SOFA: <b>${APP_VERSION}</b>. El autoentrenamiento toma sus ventanas desde <span class="mono">NAV</span> y sus funciones desde <span class="mono">ACTIONS</span>. No se mantiene una lista paralela: los cambios de permisos del rol alimentan este módulo.</p>
-    </div>`);
 
   const persistSeen = () => {
     state.seenRoutes = routes.map((r) => r.route);
@@ -167,34 +102,101 @@ export async function render(main, ctx) {
     saveState(key, state);
   };
 
-  $('#syncTraining', main).addEventListener('click', () => {
-    persistSeen();
-    location.hash = '#/autoentrenamiento';
-    location.reload();
-  });
+  const repaint = () => {
+    const newRoutes = routes.filter((r) => !state.seenRoutes.includes(r.route));
+    const newActions = actions.filter((a) => !state.seenActions.includes(a));
+    const changed = !!state.signature && state.signature !== currentSignature;
+    const doneCount = routes.filter((r) => state.completed[r.route]).length;
+    const pct = routes.length ? Math.round((doneCount / routes.length) * 100) : 100;
 
-  $('#trainingList', main).addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-train]'); if (!b) return;
-    const route = b.dataset.train;
-    state.completed[route] = !state.completed[route];
-    persistSeen();
-    try {
-      await supabase.from('user_training_progress').upsert({
-        user_id: ctx.session.user.id,
-        role_code: role,
-        training_key: `route:${route}`,
-        training_version: 1,
-        status: state.completed[route] ? 'completed' : 'pending',
-        last_seen_at: new Date().toISOString(),
-        completed_at: state.completed[route] ? new Date().toISOString() : null,
-        metadata: { app_version: APP_VERSION }
-      }, { onConflict: 'user_id,role_code,training_key' });
-    } catch (_) { /* la experiencia continúa con localStorage */ }
-    location.hash = '#/autoentrenamiento';
-    location.reload();
-  });
+    paint(main, html`
+      <div class="page-head">
+        <div class="t"><h2>Mi autoentrenamiento</h2>
+          <p>${roleName} · contenido generado desde los módulos y funciones que tu rol puede usar actualmente.</p>
+        </div>
+        <button class="btn" id="syncTraining">Actualizar contenido</button>
+      </div>
+
+      ${changed || newRoutes.length || newActions.length ? html`
+        <div class="card" style="margin-bottom:14px;border-left:4px solid var(--warn)">
+          <h2>Hay cambios en tu entrenamiento</h2>
+          <p class="sub">SOFA detectó módulos o funciones nuevas para tu rol. Revísalas antes de continuar trabajando.</p>
+          <div class="small"><b>${newRoutes.length}</b> ventana(s) nueva(s) · <b>${newActions.length}</b> función(es) nueva(s).</div>
+        </div>` : ''}
+
+      <div class="grid kpis">
+        <div class="kpi"><div class="l">Rol</div><div class="v" style="font-size:1.05rem">${roleName}</div></div>
+        <div class="kpi"><div class="l">Módulos para aprender</div><div class="v">${routes.length}</div></div>
+        <div class="kpi"><div class="l">Funciones habilitadas</div><div class="v">${actions.length}</div></div>
+        <div class="kpi"><div class="l">Progreso</div><div class="v">${pct}%</div><div class="h">${doneCount} de ${routes.length} módulos</div></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>Ruta de aprendizaje de tu rol</h2>
+        <p class="sub">La lista se actualiza con el catálogo de permisos de SOFA. Si se agrega una ventana nueva a tu rol, aparecerá aquí automáticamente.</p>
+        <div style="height:10px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin:8px 0 14px">
+          <div style="height:100%;width:${pct}%;background:var(--ok)"></div>
+        </div>
+        <div class="list" id="trainingList">
+          ${routes.map((r) => {
+            const steps = GUIDE[r.route] || genericGuide(r.label);
+            const done = !!state.completed[r.route];
+            const fresh = newRoutes.some((x) => x.route === r.route);
+            return html`<div class="li" style="align-items:flex-start">
+              <span class="pill ${done ? 'ok' : fresh ? 'warn' : ''}">${done ? 'Completado' : fresh ? 'Nuevo' : 'Pendiente'}</span>
+              <div class="b">
+                <div class="t1">${r.label} <span class="small muted">· ${r.group}</span></div>
+                <ol class="small" style="margin:6px 0 8px;padding-left:20px">${steps.map((s) => html`<li>${s}</li>`)}</ol>
+                <div class="toolbar" style="margin:0">
+                  <a class="btn sm" href="#/${r.route}">Abrir módulo</a>
+                  <button class="btn sm ${done ? '' : 'primary'}" data-train="${r.route}">${done ? 'Marcar pendiente' : 'Marcar completado'}</button>
+                </div>
+              </div>
+            </div>`;
+          })}
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>Funciones de tu rol</h2>
+        <p class="sub">Estas funciones combinan el contrato local con la matriz gobernada <span class="mono">role_capabilities</span>. Una capacidad nueva aparece al asignarse al rol.</p>
+        <div class="list">${actions.map((a) => html`<div class="li"><div class="b"><div class="t1">${prettyAction(a)}</div><div class="t2 mono">${a}</div></div>${newActions.includes(a) ? html`<span class="pill warn">Nueva</span>` : html`<span class="pill ok">Habilitada</span>`}</div>`)}</div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>Cómo se mantiene actualizado</h2>
+        <p class="small">Versión actual de SOFA: <b>${APP_VERSION}</b>. El autoentrenamiento toma sus ventanas desde <span class="mono">NAV</span> y sus funciones desde <span class="mono">ACTIONS</span>. No se mantiene una lista paralela: los cambios de permisos del rol alimentan este módulo.</p>
+      </div>`);
+
+    $('#syncTraining', main).addEventListener('click', () => {
+      persistSeen();
+      repaint();
+    });
+
+    $('#trainingList', main).addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-train]'); if (!b) return;
+      const route = b.dataset.train;
+      state.completed[route] = !state.completed[route];
+      const isCompleted = state.completed[route];
+      persistSeen();
+      repaint();
+      try {
+        await supabase.from('user_training_progress').upsert({
+          user_id: ctx.session.user.id,
+          role_code: role,
+          training_key: `route:${route}`,
+          training_version: 1,
+          status: isCompleted ? 'completed' : 'pending',
+          last_seen_at: new Date().toISOString(),
+          completed_at: isCompleted ? new Date().toISOString() : null,
+          metadata: { app_version: APP_VERSION }
+        }, { onConflict: 'user_id,role_code,training_key' });
+      } catch (_) { /* la experiencia continúa con localStorage */ }
+    });
+  };
 
   if (!state.signature) persistSeen();
+  repaint();
 }
 
 export default render;

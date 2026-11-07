@@ -11,8 +11,9 @@ export const GROUPS = {
   cerradas: { label: 'Cerradas y rechazadas', statuses: ['cerrada', 'rechazada'] }
 };
 
+const SUB_LIST_COLS = 'id, folio, sequence, status, display_status, provider_name, client_name, period, claimed, balance, payment_deadline, submitted_on, is_demo, organization_id, ars_id';
 export async function listSubmissions({ group = 'todas', orgId = '', arsId = '', period = '', q = '', page = 0, size = 25, realOnly = false } = {}) {
-  let query = sb().from('v_submissions').select('*', { count: 'exact' });
+  let query = sb().from('v_submissions').select(SUB_LIST_COLS, { count: 'exact' });
   if (realOnly) query = query.eq('is_demo', false);
   const g = GROUPS[group];
   if (g?.statuses) query = query.in('status', g.statuses);

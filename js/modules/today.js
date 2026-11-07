@@ -36,6 +36,7 @@ export async function render(main, ctx) {
       <button class="btn" id="reload">Actualizar</button></div>
     <div class="tabs" id="tabs" role="group" aria-label="Filtro"></div>
     ${['client', 'capturer'].includes(ctx.role) ? html`<div class="card" style="margin-bottom:14px"><h2>Consultorio de hoy</h2><div id="agz"></div></div>` : ''}
+    <div id="focus"></div>
     <div class="grid kpis" id="k"></div><div id="l" style="margin-top:14px"></div>`);
   if ($('#agz', main)) import('./agenda.js').then((m) => m.renderAgenda($('#agz', main), ctx)).catch(() => {});
   const drawTabs = () => paint($('#tabs', main), html`${roleKinds ? html`<button data-m="rol" aria-pressed="${mode === 'rol'}">Para mi rol</button>` : ''}${isStaff(ctx.role) ? html`<button data-m="mio" aria-pressed="${mode === 'mio'}">Asignado a mí</button>` : ''}<button data-m="todo" aria-pressed="${mode === 'todo'}">Todo</button>`);
@@ -47,15 +48,48 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">Urgentes</div><div class="v" style="${crit.length ? 'color:var(--bad)' : ''}">${crit.length}</div></div>
       <div class="kpi"><div class="l">Pendientes</div><div class="v">${rows.length}</div></div>
       <div class="kpi"><div class="l">Monto involucrado en cobros</div><div class="v">${money(rows.filter((i) => i.kind === 'cobro').reduce((t, i) => t + Number(i.amount || 0), 0))}</div></div>`);
+    const rCount = (k) => rows.filter((i) => i.kind === k).length;
+    const nRadicar = rCount('radicar'), nRetiro = rCount('retiro'), nInconsist = rCount('inconsistencia'), nReenvio = rCount('reenvio');
+    const focus = $('#focus', main);
+    if (focus) paint(focus, nRadicar ? html`<div class="note ok" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nRadicar} lista${nRadicar > 1 ? 's' : ''} para radicar</b> — el siguiente paso es agruparlas y enviarlas a la ARS.</div>
+        <a class="btn" href="#/radicaciones">Ir a radicaciones →</a>
+      </div>` : nRetiro ? html`<div class="note info" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nRetiro} reclamación${nRetiro > 1 ? 'es' : ''} por retirar</b> — pendientes de búsqueda y retiro físico.</div>
+        <a class="btn" href="#/retiros">Ir a retiros →</a>
+      </div>` : nInconsist ? html`<div class="note warn" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nInconsist} con inconsistencia</b> — revisar y corregir antes de radicar.</div>
+        <a class="btn" href="#/reclamaciones">Ver reclamaciones →</a>
+      </div>` : nReenvio ? html`<div class="note bad" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="flex:1"><b>${nReenvio} devuelta${nReenvio > 1 ? 's' : ''} por la ARS</b> — verificar motivo y reenviar.</div>
+        <a class="btn" href="#/reclamaciones">Ver reclamaciones →</a>
+      </div>` : html``);
     if (!rows.length) { paint($('#l', main), emptyView('Todo al día', mode === 'todo' ? 'No hay pendientes accionables hoy.' : 'Nada pendiente con este filtro. Prueba con "Todo".')); return; }
     const groups = ORDER.map((k) => [k, rows.filter((i) => i.kind === k)]).filter(([, r]) => r.length);
-    paint($('#l', main), html`${groups.map(([k, r]) => html`<details class="card" style="margin-bottom:14px" open><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px"><h2 style="margin:0">${GROUPS[k]} · ${r.length}</h2><span class="small muted" style="margin-left:auto">▾</span></summary><div class="list" style="margin-top:10px">
-      ${r.sort((a, b) => ['critica', 'alta', 'media', 'info'].indexOf(a.severity) - ['critica', 'alta', 'media', 'info'].indexOf(b.severity) || String(a.due_on || '9').localeCompare(String(b.due_on || '9'))).map((i) => html`<div class="li">
+    const daysLeft = (d) => d ? Math.round((new Date(d) - new Date()) / 86400000) : null;
+    const rowFor = (i) => {
+      if (i.kind === 'autorizacion' && ctx.role === 'client') {
+        const d = daysLeft(i.due_on);
+        const col = d != null && d < 15 ? 'var(--bad)' : d != null && d < 30 ? 'var(--warn)' : 'var(--ok)';
+        const colBg = d != null && d < 15 ? 'var(--bad-bg)' : d != null && d < 30 ? 'var(--warn-bg)' : 'var(--ok-bg)';
+        return html`<div class="li" style="align-items:flex-start">
+          <div style="width:48px;height:48px;border-radius:10px;background:${colBg};color:${col};display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:18px;line-height:1;flex-shrink:0">
+            ${d != null ? d : '—'}<div style="font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;opacity:.7">días</div>
+          </div>
+          <div class="b"><div class="t1">${canOpen(link(i), ctx.role) ? html`<a href="${link(i)}">${i.title}</a>` : html`<b>${i.title}</b>`}</div>
+            <div class="t2">${i.detail || ''}${i.due_on ? ` · vence ${date(i.due_on)}` : ''}</div></div>
+          ${i.amount != null && Number(i.amount) > 0 ? html`<b class="small">${money(i.amount)}</b>` : ''}
+          ${canOpen(link(i), ctx.role) ? html`<a class="btn sm" href="${link(i)}">Ver →</a>` : ''}</div>`;
+      }
+      return html`<div class="li">
         <span class="pill ${SEV[i.severity]?.[1] || ''}" style="min-width:64px;justify-content:center">${SEV[i.severity]?.[0] || i.severity}</span>
         <div class="b"><div class="t1">${canOpen(link(i), ctx.role) ? html`<a href="${link(i)}">${i.title}</a>` : html`<b>${i.title}</b>`}${i.mine ? html` <span class="pill info">Mío</span>` : ''}</div>
           <div class="t2">${i.detail || ''}${i.client_name && isStaff(ctx.role) ? ` · ${i.client_name}` : ''}${i.due_on ? ` · ${date(i.due_on)}` : ''}</div></div>
         ${i.amount != null && Number(i.amount) > 0 ? html`<b class="small">${money(i.amount)}</b>` : ''}
-        ${i.kind === 'tarea' && isStaff(ctx.role) ? html`<button class="btn sm" data-done="${i.entity_id}">Completar</button>` : ''}</div>`)}</div></details>`)}`);
+        ${i.kind === 'tarea' && isStaff(ctx.role) ? html`<button class="btn sm" data-done="${i.entity_id}">Completar</button>` : ''}</div>`;
+    };
+    paint($('#l', main), html`${groups.map(([k, r]) => html`<details class="card" style="margin-bottom:14px" open><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px"><h2 style="margin:0">${GROUPS[k]} · ${r.length}</h2><span class="small muted" style="margin-left:auto">▾</span></summary><div class="list" style="margin-top:10px">
+      ${r.sort((a, b) => ['critica', 'alta', 'media', 'info'].indexOf(a.severity) - ['critica', 'alta', 'media', 'info'].indexOf(b.severity) || String(a.due_on || '9').localeCompare(String(b.due_on || '9'))).map(rowFor)}</div></details>`)}`);
   };
   const load = async () => {
     paint($('#l', main), loadingView(5));

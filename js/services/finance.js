@@ -16,8 +16,9 @@ function applyOnlyReal(q, ids, column = 'organization_id') {
 export const GLOSA_OPEN = ['pendiente', 'analizada', 'apelada', 'en_revision', 'en_conciliacion', 'en_arbitraje'];
 
 // ---- Glosas
+const GLOSA_LIST_COLS = 'id, glosa_folio, folio, period, ars_reference, provider_name, client_name, ars_name, main_reason, items, amount, in_dispute, status, appeal_deadline, days_left, submission_id';
 export async function listGlosas({ group = 'abiertas', arsId = '', q = '', submissionId = '', page = 0, size = 25, realOnly = false } = {}) {
-  let query = sb().from('v_glosas').select('*', { count: 'exact' });
+  let query = sb().from('v_glosas').select(GLOSA_LIST_COLS, { count: 'exact' });
   if (realOnly) query = applyOnlyReal(query, await realOrgIds());
   if (group === 'abiertas') query = query.in('status', GLOSA_OPEN);
   if (group === 'resueltas') query = query.not('status', 'in', `(${GLOSA_OPEN.join(',')})`);
@@ -27,8 +28,8 @@ export async function listGlosas({ group = 'abiertas', arsId = '', q = '', submi
   return withCount(await query.order('appeal_deadline', { ascending: group === 'abiertas' }).range(page * size, page * size + size - 1));
 }
 export async function glosaSummary({ realOnly = false } = {}) { let q = sb().from('v_glosas').select('organization_id, status, amount, accepted, recovered, in_dispute, days_left'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
-export async function glosaPareto({ realOnly = false } = {}) { let q = sb().from('v_glosa_pareto').select('*'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
-export async function arsReconciliation({ realOnly = false } = {}) { let q = sb().from('v_ars_reconciliation').select('*'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
+export async function glosaPareto({ realOnly = false } = {}) { let q = sb().from('v_glosa_pareto').select('reason_name, ars_id, ars_name, amount'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
+export async function arsReconciliation({ realOnly = false } = {}) { let q = sb().from('v_ars_reconciliation').select('ars_id, ars, radicado, pagado, glosa_aceptada, saldo'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
 export async function getGlosa(id) { return must(await sb().from('v_glosas').select('*').eq('id', id).maybeSingle()); }
 export async function glosaItems(id) {
   return must(await sb().from('glosa_items').select('id, service_line_id, reason_code, amount, accepted_amount, recovered_amount, notes, glosa_reasons(name, category), service_lines(claim_folio, patient_name, service_date, member_number, procedures(description))').eq('glosa_id', id));
@@ -49,8 +50,9 @@ export async function appealGlosa(id, argument, submittedOn, templateId = null) 
 export async function resolveGlosa(id, items, comment = null) { return must(await sb().rpc('resolve_glosa', { p_glosa: id, p_items: items, p_comment: comment })); }
 
 // ---- Pagos de ARS
+const PAYMENT_LIST_COLS = 'id, paid_on, client_name, ars_name, ars_id, payment_folio, reference, method, folios, amount, sofa_fee, organization_id';
 export async function listPayments({ arsId = '', orgId = '', q = '', page = 0, size = 25, realOnly = false } = {}) {
-  let query = sb().from('v_payments').select('*', { count: 'exact' });
+  let query = sb().from('v_payments').select(PAYMENT_LIST_COLS, { count: 'exact' });
   if (realOnly) query = applyOnlyReal(query, await realOrgIds());
   if (arsId) query = query.eq('ars_id', arsId);
   if (orgId) query = query.eq('organization_id', orgId);
@@ -76,9 +78,10 @@ export async function submissionPayments(submissionId) {
 }
 
 // ---- Honorarios SOFA
-export async function feeSummary({ realOnly = false } = {}) { let q = sb().from('v_fee_summary').select('*'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.order('client_name')); }
+export async function feeSummary({ realOnly = false } = {}) { let q = sb().from('v_fee_summary').select('organization_id, client_name, rules, accrued, uninvoiced, invoiced, collected'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.order('client_name')); }
+const INVOICE_LIST_COLS = 'id, status, folio, issued_on, due_on, client_name, period, ncf, total, balance, days_overdue, organization_id';
 export async function listInvoices({ status = '', page = 0, size = 25, realOnly = false } = {}) {
-  let q = sb().from('v_sofa_invoices').select('*', { count: 'exact' });
+  let q = sb().from('v_sofa_invoices').select(INVOICE_LIST_COLS, { count: 'exact' });
   if (realOnly) q = applyOnlyReal(q, await realOrgIds());
   if (status === 'pendientes') q = q.in('status', ['emitida', 'pagada_parcial']);
   if (status === 'pagadas') q = q.eq('status', 'pagada');
@@ -114,7 +117,7 @@ export async function updateOperatorProfile(v) {
 export async function feeScheme(orgId) { return must(await sb().rpc('fee_scheme', { p_org: orgId })); }
 export async function setFeeScheme(orgId, mode, fixed, rate, from) { return must(await sb().rpc('set_fee_scheme', { p_org: orgId, p_mode: mode, p_fixed: fixed ?? null, p_rate: rate ?? null, p_from: from })) || true; }
 export async function listServiceContracts(orgId = null) {
-  let q = sb().from('v_service_contracts').select('*').order('created_at', { ascending: false }).limit(200);
+  let q = sb().from('v_service_contracts').select('id, folio, legal_name, service_name, total_amount, status, description, plan, invoiced, cancel_reason, schedule, organization_id').order('created_at', { ascending: false }).limit(200);
   if (orgId) q = q.eq('organization_id', orgId);
   return must(await q);
 }

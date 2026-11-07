@@ -8,6 +8,8 @@ import { mountOpeningHistory } from './opening-history.js';
  *  Quién puede qué lo decide el servidor en cada función; los botones se ocultan solo para que nadie vea lo que no puede hacer. */
 import { rpc, h, money, fmtDate, note, kpi, guarded, todayIso, clientOptions, clientName } from '../services/iter18.js';
 import { readTable, excelDate, detectColumns } from '../utils/xlsx-lite.js';
+import { confirmDialog, formDialog } from '../utils/ui.js';
+import { html } from '../utils/dom.js';
 
 const MANAGE = ['super_admin', 'admin', 'glosas'];   // cargar, resolver, ignorar y convertir en glosa
 const APPLY = ['super_admin', 'admin'];              // aplicar el pago (mueve dinero)
@@ -290,7 +292,7 @@ export async function render(root, ctx = {}) {
     const n = toApply.length;
     const go = h('button', { class: 'i18-btn', type: 'button', id: 'ap-apply', disabled: !canApply || !n }, `Aplicar las ${n} seguras (${money(r.to_apply_amount)})`);
     go.addEventListener('click', async () => {
-      if (!window.confirm(`Se registrará el pago de las coincidencias seguras (${money(r.to_apply_amount)}) y se repartirá por reclamación. ¿Continuar?`)) return;
+      if (!(await confirmDialog('Aplicar coincidencias seguras', `Se registrará el pago de las coincidencias seguras (${money(r.to_apply_amount)}) y se repartirá por reclamación.`, 'Aplicar'))) return;
       go.disabled = true;
       let applied = 0; let amount = 0; const skipped = [];
       try {
@@ -330,8 +332,14 @@ export async function render(root, ctx = {}) {
 
   function ignoreBtn(l) {
     const b = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: !canManage }, 'Ignorar esta fila');
-    b.addEventListener('click', () => {
-      const why = window.prompt('¿Por qué se ignora esta fila? (por ejemplo: paciente privado, no es de esta ARS)'); if (why == null) return;
+    b.addEventListener('click', async () => {
+      const why = await formDialog({
+        title: 'Ignorar fila',
+        body: html`<div class="field"><label for="dlg-ignore-reason">Motivo *</label><textarea id="dlg-ignore-reason" name="reason" rows="2" required maxlength="300" placeholder="Ej.: paciente privado, no es de esta ARS"></textarea></div>`,
+        submitLabel: 'Ignorar',
+        onSubmit: (d) => { if (!d.reason.trim()) throw new Error('El motivo es obligatorio.'); return d.reason.trim(); }
+      });
+      if (why == null) return;
       act(() => rpc('remittance_ignore', { p_line: l.id, p_reason: why }), 'Fila ignorada.');
     });
     return b;
@@ -357,8 +365,8 @@ export async function render(root, ctx = {}) {
 
   function drawDiferencias(body, lines, diff) {
     const all = h('button', { class: 'i18-btn', type: 'button', id: 'ap-glosa-all', disabled: !canManage || !diff.lines }, `Convertir todas en glosa (${diff.lines} · ${money(diff.amount)})`);
-    all.addEventListener('click', () => {
-      if (!window.confirm(`Se creará la glosa por ${money(diff.amount)} con la causa que dijo la ARS. ¿Continuar?`)) return;
+    all.addEventListener('click', async () => {
+      if (!(await confirmDialog('Crear glosas de diferencias', `Se creará la glosa por ${money(diff.amount)} con la causa que dijo la ARS.`, 'Crear glosas'))) return;
       act(() => rpc('remittance_to_glosa', { p_remittance: openId, p_line_ids: null }), (x) => `Glosa creada: ${x.lines} línea(s), ${money(x.amount)}.${(x.skipped || []).length ? ` ${x.skipped.length} no se pudieron convertir: ${x.skipped[0].reason}` : ''}`);
     });
     body.append(note('Diferencias: lo que la ARS pagó de menos y lo que rechazó. Con un clic se convierten en glosa de la radicación, con la referencia de esta relación.'),
@@ -381,9 +389,17 @@ export async function render(root, ctx = {}) {
     body.append(table([{ t: 'Fila del archivo' }, { t: 'Pagado', r: 1 }, { t: 'Motivo' }, { t: '' }],
       lines.map((l) => {
         const b = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: !canManage }, l.state === 'duplicado' ? 'No es duplicado' : 'Reabrir');
-        b.addEventListener('click', () => {
+        b.addEventListener('click', async () => {
           let why = null;
-          if (l.state === 'duplicado') { why = window.prompt('¿Por qué no es un duplicado? (por ejemplo: segundo pago parcial real de la misma autorización)'); if (why == null) return; }
+          if (l.state === 'duplicado') {
+            why = await formDialog({
+              title: 'Reabrir fila duplicada',
+              body: html`<div class="field"><label for="dlg-dup-reason">¿Por qué no es un duplicado? *</label><textarea id="dlg-dup-reason" name="reason" rows="2" required maxlength="300" placeholder="Ej.: segundo pago parcial real de la misma autorización"></textarea></div>`,
+              submitLabel: 'Reabrir',
+              onSubmit: (d) => { if (!d.reason.trim()) throw new Error('El motivo es obligatorio.'); return d.reason.trim(); }
+            });
+            if (why == null) return;
+          }
           act(() => rpc('remittance_reopen', { p_line: l.id, p_reason: why }), 'Línea reabierta: el motor la volvió a revisar.');
         });
         return h('tr', {}, h('td', {}, fileText(l)), h('td', { class: 'i18-r' }, money(l.paid)), h('td', {}, l.state === 'duplicado' ? l.reason : (l.note || '—')), h('td', {}, b));
