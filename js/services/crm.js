@@ -4,8 +4,9 @@ const must = ({ data, error }) => { if (error) throw error; return data; };
 const clean = (q) => String(q || '').replace(/[%*,()\\]/g, ' ').trim();
 
 // ---- Oportunidades
+const OPP_LIST_COLS = 'id, company, stage, closed_on, estimated_value, weighted_value, overdue, next_action, next_action_date, days_in_stage, owner_name, owner_id, probability, service_code, source, lead_id, converted_org_id, organization_id';
 export async function listOpportunities({ q = '', owner = '', service = '', includeClosed = false, organizationId = null } = {}) {
-  let query = sb().from('v_opportunities').select('*');
+  let query = sb().from('v_opportunities').select(OPP_LIST_COLS);
   if (!includeClosed) query = query.not('stage', 'in', '(cliente,perdido)');
   if (q) query = query.ilike('company', `%${clean(q)}%`);
   if (owner) query = query.eq('owner_id', owner);
