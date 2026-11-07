@@ -39,7 +39,7 @@ export async function listEntities({ kind = '', q = '' } = {}) {
   return must(await query.order('kind').order('name').limit(500));
 }
 export async function getEntity(id) { return must(await sb().from('v_intel_entities').select('*').eq('id', id).maybeSingle()); }
-export async function entityNotes(id) { return must(await sb().from('intel_entity_notes').select('*').eq('entity_id', id).order('observed_on', { ascending: false }).limit(200)); }
+export async function entityNotes(id) { return must(await sb().from('intel_entity_notes').select('id, note, observed_on, created_by, source_url').eq('entity_id', id).order('observed_on', { ascending: false }).limit(200)); }
 export async function saveEntity(operatorId, v, id = null) {
   if (id) return must(await sb().from('intel_entities').update(v).eq('id', id).select('id').single());
   return must(await sb().from('intel_entities').insert({ ...v, operator_id: operatorId }).select('id').single());
@@ -61,7 +61,7 @@ export async function saveIdea(operatorId, v, id = null) {
 }
 
 // ---- Fuentes y corridas (Admin)
-export async function listSources() { return must(await sb().from('intel_sources').select('*').order('is_active', { ascending: false }).order('name')); }
+export async function listSources() { return must(await sb().from('intel_sources').select('id, name, kind, lang, is_active, query, topic, weight').order('is_active', { ascending: false }).order('name')); }
 export async function saveSource(operatorId, v, id = null) {
   if (id) return must(await sb().from('intel_sources').update(v).eq('id', id).select('id').single());
   return must(await sb().from('intel_sources').insert({ ...v, operator_id: operatorId }).select('id').single());
