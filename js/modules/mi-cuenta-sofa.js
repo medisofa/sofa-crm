@@ -79,7 +79,7 @@ export async function render(root, ctx = {}) {
   }
 
   const table = (head, rows) => h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
-    h('thead', {}, h('tr', {}, head.map((x) => h('th', {}, x)))), h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x) => h('td', {}, x)))))));
+    h('thead', {}, h('tr', {}, head.map((x) => h('th', {}, x)))), h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x, ci) => h('td', { 'data-l': head[ci] || '' }, x)))))));
 
   await load();
   const want = String(ctx.arg || '');

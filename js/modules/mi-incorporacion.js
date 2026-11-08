@@ -88,8 +88,10 @@ function checklistCard(c, onSubmitted) {
               if (upErr) throw upErr;
               storagePath = path; storedName = ready.name;
             }
+            const savedY = window.scrollY;
             await rpc('habilitation_item_submit', { p_item: i.id, p_note: val, p_storage_path: storagePath, p_file_name: storedName });
             await onSubmitted();
+            window.scrollTo({ top: savedY, behavior: 'instant' });
           } catch (err) { btn.disabled = false; errOut.append(note(err.message || 'No se pudo registrar la entrega.', 'error')); }
         });
         row.append(h('div', { class: 'i18-actions' }, input, fileLabel, fileStatus, btn), errOut);
