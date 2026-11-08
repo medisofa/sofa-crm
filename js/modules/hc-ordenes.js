@@ -1,6 +1,7 @@
 /** SOFA · 2.4 · Iteración 34 · Recetas, órdenes de laboratorio e imágenes y referimientos (historia clínica fase C).
  *  Se firman al guardar (huella SHA-256) y no se modifican. Se imprimen con los datos del médico y del paciente. */
 import { h, fmtDate, note, guarded } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 
 const KINDS = { receta: 'Receta', laboratorio: 'Laboratorio', imagen: 'Imágenes', referimiento: 'Referimiento' };
 const fmtTs = (iso) => (iso ? new Date(iso).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' }) : '—');
@@ -65,7 +66,7 @@ export function orderForm(pane, patientId, noteId, rpc, onDone) {
       const its = items.map((r) => Object.fromEntries(Object.entries(r).map(([key, el]) => [key, el.value.trim()]).filter(([, v]) => v))).filter((x) => Object.keys(x).length);
       c = { items: its, [k === 'receta' ? 'indicaciones' : 'indicacion']: pane.querySelector('#or-ind').value.trim() };
     }
-    if (!confirm('Al firmar, la orden queda guardada y no se puede modificar. ¿Firmar ahora?')) return;
+    if (!await confirmDialog('Firmar orden', 'Al firmar, la orden queda guardada y no se puede modificar.', 'Firmar ahora', true)) return;
     save.disabled = true;
     try { const r = await rpc('create_clinical_order', { p_patient: patientId, p_kind: k, p_content: c, p_note: noteId }); const np = await onDone?.(); printOrder(np && np.isConnected ? np : pane, r.id, rpc); }
     catch (e) { msg.replaceChildren(note(e.message, 'error')); save.disabled = false; }

@@ -2,6 +2,7 @@
  *  cobrados según SU tarifario, en cualquiera de los centros de su ficha. La base valida todo (centro de su ficha,
  *  precio del tarifario, reporte en firme al enviar). Ocultar un botón aquí no es un control. */
 import { rpc, h, note, guarded, money, fmtDate } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 import { canSee } from '../utils/permissions.js';
 
@@ -97,7 +98,7 @@ export async function render(root, context = {}) {
       r.puede_editar ? sendBtn(r) : printBtn(r), out));
 
     function delBtn(lineId) { const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar'); b.addEventListener('click', async () => { try { const rr = await rpc('hospital_report_line_remove', { p_line: lineId }); drawReport(rr); await loadList(); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
-    function sendBtn(rep) { const b = h('button', { class: 'i18-btn', type: 'button' }, 'Enviar y avisar a SoFa'); b.addEventListener('click', async () => { if (!rep.admission_date) { out.replaceChildren(note('Indica la fecha de ingreso antes de enviar el reporte.', 'warn')); return; } if (!confirm('¿Enviar el reporte y avisar al equipo de SoFa? Después no se edita.')) return; try { const rr = await rpc('hospital_report_submit', { p_report: rep.id }); await loadList(); drawReport(rr); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
+    function sendBtn(rep) { const b = h('button', { class: 'i18-btn', type: 'button' }, 'Enviar y avisar a SoFa'); b.addEventListener('click', async () => { if (!rep.admission_date) { out.replaceChildren(note('Indica la fecha de ingreso antes de enviar el reporte.', 'warn')); return; } if (!await confirmDialog('Enviar reporte', '¿Enviar el reporte y avisar al equipo de SoFa? Después no se edita.', 'Enviar', true)) return; try { const rr = await rpc('hospital_report_submit', { p_report: rep.id }); await loadList(); drawReport(rr); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
     function printBtn(rep) {
       const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Imprimir');
       b.addEventListener('click', () => {
