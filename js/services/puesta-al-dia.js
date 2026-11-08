@@ -6,12 +6,14 @@
 import { sb } from '../supabase.js';
 
 const must = ({ data, error }) => { if (error) throw error; return data; };
+const clean = (q) => String(q || '').replace(/[%*,()\\]/g, ' ').trim();
 
 export async function findDuplicateClaim({ providerId, memberNumber, serviceDate, authorization }) {
   let q = sb().from('v_claims').select('id, folio, patient_name, service_date, claim_status, submission_id, submission_folio')
     .eq('provider_id', providerId).neq('claim_status', 'cerrada').limit(5);
-  if (authorization) q = q.or(`member_number.eq.${memberNumber},authorization_number.eq.${authorization}`);
-  else q = q.eq('member_number', memberNumber);
+  const m = clean(memberNumber), a = authorization ? clean(authorization) : null;
+  if (a) q = q.or(`member_number.eq.${m},authorization_number.eq.${a}`);
+  else q = q.eq('member_number', m);
   const rows = must(await q);
   return rows.find((r) => r.service_date === serviceDate) || rows[0] || null;
 }

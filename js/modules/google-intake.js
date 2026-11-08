@@ -75,6 +75,8 @@ function changedValues(before, after){
 
 export async function render(main, ctx){
   const S={draftId:null,providers:[],ars:[],rows:[],validated:[],busy:false,initializing:true,sourceName:'',editor:null,auditCursor:0,batchId:crypto.randomUUID?.()||String(Date.now())};
+  // Caché de tarifas por (provider/ars/fecha) para evitar N+1 en validaciones masivas
+  const svcCache=new Map();
   paint(main,html`
     <div class="page-head"><div class="t"><h2>Carga Google Sheets / Form</h2>
       <p>Importa reclamaciones capturadas fuera de SOFA. Si faltan datos, el mismo usuario puede completarlos aquí antes de importar; cada cambio queda en bitácora.</p></div>
@@ -134,7 +136,9 @@ export async function render(main, ctx){
     let service=null, tariff=null;
     if(provider&&ars&&serviceDate){
       try{
-        const services=await contractedServices(provider.id,ars.id,serviceDate);
+        const ck=`${provider.id}/${ars.id}/${serviceDate}`;
+        if(!svcCache.has(ck))svcCache.set(ck,await contractedServices(provider.id,ars.id,serviceDate));
+        const services=svcCache.get(ck);
         const wanted=r['Servicio / Procedimiento *']; const n=norm(wanted);
         const hits=services.filter((s)=>[s.name,s.cups,s.simon,s.internal_code,s.ars_service_code].some((v)=>norm(v)===n));
         if(hits.length===1){service=hits[0];tariff=Number(service.amount);}
@@ -444,7 +448,8 @@ export async function render(main, ctx){
     flush:async()=>{if(S.busy)throw Error('Hay una acción de la carga en proceso. Termine o cancele la acción antes de actualizar.');await autosave.flush();}});
   const onlineSave=()=>{if(autosave.pending())autosave.flush().catch(()=>{});};
   window.addEventListener('online',onlineSave);
-  window.addEventListener('hashchange',()=>{if(autosave.pending())autosave.flush().catch(()=>{});},{once:true});
+  // Al navegar a otra pantalla: descarga el listener y hace un último flush
+  window.addEventListener('hashchange',()=>{window.removeEventListener('online',onlineSave);if(autosave.pending())autosave.flush().catch(()=>{});},{once:true});
   function restoreFeedback(saved){
     clearActionFeedback();
     for(const item of saved?.actions||[]){
@@ -569,7 +574,7 @@ export async function render(main, ctx){
       if(missing.length)throw Error(`Faltan columnas obligatorias: ${missing.join(', ')}. Use la plantilla oficial.`);
       if(rows)S.rows=toObjects(rows);if(S.rows.length>1000)throw Error('El máximo por carga es de 1,000 filas. Divida el archivo.');
       snapshotChanged();await autosave.flush();
-      S.validated=[];for(const r of S.rows)S.validated.push(await validateRow(r));
+      svcCache.clear();S.validated=[];for(const r of S.rows)S.validated.push(await validateRow(r));
     }
     await refreshReview();validate.textContent='Volver a validar correcciones';
     const issues=S.validated.filter(v=>v.errors.length).length;return {state:issues?'warning':'success',message:`Archivo revisado: ${S.validated.length} fila(s), ${issues} con observaciones`};
