@@ -58,8 +58,9 @@ export async function profileNames(ids) {
 }
 
 // ---- Servicios (líneas)
+const LINE_COLS = 'id, service_date, patient_name, patient_doc, member_number, authorization_number, procedure_id, quantity, unit_amount, tariff_amount, contracted, amount, claim_folio, claim_status, notes, procedures(internal_code, description, service_type_code)';
 export async function listLines(submissionId) {
-  return must(await sb().from('service_lines').select('*, procedures(internal_code, description, service_type_code)').eq('submission_id', submissionId).order('service_date').order('created_at'));
+  return must(await sb().from('service_lines').select(LINE_COLS).eq('submission_id', submissionId).order('service_date').order('created_at'));
 }
 export async function lineChecklist(submissionId) {
   return must(await sb().from('v_line_checklist').select('service_line_id, required, present, pct, complete').eq('submission_id', submissionId));
