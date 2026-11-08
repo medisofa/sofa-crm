@@ -29,7 +29,21 @@ export async function render(root) {
   async function act(btn, fn, okText) {
     btn.disabled = true; msg.replaceChildren();
     try { const r = await fn(); msg.replaceChildren(note(okText(r))); await load(); }
-    catch (e) { msg.replaceChildren(note(e.message, 'error')); }
+    catch (e) {
+      if (/tel[eé]fono/i.test(e.message)) {
+        // Error de teléfono del servidor: añadir guía accionable con deep links
+        msg.replaceChildren(h('div', { class: 'i18-note i18-error', role: 'alert' },
+          e.message,
+          h('br'),
+          '→ Si es el teléfono de un médico: ', h('a', { href: '#/mi-ficha' }, 'Mi ficha'), ' → corrija el campo «Teléfono».',
+          h('br'),
+          '→ Si es el teléfono de un paciente: ', h('a', { href: '#/pacientes' }, 'Pacientes'), ' → busque al paciente → corrija su teléfono.',
+          h('br'),
+          'Luego descarte el mensaje pendiente y vuelva a generar.'));
+      } else {
+        msg.replaceChildren(note(e.message, 'error'));
+      }
+    }
     finally { btn.disabled = false; }
   }
   const genRem = h('button', { class: 'i18-btn', type: 'button' }, 'Generar recordatorios');
@@ -77,7 +91,7 @@ export async function render(root) {
     const link = waLink(m.to_phone, portal ? withoutLink(m.body) : m.body);
     const open = h('a', { class: 'i18-btn', href: link || '#', target: '_blank', rel: 'noopener noreferrer', 'aria-disabled': link ? null : 'true' }, 'Abrir en WhatsApp');
     open.addEventListener('click', async (ev) => {
-      if (!link) { ev.preventDefault(); return; }   // el aviso ya aparece inline en la tarjeta
+      if (!link) { ev.preventDefault(); if (noPhone) noPhone.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       if (portal) {
         // La ventana se abre ya (si no, el navegador la bloquea) y luego se le pone la dirección con el enlace recién creado.
         ev.preventDefault();
