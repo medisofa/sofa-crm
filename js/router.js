@@ -71,7 +71,9 @@ export const MODULES = {
   // 5.12.0 · médico · reporte para el contador
   'reporte-contador': 'reporte-contador.js',
   // 5.28.0 · admin · historial de acciones del sistema
-  'historial': 'historial-acciones.js'
+  'historial': 'historial-acciones.js',
+  // 5.29.0 · médico · panel unificado (cobros ARS + habilitación + cuenta SOFA)
+  'mi-panel': 'mi-panel.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
