@@ -540,8 +540,9 @@ export const extraNav = (role) => allRoutes().filter(
 export const isStaff = (role) => !!ROLES[role]?.staff;
 /** ¿Puede este rol abrir el enlace? (#/radicaciones/123 → módulo "radicaciones"). Para no mostrar enlaces que llevan a "Sin acceso". */
 export const canOpen = (href, role) => canSee(String(href || '').replace(/^#\/?/, '').split('/')[0], role);
-/** Ruta inicial por rol. 1.9: todos entran a «Mi dashboard», que muestra las cifras de su rol y accesos a sus módulos. */
-export const homeRoute = (role) => (role === 'prospect' ? 'mi-incorporacion' : canSee('mi-dashboard', role) ? 'mi-dashboard' : (role === 'capturer' || role === 'billing' ? 'hoy' : 'inicio'));
+/** Ruta inicial por rol. 1.9: todos entran a «Mi dashboard», que muestra las cifras de su rol y accesos a sus módulos.
+ *  5.29.0: el rol «client» entra ahora a «Mi panel» (panel unificado con cobros ARS, habilitación y cuenta SOFA). */
+export const homeRoute = (role) => (role === 'prospect' ? 'mi-incorporacion' : role === 'client' ? 'mi-panel' : canSee('mi-dashboard', role) ? 'mi-dashboard' : (role === 'capturer' || role === 'billing' ? 'hoy' : 'inicio'));
 /** Acciones de interfaz (espejo de la matriz de permisos de 003_rls.sql) */
 const ACTIONS = {
   'settings.edit': ['super_admin'],
