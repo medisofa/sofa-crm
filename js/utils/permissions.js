@@ -168,6 +168,7 @@ export const NAV = [
     { route: 'historial', label: 'Historial de acciones', roles: ['super_admin', 'admin'], ready: true }   // 5.28.0
   ]},
   { group: 'Mi cuenta', items: [
+    { route: 'mi-panel', label: 'Mi panel', roles: ['client'], ready: true },   // 5.29.0 · panel unificado del cliente
     { route: 'mi-cuenta-sofa', label: 'Mi cuenta con SOFA', roles: ['client'], ready: true },   // 3.0 · Iteración 40
     { route: 'clinica', label: 'Mi clínica', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.6 · I66
     { route: 'mi-plan', label: 'Mi plan', roles: ['client', 'super_admin', 'admin', 'operations', 'assistant'], ready: true },   // 4.8 · P1: consumo y límites del plan
@@ -215,7 +216,7 @@ export const ESENCIALES = {
            'captura', 'hospitalizacion',
            'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados',
            'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros',
-           'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'],
+           'mi-panel', 'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'],
     // 18/10/2026: estas cinco vuelven, pero SOLO en «extra»: alcanzables desde un botón de
     // «Mi dinero» o «Mis glosas», sin llenarle el menú. Sin esto, el PDF del estado de cuenta
     // y las fechas de cobro quedaban construidos y fuera del alcance del médico, y tres notas
@@ -450,7 +451,7 @@ export const FAMILIAS_ROL = {
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
     { key: 'dinero',      group: 'Mi dinero',     routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados'] },
     { key: 'consultorio', group: 'Mi consultorio',routes: ['mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica'] },
-    { key: 'cuenta',      group: 'Mi cuenta',     routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
+    { key: 'cuenta',      group: 'Mi cuenta',     routes: ['autoentrenamiento', 'mi-panel', 'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'] }
   ],
 
   // 30/10/2026 · Secretaria: agenda y pacientes del médico que la asignó, captura y cobro al
@@ -539,8 +540,9 @@ export const extraNav = (role) => allRoutes().filter(
 export const isStaff = (role) => !!ROLES[role]?.staff;
 /** ¿Puede este rol abrir el enlace? (#/radicaciones/123 → módulo "radicaciones"). Para no mostrar enlaces que llevan a "Sin acceso". */
 export const canOpen = (href, role) => canSee(String(href || '').replace(/^#\/?/, '').split('/')[0], role);
-/** Ruta inicial por rol. 1.9: todos entran a «Mi dashboard», que muestra las cifras de su rol y accesos a sus módulos. */
-export const homeRoute = (role) => (role === 'prospect' ? 'mi-incorporacion' : canSee('mi-dashboard', role) ? 'mi-dashboard' : (role === 'capturer' || role === 'billing' ? 'hoy' : 'inicio'));
+/** Ruta inicial por rol. 1.9: todos entran a «Mi dashboard», que muestra las cifras de su rol y accesos a sus módulos.
+ *  5.29.0: el rol «client» entra ahora a «Mi panel» (panel unificado con cobros ARS, habilitación y cuenta SOFA). */
+export const homeRoute = (role) => (role === 'prospect' ? 'mi-incorporacion' : role === 'client' ? 'mi-panel' : canSee('mi-dashboard', role) ? 'mi-dashboard' : (role === 'capturer' || role === 'billing' ? 'hoy' : 'inicio'));
 /** Acciones de interfaz (espejo de la matriz de permisos de 003_rls.sql) */
 const ACTIONS = {
   'settings.edit': ['super_admin'],

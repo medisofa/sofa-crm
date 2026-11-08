@@ -17,10 +17,13 @@ const ITEM_STATUS = { pendiente: ['Sin evaluar', ''], verde: ['Verde · listo', 
 
 function checklistCard(c, onSubmitted) {
   const counts = c.counts || {};
+  const pct = counts.applicable ? Math.round(100 * (counts.verde || 0) / counts.applicable) : 0;
   const card = h('section', { class: 'i18-card', 'aria-label': `Checklist de ${c.name}` },
     h('div', { class: 'i18-sub' }, `${c.name} · ${c.type}${c.kind === 'renovacion' ? ' · Renovación' : ''}`),
     h('div', {}, h('span', { class: 'i18-badge i18-esta_semana' }, HAB[c.stage] || c.stage_label || c.stage)),
-    h('p', { class: 'i18-sub' }, `${counts.verde || 0} de ${counts.applicable || 0} requisitos en verde${counts.critical_open ? ` · ${counts.critical_open} crítico(s) pendiente(s)` : ''}`));
+    c.sofa_reset_note ? note(`⚠ Caso reiniciado por SOFA: ${c.sofa_reset_note}`, 'warn') : null,
+    h('p', { class: 'i18-sub' }, `${counts.verde || 0} de ${counts.applicable || 0} requisitos en verde${counts.critical_open ? ` · ${counts.critical_open} crítico(s) pendiente(s)` : ''}`),
+    h('div', { class: 'ac-progress', 'aria-hidden': 'true' }, h('div', { style: `width:${pct}%` })));
 
   for (const a of (c.areas || [])) {
     card.append(h('h4', { style: 'margin:14px 0 4px' }, a.area));
@@ -43,7 +46,11 @@ function checklistCard(c, onSubmitted) {
               if (error || !data?.signedUrl) throw error || new Error('No se pudo generar el enlace.');
               const win = window.open('', '_blank');
               if (win) { win.opener = null; win.location.href = data.signedUrl; }
-              else { row.append(note(`Abre el archivo manualmente: ${data.signedUrl}`, 'info')); }
+              else {
+                const p = h('p', { class: 'i18-sub' }, 'No se pudo abrir automáticamente. ');
+                p.append(h('a', { href: data.signedUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir documento →'));
+                row.append(p);
+              }
             } catch (err) {
               row.append(note(err.message || 'No se pudo abrir el documento.', 'error'));
             } finally { openBtn.disabled = false; }
@@ -64,12 +71,14 @@ function checklistCard(c, onSubmitted) {
           fileStatus.textContent = prob ? `⚠ ${prob}` : `📎 ${f.name} · ${sizeLabel(f.size)}`;
           fileStatus.style.display = '';
         });
+        const errOut = h('div', { 'aria-live': 'polite' });
         const btn = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Marcar como entregado');
         btn.addEventListener('click', async () => {
+          errOut.replaceChildren();
           const val = input.value.trim();
-          if (val.length < 5) { input.focus(); row.append(note('Cuente qué entregó y cómo (al menos 5 caracteres).', 'error')); return; }
+          if (val.length < 5) { input.focus(); errOut.append(note('Cuente qué entregó y cómo (al menos 5 caracteres).', 'error')); return; }
           const f = fileInput.files[0];
-          if (f) { const prob = fileProblem(f); if (prob) { row.append(note(prob, 'error')); return; } }
+          if (f) { const prob = fileProblem(f); if (prob) { errOut.append(note(prob, 'error')); return; } }
           btn.disabled = true;
           try {
             let storagePath = null; let storedName = null;
@@ -80,11 +89,13 @@ function checklistCard(c, onSubmitted) {
               if (upErr) throw upErr;
               storagePath = path; storedName = ready.name;
             }
+            const savedY = window.scrollY;
             await rpc('habilitation_item_submit', { p_item: i.id, p_note: val, p_storage_path: storagePath, p_file_name: storedName });
             await onSubmitted();
-          } catch (err) { btn.disabled = false; row.append(note(err.message || 'No se pudo registrar la entrega.', 'error')); }
+            window.scrollTo({ top: savedY, behavior: 'instant' });
+          } catch (err) { btn.disabled = false; errOut.append(note(err.message || 'No se pudo registrar la entrega.', 'error')); }
         });
-        row.append(h('div', { class: 'i18-actions' }, input, fileLabel, fileStatus, btn));
+        row.append(h('div', { class: 'i18-actions' }, input, fileLabel, fileStatus, btn), errOut);
       }
       card.append(row);
     }

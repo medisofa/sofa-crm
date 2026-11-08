@@ -94,8 +94,11 @@ function vista(st, cc, ym) {
   for (const a of conFecha.slice(0, 3)) {
     const d = diasDesdeHoy(a.next_expected);
     const cuando = d === 0 ? 'hoy' : d === 1 ? 'mañana' : fechaCorta(a.next_expected);
-    filas.push(h('li', { class: 'md-fila' },
-      h('span', {}, h('b', {}, a.ars), ' · ', h('span', { class: 'md-cuando' }, cuando)),
+    const urgPill = d !== null && d < 0
+      ? h('span', { class: 'i18-badge i18-atrasado', style: 'margin-left:4px' }, 'atrasado')
+      : null;
+    filas.push(h('li', { class: d !== null && d < 0 ? 'md-fila md-tarde' : 'md-fila' },
+      h('span', {}, h('b', {}, a.ars), ' · ', h('span', { class: 'md-cuando' }, cuando), urgPill),
       h('b', { class: 'md-monto' }, money(a.balance))));
   }
   for (const a of sinFecha.slice(0, 2)) {

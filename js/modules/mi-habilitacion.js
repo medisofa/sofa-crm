@@ -8,6 +8,7 @@ import { rpc, h, fmtDate, note, guarded, clientOptions, clientName } from '../se
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 import { sb } from '../supabase.js';
 import { compressImage, fileProblem, safeName, sizeLabel } from '../services/documents.js';
+import { friendlyError } from '../utils/ui.js';
 
 const ST = { verde: 'Listo', amarillo: 'Corregible (menos de 15 días)', rojo: 'Requiere inversión u obra', pendiente: 'Pendiente' };
 
@@ -32,9 +33,11 @@ export async function render(root, ctx = {}) {
 
   function caseCard(c, orgId) {
     const k = c.counts; const pct = k.applicable ? Math.round((100 * k.verde) / k.applicable) : 0;
-    const sim = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Simulacro de inspección (imprimir)');
+    const sim = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Revisión interna previa a la auditoría oficial. No genera efectos legales ni ante el MISPAS.' }, 'Simulacro de inspección (imprimir)');
     sim.addEventListener('click', () => simulacro(c));
     return h('section', { class: 'i18-card' }, h('h3', {}, `${c.name} · ${c.type}`),
+      c.sofa_reset_note ? note(`⚠ Caso reiniciado por SOFA: ${c.sofa_reset_note}`, 'warn') : null,
+      c.license_valid_until && c.license_days_left != null && c.license_days_left <= 30 ? note(`Su licencia de operación vence en ${c.license_days_left} día(s) (${fmtDate(c.license_valid_until)}). Gestione la renovación para evitar retrasos en la habilitación.`, 'warn') : null,
       h('div', { class: 'i18-sub' }, `${c.folio || ''} · ${c.stage_label}${c.target_date ? ` · meta ${fmtDate(c.target_date)}` : ''}${c.license_valid_until ? ` · licencia vence ${fmtDate(c.license_valid_until)} (${c.license_days_left} días)` : ''}${c.pss_code ? ` · PSS ${c.pss_code}` : ''}`),
       h('div', { class: 'mh-bar', role: 'img', 'aria-label': `${pct} % listo` }, h('span', { style: `width:${pct}%` })),
       h('p', {}, `${pct} % listo · ${k.verde} listos · ${k.amarillo} corregibles · ${k.rojo} con obra · ${k.pendiente} pendientes${k.critical_open ? ` · ${k.critical_open} crítico(s) abiertos` : ''}`),
@@ -68,7 +71,11 @@ export async function render(root, ctx = {}) {
             if (error || !data?.signedUrl) throw error || new Error('No se pudo generar el enlace.');
             const win = window.open('', '_blank');
             if (win) { win.opener = null; win.location.href = data.signedUrl; }
-            else { li.append(note(`Abre el archivo manualmente: ${data.signedUrl}`, 'info')); }
+            else {
+              const p = h('p', { class: 'i18-sub' }, 'No se pudo abrir automáticamente. ');
+              p.append(h('a', { href: data.signedUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir documento →'));
+              li.append(p);
+            }
           } catch (err) {
             li.append(note(err.message || 'No se pudo abrir el documento.', 'error'));
           } finally { openBtn.disabled = false; }
@@ -107,7 +114,8 @@ export async function render(root, ctx = {}) {
           }
           await rpc('habilitation_item_submit', { p_item: i.id, p_note: val, p_storage_path: storagePath, p_file_name: storedName });
           await load();
-        } catch (err) { btn.disabled = false; errBox.replaceChildren(note(err.message || 'No se pudo registrar la entrega.', 'error')); }
+          box.prepend(note('✅ Listo. SOFA revisará su entrega en las próximas horas.'));
+        } catch (err) { btn.disabled = false; errBox.replaceChildren(note(friendlyError(err), 'error')); }
       });
       li.append(h('div', { class: 'i18-actions' }, input, fileLabel, fileStatus, btn), errBox);
     }

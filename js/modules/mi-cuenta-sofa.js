@@ -71,13 +71,15 @@ export async function render(root, ctx = {}) {
       } catch (e) { out.replaceChildren(note(e.message, 'error')); }
       finally { send.disabled = false; }
     });
-    return h('fieldset', { class: 'i18-fs i18-form' }, h('legend', {}, 'Pedir un servicio a SOFA'),
-      h('label', { for: 'cs-r-svc' }, 'Servicio'), svc, h('label', { for: 'cs-r-prov' }, 'Para'), prov,
-      h('label', { for: 'cs-r-txt' }, 'Qué necesita'), txt, h('div', {}, send), out);
+    return h('details', {},
+      h('summary', { class: 'i18-sub', style: 'cursor:pointer;padding:6px 0;list-style:none' }, '＋ Pedir un servicio a SOFA'),
+      h('fieldset', { class: 'i18-fs i18-form' }, h('legend', {}, 'Pedir un servicio a SOFA'),
+        h('label', { for: 'cs-r-svc' }, 'Servicio'), svc, h('label', { for: 'cs-r-prov' }, 'Para'), prov,
+        h('label', { for: 'cs-r-txt' }, 'Qué necesita'), txt, h('div', {}, send), out));
   }
 
   const table = (head, rows) => h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
-    h('thead', {}, h('tr', {}, head.map((x) => h('th', {}, x)))), h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x) => h('td', {}, x)))))));
+    h('thead', {}, h('tr', {}, head.map((x) => h('th', {}, x)))), h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x, ci) => h('td', { 'data-l': head[ci] || '' }, x)))))));
 
   await load();
   const want = String(ctx.arg || '');
