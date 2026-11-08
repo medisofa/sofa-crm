@@ -4,6 +4,7 @@
  *  Todo pasa por funciones de la base (110_historia_clinica.sql): cifrado, firma con huella, adendas y bitácora.
  *  La pantalla se bloquea sola tras 5 minutos sin uso y no guarda datos clínicos en el navegador. */
 import { rpc, supabase, providerOptions, clientOptions, clientName, h, fmtDate, note, guarded, table } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { mfaState, verifyStep } from './seguridad.js';
 import { orderForm, ordersList, printOrder } from './hc-ordenes.js';
 
@@ -153,7 +154,7 @@ export async function render(root, ctx = {}) {
       const respond = async (approve) => {
         yes.disabled = true; no.disabled = true;
         try { await rpc('clinical_access_respond', { p_request: r.id, p_approve: approve }); openOrg(); }
-        catch (e) { alert(e.message); yes.disabled = false; no.disabled = false; }
+        catch (e) { box.prepend(note(e.message, 'error')); yes.disabled = false; no.disabled = false; }
       };
       yes.addEventListener('click', () => respond(true)); no.addEventListener('click', () => respond(false));
       return line;
@@ -172,10 +173,10 @@ export async function render(root, ctx = {}) {
       const until = new Date(r.expires_at).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
       const cut = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Cortar acceso ahora');
       cut.addEventListener('click', async () => {
-        if (!confirm(`¿Cortar el acceso de ${r.user}? No podrá seguir viendo la historia clínica.`)) return;
+        if (!await confirmDialog('Cortar acceso', `${r.user} ya no podrá seguir viendo la historia clínica.`, 'Cortar acceso', true)) return;
         cut.disabled = true;
         try { await rpc('clinical_access_revoke', { p_access: r.id }); openOrg(); }
-        catch (e) { alert(e.message); cut.disabled = false; }
+        catch (e) { box.prepend(note(e.message, 'error')); cut.disabled = false; }
       });
       return h('div', { style: 'margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap' },
         h('span', {}, `${r.user} tiene acceso de lectura hasta las ${until} · "${r.reason}"`), cut);
@@ -219,7 +220,7 @@ export async function render(root, ctx = {}) {
       h('h4', { class: 'hc-sec' }, 'Recetas y órdenes'), ordersList(id, pane, rpc),
       h('h4', { class: 'hc-sec' }, `Adjuntos (${rec.attachments.length})`),
       rec.attachments.length ? table([
-        { label: 'Archivo', get: (a) => h('button', { class: 'i18-link', type: 'button', onclick: () => download(a.id, a.name) }, a.name) },
+        { label: 'Archivo', get: (a) => h('button', { class: 'i18-link', type: 'button', onclick: () => download(a.id, a.name, pane) }, a.name) },
         { label: 'Tipo', get: (a) => KIND[a.kind] || a.kind },
         { label: 'Descripción', get: (a) => a.description || '—' },
         { label: 'Fecha', get: (a) => fmtTs(a.at) }], rec.attachments) : note('Sin adjuntos. Puede adjuntar la historia que el paciente traiga de otro sistema (PDF o foto).'));
@@ -239,7 +240,7 @@ export async function render(root, ctx = {}) {
     if (st.can_write && n.status === 'borrador' && n.mine) {
       btns.append(h('button', { class: 'i18-btn', type: 'button', onclick: () => noteForm(patientId, n, pane, main, st) }, 'Editar borrador'),
         h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: async () => {
-          if (!confirm('¿Borrar este borrador? No se puede deshacer.')) return;
+          if (!await confirmDialog('Borrar borrador', '¿Borrar este borrador? No se puede deshacer.', 'Borrar', true)) return;
           try { await rpc('delete_clinical_draft', { p_id: n.id }); openPatient(patientId, main, st); } catch (e) { pane.prepend(note(e.message, 'error')); }
         } }, 'Borrar borrador'));
     }
@@ -318,7 +319,7 @@ export async function render(root, ctx = {}) {
       finally { bSave.disabled = false; }
     });
     bSign.addEventListener('click', async () => {
-      if (!confirm('Al firmar, la nota queda bloqueada: solo podrá corregirse con adendas. ¿Firmar ahora?')) return;
+      if (!await confirmDialog('Firmar nota', 'Al firmar, la nota queda bloqueada: solo podrá corregirse con adendas.', 'Firmar ahora', true)) return;
       bSign.disabled = true;
       try { const id = await save(); existing = { ...(existing || {}), id }; await rpc('sign_clinical_note', { p_id: id }); await openPatient(patientId, main, st); }
       catch (e) { msg.replaceChildren(note(e.message, 'error')); bSign.disabled = false; }
@@ -391,13 +392,13 @@ export async function render(root, ctx = {}) {
       h('div', { class: 'i18-actions' }, go), msg));
   }
 
-  async function download(id, name) {
+  async function download(id, name, pane) {
     try {
       const path = await rpc('log_clinical_download', { p_attachment: id });
       const { data, error } = await supabase.storage.from('clinical-records').createSignedUrl(path, 60);
       if (error) throw new Error('No se pudo abrir el archivo. Intente de nuevo.');
       window.open(data.signedUrl, '_blank', 'noopener');
-    } catch (e) { alert(e.message || `No se pudo abrir ${name}.`); }
+    } catch (e) { pane.prepend(note(e.message || `No se pudo abrir ${name}.`, 'error')); }
   }
 
   async function exportRecord(patientId, pane) {
