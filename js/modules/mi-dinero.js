@@ -4,6 +4,7 @@
  *  calculada en collection_calendar (migración 066) y no se le enseñaba a nadie.
  *  Sigue sin inventar nada: account_statement y collection_calendar, las dos ya probadas. */
 import { rpc, h, money, pct, num, kpi, note, guarded, clientOptions, clientName, monthNow, monthToDate } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 const DIA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -118,6 +119,30 @@ function vista(st, cc, ym) {
 
   const verPdf = h('a', { class: 'i18-btn', href: '#/estado-cuenta' }, 'Ver mi estado de cuenta (PDF)');
   const verCal = h('a', { class: 'i18-btn i18-sec', href: '#/calendario-cobros' }, 'Ver todas las fechas');
+  const btnImprimir = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Genera un documento imprimible con sus cobros de ARS y el resumen del mes.' }, '📄 Imprimir cobros');
+  btnImprimir.addEventListener('click', () => {
+    const w = openPrint();
+    if (!w) return;
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const blocks = [
+      { h: 'Cobros de ARS' },
+      debido != null ? { big: money(debido) } : { p: 'Calendario de cobros no disponible.' },
+      atrasado > 0 ? { warn: `${money(atrasado)} ya superó la fecha esperada de pago · ${num(t.late_lotes)} envío(s).` } : { p: 'Ningún cobro atrasado. Todo dentro de plazo.' },
+    ];
+    if (porArs.length) {
+      blocks.push({ h: 'Por ARS' });
+      blocks.push({ table: { head: ['ARS', 'Próximo cobro', 'Por cobrar'], rows: porArs.map((a) => [a.ars, a.next_expected ? fechaCorta(a.next_expected) : 'sin fecha', money(a.balance)]), right: [2] } });
+    }
+    blocks.push({ h: `Resumen de ${mes}` });
+    blocks.push({ table: { head: ['Concepto', 'Monto'], rows: [
+      ['Cobrado', money(caja.collected)],
+      ['Reclamado', money(p.claimed)],
+      ['Glosado', money(g.glosado)],
+      ['Recuperado de glosas', money(g.recovered)],
+      ['Honorarios SOFA', money(hon.accrued)],
+    ], right: [1] } });
+    fillPrint(w, `Mi dinero · ${mes}`, `Generado el ${fecha}`, blocks);
+  });
 
   // ── Lo demás, debajo y plegado: está, pero no compite ────────────────────────────────────
   const detalle = h('details', { class: 'i18-card' },
@@ -143,7 +168,7 @@ function vista(st, cc, ym) {
   return h('div', {}, heroe,
     filas.length ? h('ul', { class: 'md-lista' }, filas) : null,
     filas.length ? h('p', { class: 'i18-sub md-nota' }, 'La fecha sale de lo que esa ARS tardó en pagarle a usted en los últimos lotes. Es una estimación con su propio historial, no una promesa de la ARS.') : null,
-    h('div', { class: 'i18-bar' }, verPdf, verCal),
+    h('div', { class: 'i18-bar' }, verPdf, verCal, btnImprimir),
     detalle, cierre);
 }
 export default render;
