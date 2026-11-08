@@ -3,6 +3,7 @@
  *  Una fila por consulta: Documento, Nombre, Fecha, Texto y, si hay, Diagnósticos, Fecha de nacimiento y Sexo.
  *  Vista previa sin guardar nada; al confirmar cada fila queda como nota «Historia importada», cifrada y firmada por quien importa. */
 import { h, fmtDate, note } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { readTable, excelDate, detectColumns } from '../utils/xlsx-lite.js';
 
 const ALIASES = {
@@ -44,7 +45,7 @@ export function importPanel(main, org, rpc, opts = {}) {
   function preview(rep) {
     const save = h('button', { class: 'i18-btn', type: 'button', disabled: rep.errors.length > 0 || !rep.valid }, `Confirmar: importar ${rep.valid} consulta(s)`);
     save.addEventListener('click', async () => {
-      if (!confirm(`Las historias importadas quedan a nombre de ${opts.authorName || 'el médico'}, con el sello «Importada por SOFA», y no se pueden borrar. ¿Importar ahora?`)) return;
+      if (!await confirmDialog('Confirmar importación', `Las historias importadas quedan a nombre de ${opts.authorName || 'el médico'}, con el sello «Importada por SOFA», y no se pueden borrar.`, 'Importar ahora', true)) return;
       save.disabled = true;
       try { const r = await rpc('clinical_import', { p_org: org, p_rows: rows, p_source: src.value, p_commit: true, p_file: fname, p_author: author });
         out.replaceChildren(note(`Listo: ${r.imported} consulta(s) importadas y ${r.patients_created} paciente(s) nuevo(s). El médico las verá en su historia clínica.`, 'ok')); }

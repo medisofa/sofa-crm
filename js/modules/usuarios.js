@@ -3,6 +3,7 @@
  *  y pasa a Médico cuando se convierte en cliente) o al EQUIPO SOFA.
  *  2.6.1: el Médico o el Centro ya no crea usuarios: envía una SOLICITUD que el Super Admin aprueba (la cuenta se crea al aprobar). */
 import { supabase, invoke, rpc, h, note, guarded } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { can } from '../utils/permissions.js';
 
 export async function render(root, ctx = {}) {
@@ -129,7 +130,7 @@ async function drawPending(box, ctx) {
         h('td', {}, canDecide ? [h('button', { class: 'i18-btn', type: 'button', onclick: (e) => approve(r, e.target) }, 'Aprobar y crear'), ' ',
           h('button', { class: 'i18-link', type: 'button', onclick: () => reject(r) }, 'Rechazar')] : pill(r.status))))))), out));
   async function approve(r, btn) {
-    if (!confirm(`Se creará el usuario ${r.email} (${r.role_name || r.role}) para ${r.organization}. ¿Continuar?`)) return;
+    if (!await confirmDialog('Crear usuario', `Se creará el usuario ${r.email} (${r.role_name || r.role}) para ${r.organization}.`, 'Crear usuario', false)) return;
     btn.disabled = true;
     try { const res = await invoke('crear-usuario', { request_id: r.id }); out.replaceChildren(resultado(res)); await drawPending(box, ctx); box.append(out); }
     catch (e) { out.replaceChildren(note(e.message, 'error')); btn.disabled = false; }

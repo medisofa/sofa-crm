@@ -3,6 +3,7 @@
  *  (pacientes, citas y cuentas por cobrar viejas) con validación por fila, reporte descargable y asistente «Pasar a real».
  *  Médico: ve su avance en solo lectura. El servidor vuelve a verificar el rol en cada función; ocultar botones no es un control. */
 import { rpc, h, fmtDate, note, kpi, guarded, downloadCsv, providerOptions, todayIso } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { mountOpeningHistory, OPENING_ROLES } from './opening-history.js';
 import { readTable, excelDate, detectColumns, normHead } from '../utils/xlsx-lite.js';
 
@@ -219,7 +220,7 @@ export async function render(root, ctx = {}) {
       dl.addEventListener('click', () => csv(rep));
       const commit = h('button', { class: 'i18-btn', type: 'button', id: 'gl-commit', disabled: rep.accepted === 0 }, `Cargar las ${rep.accepted} filas aceptadas`);
       commit.addEventListener('click', async () => {
-        if (!window.confirm(`Se cargarán ${rep.accepted} filas. Las ${rep.rejected} rechazadas NO se cargan y quedan en el reporte. ¿Continuar?`)) return;
+        if (!await confirmDialog('Cargar datos', `Se cargarán ${rep.accepted} filas. Las ${rep.rejected} rechazadas NO se cargan y quedan en el reporte.`, 'Cargar ahora', false)) return;
         commit.disabled = true;
         try {
           const r = await rpc('golive_load', { p_org: o, p_kind: kind.value, p_rows: rows, p_commit: true, p_file: fname, p_provider: needsProv() ? prov.value : null, p_source: src.value });

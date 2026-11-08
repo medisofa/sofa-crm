@@ -108,7 +108,7 @@ export async function render(container, ctx) {
       $('#fileInfo').textContent = '';
       rawRows = null;
     } catch (error) {
-      alert(`Fallo en la carga masiva: ${friendlyError(error)}`);
+      paint($('#importResult'), html`<div class="note error">Fallo en la carga masiva: ${friendlyError(error)}</div>`);
     } finally {
       $('#btnExecuteBulkInsert').disabled = false;
       $('#btnExecuteBulkInsert').textContent = 'Procesar e Insertar';
