@@ -26,20 +26,23 @@ export async function render(root) {
   const msg = h('div');
   const days = h('input', { type: 'number', min: '1', max: '7', value: '1', id: 'i18-wk-days', style: 'width:5rem' });
 
-  async function act(btn, fn, okText) {
+  async function act(btn, fn, okText, phoneCtx) {
     btn.disabled = true; msg.replaceChildren();
     try { const r = await fn(); msg.replaceChildren(note(okText(r))); await load(); }
     catch (e) {
       if (/tel[eé]fono/i.test(e.message)) {
-        // Error de teléfono del servidor: añadir guía accionable con deep links
+        // Error de teléfono del servidor: guía numerada con deep links según contexto
+        const esMedico = phoneCtx === 'medico';
+        const pasos = esMedico
+          ? [[h('a', { href: '#/mi-ficha' }, 'Ir a Mi ficha'), ' y corrija el campo «Teléfono» del médico.'],
+             ['Vuelva aquí y pulse «Descartar» en el mensaje pendiente sin teléfono.'],
+             ['Pulse «Generar resúmenes de esta semana» para crear uno nuevo con el teléfono correcto.']]
+          : [[h('a', { href: '#/pacientes' }, 'Ir a Pacientes'), ', busque al paciente y corrija su teléfono.'],
+             ['Vuelva aquí y pulse «Descartar» en el mensaje pendiente sin teléfono.'],
+             ['Pulse «Generar recordatorios» para crear uno nuevo con el teléfono correcto.']];
         msg.replaceChildren(h('div', { class: 'i18-note i18-error', role: 'alert' },
-          e.message,
-          h('br'),
-          '→ Si es el teléfono de un médico: ', h('a', { href: '#/mi-ficha' }, 'Mi ficha'), ' → corrija el campo «Teléfono».',
-          h('br'),
-          '→ Si es el teléfono de un paciente: ', h('a', { href: '#/pacientes' }, 'Pacientes'), ' → busque al paciente → corrija su teléfono.',
-          h('br'),
-          'Luego descarte el mensaje pendiente y vuelva a generar.'));
+          h('strong', {}, e.message),
+          h('ol', {}, ...pasos.map((p) => h('li', {}, ...p)))));
       } else {
         msg.replaceChildren(note(e.message, 'error'));
       }
@@ -48,8 +51,8 @@ export async function render(root) {
   }
   const genRem = h('button', { class: 'i18-btn', type: 'button' }, 'Generar recordatorios');
   const genSum = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Generar resúmenes de esta semana');
-  genRem.addEventListener('click', () => act(genRem, () => rpc('generate_appointment_reminders', { p_days: Number(days.value) || 1, p_provider: null }), (n) => `${num(n)} recordatorio(s) nuevo(s) en la cola.`));
-  genSum.addEventListener('click', () => act(genSum, () => rpc('generate_weekly_summaries', {}), (n) => `${num(n)} resumen(es) nuevo(s). Cada médico también recibe una notificación en SOFA.`));
+  genRem.addEventListener('click', () => act(genRem, () => rpc('generate_appointment_reminders', { p_days: Number(days.value) || 1, p_provider: null }), (n) => `${num(n)} recordatorio(s) nuevo(s) en la cola.`, 'paciente'));
+  genSum.addEventListener('click', () => act(genSum, () => rpc('generate_weekly_summaries', {}), (n) => `${num(n)} resumen(es) nuevo(s). Cada médico también recibe una notificación en SOFA.`, 'medico'));
 
   async function load() {
     const q = await guarded(out, async () => ({ pend: await realPendingMessages(), sums: await realRecentSummaries() }));
@@ -108,13 +111,17 @@ export async function render(root) {
     skip.addEventListener('click', () => act(skip,
       () => rpc('mark_message', { p_id: m.id, p_status: 'omitido' }),
       () => link ? 'Mensaje omitido.' : 'Mensaje descartado. Corrija el teléfono y use «Generar recordatorios» para crear uno nuevo.'));
-    // Aviso accionable inline cuando no hay teléfono válido ──────────────────
-    const noPhone = !link ? h('div', { class: 'i18-note i18-error', role: 'alert' },
-      'Sin teléfono válido — no se puede enviar. ',
-      m.kind === 'resumen_semanal'
-        ? [h('a', { href: '#/mi-ficha' }, 'Vaya a Mi ficha'), ' y corrija el teléfono del médico.']
-        : [h('a', { href: '#/pacientes' }, 'Vaya a Pacientes'), ', busque al paciente, corrija su teléfono.'],
-      h('br'), 'Luego descarte este mensaje (botón abajo) y pulse «Generar recordatorios».') : null;
+    // Guía numerada de pasos con deep links cuando no hay teléfono válido ────
+    const noPhonePasos = !link ? (m.kind === 'resumen_semanal'
+      ? [[h('a', { href: '#/mi-ficha' }, 'Ir a Mi ficha'), ' y corrija el campo «Teléfono» del médico.'],
+         ['Pulse «Descartar» (botón de abajo) para retirar este mensaje.'],
+         ['Pulse «Generar resúmenes de esta semana» para crear uno nuevo con el teléfono correcto.']]
+      : [[h('a', { href: '#/pacientes' }, 'Ir a Pacientes'), ', busque al paciente y corrija su teléfono.'],
+         ['Pulse «Descartar» (botón de abajo) para retirar este mensaje.'],
+         ['Pulse «Generar recordatorios» para crear uno nuevo con el teléfono correcto.']]) : null;
+    const noPhone = noPhonePasos ? h('div', { class: 'i18-note i18-error', role: 'alert' },
+      h('strong', {}, 'Sin teléfono válido — no se puede enviar.'),
+      h('ol', {}, ...noPhonePasos.map((p) => h('li', {}, ...p)))) : null;
     return h('div', { class: 'i18-card' }, h('strong', {}, `${KIND[m.kind] || m.kind} · ${fmtDate(m.scheduled_for)}`),
       h('div', { class: 'i18-sub' }, m.to_phone || 'Sin teléfono'), h('pre', { class: 'i18-pre' }, shown(m.body)),
       portal ? h('div', { class: 'i18-sub' }, 'Lleva el enlace personal del paciente a su portal: se crea al tocar «Abrir en WhatsApp» y anula el anterior.') : null,
