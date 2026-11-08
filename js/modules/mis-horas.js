@@ -1,5 +1,5 @@
 /** SOFA · 3.9 · Registro de horas del equipo SOFA por cliente (opcional). Sirve para medir horas por cliente y margen. */
-import { rpc, h, fmtDate, note, guarded, clientOptions, clientName } from '../services/iter18.js';
+import { rpc, h, fmtDate, note, guarded, clientOptions, clientName, downloadCsv } from '../services/iter18.js';
 
 const ACT = { facturacion: 'Facturación', glosas: 'Glosas', codificacion: 'Codificación', habilitacion: 'Habilitación', renegociacion: 'Renegociación',
   auditoria: 'Auditoría', comercial: 'Comercial', administrativa: 'Administrativa', otro: 'Otro' };
@@ -12,17 +12,27 @@ export async function render(root) {
   const day = h('input', { type: 'date', id: 'mh-h-day', value: new Date().toISOString().slice(0, 10) });
   const nt = h('input', { type: 'text', id: 'mh-h-note', maxlength: '300' });
   const save = h('button', { class: 'i18-btn', type: 'button' }, 'Registrar');
+  const csvBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true }, '⬇ CSV');
+  let lastEntries = [];
   const out = h('div', { 'aria-live': 'polite' });
   const list = h('div', { 'aria-live': 'polite' });
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Mis horas'),
     h('p', { class: 'i18-sub' }, 'Registro opcional del tiempo dedicado a cada cliente (en cuartos de hora). Con él, Dirección ve horas por cliente y margen.'),
     h('div', { class: 'i18-form' }, h('label', { for: 'mh-h-org' }, 'Cliente'), org, h('label', { for: 'mh-h-act' }, 'Actividad'), act,
-      h('label', { for: 'mh-h-hrs' }, 'Horas'), hrs, h('label', { for: 'mh-h-day' }, 'Fecha'), day, h('label', { for: 'mh-h-note' }, 'Nota (opcional)'), nt, h('div', {}, save), out), list));
+      h('label', { for: 'mh-h-hrs' }, 'Horas'), hrs, h('label', { for: 'mh-h-day' }, 'Fecha'), day, h('label', { for: 'mh-h-note' }, 'Nota (opcional)'), nt, h('div', {}, save), out),
+    h('div', { class: 'i18-bar' }, csvBtn), list));
   try { (await clientOptions()).forEach((c) => org.append(h('option', { value: c.id }, clientName(c)))); } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+
+  csvBtn.addEventListener('click', () => downloadCsv('mis-horas.csv', [
+    ['Fecha', 'Cliente', 'Actividad', 'Horas', 'Nota'],
+    ...lastEntries.map((x) => [x.work_date, x.client, ACT[x.activity] || x.activity, x.hours, x.note || '']),
+  ]));
 
   async function load() {
     const d = await guarded(list, () => rpc('staff_time_mine', { p_days: 14 }));
     if (!d) return;
+    lastEntries = d;
+    csvBtn.disabled = !d.length;
     const total = d.reduce((a, x) => a + Number(x.hours), 0);
     list.replaceChildren(h('h3', {}, `Últimos 14 días: ${total} hora(s)`), d.length ? h('ul', {}, d.map((x) => {
       const del = h('button', { class: 'i18-btn i18-sec', type: 'button', 'aria-label': 'Borrar registro' }, 'Borrar');
