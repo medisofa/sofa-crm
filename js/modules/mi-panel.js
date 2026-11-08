@@ -4,6 +4,7 @@
  *  Reutiliza los RPCs ya usados por mi-dinero, mi-habilitacion y mi-cuenta-sofa sin agregar carga
  *  al servidor: las mismas funciones, combinadas en una sola pantalla de inicio. */
 import { rpc, h, money, fmtDate, note, kpi, guarded } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 const DIA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -141,11 +142,38 @@ export async function render(root, ctx = {}) {
   }
 
   // ── Accesos rápidos ───────────────────────────────────────────────────────
+  const btnResumen = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Genera un PDF con su balance ARS, cuenta SOFA, habilitación y solicitudes.' }, '📄 Descargar resumen');
+  btnResumen.addEventListener('click', () => {
+    const w = openPrint();
+    if (!w) { box.prepend(note('El navegador bloqueó la ventana. Permita ventanas emergentes de SOFA.', 'error')); return; }
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const blocks = [
+      { h: 'Balance ARS' },
+      { big: money(totalARS) },
+      atrasado > 0 ? { warn: `${money(atrasado)} ya superó la fecha de pago.` } : { p: 'Ningún cobro atrasado. Todo dentro de plazo.' },
+    ];
+    if (conFecha.length || sinFecha.length) {
+      blocks.push({ h: 'Próximos cobros de ARS' });
+      blocks.push({ table: { head: ['ARS', 'Fecha esperada', 'Saldo'], rows: [...conFecha.slice(0, 10), ...sinFecha].map((a) => [a.ars, a.next_expected ? fechaCorta(a.next_expected) : 'sin fecha', money(a.balance)]), right: [2] } });
+    }
+    blocks.push({ h: 'Mi cuenta con SOFA' });
+    blocks.push({ table: { head: ['Fact. vencidas', 'Monto vencido', 'Saldo total', 'Casos abiertos', 'Servicios activos'], rows: [[s.overdue_count > 0 ? String(s.overdue_count) : '—', money(s.overdue), money(s.balance), String(s.open_cases), String(activos)]], right: [1, 2] } });
+    if (habs?.length) {
+      blocks.push({ h: 'Habilitación MISPAS' });
+      blocks.push({ table: { head: ['Caso', 'Etapa', 'Avance', 'Críticos pendientes'], rows: habs.map((c) => { const pct = c.counts?.applicable ? Math.round(100 * (c.counts.verde || 0) / c.counts.applicable) : 0; return [c.name, c.stage_label || c.stage || '—', `${pct}% (${c.counts?.verde || 0}/${c.counts?.applicable || 0})`, String(c.counts?.critical_open || 0)]; }) } });
+    }
+    if (casosRecientes.length) {
+      blocks.push({ h: 'Mis solicitudes recientes' });
+      blocks.push({ table: { head: ['Folio', 'Solicitud', 'Estado'], rows: casosRecientes.map((c) => [c.folio || '—', c.title, c.status_label || c.status || '—']) } });
+    }
+    fillPrint(w, 'Mi panel SOFA', `Generado el ${fecha}`, blocks);
+  });
   const accesos = h('div', { class: 'i18-bar mp-links' },
     h('a', { class: 'i18-btn i18-sec', href: '#/mi-dinero' }, 'Mi dinero'),
     h('a', { class: 'i18-btn i18-sec', href: '#/mi-cuenta-sofa' }, 'Mi cuenta'),
     h('a', { class: 'i18-btn i18-sec', href: '#/mi-habilitacion' }, 'Mi habilitación'),
-    h('a', { class: 'i18-btn i18-sec', href: '#/calendario-cobros' }, 'Cobros ARS'));
+    h('a', { class: 'i18-btn i18-sec', href: '#/calendario-cobros' }, 'Cobros ARS'),
+    btnResumen);
 
   // ── Ensamblaje ────────────────────────────────────────────────────────────
   const gridItems = [arsSection, habSection].filter(Boolean);
