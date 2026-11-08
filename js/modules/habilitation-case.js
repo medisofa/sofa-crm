@@ -1,6 +1,8 @@
 /** SOFA · Ficha de un caso de habilitación: etapas, datos del trámite, semáforo por requisito, evidencias e historial */
 import { html, render as paint, raw, $ } from '../utils/dom.js';
 import { loadingView, emptyView, errorView, toast, friendlyError, busy, opt, fieldError } from '../utils/ui.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
+import { downloadCsv } from '../utils/filters.js';
 import { sb } from '../supabase.js';
 import { getCase, caseItems, updateItem, updateCase, moveCase, caseActivity, leadContact, resetClientSubmission, STAGES, STAGE_LABEL, ITEM_STATUS, CASE_KIND, MODIFICATION_SUBKIND } from '../services/habilitation.js';
 import { organizationContact, profileNames } from '../services/submissions.js';
@@ -63,7 +65,8 @@ export async function render(main, ctx) {
           ${edit && closed ? html`<button class="btn" data-move="diagnostico">Reabrir</button>` : ''}
           ${edit && c.stage === 'habilitado' ? html`<button class="btn" id="renew">Abrir renovación</button>` : ''}
           ${wa ? html`<a class="btn" target="_blank" rel="noopener" href="${wa}">Enviar brechas por WhatsApp</a>` : ''}
-          <button class="btn" id="print">Imprimir informe</button>
+          <button class="btn" id="print">Imprimir informe de brechas</button>
+          <button class="btn" id="csv-hab">⬇ CSV requisitos</button>
           ${edit && !closed ? html`<button class="btn danger" data-move="cancelado">Cancelar</button>` : ''}
         </div></div>
       <ol class="stepper" aria-label="Etapas">${STAGES.map((s, i) => html`<li class="${c.stage === 'cancelado' ? '' : i < idx ? 'done' : i === idx ? 'now' : ''}" ${i === idx ? raw('aria-current="step"') : ''}>${i + 1}. ${STAGE_LABEL[s]}</li>`)}</ol>
@@ -136,7 +139,65 @@ export async function render(main, ctx) {
 
   function bind(orgForDocs) {
     box.querySelectorAll('[data-move]').forEach((b) => b.addEventListener('click', () => busy(b, () => doMove(b.dataset.move))));
-    $('#print', box)?.addEventListener('click', () => window.print());
+    $('#print', box)?.addEventListener('click', () => {
+      const { c, items } = S;
+      const w = openPrint();
+      if (!w) return;
+      const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+      const areas = [...new Set(items.map((i) => i.area))];
+      const brechas = items.filter((i) => ['rojo', 'amarillo', 'pendiente'].includes(i.status));
+      const areasBrechas = areas.filter((a) => brechas.some((i) => i.area === a));
+      const statusLabel = { rojo: 'Rojo — obra/inversión', amarillo: 'Amarillo — < 15 días', pendiente: 'Sin evaluar' };
+      const blocks = [
+        { table: { head: ['Concepto', 'Estado'],
+            rows: [
+              ['Establecimiento', c.establishment_name],
+              ['Tipo', c.establishment_type],
+              ['Folio', c.folio || '—'],
+              ['Expediente DGHA', c.dgha_file_number || '—'],
+              ['Etapa', STAGE_LABEL[c.stage]],
+              ['Avance', `${c.ready_pct}% (${c.verde} de ${c.items_applicable} requisitos en verde)`],
+              ['Críticos abiertos', String(c.critical_open)],
+              ['Semáforo amarillo', String(c.amarillo)],
+              ['Semáforo rojo', String(c.rojo)],
+              ['Sin evaluar', String(c.pendiente)],
+              ['Fecha objetivo', c.target_date ? new Date(`${c.target_date}T00:00:00`).toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'],
+            ], right: [] } },
+        brechas.length
+          ? { h: `Brechas por corregir (${brechas.length})` }
+          : { p: 'No hay brechas: todos los requisitos aplicables están en verde. El establecimiento cumple con la normativa vigente.' },
+        ...areasBrechas.flatMap((a) => {
+          const rows = brechas.filter((i) => i.area === a);
+          return [
+            { h: a },
+            { table: { head: ['Código', 'Requisito', 'Estado', 'Acción correctiva', 'Corregir antes de'],
+                rows: rows.map((i) => [
+                  i.habilitation_requirements?.code || '—',
+                  (i.is_critical ? '★ ' : '') + i.requirement,
+                  statusLabel[i.status] || i.status,
+                  i.notes || '—',
+                  i.due_on ? new Date(`${i.due_on}T00:00:00`).toLocaleDateString('es-DO') : '—',
+                ]), right: [] } },
+          ];
+        }),
+      ];
+      fillPrint(w, `Informe de Brechas Normativas · ${c.establishment_name}`, `DGHA/MSPAS · Generado el ${fecha}`, blocks);
+    });
+    $('#csv-hab', box)?.addEventListener('click', () => {
+      const { c, items } = S;
+      downloadCsv(`brechas-${c.folio || c.establishment_name.slice(0, 20).replace(/\s+/g, '-')}.csv`, [
+        ['Área', 'Código', 'Requisito', 'Crítico', 'Estado', 'Observación / Acción correctiva', 'Corregir antes de'],
+        ...items.map((i) => [
+          i.area,
+          i.habilitation_requirements?.code || '',
+          i.requirement,
+          i.is_critical ? 'Sí' : 'No',
+          ITEM_STATUS[i.status]?.[0] || i.status,
+          i.notes || '',
+          i.due_on || '',
+        ]),
+      ]);
+    });
     $('#areas', box)?.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b) { areaFilter = b.dataset.a; draw(); } });
     $('#renew', box)?.addEventListener('click', async () => {
       const { caseDialog } = await import('./habilitation-dialogs.js');
