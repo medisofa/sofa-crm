@@ -127,13 +127,25 @@ export async function render(root) {
         const r = await rpc('global_patient_lookup', { p_cedula: ced || null, p_nss: ns || null, p_name: name.value || null, p_birth: birth.value || null, p_phone: phone.value || null });
         lastGlobal = r;
         if (r?.match === 'exact' && r.patient) {
-          const use = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Usar datos del paciente');
+          const g = r.patient;
+          // Auto-poblar campos vacíos desde el Registro Universal SOFA (incluye datos SISALRIL/DIDA)
+          if (g.full_name && !name.value) name.value = g.full_name;
+          if (g.birth_date && !birth.value) birth.value = g.birth_date;
+          if (g.sex && !sex.value) sex.value = g.sex;
+          if (g.phone && !phone.value) phone.value = g.phone;
+          if (g.email && !mail.value) mail.value = g.email;
+          if (g.member_number && !mem.value) mem.value = g.member_number;
+          if (g.ars_id && !ars.value) { ars.value = g.ars_id; fillPlans(null); }
+          const use = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Adjuntar paciente existente');
           use.addEventListener('click', async () => {
             use.disabled = true;
-            try { const id = await rpc('attach_global_patient', { p_global: r.patient.id, p_org: org.value }); await open(id); }
+            try { const id = await rpc('attach_global_patient', { p_global: g.id, p_org: org.value }); await open(id); }
             catch (e) { globalMatch.replaceChildren(note(e.message, 'error')); }
           });
-          globalMatch.replaceChildren(note(`Paciente encontrado en el Registro Universal SOFA: ${r.patient.full_name}. Se compartirán solo datos administrativos; no consultas ni diagnósticos.`), use);
+          const arsNombre = cat.find((a) => a.id === g.ars_id)?.name;
+          globalMatch.replaceChildren(
+            note(`Datos completados desde el Registro Universal SOFA: ${g.full_name}.${arsNombre ? ` ARS registrada: ${arsNombre} (vía SISALRIL/DIDA).` : ''} Revise los campos y pulse «Guardar ficha», o pulse el botón para adjuntar directamente sin duplicar.`),
+            use);
         } else if (r?.match === 'conflict') globalMatch.replaceChildren(note('Hay un conflicto entre cédula y NSS. No se fusionará automáticamente; revise los identificadores.', 'error'));
         else globalMatch.replaceChildren();
       } catch (e) { globalMatch.replaceChildren(note(e.message, 'error')); }
