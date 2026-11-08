@@ -85,3 +85,9 @@ repo no tiene un test runner formal: la verificación es manual y debe quedar ex
   `DELETE`) al terminar.
 - Flujo de PR: rama nueva desde `origin/main`, PR en draft, se fusiona solo cuando el usuario lo pide
   explícitamente ("Fusiona" / "Fusiona el PR N").
+- **Proyección explícita en servicios.** En `js/services/*.js`, toda función que devuelve listas o
+  resultados paginados usa `.select('col1, col2, ...')` con las columnas exactas que consumen los módulos
+  — nunca `select('*')`. Las consultas de detalle por ID (`.maybeSingle()`, `.single()`) pueden mantener
+  `select('*')`. Definir la lista de columnas como constante de módulo (`const ENTITY_LIST_COLS = '...'`)
+  cuando la misma proyección se reutiliza en más de una función. Antes de editar, leer todos los módulos
+  consumidores para verificar qué propiedades acceden realmente (PR #122).

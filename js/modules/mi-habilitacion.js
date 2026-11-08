@@ -57,6 +57,9 @@ export async function render(root, ctx = {}) {
         i.notes ? h('div', { class: 'i18-sub' }, `SOFA: ${i.notes}`) : null,
       ].filter(Boolean));
 
+    if (!i.submitted_at && i.sofa_reset_note) {
+      li.append(h('div', { class: 'i18-sub', style: 'color:var(--warn,#b45309);margin-top:4px' }, `💬 Nota de SOFA: "${i.sofa_reset_note}"`));
+    }
     if (i.submitted_at) {
       li.append(h('div', { class: 'i18-sub' }, `Entregado el ${fmtDate(i.submitted_at)}: ${i.client_note}`));
       if (i.storage_path && i.file_name) {
