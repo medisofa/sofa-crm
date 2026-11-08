@@ -1,6 +1,7 @@
 /** SOFA · Reportes con filtros, totales, exportación a CSV e impresión */
 import { html, render as paint, $ } from '../utils/dom.js';
-import { loadingView, errorView, emptyView, opt } from '../utils/ui.js';
+import { loadingView, errorView, emptyView, opt, toast } from '../utils/ui.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 import { financialEvents, collectionDays, serviceMix, submissionsInRange, openBalances, glosaPareto, feeSummaryAll, monthsBetween, monthKey } from '../services/bi.js';
 import { filterBar, downloadCsv } from '../utils/filters.js';
 import { money, num, period, date } from '../utils/formatters.js';
@@ -95,7 +96,24 @@ export async function render(main, ctx) {
     } catch (err) { console.error(err); paint(out, errorView(err)); }
   };
   $('#rep', main).addEventListener('change', (e) => { key = e.target.value; run(); });
-  $('#print', main).addEventListener('click', () => window.print());
+  $('#print', main).addEventListener('click', () => {
+    if (!data?.rows?.length) { toast('Cargue un reporte antes de imprimir', 'bad'); return; }
+    const w = openPrint();
+    const rep = REPORTS[key];
+    const sub = (rep.fees || key === 'cartera' || key === 'glosas')
+      ? `${num(data.rows.length)} filas`
+      : `Período: ${period(`${f.from}-01`)} a ${period(`${f.to}-01`)} · ${num(data.rows.length)} filas`;
+    const right = data.cols.map((c) => c.type === 'money' || c.type === 'pct' || c.type === 'num');
+    const tableRows = data.rows.map((r) => data.cols.map((c) => fmt(r[c.key], c.type)));
+    if (data.totals) {
+      tableRows.push(data.cols.map((c, i) => {
+        if (i === 0) return 'Total';
+        if (c.type === 'money' || c.type === 'num') return fmt(data.rows.reduce((t, r) => t + Number(r[c.key] || 0), 0), c.type);
+        return '';
+      }));
+    }
+    fillPrint(w, rep.title, sub, [{ table: { head: data.cols.map((c) => c.label), rows: tableRows, right } }]);
+  });
   $('#csv', main).addEventListener('click', () => { if (data?.rows?.length) downloadCsv(`sofa-${key}.csv`, data.cols.map((c) => c.label), data.rows.map((r) => data.cols.map((c) => r[c.key] ?? ''))); });
   run();
 }
