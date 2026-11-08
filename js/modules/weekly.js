@@ -77,7 +77,7 @@ export async function render(root) {
     const link = waLink(m.to_phone, portal ? withoutLink(m.body) : m.body);
     const open = h('a', { class: 'i18-btn', href: link || '#', target: '_blank', rel: 'noopener noreferrer', 'aria-disabled': link ? null : 'true' }, 'Abrir en WhatsApp');
     open.addEventListener('click', async (ev) => {
-      if (!link) { ev.preventDefault(); return msg.replaceChildren(note('Este mensaje no tiene un teléfono válido. Corrija el teléfono en la ficha y vuelva a generarlo.', 'error')); }
+      if (!link) { ev.preventDefault(); return; }   // el aviso ya aparece inline en la tarjeta
       if (portal) {
         // La ventana se abre ya (si no, el navegador la bloquea) y luego se le pone la dirección con el enlace recién creado.
         ev.preventDefault();
@@ -91,10 +91,20 @@ export async function render(root) {
       try { await rpc('mark_message', { p_id: m.id, p_status: 'enviado' }); setTimeout(load, 600); } catch (e) { msg.replaceChildren(note(e.message, 'error')); }
     });
     const skip = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Descartar');
-    skip.addEventListener('click', () => act(skip, () => rpc('mark_message', { p_id: m.id, p_status: 'omitido' }), () => 'Mensaje omitido.'));
+    skip.addEventListener('click', () => act(skip,
+      () => rpc('mark_message', { p_id: m.id, p_status: 'omitido' }),
+      () => link ? 'Mensaje omitido.' : 'Mensaje descartado. Corrija el teléfono y use «Generar recordatorios» para crear uno nuevo.'));
+    // Aviso accionable inline cuando no hay teléfono válido ──────────────────
+    const noPhone = !link ? h('div', { class: 'i18-note i18-error', role: 'alert' },
+      'Sin teléfono válido — no se puede enviar. ',
+      m.kind === 'resumen_semanal'
+        ? [h('a', { href: '#/mi-ficha' }, 'Vaya a Mi ficha'), ' y corrija el teléfono del médico.']
+        : [h('a', { href: '#/pacientes' }, 'Vaya a Pacientes'), ', busque al paciente, corrija su teléfono.'],
+      h('br'), 'Luego descarte este mensaje (botón abajo) y pulse «Generar recordatorios».') : null;
     return h('div', { class: 'i18-card' }, h('strong', {}, `${KIND[m.kind] || m.kind} · ${fmtDate(m.scheduled_for)}`),
       h('div', { class: 'i18-sub' }, m.to_phone || 'Sin teléfono'), h('pre', { class: 'i18-pre' }, shown(m.body)),
-      portal ? h('div', { class: 'i18-sub' }, 'Lleva el enlace personal del paciente a su portal: se crea al tocar «Abrir en WhatsApp» y anula el anterior.') : null, h('div', { class: 'i18-bar' }, open, skip));
+      portal ? h('div', { class: 'i18-sub' }, 'Lleva el enlace personal del paciente a su portal: se crea al tocar «Abrir en WhatsApp» y anula el anterior.') : null,
+      noPhone, h('div', { class: 'i18-bar' }, open, skip));
   }
 
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Resumen semanal y recordatorios'),
