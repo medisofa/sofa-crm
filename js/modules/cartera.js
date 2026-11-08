@@ -12,11 +12,13 @@ export async function render(root, ctx = {}) {
   root.replaceChildren();
   const client = ctx.role === 'client';
   const sel = h('select', { id: 'ca-org' }, h('option', { value: '' }, 'Todos los clientes'));
+  const printSumBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true }, '📄 Imprimir resumen');
+  let lastD = null;
   const box = h('div', { 'aria-live': 'polite' });
   const side = h('div', { id: 'ca-side' });
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, client ? 'Mi cartera con las ARS' : 'Cartera escalonada por ARS'),
     h('p', { class: 'i18-sub' }, 'Que ningún lote pase de 90 días sin acción formal: 31–60 reclamación escrita, 61–90 escalamiento a la gerencia de red, más de 90 queja ante la SISALRIL.'),
-    client ? null : h('div', { class: 'i18-bar' }, h('label', { for: 'ca-org' }, 'Cliente', sel)), box, side));
+    client ? null : h('div', { class: 'i18-bar' }, h('label', { for: 'ca-org' }, 'Cliente', sel), printSumBtn), box, side));
   if (!client) { try { (await realClientOptions()).forEach((c) => sel.append(h('option', { value: c.id }, clientName(c)))); } catch (e) { box.replaceChildren(note(e.message, 'error')); } }
   const org = () => (client ? ctx.membership?.organization_id || null : sel.value || null);
 
@@ -24,6 +26,8 @@ export async function render(root, ctx = {}) {
     side.replaceChildren();
     const d = await guarded(box, () => rpc('collection_board', { p_org: org() }));
     if (!d) return;
+    lastD = d;
+    printSumBtn.disabled = false;
     const t = d.totals;
     box.replaceChildren(
       h('div', { class: 'i18-kpis' }, kpi('Saldo por cobrar', money(t.balance), `${t.lots} lote(s)`), kpi('Más de 90 días', money(t.over_90)), kpi('Acciones pendientes', String(t.pending_actions))),
@@ -95,6 +99,25 @@ export async function render(root, ctx = {}) {
     h('thead', {}, h('tr', {}, head.map((x, i) => h('th', { class: right.includes(i) ? 'i18-r' : null }, x)))),
     h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x, i) => h('td', { class: right.includes(i) ? 'i18-r' : null }, x)))))));
 
+  printSumBtn.addEventListener('click', () => {
+    if (!lastD) return;
+    const w = openPrint();
+    if (!w) return;
+    const t = lastD.totals;
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    fillPrint(w, 'Resumen de cartera escalonada', `Generado el ${fecha}`, [
+      { table: { head: ['Concepto', 'Valor'],
+          rows: [['Saldo total por cobrar', money(t.balance)], ['Lotes', String(t.lots)],
+                 ['Más de 90 días', money(t.over_90)], ['Acciones pendientes', String(t.pending_actions)]],
+          right: [1] } },
+      { h: 'Por ARS' },
+      lastD.by_ars.length
+        ? { table: { head: ['ARS', 'Cliente', 'Lotes', 'Saldo', 'Más antiguo', 'Días promedio de pago'],
+            rows: lastD.by_ars.map((a) => [a.ars, a.client, String(a.lots), money(a.balance), `${a.max_age} días`, a.dso == null ? '—' : `${a.dso} días`]),
+            right: [2, 3] } }
+        : { p: 'No hay lotes con saldo.' },
+    ]);
+  });
   sel.addEventListener('change', load);
   await load();
 }

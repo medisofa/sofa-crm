@@ -35,13 +35,15 @@ export async function render(root, ctx = {}) {
     const k = c.counts; const pct = k.applicable ? Math.round((100 * k.verde) / k.applicable) : 0;
     const sim = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Revisión interna previa a la auditoría oficial. No genera efectos legales ni ante el MISPAS.' }, 'Simulacro de inspección (imprimir)');
     sim.addEventListener('click', () => simulacro(c));
+    const pend = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Lista de lo que aún debe preparar o entregar, para revisar fuera de SOFA.' }, 'Mis pendientes (imprimir)');
+    pend.addEventListener('click', () => pendientes(c));
     return h('section', { class: 'i18-card' }, h('h3', {}, `${c.name} · ${c.type}`),
       c.sofa_reset_note ? note(`⚠ Caso reiniciado por SOFA: ${c.sofa_reset_note}`, 'warn') : null,
       c.license_valid_until && c.license_days_left != null && c.license_days_left <= 30 ? note(`Su licencia de operación vence en ${c.license_days_left} día(s) (${fmtDate(c.license_valid_until)}). Gestione la renovación para evitar retrasos en la habilitación.`, 'warn') : null,
       h('div', { class: 'i18-sub' }, `${c.folio || ''} · ${c.stage_label}${c.target_date ? ` · meta ${fmtDate(c.target_date)}` : ''}${c.license_valid_until ? ` · licencia vence ${fmtDate(c.license_valid_until)} (${c.license_days_left} días)` : ''}${c.pss_code ? ` · PSS ${c.pss_code}` : ''}`),
       h('div', { class: 'mh-bar', role: 'img', 'aria-label': `${pct} % listo` }, h('span', { style: `width:${pct}%` })),
       h('p', {}, `${pct} % listo · ${k.verde} listos · ${k.amarillo} corregibles · ${k.rojo} con obra · ${k.pendiente} pendientes${k.critical_open ? ` · ${k.critical_open} crítico(s) abiertos` : ''}`),
-      h('div', { class: 'i18-bar' }, sim),
+      h('div', { class: 'i18-bar' }, sim, pend),
       ...(c.areas || []).map((a) => h('details', { open: a.items.some((i) => i.status !== 'verde') }, h('summary', {}, `${a.area} (${a.items.filter((i) => i.status === 'verde').length} de ${a.items.length})`),
         h('ul', { class: 'mh-items' }, a.items.map((i) => itemRow(i, orgId))))));
   }
@@ -58,7 +60,7 @@ export async function render(root, ctx = {}) {
       ].filter(Boolean));
 
     if (!i.submitted_at && i.sofa_reset_note) {
-      li.append(h('div', { class: 'i18-sub', style: 'color:var(--warn,#b45309);margin-top:4px' }, `💬 Nota de SOFA: "${i.sofa_reset_note}"`));
+      li.append(h('div', { class: 'i18-sub', style: 'color:var(--warn,#b45309);margin-top:4px' }, `💬 Nota de SOFA: "${i.sofa_reset_note}"` ));
     }
     if (i.submitted_at) {
       li.append(h('div', { class: 'i18-sub' }, `Entregado el ${fmtDate(i.submitted_at)}: ${i.client_note}`));
@@ -120,6 +122,26 @@ export async function render(root, ctx = {}) {
       li.append(h('div', { class: 'i18-actions' }, input, fileLabel, fileStatus, btn), errBox);
     }
     return li;
+  }
+
+  function pendientes(c) {
+    const w = openPrint();
+    if (!w) { box.prepend(note('El navegador bloqueó la ventana. Permita ventanas emergentes de SOFA.', 'error')); return; }
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const pct = c.counts?.applicable ? Math.round(100 * (c.counts.verde || 0) / c.counts.applicable) : 0;
+    const filas = (c.areas || []).flatMap((a) =>
+      a.items.filter((i) => i.status !== 'verde').map((i) => [a.area, i.requirement, i.critical ? 'Sí' : '', ST[i.status] || i.status, i.hint || ''])
+    );
+    const blocks = [
+      { p: `Avance: ${pct}% · ${c.counts?.verde || 0} listos · ${c.counts?.amarillo || 0} corregibles · ${c.counts?.rojo || 0} con obra · ${c.counts?.pendiente || 0} pendientes${c.counts?.critical_open ? ` · ⚠ ${c.counts.critical_open} crítico(s) abiertos` : ''}` },
+    ];
+    if (!filas.length) {
+      blocks.push({ p: '¡Todo listo! Todos los requisitos aplicables están en verde. 🎉' });
+    } else {
+      blocks.push({ warn: 'Repase esta lista y prepare la evidencia antes de marcar cada punto como entregado en SOFA.' });
+      blocks.push({ table: { head: ['Área', 'Requisito', 'Crítico', 'Estado', 'Qué preparar'], rows: filas } });
+    }
+    fillPrint(w, `Mis pendientes · ${c.name}`, `${c.type} · ${c.stage_label || ''} · ${fecha}`, blocks);
   }
 
   async function simulacro(c) {

@@ -1,6 +1,7 @@
 import { mountOpeningHistoryPicker, OPENING_ROLES } from './opening-history.js';
 /** SOFA · Pagos de ARS: registro, conciliación por ARS y cuentas por cobrar */
 import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
+import { downloadCsv } from '../utils/filters.js';
 import { loadInto, emptyView, toast, friendlyError, opt, confirmDialog } from '../utils/ui.js';
 import { listPayments, arsReconciliation, voidPayment } from '../services/finance.js';
 import { listSubmissions } from '../services/submissions.js';
@@ -22,7 +23,8 @@ export async function render(main, ctx) {
       ${can('payments.create', ctx.role) ? html`<button class="btn primary" id="new">+ Registrar pago</button>` : ''}</div>
     <div class="tabs" id="tabs" role="group" aria-label="Vista"></div>
     <div class="toolbar" id="tb"><label class="sr-only" for="q">Buscar</label><input class="input grow" id="q" type="search" placeholder="Referencia, cliente o folio">
-      <label class="sr-only" for="ars">ARS</label><select class="input" id="ars" style="width:auto"><option value="">Todas las ARS</option></select></div>
+      <label class="sr-only" for="ars">ARS</label><select class="input" id="ars" style="width:auto"><option value="">Todas las ARS</option></select>
+      <button class="btn" id="csv-recon" disabled hidden>⬇ CSV</button></div>
     <div id="l"></div>`);
   const tabs = [['pagos', 'Pagos recibidos'], ['conciliacion', 'Conciliación por ARS'], ['cobrar', 'Por cobrar']];
   if (OPENING_ROLES.includes(ctx.role)) tabs.push(['anteriores', 'Cartera anterior y auditoría']);
@@ -32,10 +34,14 @@ export async function render(main, ctx) {
   const list = $('#l', main);
   const showFee = can('fees.view', ctx.role);
 
+  let lastRecon = [];
   const load = () => {
     $('#tb', main).hidden = st.tab === 'anteriores';
     const newPayment = $('#new', main); if (newPayment) newPayment.hidden = st.tab === 'anteriores';
     $('#q', main).style.display = st.tab === 'conciliacion' ? 'none' : '';
+    const csvRecon = $('#csv-recon', main);
+    csvRecon.hidden = st.tab !== 'conciliacion';
+    if (st.tab !== 'conciliacion') csvRecon.disabled = true;
     if (st.tab === 'anteriores') return mountOpeningHistoryPicker(list, ctx);
     if (st.tab === 'pagos') return loadInto(list, () => listPayments({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff }), ({ data, count }) => html`
       <div class="table-wrap"><table class="t cards"><thead><tr><th>Fecha</th>${isStaff(ctx.role) ? html`<th>Cliente</th>` : ''}<th>ARS</th><th>Folio · referencia</th><th>Aplicado a</th><th class="n">Monto</th>${showFee ? html`<th class="n">Honorario SOFA</th>` : ''}${can('payments.void', ctx.role) ? html`<th></th>` : ''}</tr></thead>
@@ -49,6 +55,8 @@ export async function render(main, ctx) {
     if (st.tab === 'conciliacion') return loadInto(list, async () => (await arsReconciliation({ realOnly: staff })).filter((r) => !st.arsId || r.ars_id === st.arsId), (rows) => {
       const by = {}; rows.forEach((r) => { const k = r.ars_id; by[k] = by[k] || { ars: r.ars, radicado: 0, pagado: 0, glosa: 0, saldo: 0 }; by[k].radicado += Number(r.radicado || 0); by[k].pagado += Number(r.pagado || 0); by[k].glosa += Number(r.glosa_aceptada || 0); by[k].saldo += Number(r.saldo || 0); });
       const list2 = Object.values(by).filter((x) => x.radicado > 0).sort((a, b) => b.saldo - a.saldo);
+      lastRecon = list2;
+      csvRecon.disabled = !list2.length;
       const tot = list2.reduce((t, x) => ({ radicado: t.radicado + x.radicado, pagado: t.pagado + x.pagado, glosa: t.glosa + x.glosa, saldo: t.saldo + x.saldo }), { radicado: 0, pagado: 0, glosa: 0, saldo: 0 });
       return list2.length ? html`<div class="table-wrap"><table class="t cards"><thead><tr><th>ARS</th><th class="n">Radicado</th><th class="n">Pagado</th><th class="n">Glosa aceptada</th><th class="n">Saldo</th><th class="n">% cobrado</th></tr></thead>
         <tbody>${list2.map((x) => html`<tr><td data-l="ARS">${x.ars}</td><td data-l="Radicado" class="n">${money(x.radicado)}</td><td data-l="Pagado" class="n">${money(x.pagado)}</td><td data-l="Glosa aceptada" class="n">${money(x.glosa)}</td><td data-l="Saldo" class="n"><b>${money(x.saldo)}</b></td><td data-l="% cobrado" class="n">${x.radicado ? Math.round((1000 * x.pagado) / x.radicado) / 10 : 0}%</td></tr>`)}
@@ -68,6 +76,11 @@ export async function render(main, ctx) {
     try { const { paymentDialog } = await import('./finance-dialogs.js'); if (await paymentDialog(preset)) { toast('Pago registrado y aplicado', 'ok'); load(); } }
     catch (err) { toast(friendlyError(err), 'bad'); }
   };
+  $('#csv-recon', main).addEventListener('click', () => downloadCsv('conciliacion-ars.csv', [
+    ['ARS', 'Radicado', 'Pagado', 'Glosa aceptada', 'Saldo', '% cobrado'],
+    ...lastRecon.map((x) => [x.ars, x.radicado, x.pagado, x.glosa, x.saldo,
+      x.radicado ? Math.round((1000 * x.pagado) / x.radicado) / 10 : 0]),
+  ]));
   $('#new', main)?.addEventListener('click', () => pay());
   $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (b) { st.tab = b.dataset.t; st.page = 0; drawTabs(); load(); } });
   debounceSearch($('#q', main), st, load);

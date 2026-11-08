@@ -2,6 +2,7 @@
  *  con el desglose por ARS y por causa, en lenguaje del médico. Síntesis sobre glosa_analytics (ya probada).
  *  El médico no trabaja las glosas aquí; ve qué está en juego para presionar. El trabajo va en Reconsideración. */
 import { rpc, h, money, pct, num, kpi, table, note, guarded, clientOptions, clientName, monthNow, monthToDate } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 export async function render(root) {
   root.replaceChildren();
@@ -9,20 +10,50 @@ export async function render(root) {
   const clientSel = h('select', { 'aria-label': 'Consultorio' });
   const clientLbl = h('label', {}, 'Consultorio ', clientSel);   // 5.22.0: se esconde si hay uno solo
   const fromIn = h('input', { type: 'month', value: monthNow(), max: monthNow(), 'aria-label': 'Desde el mes' });
+  const printBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true, title: 'Genera un documento imprimible con el resumen de glosas.' }, '📄 Imprimir');
+  let lastData = null; let lastVentana = '';
 
   async function load() {
     if (!clientSel.value) { out.replaceChildren(note('No hay consultorios disponibles para tu usuario.')); return; }
     const data = await guarded(out, () => rpc('glosa_analytics', { p_org: clientSel.value, p_from: monthToDate(fromIn.value) }));
     if (!data) return;
-    out.replaceChildren(view(data, desdeMes(fromIn.value)));
+    lastData = data; lastVentana = desdeMes(fromIn.value);
+    out.replaceChildren(view(data, lastVentana)); printBtn.disabled = false;
   }
   clientSel.addEventListener('change', load);
   fromIn.addEventListener('change', load);
+  printBtn.addEventListener('click', () => {
+    if (!lastData) return;
+    const w = openPrint();
+    if (!w) return;
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const t = lastData.totals || {}, rates = lastData.rates || {};
+    const byArs = Array.isArray(lastData.by_ars) ? lastData.by_ars : [];
+    const byReason = Array.isArray(lastData.by_reason) ? lastData.by_reason : [];
+    const blocks = [
+      { table: { head: ['Concepto', 'Monto'], rows: [
+        ['Glosado', money(t.glosado)],
+        ['En disputa (recuperable)', money(t.en_disputa)],
+        ['Recuperado', money(t.recuperado)],
+        ['Perdido', money(t.aceptado)],
+      ], right: [1] } },
+    ];
+    if (rates.recovery_pct != null) blocks.push({ p: `Tasa de recuperación: ${pct(rates.recovery_pct)} del monto glosado trabajado.` });
+    if (byArs.length) {
+      blocks.push({ h: 'Por ARS' });
+      blocks.push({ table: { head: ['ARS', 'Glosado', 'Recuperado'], rows: byArs.map((r) => [r.ars || r.name || '—', money(r.glosado), money(r.recuperado)]), right: [1, 2] } });
+    }
+    if (byReason.length) {
+      blocks.push({ h: 'Por causa' });
+      blocks.push({ table: { head: ['Causa', 'Glosado', 'Veces'], rows: byReason.map((r) => [r.reason || r.causa || r.motivo || '—', money(r.glosado), num(r.glosas || r.count || 0)]), right: [1, 2] } });
+    }
+    fillPrint(w, `Mis glosas · ${lastVentana}`, `Generado el ${fecha}`, blocks);
+  });
 
   root.append(h('div', { class: 'i18-wrap' },
     h('h2', {}, 'Mis glosas'),
     h('p', { class: 'i18-sub' }, 'Cuánto de tu dinero está glosado y qué se ha recuperado. El trabajo de respuesta se hace en «Reconsideración de glosas».'),
-    h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Desde ', fromIn)),
+    h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Desde ', fromIn), printBtn),
     out));
   try {
     const cl = await clientOptions();

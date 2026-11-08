@@ -1,5 +1,6 @@
 /** SOFA · 18-B · Calendario de cobros proyectados por ARS, con alerta de atraso. */
 import { rpc, clientOptions, h, money, num, fmtDate, clientName, kpi, table, note, guarded, downloadCsv, todayIso } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 const BASIS = { historial_cliente: 'Historial del cliente', historial_ars: 'Historial de la ARS', plazo_contractual: 'Plazo contractual' };
 const STATUS = { atrasado: 'Atrasado', esta_semana: 'Esta semana', proximo: 'Próximo' };
@@ -10,20 +11,38 @@ export async function render(root) {
   const out = h('div', { 'aria-live': 'polite' });
   const sel = h('select', { id: 'i18-cc-client' }, h('option', { value: '' }, 'Todos mis clientes'));
   const csvBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true }, 'Exportar CSV');
+  const printBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true, title: 'Genera un documento imprimible con el resumen de cobros proyectados.' }, '📄 Imprimir');
   let data = null;
 
   async function load() {
     csvBtn.disabled = true;
     data = await guarded(out, () => rpc('collection_calendar', { p_org: sel.value || null }));
     if (!data) return;
-    out.replaceChildren(view(data)); csvBtn.disabled = false;
+    out.replaceChildren(view(data)); csvBtn.disabled = false; printBtn.disabled = false;
   }
+  printBtn.addEventListener('click', () => {
+    if (!data) return;
+    const w = openPrint();
+    if (!w) return;
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const t = data.totals;
+    const blocks = [
+      { h: 'Resumen' },
+      { big: money(t.balance) },
+      Number(t.late_balance) > 0 ? { warn: `${money(t.late_balance)} atrasado · ${num(t.late_lotes)} lote(s) pasaron su fecha esperada.` } : { p: 'Ningún lote atrasado.' },
+      { h: 'Por ARS' },
+      { table: { head: ['ARS', 'Lotes', 'Próximo cobro', 'Por cobrar', 'Atrasado'], rows: data.by_ars.map((a) => [a.ars, num(a.lotes), a.next_expected ? fmtDate(a.next_expected) : '—', money(a.balance), money(a.late_balance)]), right: [1, 3, 4] } },
+      { h: 'Por mes esperado' },
+      { table: { head: ['Mes', 'Lotes', 'Por cobrar'], rows: data.by_month.map((m) => [m.month, num(m.lotes), money(m.balance)]), right: [1, 2] } },
+    ];
+    fillPrint(w, 'Calendario de cobros proyectados', `Generado el ${fecha}`, blocks);
+  });
   csvBtn.addEventListener('click', () => downloadCsv(`calendario_cobros_${todayIso()}.csv`, [
     ['Cliente', 'ARS', 'Lote', 'Médico', 'Radicado', 'Esperado', 'Días de atraso', 'Base de la fecha', 'Estado', 'Saldo'],
     ...data.lotes.map((l) => [l.client, l.ars, l.folio, l.provider || '', l.submitted_on, l.expected_on, l.days_late, BASIS[l.basis], STATUS[l.status], l.balance])]));
   sel.addEventListener('change', load);
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Calendario de cobros proyectados'),
-    h('div', { class: 'i18-bar' }, h('label', {}, 'Cliente', sel), csvBtn), out));
+    h('div', { class: 'i18-bar' }, h('label', {}, 'Cliente', sel), csvBtn, printBtn), out));
   try { (await clientOptions()).forEach((c) => sel.append(h('option', { value: c.id }, clientName(c)))); } catch (e) { /* la lista es opcional */ }
   await load();
 }

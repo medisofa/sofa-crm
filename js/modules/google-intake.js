@@ -12,7 +12,7 @@ import { intakeSnapshot, replayIntakeAudit } from '../utils/intake-draft.js';
 import { registerProgressGuard } from '../utils/progress-guard.js';
 import { rpc } from '../services/iter18.js';
 import { can } from '../utils/permissions.js';
-import { contractDialog } from './contracts.js?v=5.29.0';
+import { contractDialog } from './contracts.js?v=5.30.0';
 
 const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1VeUb9RQ_jGBN9chr6QCiV-8Gp-2b2JKaj159qo6a-ps/edit';
 const REQUIRED = ['Médico / Prestador *','ARS *','Fecha del servicio *','Paciente *','NSS / No. afiliado *','Servicio / Procedimiento *'];

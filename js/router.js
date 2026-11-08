@@ -1,4 +1,4 @@
-import { APP_VERSION } from './version.js?v=5.29.0';
+import { APP_VERSION } from './version.js?v=5.30.0';
 /**
  * SOFA · Enrutador por hash (#/ruta/parametro). Compatible con GitHub Pages
  * sin configuración de servidor.
