@@ -2,6 +2,7 @@
  *  cobrados según SU tarifario, en cualquiera de los centros de su ficha. La base valida todo (centro de su ficha,
  *  precio del tarifario, reporte en firme al enviar). Ocultar un botón aquí no es un control. */
 import { rpc, h, note, guarded, money, fmtDate } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 export async function render(root) {
   root.replaceChildren();
@@ -77,7 +78,21 @@ export async function render(root) {
 
     function delBtn(lineId) { const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar'); b.addEventListener('click', async () => { try { const rr = await rpc('hospital_report_line_remove', { p_line: lineId }); drawReport(rr); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
     function sendBtn(rep) { const b = h('button', { class: 'i18-btn', type: 'button' }, 'Enviar (dejar en firme)'); b.addEventListener('click', async () => { if (!confirm('¿Enviar el reporte? Después no se edita.')) return; try { const rr = await rpc('hospital_report_submit', { p_report: rep.id }); await loadList(); drawReport(rr); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
-    function printBtn(rep) { const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Imprimir'); b.addEventListener('click', () => window.print()); return b; }
+    function printBtn(rep) {
+      const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Imprimir');
+      b.addEventListener('click', () => {
+        const w = openPrint();
+        if (!w) return;
+        const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+        fillPrint(w, `Reporte de hospitalización · ${rep.patient_name}`, `${rep.centro} · Generado el ${fecha}`, [
+          { table: { head: ['Fecha', 'Servicio', 'Cant.', 'Precio unit.', 'Monto'],
+              rows: (rep.lineas || []).map((l) => [fmtDate(l.service_date), l.servicio || l.codigo, String(l.quantity), money(l.unit_amount), money(l.amount)]),
+              right: [2, 3, 4] } },
+          { big: `Total: ${money(rep.total)}` },
+        ]);
+      });
+      return b;
+    }
   }
 
   function addLineForm(r) {
