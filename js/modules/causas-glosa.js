@@ -1,7 +1,7 @@
 /** SOFA · 3.3 · Iteración 43 · Glosas: plazo de respuesta y causa raíz.
  *  Equipo SOFA: semáforo de 7 días hábiles, Pareto de causas, acciones correctivas con su efecto y feriados.
  *  Médico: sus glosas abiertas con el plazo y sus 3 causas más frecuentes con cómo evitarlas. */
-import { rpc, h, money, fmtDate, note, guarded, kpi, clientOptions, clientName } from '../services/iter18.js';
+import { rpc, h, money, fmtDate, note, guarded, kpi, clientOptions, clientName, downloadCsv } from '../services/iter18.js';
 
 const LIGHT = { verde: 'A tiempo', amarillo: 'Vence pronto', rojo: 'Vencida' };
 
@@ -47,9 +47,17 @@ export async function render(root, ctx = {}) {
     const from = h('input', { type: 'date', id: 'cg-from', value: isoDays(-90) });
     const to = h('input', { type: 'date', id: 'cg-to', value: isoDays(0) });
     const out = h('div', { 'aria-live': 'polite' });
+    const csvBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true }, '⬇ CSV');
+    let lastCauses = [];
+    csvBtn.addEventListener('click', () => downloadCsv('causas-glosa-pareto.csv', [
+      ['Causa', 'Categoría', 'Servicios', 'Monto', '%', 'Acumulado', 'ARS', 'Prevención', 'Vital'],
+      ...lastCauses.map((c) => [c.name, c.category, String(c.items), money(c.amount), `${c.pct} %`, `${c.acc_pct} %`, c.ars || '', c.tip || '', c.vital ? '★' : '']),
+    ]));
     const go = async () => {
       const d = await guarded(out, () => rpc('glosa_root_pareto', { p_org: org.value || null, p_from: from.value, p_to: to.value }));
       if (!d) return;
+      lastCauses = d.causes;
+      csvBtn.disabled = !d.causes.length;
       out.replaceChildren(h('p', { class: 'i18-sub' }, `Total glosado: ${money(d.total)}. Las causas «vitales» suman el primer 80 %: atacarlas primero.`),
         d.causes.length ? table(['Causa', 'Categoría', 'Servicios', 'Monto', '%', 'Acumulado', 'ARS', 'Prevención', ''],
           d.causes.map((c) => {
@@ -60,7 +68,7 @@ export async function render(root, ctx = {}) {
     };
     try { (await clientOptions()).forEach((c) => org.append(h('option', { value: c.id }, clientName(c)))); } catch (_) { /* filtro opcional */ }
     [org, from, to].forEach((x) => x.addEventListener('change', go));
-    body.replaceChildren(h('div', { class: 'i18-bar' }, h('label', { for: 'cg-org' }, 'Cliente', org), h('label', { for: 'cg-from' }, 'Desde', from), h('label', { for: 'cg-to' }, 'Hasta', to)), out);
+    body.replaceChildren(h('div', { class: 'i18-bar' }, h('label', { for: 'cg-org' }, 'Cliente', org), h('label', { for: 'cg-from' }, 'Desde', from), h('label', { for: 'cg-to' }, 'Hasta', to), csvBtn), out);
     await go();
   }
 

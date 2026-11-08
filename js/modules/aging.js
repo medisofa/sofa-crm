@@ -1,5 +1,6 @@
 /** SOFA · Aging: antigüedad del saldo por ARS o por cliente en 5 tramos, con detalle y exportación */
 import { html, render as paint, $ } from '../utils/dom.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 import { loadingView, errorView, emptyView } from '../utils/ui.js';
 import { openBalances, BUCKETS } from '../services/bi.js';
 import { filterBar, downloadCsv } from '../utils/filters.js';
@@ -13,7 +14,9 @@ export async function render(main, ctx) {
     <div class="page-head"><div class="t"><h2>Aging de cartera</h2><p>Saldo pendiente de cada radicación enviada según los días transcurridos desde la radicación. Plazo de pago de referencia: 90 días.</p></div>
       <div class="toolbar no-print" style="margin:0"><button class="btn" id="csv">Exportar CSV</button><button class="btn" id="print">Imprimir</button></div></div>
     ${staff ? html`<div class="tabs no-print" id="tabs" role="group" aria-label="Agrupar"><button data-b="ars" aria-pressed="true">Por ARS</button><button data-b="cliente" aria-pressed="false">Por cliente</button></div>` : ''}
-    <div id="fb"></div><div id="m">${loadingView(5)}</div><div id="d" style="margin-top:14px"></div>`);
+    <div id="fb"></div><div id="m" aria-live="polite">${loadingView(5)}</div><div id="d" aria-live="polite" style="margin-top:14px"></div>`);
+  const printBtn = $('#print', main);
+  printBtn.disabled = true;
   let f = await filterBar($('#fb', main), ctx, (nf) => { f = { ...nf, realOnly: staff }; load(); }, { period: false });
   f.realOnly = staff;
   const key = (r) => (by === 'ars' ? r.ars_name : r.client_name);
@@ -41,10 +44,29 @@ export async function render(main, ctx) {
           <td data-l="ARS">${r.ars_name}</td><td data-l="Radicada">${date(r.submitted_on)}</td><td data-l="Días" class="n">${r.age_days}</td><td data-l="Radicado" class="n">${money(r.claimed)}</td>
           <td data-l="Pagado" class="n">${money(r.paid)}</td><td data-l="Glosa en disputa" class="n">${money(r.glosa_in_dispute)}</td><td data-l="Saldo" class="n"><b>${money(r.balance)}</b></td></tr>`)}</tbody></table></div>` : html`<p class="small muted">Ninguna.</p>`}</div>`);
   };
-  const load = async () => { paint($('#m', main), loadingView(5)); try { rows = await openBalances(f); sel = null; draw(); } catch (err) { paint($('#m', main), errorView(err)); } };
+  const load = async () => { printBtn.disabled = true; paint($('#m', main), loadingView(5)); try { rows = await openBalances(f); sel = null; draw(); printBtn.disabled = !rows.length; } catch (err) { paint($('#m', main), errorView(err)); } };
   $('#tabs', main)?.addEventListener('click', (e) => { const b = e.target.closest('[data-b]'); if (!b) return; by = b.dataset.b; sel = null; main.querySelectorAll('#tabs [data-b]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.b === by))); draw(); });
   $('#m', main).addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) { sel = { k: b.dataset.k, b: b.dataset.b }; drawDetail(); $('#d', main).scrollIntoView({ behavior: 'smooth' }); } });
-  $('#print', main).addEventListener('click', () => window.print());
+  printBtn.addEventListener('click', () => {
+    if (!rows.length) return;
+    const w = openPrint();
+    if (!w) return;
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const tot = Object.fromEntries(BUCKETS.map((b) => [b, rows.filter((r) => r.aging_bucket === b).reduce((t, r) => t + Number(r.balance), 0)]));
+    const all = Object.values(tot).reduce((a, b) => a + b, 0);
+    const over90 = rows.filter((r) => r.age_days > 90);
+    fillPrint(w, `Aging de cartera · ${by === 'ars' ? 'por ARS' : 'por cliente'}`, `Generado el ${fecha}`, [
+      { table: { head: ['Tramo', 'Saldo', '% del total'],
+          rows: BUCKETS.map((b) => [b + ' días', money(tot[b]), all ? Math.round(100 * tot[b] / all) + ' %' : '—']),
+          right: [1, 2] } },
+      { h: 'Radicaciones con más de 90 días' },
+      over90.length
+        ? { table: { head: ['Folio', by === 'ars' ? 'ARS' : 'Cliente', 'Radicada', 'Días', 'Saldo'],
+            rows: over90.map((r) => [r.folio, by === 'ars' ? r.ars_name : r.client_name, r.submitted_on?.slice(0, 10) || '—', String(r.age_days), money(r.balance)]),
+            right: [4] } }
+        : { p: 'Sin radicaciones con más de 90 días.' },
+    ]);
+  });
   $('#csv', main).addEventListener('click', () => downloadCsv('sofa-aging.csv', ['Folio', 'Cliente', 'Prestador', 'ARS', 'Período', 'Radicada', 'Días', 'Tramo', 'Radicado', 'Pagado', 'Glosa aceptada', 'Glosa en disputa', 'Saldo'],
     rows.map((r) => [r.folio, r.client_name, r.provider_name, r.ars_name, r.period.slice(0, 7), r.submitted_on, r.age_days, r.aging_bucket, r.claimed, r.paid, r.glosa_accepted, r.glosa_in_dispute, r.balance])));
   load();

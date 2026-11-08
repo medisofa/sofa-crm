@@ -20,7 +20,7 @@ export async function render(main, ctx) {
       ${staff ? html`<div class="card"><h2>Seguimiento de hoy</h2><p class="sub">Tus tareas vencidas y de hoy, y oportunidades con la próxima acción atrasada.</p><div id="today"></div></div>` : ''}
       ${staff ? html`<div class="card"><h2>Plan de 90 días</h2><p class="sub">Hitos comerciales y técnicos. ${can('milestones.edit', ctx.role) ? 'Márcalos al cumplirlos.' : 'Solo lectura para tu rol.'}</p><div id="plan"></div></div>` : ''}
       <div class="card"><h2>Tus módulos</h2><p class="sub">Lo que tu rol puede usar hoy y lo que llega en las próximas iteraciones.</p>
-        <div class="list">${nav.map((i) => html`<div class="li"><div class="b"><div class="t1"><a href="#/${i.route}">${i.label}</a></div></div>${i.ready ? html`<span class="pill ok">Disponible</span>` : html`<span class="pill">Iteración ${i.iteration}</span>`}</div>`)}</div>
+        <div class="list">${nav.map((i) => html`<div class="li"><div class="b"><div class="t1"><a href="#/${i.route}">${i.label}</a></div></div>${i.ready ? html`<span class="pill ok">Disponible</span>` : html`<span class="pill">Próximamente</span>`}</div>`)}</div>
       </div>
     </div>`);
 
