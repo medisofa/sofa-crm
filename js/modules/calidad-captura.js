@@ -2,6 +2,7 @@
  *  La secretaria ve solo lo suyo; Administración y Operaciones ven a todas; solo Super Admin y Administrador editan las reglas y solo el Super Admin enciende el bloqueo.
  *  El servidor vuelve a verificar el rol en cada función; ocultar partes de la pantalla no es un control. */
 import { h, note, kpi, guarded, fmtDate, todayIso } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import * as dq from '../services/calidad-dato.js';
 
 const KIND = { dx_requerido: 'El servicio exige diagnóstico', dx_permitidos: 'Solo estos diagnósticos', dx_excluidos: 'Estos diagnósticos no se aceptan' };
@@ -121,7 +122,7 @@ export async function render(root, ctx = {}) {
     const filasR = ov.rules.map((r) => {
       const e = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: !ed }, 'Editar'); e.addEventListener('click', () => formulario(r));
       const x = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: !ed }, 'Borrar');
-      x.addEventListener('click', () => { if (window.confirm(`¿Borrar la regla «${r.name}»? No se puede deshacer.`)) accion(() => dq.borrarRegla(r.id)); });
+      x.addEventListener('click', async () => { if (await confirmDialog('Borrar regla', `¿Borrar la regla «${r.name}»? No se puede deshacer.`, 'Borrar', true)) accion(() => dq.borrarRegla(r.id)); });
       return h('tr', {}, h('td', {}, r.name, r.is_example ? h('small', { class: 'i18-sub' }, ' · ejemplo ficticio') : null), h('td', {}, r.ars || 'Todas'), h('td', {}, r.procedure || 'Todos'),
         h('td', {}, KIND[r.kind] || r.kind), h('td', {}, (r.dx_prefixes || []).join(', ') || '—'), h('td', {}, MODE[r.mode]), h('td', {}, h('span', { class: `cq-pill ${r.status === 'activa' ? 'cq-ok' : 'cq-off'}` }, STATUS[r.status])), h('td', {}, e, ' ', x));
     });

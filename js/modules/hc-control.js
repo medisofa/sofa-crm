@@ -3,6 +3,7 @@
  *  bitácora de accesos y verificación de integridad de la bitácora. No muestra datos clínicos.
  *  2.6.1: aquí el Super Admin importa las historias que el consultorio trae de otro sistema (a nombre del médico). */
 import { rpc, clientOptions, clientName, h, note, guarded, table } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { importPanel } from './hc-importar.js';
 
 const MODE = { desactivada: 'Desactivada', prueba: 'Prueba (solo pacientes ficticios)', activa: 'Activa (pacientes reales)' };
@@ -42,7 +43,7 @@ export async function render(root) {
     const msg = h('div', { 'aria-live': 'polite' });
     const save = h('button', { class: 'i18-btn', type: 'button' }, 'Guardar');
     save.addEventListener('click', async () => {
-      if (mode.value === 'activa' && !confirm('Modo ACTIVA: el consultorio podrá registrar pacientes reales. ¿Confirma que la revisión legal está hecha?')) return;
+      if (mode.value === 'activa' && !await confirmDialog('Activar modo real', 'Modo ACTIVA: el consultorio podrá registrar pacientes reales. Confirme que la revisión legal está hecha.', 'Confirmar y guardar', true)) return;
       save.disabled = true;
       try { await rpc('clinical_set_mode', { p_org: org, p_mode: mode.value, p_require_mfa: mfa.checked, p_legal_ack: ack.value || null }); await draw(); body.prepend(note('Guardado.', 'ok')); }
       catch (e) { msg.replaceChildren(note(e.message, 'error')); save.disabled = false; }

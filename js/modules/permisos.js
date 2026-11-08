@@ -14,6 +14,7 @@
  *  demás, y si pudiera esconderse «Usuarios y roles» se quedaría sin manera de volver atrás.
  */
 import { rpc, h, note, guarded } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { ROLES, FAMILIES, FAMILIAS_ROL, rutasDelRol, canSee } from '../utils/permissions.js';
 
 const famNombre = (key, rol) => {
@@ -82,7 +83,7 @@ export async function render(root, ctx = {}) {
         title: r.intocable ? 'El menú del Super Admin no se configura: siempre lo ve todo' : ''
       }, `${r.name} (${r.personas})`);
       b.addEventListener('click', async () => {
-        if (sucio() && !confirm('Tienes cambios sin guardar en «' + nombreRol(rol) + '». ¿Los descartas?')) return;
+        if (sucio() && !await confirmDialog('Descartar cambios', 'Tienes cambios sin guardar en «' + nombreRol(rol) + '». ¿Los descartas?', 'Descartar', true)) return;
         rol = r.code; borrador = null; pintarRoles(); await abrir(r.code);
       });
       fila.append(b);
@@ -195,8 +196,7 @@ export async function render(root, ctx = {}) {
 
       const fabrica = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Volver a como viene de fábrica');
       fabrica.addEventListener('click', async () => {
-        if (!confirm('Esto borra la configuración guardada de «' + nombreRol(code)
-          + '» y vuelve al menú que trae el sistema. ¿Seguimos?')) return;
+        if (!await confirmDialog('Volver a fábrica', 'Esto borra la configuración guardada de «' + nombreRol(code) + '» y vuelve al menú que trae el sistema.', 'Volver a fábrica', true)) return;
         fabrica.disabled = true;
         try { await rpc('role_menu_reset', { p_role: code });
           decirDespues('Listo: «' + nombreRol(code) + '» volvió al menú de fábrica.'); await cargar(); }
@@ -251,7 +251,7 @@ export async function render(root, ctx = {}) {
         if (datos.puede_editar && !esIntocable(code)) {
           const b = h('button', { class: 'i18-btn i18-sec pm-mini', type: 'button' }, 'Volver aquí');
           b.addEventListener('click', async () => {
-            if (!confirm('Esto deja «' + nombreRol(code) + '» como estaba en ese momento. ¿Seguimos?')) return;
+            if (!await confirmDialog('Restaurar versión', 'Esto deja «' + nombreRol(code) + '» como estaba en ese momento.', 'Restaurar', false)) return;
             b.disabled = true;
             try { await rpc('role_menu_restore', { p_version: v.id });
               decir('Listo: «' + nombreRol(code) + '» volvió a como estaba el ' + cuando(v.cuando) + '.');

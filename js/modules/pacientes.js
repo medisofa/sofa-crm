@@ -2,6 +2,7 @@
  *  Buscar, crear/editar la ficha y ver su historial de citas y reclamaciones. Cada apertura queda en la bitácora.
  *  2.6.1: ARS y PLAN del paciente; sus reclamaciones se tarifan con la tarifa del plan cuando existe. */
 import { rpc, providerOptions, h, money, fmtDate, note, guarded, table } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 
 const SEX = { F: 'Femenino', M: 'Masculino', X: 'No especificado' };
 
@@ -17,13 +18,13 @@ function portalBox(patientId, p) {
     const orders = h('input', { type: 'checkbox', checked: true });
     const create = h('button', { class: 'i18-btn i18-sec', type: 'button' }, st.active ? 'Crear enlace nuevo' : 'Crear enlace');
     create.addEventListener('click', async () => {
-      if (st.active && !confirm('El enlace anterior dejará de funcionar. ¿Crear uno nuevo?')) return;
+      if (st.active && !await confirmDialog('Crear enlace nuevo', 'El enlace anterior dejará de funcionar al crear uno nuevo.', 'Crear enlace nuevo', true)) return;
       create.disabled = true;
       try { const r = await rpc('portal_link_create', { p_patient: patientId, p_days: Number(days.value), p_show_orders: orders.checked }); show(r); await draw(); }
       catch (e) { out.replaceChildren(note(e.message, 'error')); create.disabled = false; }
     });
     const revoke = st.active ? h('button', { class: 'i18-link', type: 'button', onclick: async () => {
-      if (!confirm('El paciente ya no podrá abrir su enlace. ¿Anularlo?')) return;
+      if (!await confirmDialog('Anular enlace', 'El paciente ya no podrá abrir su enlace.', 'Anular enlace', true)) return;
       try { await rpc('portal_link_revoke', { p_patient: patientId }); out.replaceChildren(note('Enlace anulado.', 'ok')); await draw(); } catch (e) { out.replaceChildren(note(e.message, 'error')); }
     } }, 'Anular enlace') : '';
     box.replaceChildren(h('h4', { style: 'margin-top:0' }, 'Portal del paciente'),
