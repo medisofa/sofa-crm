@@ -2,6 +2,7 @@
  *  y en un CSV que abre en Excel. Síntesis sobre accountant_report, que SOFA ya calcula. No inventa datos
  *  y no incluye información de pacientes. */
 import { rpc, h, money, num, fmtDate, kpi, table, note, guarded, downloadCsv, clientOptions, clientName, monthNow, monthToDate } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 const METODOS = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta', cheque: 'Cheque', sin_metodo: 'Sin método registrado' };
 const metodo = (k) => METODOS[k] || k;
@@ -15,25 +16,56 @@ export async function render(root) {
   const clientLbl = h('label', {}, 'Consultorio ', clientSel);   // 5.22.0: se esconde si hay uno solo
   const monthIn = h('input', { type: 'month', value: monthNow(), max: monthNow(), 'aria-label': 'Mes' });
   const btnCsv = h('button', { class: 'i18-btn', type: 'button', disabled: true }, 'Descargar para el contador (CSV)');
+  const btnPrint = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true, title: 'Genera un documento imprimible con el resumen del mes para el contador.' }, '📄 Imprimir');
   let ultimo = null;
 
   async function load() {
-    btnCsv.disabled = true;
+    btnCsv.disabled = true; btnPrint.disabled = true;
     if (!clientSel.value) { out.replaceChildren(note('No hay consultorios disponibles para tu usuario.')); return; }
     const r = await guarded(out, () => rpc('accountant_report', { p_org: clientSel.value, p_period: monthToDate(monthIn.value) }));
     if (!r) return;
     ultimo = r;
-    btnCsv.disabled = false;
+    btnCsv.disabled = false; btnPrint.disabled = false;
     out.replaceChildren(view(r));
   }
   clientSel.addEventListener('change', load);
   monthIn.addEventListener('change', load);
   btnCsv.addEventListener('click', () => { if (ultimo) descargar(ultimo); });
+  btnPrint.addEventListener('click', () => {
+    if (!ultimo) return;
+    const w = openPrint();
+    if (!w) return;
+    const r = ultimo, s = r.summary || {}, org = r.organization || {};
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const cabecera = `${org.legal_name || org.name || ''}${org.tax_id ? ' · RNC ' + org.tax_id : ''} · ${mesLargo(r.period)}`;
+    const blocks = [
+      { p: cabecera },
+      { h: 'Resumen de ingresos' },
+      { table: { head: ['Concepto', 'Monto'], rows: [
+        ['Ingresos de las ARS', money(s.income_ars)],
+        ['Ingresos de pacientes privados', money(s.income_private)],
+        ['Copagos y diferencias', money(s.income_copays)],
+        ['INGRESOS TOTALES', money(s.income_total)],
+        ['Honorarios SOFA (gasto)', money(s.sofa_fees_invoiced)],
+        ['Glosas aceptadas (no procedió)', money(s.glosas_accepted)],
+      ], right: [1] } },
+    ];
+    if ((r.ars_payments || []).length) {
+      blocks.push({ h: 'Pagos recibidos de las ARS' });
+      blocks.push({ table: { head: ['Fecha', 'ARS', 'Referencia', 'Folio', 'Monto'], rows: (r.ars_payments || []).map((p) => [fmtDate(p.paid_on), p.ars || '—', p.reference || '—', p.folio || '—', money(p.amount)]), right: [4] } });
+    }
+    if ((r.sofa_invoices || []).length) {
+      blocks.push({ h: 'Honorarios facturados por SOFA' });
+      blocks.push({ table: { head: ['Folio', 'NCF', 'Fecha', 'Estado', 'Total', 'Balance'], rows: (r.sofa_invoices || []).map((i) => [i.folio || '—', i.ncf || '—', fmtDate(i.issued_on), i.status || '—', money(i.total), money(i.balance)]), right: [4, 5] } });
+      blocks.push({ p: 'Estos honorarios son un gasto de la práctica. El NCF es el que debe registrar el contador.' });
+    }
+    fillPrint(w, `Reporte contador · ${mesLargo(r.period)}`, `Generado el ${fecha}`, blocks);
+  });
 
   root.append(h('div', { class: 'i18-wrap' },
     h('h2', {}, 'Reporte para mi contador'),
     h('p', { class: 'i18-sub' }, 'Todo lo que tu contador necesita del mes: lo que entró, de dónde vino y lo que SOFA te facturó. Sin datos de pacientes.'),
-    h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Mes ', monthIn), btnCsv),
+    h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Mes ', monthIn), btnCsv, btnPrint),
     out));
   try {
     const cl = await clientOptions();

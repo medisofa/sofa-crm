@@ -1,6 +1,7 @@
 /** SOFA · 5.9.0 · Médico · «Mi productividad»: cuánto produzco, mi ticket promedio y mi tasa de glosa,
  *  por ARS o por procedimiento, en el período que elija. Síntesis sobre public.profitability (ya probada). */
 import { rpc, h, money, pct, num, kpi, table, note, guarded, clientOptions, clientName, monthNow, monthToDate } from '../services/iter18.js';
+import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 export async function render(root) {
   root.replaceChildren();
@@ -10,6 +11,8 @@ export async function render(root) {
   const desde = h('input', { type: 'month', 'aria-label': 'Desde' });
   const hasta = h('input', { type: 'month', value: monthNow(), max: monthNow(), 'aria-label': 'Hasta' });
   const grupo = h('select', { 'aria-label': 'Agrupar por' }, h('option', { value: 'ars' }, 'Por ARS'), h('option', { value: 'procedure' }, 'Por procedimiento'), h('option', { value: 'provider' }, 'Por médico'));
+  const printBtn = h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: true, title: 'Genera un documento imprimible con el resumen de productividad.' }, '📄 Imprimir');
+  let lastD = null; let lastRango = '';
   // por defecto, últimos 3 meses
   { const d = new Date(); d.setMonth(d.getMonth() - 2); desde.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 
@@ -19,14 +22,45 @@ export async function render(root) {
     if (!clientSel.value) { out.replaceChildren(note('No hay consultorios disponibles para tu usuario.')); return; }
     const d = await guarded(out, () => rpc('profitability', { p_org: clientSel.value, p_from: monthToDate(desde.value), p_to: lastDay(hasta.value), p_group: grupo.value }));
     if (!d) return;
-    out.replaceChildren(view(d, rango(desde.value, hasta.value)));
+    lastD = d; lastRango = rango(desde.value, hasta.value);
+    out.replaceChildren(view(d, lastRango)); printBtn.disabled = false;
   }
   [clientSel, desde, hasta, grupo].forEach((el) => el.addEventListener('change', load));
+  printBtn.addEventListener('click', () => {
+    if (!lastD) return;
+    const w = openPrint();
+    if (!w) return;
+    const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const t = lastD.totals || {}, rows = Array.isArray(lastD.rows) ? lastD.rows : [];
+    const esArs = lastD.group === 'ars', esMedico = lastD.group === 'provider';
+    const etiq = esArs ? 'ARS' : esMedico ? 'Médico' : 'Procedimiento';
+    const blocks = [
+      { table: { head: ['Concepto', 'Valor'], rows: [
+        ['Servicios reclamados', num(t.lines)],
+        ['Total reclamado', money(t.claimed)],
+        ['Ticket promedio', money(rows.length ? (Number(t.claimed) || 0) / (Number(t.lines) || 1) : 0)],
+        ['Tasa de glosa', t.glosa_rate_pct != null ? pct(t.glosa_rate_pct) : '—'],
+        ['Total glosado', money(t.glosado)],
+      ], right: [1] } },
+    ];
+    if (rows.length) {
+      blocks.push({ h: etiq });
+      blocks.push({ table: { head: [etiq, 'Reclam.', 'Reclamado', 'Ticket', 'Cobrado', 'Glosa', 'Días a pago'],
+        rows: rows.map((r) => [
+          (esArs ? r.ars : esMedico ? (r.provider || r.doctor_name) : r.procedure) || '—',
+          num(r.lines), money(r.claimed), money(r.avg_ticket),
+          r.collected_pct != null ? pct(r.collected_pct) : '—',
+          r.glosa_rate_pct != null ? pct(r.glosa_rate_pct) : '—',
+          r.avg_days_to_pay != null ? num(r.avg_days_to_pay) : '—',
+        ]), right: [1, 2, 3] } });
+    }
+    fillPrint(w, `Mi productividad · ${lastRango}`, `Generado el ${fecha}`, blocks);
+  });
 
   root.append(h('div', { class: 'i18-wrap' },
     h('h2', {}, 'Mi productividad'),
     h('p', { class: 'i18-sub' }, 'Cuánto produces, tu ticket promedio y tu tasa de glosa, por ARS, por procedimiento o por médico.'),
-    h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Desde ', desde), h('label', {}, 'Hasta ', hasta), h('label', {}, 'Ver ', grupo)),
+    h('div', { class: 'i18-bar' }, clientLbl, h('label', {}, 'Desde ', desde), h('label', {}, 'Hasta ', hasta), h('label', {}, 'Ver ', grupo), printBtn),
     out));
   try {
     const cl = await clientOptions();
