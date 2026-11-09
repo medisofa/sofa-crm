@@ -194,3 +194,5 @@ dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
 .office-linked{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-top:1px solid var(--line);padding:10px 0}
 @media(max-width:800px){.office-line-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.office-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.office-line-fields{grid-template-columns:1fr}.office-item{padding:12px}.office-linked .btn{width:100%}}
+.gi-review-filters .btn[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--ink-2);font-weight:700}
+.gi-review-filters .btn:focus-visible{outline:2px solid var(--ink-2);outline-offset:3px}

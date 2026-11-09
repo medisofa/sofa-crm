@@ -131,7 +131,7 @@ export async function render(root, ctx = {}) {
       const exc = d.exception;
       detalle.replaceChildren(h('section', { class: 'i18-card ex-detail', 'aria-label': 'Detalle del expediente' },
         h('div', { class: 'i18-bar' }, h('h3', {}, `Reclamación ${d.claim_folio || ''}`), semPill(d.semaforo), h('button', { type: 'button', class: 'btn sm', id: 'ex-close', onclick: () => { abierta = null; detalle.replaceChildren(); if (ultimo) pintar(ultimo); } }, 'Cerrar')),
-        h('p', { class: 'i18-sub' }, `${d.patient_name} · ${d.ars || 'Sin ARS'} · ${d.care_mode} · radicación ${d.submission_folio || '—'}`),
+        h('p', { class: 'i18-sub' }, `${d.patient_name} · ${d.ars || 'ARS no disponible; verifique el lote'} · ${d.care_mode} · radicación ${d.submission_folio || '—'}`),
         d.semaforo === 'completo' ? note('Expediente completo: todos los documentos obligatorios están.', 'ok') : note(`Faltan ${(d.missing || []).length} documento(s) obligatorio(s): ${(d.missing || []).join(', ')}.`, 'warn'),
         exc ? note(`Excepción de expediente autorizada: ${exc.reason}. Se puede radicar aunque falten documentos.`, 'info') : null,
         h('ul', { class: 'ex-items' }, items),

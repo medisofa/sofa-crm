@@ -61,6 +61,10 @@ export async function profileNames(ids) {
 export async function listLines(submissionId) {
   return must(await sb().from('service_lines').select('*, procedures(internal_code, description, service_type_code)').eq('submission_id', submissionId).order('service_date').order('created_at'));
 }
+/** Datos originales para editar una reclamación desde su ficha; RLS mantiene el alcance. */
+export async function getLine(id) {
+  return must(await sb().from('service_lines').select('*').eq('id', id).maybeSingle());
+}
 export async function lineChecklist(submissionId) {
   return must(await sb().from('v_line_checklist').select('service_line_id, required, present, pct, complete').eq('submission_id', submissionId));
 }

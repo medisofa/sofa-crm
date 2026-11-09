@@ -9,7 +9,7 @@ import { loadingView, emptyView, errorView, toast, friendlyError, busy } from '.
 import { money, date, dateTime } from '../utils/formatters.js';
 import { claimStatus, CLAIM_MOVE_LABELS, DISCREPANCY_STATUS, CARE_MODES } from '../utils/constants.js';
 import { can, isStaff, canOpen } from '../utils/permissions.js';
-import { profileNames } from '../services/submissions.js';
+import { profileNames, getSubmission, getLine } from '../services/submissions.js';
 import { renderDossier } from './dossier-card.js';
 import { runClaimPreaudit } from '../services/claim-agent-runner.js';
 import {
@@ -42,7 +42,8 @@ export async function render(main, ctx) {
     ]);
     const names = await profileNames([c.created_by, c.updated_by, ...hist.map((h) => h.changed_by), ...audits.map((a) => a.auditor_id),
       ...discs.flatMap((d) => [d.created_by, d.decided_by])].filter(Boolean)).catch(() => ({}));
-    return { c, hist, audits, discs, checks, locs, trans, pays, glosas, names, timeline, resubs };
+    const sub = await getSubmission(c.submission_id);
+    return { c, sub, hist, audits, discs, checks, locs, trans, pays, glosas, names, timeline, resubs };
   }
   async function refresh() {
     try {
@@ -67,6 +68,11 @@ export async function render(main, ctx) {
     const who = (uid) => (uid ? names[uid] || 'Usuario' : '—');
     const lastAudit = audits[0];
     const radicada = ['radicada', 'en_proceso_ars', 'devuelta', 'pago_parcial', 'glosada', 'pagada', 'cerrada'].includes(c.claim_status);
+    const contentEditable = can('subs.edit', role) && S.sub
+      && ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'].includes(S.sub.status)
+      && (role !== 'client' || S.sub.status === 'borrador')
+      && (role === 'client' ? ['pendiente_configuracion', 'capturada', 'pendiente_retiro']
+        : ['pendiente_configuracion', 'capturada', 'pendiente_retiro', 'retirada', 'en_validacion', 'con_inconsistencia', 'devuelta']).includes(c.claim_status);
 
     paint(box, html`
     <div class="page-head"><div class="t"><p><a href="#/reclamaciones">← Reclamaciones</a></p>
@@ -94,17 +100,19 @@ export async function render(main, ctx) {
           ['¿Fue radicada?', radicada ? html`Sí · lote ${lnk(`#/radicaciones/${c.submission_id}`, role, c.submission_folio, 'mono')}` : html`No · lote ${lnk(`#/radicaciones/${c.submission_id}`, role, c.submission_folio, 'mono')}`]])}
       </div>
       <div class="card"><h2>Servicio, códigos y contrato aplicado</h2>
+        ${contentEditable ? html`<p class="no-print"><button type="button" class="btn primary" data-edit-claim>Editar servicio, cantidad y monto</button></p>` : html`<p class="small muted">Edición no disponible para el estado actual o los permisos de tu perfil.</p>`}
         ${kv([['Servicio', c.service_name], ['Código SIMON', c.simon ? html`<span class="mono">${c.simon}</span>` : ''], ['Código CUPS', c.cups ? html`<span class="mono">${c.cups}</span>` : ''],
           ['Código interno', c.internal_code ? html`<span class="mono">${c.internal_code}</span>` : ''],
           ['Tarifa contratada en la fecha', c.contracted ? html`<b>${money(c.tariff_amount)}</b>` : html`<span class="pill bad">No contratado</span>${c.contract_override_reason ? html`<div class="small">Excepción: ${c.contract_override_reason}</div>` : ''}`],
           ['Vigencia aplicada', c.tariff_valid_from ? `${date(c.tariff_valid_from)} – ${c.tariff_valid_to ? date(c.tariff_valid_to) : 'abierta'}` : ''], ['Contrato', c.contract_ref],
           ['Cantidad × unitario', `${c.quantity} × ${money(c.unit_amount)}`], ['Monto reclamado', html`<b>${money(c.claimed)}</b>`]])}
-        <p class="small muted">Estos datos son la fotografía del contrato al registrar la reclamación: un cambio posterior del catálogo o de la tarifa no los modifica.</p>
+        <p class="small muted">SIMON, CUPS y contrato se obtienen del servicio seleccionado. La tarifa aplicada no se modifica manualmente; un cambio posterior del catálogo no altera esta fotografía.</p>
       </div>
     </div>
 
     <div class="grid two" style="margin-top:14px">
       <div class="card"><h2>Paciente y registro</h2>
+        ${contentEditable ? html`<p class="no-print"><button type="button" class="btn" data-edit-claim>Editar datos de la reclamación</button></p>` : ''}
         ${kv([['Paciente', c.patient_name], ['NSS / afiliado', c.member_number], ['Cédula', c.patient_doc], ['Autorización', c.authorization_number ? html`<span class="mono">${c.authorization_number}</span>` : ''],
           ['Fecha de la autorización', html`${c.authorization_date ? date(c.authorization_date) : html`<span class="muted">sin registrar</span>`}${['pendiente_configuracion', 'capturada', 'pendiente_retiro', 'retirada', 'en_validacion', 'con_inconsistencia', 'validada', 'lista_para_radicar'].includes(c.claim_status) && can('claims.capture', role) ? html` <button class="btn sm" id="authDate" type="button">${c.authorization_date ? 'Corregir' : 'Registrar'}</button>` : ''}`],
           ['Fecha del servicio', date(c.service_date)], ['Modalidad', c.care_mode ? careMode(c.care_mode) : ''], ['Centro / clínica', c.clinic_name],
@@ -163,6 +171,14 @@ export async function render(main, ctx) {
   function bind() {
     const { c, locs, trans } = S;
     renderDossier($('#dossier', box), c, role, refresh);
+    box.querySelectorAll('[data-edit-claim]').forEach(button => button.addEventListener('click', () => busy(button, async () => {
+      try {
+        const [sub, line] = await Promise.all([getSubmission(c.submission_id), getLine(id)]);
+        if (!sub || !line || line.submission_id !== sub.id) throw new Error('La reclamación cambió o ya no está disponible. Actualiza la ficha.');
+        const { lineDialog } = await import('./submission-dialogs.js');
+        if (await lineDialog(sub, line)) { toast('Reclamación actualizada; cambio registrado en bitácora.', 'ok'); await refresh(); }
+      } catch (err) { toast(friendlyError(err), 'bad'); }
+    })));
     box.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', async () => {
       const { moveDialog } = await import('./claim-dialogs.js');
       try { const n = await moveDialog([id], b.dataset.to, { role, transitions: trans, locations: locs, from: c.claim_status }); if (n != null) { toast('Reclamación actualizada', 'ok'); refresh(); } }

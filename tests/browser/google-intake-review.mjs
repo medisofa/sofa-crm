@@ -50,6 +50,13 @@ try{
  await upload(header+row('<script>Paciente uno</script>','111','AU1')+row('Paciente dos','222','AU2','750')+row('Repetida','111','AU3')+row('Existente','EXIST','AU4')+row('Paciente cinco','555','AU5','','2'));
  assert.equal(await page.locator('#import').isDisabled(),true);
  assert.equal(await page.locator('#preview tbody tr').count(),5);
+ await page.locator('[data-review-filter="amount"]').click();
+ assert.equal(await page.locator('#preview tbody tr').count(),1);
+ assert.match(await page.locator('#preview').textContent(),/750/);
+ await page.locator('[data-review-filter="duplicates"]').click();
+ assert.equal(await page.locator('#preview tbody tr').count(),3);
+ await page.locator('[data-review-filter="all"]').click();
+ assert.equal(await page.locator('#preview tbody tr').count(),5);
  assert.equal(await page.locator('#preview script').count(),0);
  await page.getByText(/Ya existe en SoFa: F-existente/).waitFor();
  const idleColor=await page.locator('#duplicates').evaluate(e=>getComputedStyle(e).backgroundColor);
@@ -57,6 +64,7 @@ try{
  await page.locator('#duplicates').click();
  await page.waitForFunction(()=>document.querySelector('#duplicates').dataset.actionState==='running');
  assert.equal(await page.locator('#duplicates').getAttribute('aria-busy'),'true');
+ await page.waitForFunction(color=>getComputedStyle(document.querySelector('#duplicates')).backgroundColor!==color,idleColor);
  assert.notEqual(await page.locator('#duplicates').evaluate(e=>getComputedStyle(e).backgroundColor),idleColor);
  assert.equal(await page.locator('#duplicates').evaluate(e=>getComputedStyle(e,'::before').animationName),'sofa-action-spin');
  assert.match(await page.locator('#gi-action-status').textContent(),/en proceso/);
@@ -96,6 +104,9 @@ try{
  assert.equal(await page.locator('#approve').isEnabled(),true);
  await page.locator('#approve').click();await page.getByRole('button',{name:'Aprobar',exact:true}).click();
  await page.waitForFunction(()=>!document.querySelector('#import').disabled);
+ assert.match(await page.locator('#summary').textContent(),/3 aprobada/);
+ // Revalidating unchanged source and tariff must preserve recorded approvals.
+ await page.locator('#validate').click();await page.waitForFunction(()=>!document.querySelector('#gcsv').disabled);
  assert.match(await page.locator('#summary').textContent(),/3 aprobada/);
  await page.evaluate(()=>commitFail=true);
  await page.locator('#import').click();await page.getByRole('button',{name:'Confirmar e importar',exact:true}).click();

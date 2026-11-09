@@ -4,6 +4,7 @@
 import { rpc, supabase } from './iter18.js';
 import { procesarFoto, subirCaptura, sha256 } from './camera.js';
 import { safeName } from './documents.js';
+import { getClaim } from './claims.js';
 
 const BUCKET = 'claim-documents';
 export const MAX_BYTES = 10 * 1024 * 1024;
@@ -24,7 +25,18 @@ export const MODALIDAD = { '': 'Todas las modalidades', ambulatorio: 'Ambulatori
 
 export const listarExpedientes = (org, { submission = null, semaforo = null, limit = 50, offset = 0 } = {}) =>
   rpc('dossier_list', { p_org: org || null, p_submission: submission, p_semaforo: semaforo, p_limit: limit, p_offset: offset });
-export const detalleExpediente = (line) => rpc('dossier_detail', { p_line: line });
+export async function detalleExpediente(line) {
+  const detail=await rpc('dossier_detail', { p_line: line });
+  if(detail && (!detail.ars || !detail.submission_folio)) {
+    const claim=await getClaim(line).catch(()=>null);
+    if(claim && claim.organization_id===detail.organization_id && claim.submission_id===detail.submission_id) {
+      detail.ars=detail.ars || claim.ars_name;
+      detail.ars_id=detail.ars_id || claim.ars_id;
+      detail.submission_folio=detail.submission_folio || claim.submission_folio;
+    }
+  }
+  return detail;
+}
 export const indicadorExpediente = (org, desde = null, hasta = null) => rpc('dossier_indicator', { p_org: org || null, p_from: desde, p_to: hasta });
 export const parametros = (org = null) => rpc('dossier_params_get', { p_org: org || null });
 export const guardarParametros = (p) => rpc('dossier_params_set', { p_block: p.bloqueo, p_retention_years: p.anios, p_default_limit_mb: p.limiteMb, p_warn_pct: p.aviso, p_target_pct: p.meta });

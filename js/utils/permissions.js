@@ -587,7 +587,7 @@ const ACTIONS = {
   'claims.duplicate': ['super_admin', 'admin', 'billing'],
   'pickups.manage': ['super_admin', 'admin', 'billing', 'assistant', 'operations'],
   'contracts.edit': ['super_admin', 'admin', 'billing'],
-  'fiscal.edit': ['super_admin', 'admin', 'billing'],
+  'fiscal.edit': ['super_admin', 'admin'], // espejo de app.guard_billing_submission
   'fiscal.exception': ['super_admin', 'admin'],
   'payments.distribute': ['super_admin', 'admin', 'billing', 'glosas'],
   'capturers.assign': ['super_admin', 'admin'],
