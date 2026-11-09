@@ -18,12 +18,16 @@ import {
 } from '../services/claims.js';
 
 export async function render(main, ctx) {
+  if (ctx.arg === 'oficina' || ctx.arg?.startsWith('oficina/')) {
+    const office = await import('./office-receptions.js');
+    return office.render(main, ctx);
+  }
   if (ctx.arg) return renderDetail(main, ctx);
   const role = ctx.role; const manage = can('pickups.manage', role);
   const st = { status: '', providerId: '', page: 0 };
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Retiros físicos</h2><p>Retiro de las reclamaciones en papel en cada consultorio, con folio RET, cantidades y responsables.</p></div>
-      ${manage ? html`<button class="btn primary" id="new">+ Programar retiro</button>` : ''}</div>
+      <div class="toolbar"><a class="btn" href="#/retiros/oficina">Recepción en oficina</a>${manage ? html`<button class="btn primary" id="new">+ Programar retiro</button>` : ''}</div></div>
     <div class="toolbar">
       <label class="sr-only" for="ps">Estado</label><select class="input" id="ps" style="width:auto"><option value="">Todos</option>${Object.entries(PICKUP_STATUS).map(([k, [l]]) => opt(k, l))}</select>
       <label class="sr-only" for="pp">Médico</label><select class="input" id="pp" style="width:auto"><option value="">Todos los médicos</option></select>

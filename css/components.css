@@ -178,3 +178,19 @@ dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
 #gi-draft-status[data-state="error"]{color:var(--bad);font-weight:600}
 #gi-draft-panel .toolbar{flex-wrap:wrap}
 #gi-draft-panel select{max-width:100%;min-width:0}
+
+/* Recepción en oficina: captura de lotes y conciliación */
+.office-line{border:1px solid var(--line);border-radius:var(--r);margin:0 0 12px;padding:12px;min-width:0}
+.office-line legend{font-size:.85rem;font-weight:600;padding:0 6px}
+.office-line-fields{display:grid;grid-template-columns:1.3fr 1.5fr .7fr 1fr auto;gap:12px;align-items:end}
+.office-line-fields .field{min-width:0}
+.office-line-fields input,.office-line-fields select{width:100%}
+.office-line-fields>.btn{margin-bottom:0;min-height:42px}
+.office-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.office-summary>div{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:14px;overflow-wrap:anywhere}
+.office-summary b,.office-summary span{display:block}.office-summary b{font-size:1.15rem}.office-summary span{font-size:.8rem;color:var(--ink-2);margin-top:6px}
+.office-item{border:1px solid var(--line);border-radius:var(--r);padding:16px;margin:16px 0;overflow-wrap:anywhere}
+.office-item h3{margin:0 0 8px}
+.office-linked{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-top:1px solid var(--line);padding:10px 0}
+@media(max-width:800px){.office-line-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.office-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.office-line-fields{grid-template-columns:1fr}.office-item{padding:12px}.office-linked .btn{width:100%}}

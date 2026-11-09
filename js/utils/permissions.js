@@ -80,7 +80,7 @@ export const NAV = [
   { group: 'Reclamaciones', items: [
     { route: 'captura', label: 'Captura rápida', roles: CAPTURE, ready: true },
     { route: 'reclamaciones', label: 'Reclamaciones', roles: CLAIMS, ready: true },
-    { route: 'retiros', label: 'Retiros físicos', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'auditor', 'client'], ready: true },
+    { route: 'retiros', label: 'Retiros y recepción', roles: ['super_admin', 'admin', 'billing', 'assistant', 'operations', 'auditor', 'client'], ready: true },
     { route: 'preradicacion', label: 'Pre-radicación', roles: ['super_admin', 'admin', 'billing', 'operations', 'auditor', 'assistant'], ready: true },
     { route: 'contratos', label: 'Tarifario contractual', roles: ['super_admin', 'admin', 'billing', 'glosas', 'auditor', 'operations', 'client'], ready: true },
     { route: 'requisitos', label: 'Requisitos documentales', roles: ['super_admin', 'admin', 'billing', 'auditor', 'operations', 'assistant'], ready: true },
