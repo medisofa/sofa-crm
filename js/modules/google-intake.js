@@ -74,7 +74,7 @@ function changedValues(before, after){
 }
 
 export async function render(main, ctx){
-  const S={draftId:null,providers:[],ars:[],rows:[],validated:[],busy:false,initializing:true,sourceName:'',editor:null,auditCursor:0,batchId:crypto.randomUUID?.()||String(Date.now())};
+  const S={draftId:null,providers:[],ars:[],rows:[],validated:[],busy:false,initializing:true,sourceName:'',editor:null,auditCursor:0,reviewFilter:'all',batchId:crypto.randomUUID?.()||String(Date.now())};
   paint(main,html`
     <div class="page-head"><div class="t"><h2>Carga Google Sheets / Form</h2>
       <p>Importa reclamaciones capturadas fuera de SOFA. Si faltan datos, el mismo usuario puede completarlos aquí antes de importar; cada cambio queda en bitácora.</p></div>
@@ -112,7 +112,7 @@ export async function render(main, ctx){
       </div>
     </div>
     <div class="card" style="margin-top:14px"><div class="page-head"><div class="t"><h2>2 · Revisar, corregir y confirmar</h2><p id="summary">Carga un CSV para comenzar.</p></div>
-      <div class="toolbar"><button class="btn" id="duplicates" disabled>Verificar duplicadas</button><button class="btn" id="approve" disabled>Aprobar filas sin observaciones</button><button class="btn primary" id="import" disabled>Confirmar e importar aprobadas</button></div></div><div id="gi-action-status" class="gi-action-status" role="status" aria-live="polite" hidden></div><div id="preview"></div></div>
+      <div class="toolbar"><button class="btn" id="duplicates" disabled>Verificar duplicadas</button><button class="btn" id="approve" disabled>Aprobar filas sin observaciones</button><button class="btn primary" id="import" disabled>Confirmar e importar aprobadas</button></div></div><div id="gi-action-status" class="gi-action-status" role="status" aria-live="polite" hidden></div><div id="gi-review-help" role="status" aria-live="polite"></div><div id="gi-review-filters" class="toolbar gi-review-filters" role="group" aria-label="Filtrar filas por observación"></div><div id="preview"></div></div>
   `);
 
   const file=$('#gcsv',main), validate=$('#validate',main), imp=$('#import',main), preview=$('#preview',main), summary=$('#summary',main);
@@ -149,11 +149,25 @@ export async function render(main, ctx){
     if(tariff!=null&&providedAmount!=null&&Math.abs(providedAmount-tariff)>=0.005&&!can('claims.discrepancy',ctx.role))errors.push('El ajuste de monto requiere autorización de Administración o Facturación');
     const quantity=num(r['Cantidad'])??1;
     if(!Number.isInteger(quantity)||quantity<1||quantity>999)errors.push('Cantidad: indique un entero entre 1 y 999');
+    const keepApproval=previous.reviewed && !errors.length && previous.tariff===tariff && EDITABLE.every(key=>String(previous.raw?.[key]??'')===String(r[key]??''));
     return {
       ...previous,row:r.__row,raw:r,provider,ars,service,serviceDate,patient,member,authorization,careMode,tariff,quantity,
-      original:previous.original||{...r},amount:providedAmount,validationErrors:[...errors],errors,warnings,reviewed:false,status:errors.length?'error':'review',editCount:previous.editCount||0
+      original:previous.original||{...r},amount:providedAmount,validationErrors:[...errors],errors,warnings,reviewed:!!keepApproval,status:errors.length?'error':keepApproval?'ready':'review',editCount:previous.editCount||0
     };
   }
+
+  const activeReview = v => !['excluded','imported','removed'].includes(v.status);
+  const needsAuthorization = v => activeReview(v) && (v.validationErrors||[]).includes('Falta autorización');
+  const needsAmount = v => activeReview(v) && (v.validationErrors||[]).some(e=>e.startsWith('Monto ')||e.startsWith('El monto')||e.startsWith('El ajuste de monto'));
+  const hasDuplicates = v => activeReview(v) && (v.duplicateMessages||[]).some(e=>e.startsWith('Posible duplicada')||e.startsWith('Ya existe en SoFa'));
+  const reviewFilters = [
+    ['all','Todas',()=>true],
+    ['authorization','Autorización pendiente',needsAuthorization],
+    ['amount','Monto por revisar',needsAmount],
+    ['duplicates','Posibles duplicadas',hasDuplicates],
+    ['clean','Sin observaciones',v=>activeReview(v)&&!v.errors.length],
+    ['ready','Aprobadas',v=>v.status==='ready']
+  ];
 
   function draw(){
     const ok=S.validated.filter((x)=>x.status==='ready').length;
@@ -161,13 +175,26 @@ export async function render(main, ctx){
     const excluded=S.validated.filter(x=>x.status==='excluded').length;
     const imported=S.validated.filter((x)=>x.status==='imported').length;
     summary.textContent=`${S.busy?'Procesando revisión… ':''}${S.validated.length} fila(s): ${ok} aprobada(s) · ${bad} por revisar · ${excluded} excluida(s)${imported?` · ${imported} importada(s)`:''}.`;
+    const clean=S.validated.filter(v=>v.status==='review'&&!v.errors.length).length;
+    const active=S.validated.filter(activeReview);
+    const issues=S.validated.filter(v=>activeReview(v)&&v.errors.length).length;
+    const auth=S.validated.filter(needsAuthorization).length,amount=S.validated.filter(needsAmount).length,duplicates=S.validated.filter(hasDuplicates).length;
+    paint($('#gi-review-help',main),S.validated.length?html`<div class="note ${issues?'warn':'ok'}">
+      <b>${!ok&&!clean&&active.length?'No hay filas listas para aprobar.':`${clean} fila(s) sin observaciones para aprobar · ${ok} aprobada(s).`}</b>
+      ${issues?html`<p>Bloqueos: ${auth} con autorización pendiente · ${amount} con monto por revisar · ${duplicates} con posibles duplicados. Una fila puede aparecer en más de un grupo.</p>
+      <p>Completa la autorización documentada; si el monto difiere de la tarifa, corrígelo o registra el motivo real del ajuste. Compara las duplicadas antes de excluirlas. Las demás filas pueden aprobarse por separado.</p>`:''}
+      <span class="small">Las correcciones guardadas se conservan. No necesitas limpiar ni volver a cargar el archivo.</span></div>`:html``);
+    paint($('#gi-review-filters',main),S.validated.length?html`${reviewFilters.map(([key,label,match])=>html`<button type="button" class="btn sm" data-review-filter="${key}" aria-pressed="${S.reviewFilter===key}">${label} · ${S.validated.filter(match).length}</button>`)}`:html``);
+    const visible=S.validated.filter(reviewFilters.find(([key])=>key===S.reviewFilter)?.[2]||(()=>true));
     imp.disabled=S.busy||!ok;
+    imp.title=ok?'Importar solo las filas aprobadas':'Primero aprueba al menos una fila sin observaciones.';
+    $('#approve',main).title=clean?'Aprobar las filas sin errores; las demás se conservan para corregir.':'No hay filas sin observaciones. Revisa los bloqueos indicados debajo.';
     $('#duplicates',main).disabled=S.busy||!S.validated.length;$('#approve',main).disabled=S.busy||!S.validated.some(v=>v.status==='review'&&!v.errors.length);
     validate.disabled=S.busy||S.initializing||!(file.files?.length||S.rows.length||S.validated.length);file.disabled=S.busy||S.initializing||!owner;$('#clear',main).disabled=S.busy||S.initializing;
     $('#gi-resume-editor',main).hidden=!S.editor;$('#gi-discard-editor',main).hidden=!S.editor;
     progressPanel?.querySelectorAll('button,select').forEach(button=>{button.disabled=S.busy||S.initializing||!owner;});
     paint(preview,html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Fila</th><th>Paciente</th><th>Médico</th><th>ARS</th><th>Servicio</th><th>Tarifa / monto unitario</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
-      ${S.validated.map((v)=>html`<tr>
+      ${visible.map((v)=>html`<tr>
         <td data-l="Fila">${v.row}</td>
         <td data-l="Paciente">${v.patient||'—'}</td>
         <td data-l="Médico">${v.provider?.full_name||v.raw['Médico / Prestador *']||'—'}</td>
@@ -184,8 +211,9 @@ export async function render(main, ctx){
         </td>
         <td data-l="Acción">${v.status==='imported'?html`<a class="btn sm" href="#/reclamaciones">Ver reclamaciones</a>${['super_admin','admin','billing'].includes(ctx.role)?html`<button class="btn sm" data-remove-row="${v.row}">Eliminar reclamación</button>`:''}`:v.status==='removed'?html`<span class="small">Eliminación registrada en bitácora</span>`:v.status==='excluded'?html`<button class="btn sm" data-restore-row="${v.row}">Restaurar fila</button>`:html`<button class="btn sm" data-edit-row="${v.row}">Completar / editar</button><button class="btn sm" data-exclude-row="${v.row}">Excluir / eliminar del lote</button>${v.status==='review'&&!v.errors.length?html`<button class="btn sm" data-review-row="${v.row}">Aprobar fila</button>`:''}`}</td>
       </tr>`)}
-    </tbody></table></div>`);
+    ${S.validated.length&&!visible.length?html`<tr><td colspan="8" class="small muted">No hay filas con este filtro. Seleccione «Todas» para volver al lote completo.</td></tr>`:''}</tbody></table></div>`);
     paintActionFeedback();
+    $('#gi-review-filters',main).querySelectorAll('button').forEach(button=>{button.disabled=S.busy;});
     preview.setAttribute('aria-busy',String(S.busy));
     preview.querySelectorAll('button').forEach(button=>{button.disabled=S.busy;});
   }
@@ -574,6 +602,7 @@ export async function render(main, ctx){
     await refreshReview();validate.textContent='Volver a validar correcciones';
     const issues=S.validated.filter(v=>v.errors.length).length;return {state:issues?'warning':'success',message:`Archivo revisado: ${S.validated.length} fila(s), ${issues} con observaciones`};
   },topAction('validate','Revisar archivo')));
+  $('#gi-review-filters',main).addEventListener('click',e=>{const button=e.target.closest('[data-review-filter]');if(!button||S.busy)return;S.reviewFilter=button.dataset.reviewFilter;draw();});
   $('#duplicates',main).addEventListener('click',()=>run(async()=>{await checkDuplicates();return duplicateOutcome();},topAction('duplicates','Verificar duplicadas')));
   $('#approve',main).addEventListener('click',()=>run(async()=>{
     const rows=S.validated.filter(v=>v.status==='review'&&!v.errors.length);
