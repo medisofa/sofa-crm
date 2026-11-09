@@ -43,6 +43,14 @@ a { color: var(--info); }
 .kpi .l { font-size: 12.5px; color: var(--ink-2); }
 .kpi .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
 .kpi .h { font-size: 12px; color: var(--ink-3); }
+.claim-kpi-filter { appearance: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.claim-kpi-filter > span { display: block; }
+.claim-kpi-filter:hover { box-shadow: inset 0 0 0 2px var(--ink-3); }
+.claim-kpi-filter[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink-2); }
+.claim-kpi-filter:focus-visible, .claim-step-filter:focus-visible { outline: 2px solid var(--ink-2); outline-offset: 3px; }
+.stepper li:has(> .claim-step-filter) { padding: 0; }
+.claim-step-filter { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.claim-step-filter:hover { text-decoration: underline; }
 
 .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
 .pill.ok { background: var(--ok-bg); color: var(--ok); } .pill.warn { background: var(--warn-bg); color: var(--warn); }

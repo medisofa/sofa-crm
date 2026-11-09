@@ -52,7 +52,10 @@ export async function render(main, ctx) {
     prior.addEventListener('toggle', () => { if (prior.open && !mounted) { mounted = true; mountOpeningHistoryPicker(body, ctx); } });
   }
 
-  const drawTabs = () => $('#tabs', main) && paint($('#tabs', main), html`${Object.entries(CLAIM_GROUPS).map(([k, g]) => html`<button data-g="${k}" aria-pressed="${st.group === k && !st.status}">${g.label}</button>`)}`);
+  const drawTabs = () => {
+    paint($('#tabs', main), html`${Object.entries(CLAIM_GROUPS).map(([k, g]) => html`<button data-g="${k}" aria-pressed="${st.group === k && !st.status}">${g.label}</button>`)}`);
+    $$('[data-g]', $('#k', main)).forEach((b) => b.setAttribute('aria-pressed', String(st.group === b.dataset.g && !st.status)));
+  };
   drawTabs();
   Promise.all([claimLocations(), claimTransitions(), captureProviders({ realOnly: staff }), activeArs()]).then(([locs, trans, provs, ars]) => {
     locations = locs; transitions = trans;
@@ -67,10 +70,10 @@ export async function render(main, ctx) {
     if (!$('#k', main)) return;
     const c = (list) => all.filter((r) => list.includes(r.claim_status)).length;
     paint($('#k', main), html`
-      <div class="kpi"><div class="l">En captura / por retirar</div><div class="v">${num(c(CLAIM_GROUPS.captura.statuses))}</div></div>
-      <div class="kpi"><div class="l">En SOFA / validación</div><div class="v">${num(c(CLAIM_GROUPS.custodia.statuses))}</div></div>
-      <div class="kpi"><div class="l">En la ARS</div><div class="v">${num(c(CLAIM_GROUPS.ars.statuses))}</div></div>
-      <div class="kpi"><div class="l">Requieren atención</div><div class="v" style="${c(CLAIM_GROUPS.atencion.statuses) ? 'color:var(--bad)' : ''}">${num(c(CLAIM_GROUPS.atencion.statuses))}</div><div class="h">Sin configurar, con inconsistencia o devueltas</div></div>`);
+      <button type="button" class="kpi claim-kpi-filter" data-g="captura" aria-pressed="${st.group === 'captura' && !st.status}"><span class="l">En captura / por retirar</span><span class="v">${num(c(CLAIM_GROUPS.captura.statuses))}</span></button>
+      <button type="button" class="kpi claim-kpi-filter" data-g="custodia" aria-pressed="${st.group === 'custodia' && !st.status}"><span class="l">En SOFA / validación</span><span class="v">${num(c(CLAIM_GROUPS.custodia.statuses))}</span></button>
+      <button type="button" class="kpi claim-kpi-filter" data-g="ars" aria-pressed="${st.group === 'ars' && !st.status}"><span class="l">En la ARS</span><span class="v">${num(c(CLAIM_GROUPS.ars.statuses))}</span></button>
+      <button type="button" class="kpi claim-kpi-filter" data-g="atencion" aria-pressed="${st.group === 'atencion' && !st.status}"><span class="l">Requieren atención</span><span class="v" style="${c(CLAIM_GROUPS.atencion.statuses) ? 'color:var(--bad)' : ''}">${num(c(CLAIM_GROUPS.atencion.statuses))}</span><span class="h">Sin configurar, con inconsistencia o devueltas</span></button>`);
     cachedCounts = all; drawFunnel();
   }).catch(() => { toast('No se pudieron cargar los conteos', 'warn'); });
 
@@ -81,10 +84,10 @@ export async function render(main, ctx) {
     const TAB_STEP = { captura: 0, custodia: 1, ars: 2, cobro: 3 };
     const cur = TAB_STEP[st.group] ?? -1;
     const STEPS = [
-      { label: 'Captura',  ss: CLAIM_GROUPS.captura.statuses },
-      { label: 'En SOFA',  ss: CLAIM_GROUPS.custodia.statuses },
-      { label: 'En ARS',   ss: CLAIM_GROUPS.ars.statuses },
-      { label: 'Cobradas', ss: CLAIM_GROUPS.cobro.statuses },
+      { group: 'captura', label: 'Captura',  ss: CLAIM_GROUPS.captura.statuses },
+      { group: 'custodia', label: 'En SOFA',  ss: CLAIM_GROUPS.custodia.statuses },
+      { group: 'ars', label: 'En ARS',   ss: CLAIM_GROUPS.ars.statuses },
+      { group: 'cobro', label: 'Cobradas', ss: CLAIM_GROUPS.cobro.statuses },
     ];
     const listaPR = c(['lista_para_radicar']);
     const inconsist = c(['con_inconsistencia']);
@@ -94,7 +97,7 @@ export async function render(main, ctx) {
       <ul class="stepper" aria-label="Flujo de reclamaciones" style="margin-bottom:${hasNote ? '8px' : '14px'}">
         ${STEPS.map((s, i) => {
           const n = c(s.ss); const done = cur > -1 && i < cur; const now = i === cur;
-          return html`<li class="${done ? 'done' : now ? 'now' : ''}" title="${s.label}: ${num(n)} reclamaciones">${s.label} · <b>${num(n)}</b></li>`;
+          return html`<li class="${done ? 'done' : now ? 'now' : ''}" title="${s.label}: ${num(n)} reclamaciones"><button type="button" class="claim-step-filter" data-g="${s.group}" aria-pressed="${now && !st.status}">${s.label} · <b>${num(n)}</b></button></li>`;
         })}
       </ul>
       ${listaPR && can('submissions.send', role) ? html`<div class="note ok" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
@@ -260,7 +263,13 @@ export async function render(main, ctx) {
   }
 
   // ------------------------------------------------------------ eventos
-  $('#tabs', main).addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (!b) return; st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0; drawTabs(); drawFunnel(); load(); });
+  const selectGroup = (e) => {
+    const b = e.target.closest('button[data-g]');
+    if (!b) return;
+    st.group = b.dataset.g; st.status = ''; $('#fs', main).value = ''; st.page = 0;
+    sel.clear(); drawBulk(); drawTabs(); drawFunnel(); load();
+  };
+  ['#tabs', '#k', '#funnel'].forEach((selector) => $(selector, main).addEventListener('click', selectGroup));
   debounceSearch($('#q', main), st, load);
   [['#fx', 'dossier'], ['#fs', 'status'], ['#fl', 'location'], ['#fp', 'providerId'], ['#fa', 'arsId'], ['#ff', 'from'], ['#ft', 'to']].forEach(([s, k]) =>
     $(s, main).addEventListener('change', (e) => { st[k] = e.target.value; st.page = 0; if (k === 'status') drawTabs(); load(); }));
