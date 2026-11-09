@@ -27,6 +27,7 @@ export async function render(main, ctx) {
   paint(main, html`<div id="sub">${loadingView(6)}</div>`);
   const box = $('#sub', main);
   let S = {};
+  let pendingInvoice = null; // conserva fecha y notas si se abre el registro de e-CF
 
   async function load() {
     const sub = await getSubmission(id);
@@ -151,11 +152,11 @@ export async function render(main, ctx) {
 
     <div style="margin-bottom:14px">${duplicateCard(duplicates)}</div>
     <div class="grid two">
-      <div class="card"><h2>Factura y radicación</h2>
+      <div class="card" id="invoice-data"><h2>Factura y radicación</h2>
         ${editable ? html`<form id="ff" novalidate class="form-grid">
-            <div class="field"><label for="ncf">NCF de la factura</label><input id="ncf" name="ncf" value="${sub.ncf || ''}" placeholder="B0100000125" maxlength="13" autocomplete="off"><span class="hint">B + 10 dígitos o E + 12 dígitos</span></div>
-            <div class="field"><label for="invd">Fecha de la factura</label><input id="invd" name="invoice_date" type="date" value="${sub.invoice_date || ''}" max="${todayISO()}"></div>
-            <div class="field" style="grid-column:1/-1"><label for="nts">Notas</label><input id="nts" name="notes" value="${sub.notes || ''}" maxlength="300"></div>
+            <div class="field"><label for="ncf">NCF de la factura</label><input id="ncf" name="ncf" value="${sub.ncf || ''}" placeholder="B0100000125" maxlength="13" autocomplete="off"><span class="hint">NCF ordinario: B + 10 dígitos. El electrónico E31 se registra con «Registrar e-CF».</span>${['super_admin','admin'].includes(role)&&fiscal?html`<button type="button" class="btn sm" data-register-ecf>Registrar o actualizar e-CF</button>`:html`<span class="hint">El e-CF lo registra Administración de SOFA.</span>`}</div>
+            <div class="field"><label for="invd">Fecha de la factura</label><input id="invd" name="invoice_date" type="date" value="${pendingInvoice?.invoice_date ?? sub.invoice_date ?? ''}" max="${todayISO()}"></div>
+            <div class="field" style="grid-column:1/-1"><label for="nts">Notas</label><input id="nts" name="notes" value="${pendingInvoice?.notes ?? sub.notes ?? ''}" maxlength="300"></div>
             <div><button class="btn" type="submit">Guardar factura</button></div></form>`
           : kv([['NCF', sub.ncf ? html`<span class="mono">${sub.ncf}</span>` : ''], ['Fecha de la factura', date(sub.invoice_date)], ['Notas', sub.notes]])}
         ${kv([['Radicada', sub.submitted_on ? date(sub.submitted_on) : ''], ['Recepción ARS', sub.ars_receipt_number ? html`<span class="mono">${sub.ars_receipt_number}</span>` : ''],
@@ -279,6 +280,8 @@ export async function render(main, ctx) {
   }
 
   function bind(editable) {
+    $('[data-invoice-focus]',box)?.addEventListener('click',()=>{ $('#invoice-data',box)?.scrollIntoView({behavior:'smooth',block:'center'}); $('#ncf',box)?.focus({preventScroll:true}); });
+    $('[data-register-ecf]',box)?.addEventListener('click',()=>$('#ecfBtn',box)?.click());
     box.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', () => busy(b, () => doMove(b.dataset.to))));
     box.querySelectorAll('[data-dup-review]').forEach((b) => b.addEventListener('click', () => reviewDuplicate(b.dataset.dupReview, b.dataset.dupOther).catch((e) => toast(friendlyError(e), 'bad'))));
     $('#csv', box)?.addEventListener('click', exportCsv);
@@ -293,12 +296,15 @@ export async function render(main, ctx) {
       });
     });
     $('#ecfBtn', box)?.addEventListener('click', async () => {   // 1.7 · B4
+      const invoiceForm=$('#ff',box);
+      if(invoiceForm) pendingInvoice={invoice_date:invoiceForm.invoice_date.value,notes:invoiceForm.notes.value};
       const { formDialog, opt: o2 } = await import('../utils/ui.js'); const { setSubmissionEcf, getFiscal: gf } = await import('../services/claims.js');
       const cur = await gf(id).catch(() => ({}));
+      const proposedNcf=/^E/i.test(invoiceForm?.ncf.value || '')?invoiceForm.ncf.value.trim().toUpperCase():cur.ncf;
       try {
         const ok = await formDialog({ title: 'Factura electrónica (e-CF) del lote', submitLabel: 'Guardar e-CF',
           body: html`<p class="small">Datos del e-CF que el sistema de facturación del médico emitió para la ARS (factura de crédito fiscal electrónica).</p>
-            <div class="form-grid"><div class="field"><label for="ec_n">e-NCF *</label><input id="ec_n" name="ncf" maxlength="13" placeholder="E310000000001" value="${/^E/.test(cur.ncf || '') ? cur.ncf : ''}"><span class="hint">E31 + 10 dígitos</span></div>
+            <div class="form-grid"><div class="field"><label for="ec_n">e-NCF *</label><input id="ec_n" name="ncf" maxlength="13" placeholder="E310000000001" value="${/^E/.test(proposedNcf || '') ? proposedNcf : ''}"><span class="hint">E31 + 10 dígitos</span></div>
             <div class="field"><label for="ec_c">Código de seguridad *</label><input id="ec_c" name="code" maxlength="6" value="${cur.ecf_security_code || ''}"><span class="hint">6 caracteres impresos con el QR</span></div>
             <div class="field"><label for="ec_f">Fecha de firma *</label><input id="ec_f" name="signed" type="date" max="${todayISO()}" value="${cur.ecf_signed_on || ''}"></div>
             <div class="field"><label for="ec_s">Estado en la DGII *</label><select id="ec_s" name="status">${Object.entries(ECF_DGII).map(([k, [l]]) => o2(k, l, cur.ecf_dgii_status || 'en_proceso'))}</select><span class="hint">Según la consulta en el portal de su proveedor o de la DGII</span></div></div>`,
@@ -373,10 +379,14 @@ export async function render(main, ctx) {
       e.preventDefault();
       const f = e.target; const ncf = f.ncf.value.trim().toUpperCase();
       if (ncf && !isNCF(ncf)) { fieldError(f.ncf, 'Formato: B + 10 dígitos o E + 12 dígitos.'); return; }
+      if(ncf !== (S.sub.ncf || '') && (/^E/.test(ncf)||/^E/.test(S.sub.ncf || ''))) {
+        fieldError(f.ncf,'El e-NCF solo se guarda con «Registrar o actualizar e-CF». Administración debe indicar código de seguridad, fecha de firma y estado DGII. La fecha y las notas permanecen en este formulario.');
+        return;
+      }
       fieldError(f.ncf, null);
       await busy(e.submitter, async () => {
-        try { await updateSubmission(id, { ncf: ncf || null, invoice_date: f.invoice_date.value || null, notes: f.notes.value.trim() || null }); toast('Factura guardada', 'ok'); await refresh(); }
-        catch (err) { toast(friendlyError(err), 'bad'); }
+        try { await updateSubmission(id, { ncf: ncf || null, invoice_date: f.invoice_date.value || null, notes: f.notes.value.trim() || null }); pendingInvoice=null;toast('Factura guardada', 'ok'); await refresh(); }
+        catch (err) { fieldError(f.ncf,err.code==='42501'?'Tu perfil no puede guardar estos datos fiscales. Si es un e-CF, usa su registro específico con Administración.':friendlyError(err));toast(friendlyError(err), 'bad'); }
       });
     });
     $('#addLine', box)?.addEventListener('click', async () => { try { if (await lineDialog(S.sub)) { toast('Servicio agregado', 'ok'); await refresh(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
@@ -451,10 +461,11 @@ function fiscalCard(sub, f, fc, names, role, docs) {
     ${!locked && can('fiscal.edit', role) && ['admin', 'super_admin'].includes(role) ? html`<div><button class="btn sm" id="ecfBtn" type="button">${f.ecf_security_code ? 'Actualizar e-CF' : 'Registrar e-CF'}</button></div>` : ''}</div>`;
   return html`<div class="card" id="fisc" style="margin-top:14px"><h2>Factura fiscal del contador · <span class="pill ${state[1]}">${state[0]}</span></h2>
     ${ecfBox}
+    ${!can('fiscal.edit',role)?html`<p class="note">El registro de la factura fiscal y del e-CF corresponde a Administración de SOFA. Tu perfil puede consultar estos datos.</p>`:''}
     <div class="grid two">
       <div>${editable ? html`<form id="fiscForm" novalidate class="form-grid">
           <div class="field"><label for="fi_n">No. de factura</label><input id="fi_n" name="fiscal_invoice_number" value="${f.fiscal_invoice_number || ''}" maxlength="40"></div>
-          <div class="field"><label>NCF</label><div class="input" style="background:var(--surface-2)">${f.ncf ? html`<span class="mono">${f.ncf}</span>` : html`<span class="muted">Regístrelo en “Factura y radicación”</span>`}</div></div>
+          <div class="field"><label>NCF</label><div class="input" style="background:var(--surface-2)">${f.ncf ? html`<span class="mono">${f.ncf}</span>` : html`<span class="muted">Sin registrar</span>`}</div><button type="button" class="btn sm" data-invoice-focus>Ir al NCF en esta página</button></div>
           <div class="field"><label for="fi_m">Monto de la factura (RD$)</label><input id="fi_m" name="fiscal_amount" type="number" step="0.01" min="0" value="${f.fiscal_amount ?? ''}"></div>
           <div class="field"><label for="fi_c">Contador</label><input id="fi_c" name="accountant_name" value="${f.accountant_name || ''}" maxlength="120"></div>
           <div class="field"><label for="fi_rq">Solicitada al contador</label><input id="fi_rq" name="fiscal_requested_on" type="date" value="${f.fiscal_requested_on || ''}" max="${todayISO()}"></div>
