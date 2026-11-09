@@ -151,6 +151,22 @@ export async function render(main, ctx) {
     });
   }
 
+  const reviewLabels = { ambas_validas: 'Ambas válidas', duplicado_confirmado: 'Duplicado confirmado', dato_corregido: 'Dato corregido', no_duplicado: 'No es duplicado' };
+
+  function duplicateComparison(d) {
+    return html`<div class="dup-comparison" aria-label="Comparación de reclamaciones">
+      ${[
+        { id: d.line_id, folio: d.folio, service: d.service_name, authorization: d.authorization_number },
+        { id: d.other_line_id, folio: d.other_folio, service: d.other_service_name, authorization: d.other_authorization_number }
+      ].map((r, i) => html`<section class="dup-claim">
+        <h3>Reclamación ${i + 1}</h3>
+        <a class="mono" href="#/reclamaciones/${r.id}">${r.folio || r.id.slice(0, 8)}</a>
+        <dl><div><dt>Servicio</dt><dd>${r.service || 'Sin servicio indicado'}</dd></div>
+          <div><dt>Autorización</dt><dd>${r.authorization || 'Sin autorización indicada'}</dd></div></dl>
+      </section>`)}
+    </div>`;
+  }
+
   function drawCoreDuplicates() {
     const box = $('#coreDup', main); if (!box) return;
     const pairs = uniquePairs(coreDupPairs.filter(coreMatch));
@@ -158,39 +174,47 @@ export async function render(main, ctx) {
       paint(box, html`<div class="note ok" style="margin-bottom:12px"><b>Control de coincidencias:</b> no se detectaron reclamaciones con NSS + fecha de servicio + fecha de autorización iguales.</div>`);
       return;
     }
-    paint(box, html`<div class="dup-card">
+    paint(box, html`<section class="dup-card" aria-label="Posibles duplicados">
       <div class="dup-card-head">
         <div class="t"><h2>Coincidencias exactas · NSS + fechas</h2>
-          <p>Estas reclamaciones comparten <b>NSS</b>, <b>fecha de servicio</b> y <b>fecha de autorización</b>. Revísalas antes de radicar.</p></div>
-        <span class="pill bad">${pairs.length} grupo(s)</span>
+          <p>Mismo NSS y mismas fechas de servicio y autorización. Compara cada par antes de radicar: una coincidencia no confirma un duplicado.</p></div>
+        <span class="pill warn">${pairs.length} ${pairs.length === 1 ? 'par' : 'pares'}</span>
       </div>
-      ${pairs.map((d) => html`<div class="dup-group">
+      ${pairs.map((d) => html`<article class="dup-group">
         <div class="dup-group-head">
-          <span class="pill bad">3/3 iguales</span>
-          <span class="dup-group-ids"><a href="#/reclamaciones/${d.line_id}">${d.folio || d.line_id.slice(0,8)}</a> ↔ <a href="#/reclamaciones/${d.other_line_id}">${d.other_folio || d.other_line_id.slice(0,8)}</a></span>
-          <span class="dup-group-patient">${d.patient_name} · NSS ${d.member_number}</span>
+          <strong class="dup-group-patient">${d.patient_name}</strong>
+          <span class="pill ${d.review_decision ? 'ok' : 'warn'}">${d.review_decision ? `Revisada: ${reviewLabels[d.review_decision] || d.review_decision}` : 'Pendiente de revisión'}</span>
+          ${d.blocks_radicacion ? html`<span class="pill bad">Bloquea radicación</span>` : ''}
         </div>
         <div class="dup-group-meta">
-          <div><b>Fecha servicio:</b> ${date(d.service_date)}</div>
-          <div><b>Fecha autorización:</b> ${date(d.authorization_date)}</div>
-          <div><b>Autorizaciones:</b> ${d.authorization_number || '—'} ↔ ${d.other_authorization_number || '—'}</div>
-          <div><b>Servicios:</b> ${d.service_name || '—'} ↔ ${d.other_service_name || '—'}</div>
+          <div><b>NSS:</b> ${d.member_number || '—'}</div>
+          <div><b>Fecha de servicio:</b> ${date(d.service_date)}</div>
+          <div><b>Fecha de autorización:</b> ${date(d.authorization_date)}</div>
         </div>
+        ${duplicateComparison(d)}
         <div class="dup-suggest"><b>SOFA sugiere:</b> ${d.suggested_solution}</div>
-        <button class="btn sm" data-core-review="${d.line_id}" data-core-other="${d.other_line_id}">Revisar coincidencia</button>
-      </div>`)}
-    </div>`);
+        <div class="dup-actions"><span class="small muted">La revisión queda registrada en la bitácora.</span>
+          <button type="button" class="btn primary" data-core-review="${d.line_id}" data-core-other="${d.other_line_id}" aria-label="${`Comparar y revisar ${d.folio || d.line_id} y ${d.other_folio || d.other_line_id}`}">${d.review_decision ? 'Ver o actualizar revisión' : 'Comparar y revisar'}</button>
+        </div>
+      </article>`)}
+    </section>`);
   }
 
   async function loadCoreDuplicates() {
+    const box = $('#coreDup', main);
+    paint(box, html`<div class="note" role="status">Buscando coincidencias por NSS y fechas…</div>`);
     try {
       if (staff) {
         const real = await listClaims({ realOnly: true, page: 0, size: 1000 });
         coreDupPairs = real.data.length ? await claimDuplicateCandidates(real.data.map((x) => x.id), null) : [];
       } else coreDupPairs = await claimDuplicateCandidates(null, null);
+      drawCoreDuplicates();
+    } catch (e) {
+      coreDupPairs = [];
+      if (!$('#coreDup', main)) return;
+      paint(box, html`<div class="note bad" role="alert"><b>No se pudieron comprobar las coincidencias.</b>
+        <p>${friendlyError(e)}</p><button type="button" class="btn" data-retry-duplicates>Reintentar comprobación</button></div>`);
     }
-    catch (_) { coreDupPairs = []; }
-    drawCoreDuplicates();
   }
 
   const list = $('#l', main);
@@ -233,25 +257,31 @@ export async function render(main, ctx) {
   async function reviewDuplicateDialog(lineA, lineB) {
     const d = [...dupMap.values()].flat().find((x) => x.line_id === lineA && x.other_line_id === lineB)
       || coreDupPairs.find((x) => x.line_id === lineA && x.other_line_id === lineB);
-    if (!d) return;
+    if (!d) { toast('La coincidencia ya no está disponible. Vuelva a comprobarla.', 'warn'); return; }
     const r = await formDialog({
-      title: 'Revisar posible reclamación duplicada', submitLabel: 'Guardar decisión', wide: true,
+      title: 'Comparar y revisar coincidencia', submitLabel: 'Guardar decisión', wide: true,
       body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}">
         <b>Coincidencias:</b> ${(d.matched_fields || []).join(' · ')}<br>
         <b>Reclamaciones:</b> ${d.folio || d.line_id} ↔ ${d.other_folio || d.other_line_id}<br>
         <b>Paciente:</b> ${d.patient_name} · NSS ${d.member_number}<br>
         <b>Sugerencia SOFA:</b> ${d.suggested_solution}
       </div>
+      ${duplicateComparison(d)}
+      <p class="small muted">Guardar registra la decisión. No elimina, anula ni corrige automáticamente ninguna reclamación.</p>
       <div class="form-grid">
         <div class="field"><label for="dup_dec">Decisión *</label><select id="dup_dec" name="decision">
           <option value="">Seleccione…</option>
           <option value="ambas_validas">Ambas reclamaciones son válidas</option>
           <option value="duplicado_confirmado">Duplicado confirmado</option>
-          <option value="dato_corregido">Dato corregido</option>
+          <option value="dato_corregido">Dato ya corregido en la reclamación</option>
           <option value="no_duplicado">No es duplicado</option>
         </select></div>
         <div class="field" style="grid-column:1/-1"><label for="dup_reason">Justificación *</label><textarea id="dup_reason" name="reason" rows="3" maxlength="500" placeholder="Explique por qué se conserva, corrige o descarta la coincidencia."></textarea></div>
       </div>`,
+      onOpen: (form, dialog) => {
+        form.elements.decision.value = d.review_decision || '';
+        form.addEventListener('click', (e) => { if (e.target.closest('a[href]')) dialog.close(); });
+      },
       onSubmit: async (data, form) => {
         if (!data.decision) { fieldError(form.elements.decision, 'Seleccione una decisión.'); return false; }
         if (String(data.reason || '').trim().length < 5) { fieldError(form.elements.reason, 'Escriba una justificación de al menos 5 caracteres.'); return false; }
@@ -261,6 +291,14 @@ export async function render(main, ctx) {
     });
     if (r) { toast('Revisión de posible duplicado registrada en bitácora', 'ok'); await loadCoreDuplicates(); load(); }
   }
+
+  $('#coreDup', main).addEventListener('click', (e) => {
+    if (e.target.closest('[data-retry-duplicates]')) { loadCoreDuplicates(); return; }
+    const button = e.target.closest('[data-core-review]');
+    if (!button) return;
+    busy(button, () => reviewDuplicateDialog(button.dataset.coreReview, button.dataset.coreOther))
+      .catch((err) => toast(friendlyError(err), 'bad'));
+  });
 
   // ------------------------------------------------------------ eventos
   const selectGroup = (e) => {

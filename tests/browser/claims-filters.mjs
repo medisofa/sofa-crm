@@ -15,14 +15,17 @@ try {
    '/js/utils/diag-log.js': 'export function logDiag() {}',
    '/js/supabase.js': 'export const sb=()=>({});',
    '/js/services/claims.js': `
-    export async function listClaims(args) { window.calls.push({...args}); return {data:[],count:0}; }
+    export async function listClaims(args) { window.calls.push({...args}); return {data:args.size===1000?[{id:'a'}]:[],count:0}; }
     export async function claimCounts() { return [{claim_status:'en_captura'},{claim_status:'en_validacion'}]; }
     export async function claimLocations() {return [];}
     export async function claimTransitions() {return [];}
     export async function captureProviders() {return [{id:'doctor',full_name:'Médico ficticio'}];}
     export async function activeArs() {return [{id:'ars',name:'ARS ficticia'}];}
-    export async function claimDuplicateCandidates() {return [];}
-    export async function reviewClaimDuplicate() {return null;}`
+    export async function claimDuplicateCandidates() {
+      if(window.duplicateFailure) throw new Error('Consulta no disponible');
+      return [{line_id:'a',other_line_id:'b',folio:'REC-A',other_folio:'REC-B',patient_name:'Paciente ficticio',member_number:'FICTICIO',service_date:'2026-09-28',authorization_date:'2026-09-28',authorization_number:'AUT-A',other_authorization_number:'AUT-B',service_name:'Consulta',other_service_name:'Seguimiento',matched_fields:['NSS','Fecha servicio','Fecha autorización'],blocks_radicacion:!window.reviewDecision,review_decision:window.reviewDecision,suggested_solution:'Compare ambas reclamaciones.'}];
+    }
+    export async function reviewClaimDuplicate(a,b,decision,reason) {if(window.saveFailure)throw new Error('No se pudo guardar');window.savedReview={a,b,decision,reason};window.reviewDecision=decision;return 1;}`
   };
   if (path in mocks) return route.fulfill({ contentType: path === '/' ? 'text/html' : 'text/javascript', body: mocks[path] });
   return route.fulfill({ contentType:'text/javascript',body:await readFile(new URL(path.slice(1),root)) });
@@ -52,6 +55,33 @@ try {
  assert.equal(await page.locator('#tabs [data-g="captura"]').getAttribute('aria-pressed'),'true');
  await page.locator('#k [data-g="ars"]').focus(); await page.keyboard.press('Space');
  assert.equal(await page.locator('#tabs [data-g="ars"]').getAttribute('aria-pressed'),'true');
+ await page.locator('#coreDup [data-core-review]').click();
+ await page.getByRole('dialog').waitFor();
+ assert.equal(await page.locator('dialog .dup-claim').count(),2);
+ await page.getByRole('button',{name:'Guardar decisión',exact:true}).click();
+ assert.equal(await page.locator('#dup_dec').getAttribute('aria-invalid'),'true');
+ await page.locator('#dup_dec').selectOption('ambas_validas');
+ await page.locator('#dup_reason').fill('Son servicios diferentes autorizados.');
+ await page.evaluate(()=>window.saveFailure=true);
+ await page.getByRole('button',{name:'Guardar decisión',exact:true}).click();
+ await page.locator('dialog [role="alert"]').waitFor();
+ await page.evaluate(()=>window.saveFailure=false);
+ await page.getByRole('button',{name:'Guardar decisión',exact:true}).click();
+ await page.getByRole('dialog').waitFor({state:'detached'});
+ await page.getByText('Revisada: Ambas válidas',{exact:true}).waitFor();
+ assert.deepEqual(await page.evaluate(()=>savedReview),{a:'a',b:'b',decision:'ambas_validas',reason:'Son servicios diferentes autorizados.'});
+ await page.locator('#coreDup [data-core-review]').click();
+ assert.equal(await page.locator('#dup_dec').inputValue(),'ambas_validas');
+ await page.getByRole('button',{name:'Cancelar',exact:true}).click();
+ await page.setViewportSize({width:375,height:812});
+ await page.addStyleTag({content:await readFile(new URL('css/iter18.css',root),'utf8')});
+ assert.equal(await page.locator('#coreDup .dup-comparison').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),1);
+ await page.evaluate(async()=>{window.duplicateFailure=true; const {render}=await import('/js/modules/claims.js');await render(document.querySelector('main'),{role:'admin'});});
+ await page.locator('[data-retry-duplicates]').waitFor();
+ assert.equal(await page.getByText('no se detectaron reclamaciones',{exact:false}).count(),0);
+ await page.evaluate(()=>window.duplicateFailure=false);
+ await page.locator('[data-retry-duplicates]').click();
+ await page.locator('#coreDup [data-core-review]').waitFor();
  assert.deepEqual(errors,[]);
- console.log('PASS: KPI and flow filters, keyboard activation, active state, status reset and preserved filters');
+ console.log('PASS: duplicate review, validation, save failure/retry, persisted decision, mobile layout, load failure/retry; KPI and flow filters, keyboard activation, active state, status reset and preserved filters');
 } finally {await browser.close();}
