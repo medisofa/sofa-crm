@@ -258,10 +258,12 @@ export async function render(main, ctx) {
         const r = await commentDialog(to === 'rechazada' ? 'Rechazada por la ARS' : 'Cerrar radicación', to === 'rechazada'); if (!r) return; opts.comment = r.comment;
       }
       if (['lista_para_radicar','radicada'].includes(to)) {
-        const ds = await claimDuplicateCandidates({ submissionId: id });
+        const ds = await claimDuplicateCandidates(null, id);
+        S.duplicates = ds;
         const blockers = uniqueDuplicates(ds).filter((d) => d.blocks_radicacion);
         if (blockers.length) {
-          toast(`Hay ${blockers.length} posible(s) duplicado(s) de alto riesgo. Revise NSS y fechas antes de radicar.`, 'bad');
+          draw();
+          toast(`Hay ${blockers.length} posible(s) duplicado(s) de alto riesgo relacionados con este lote. Revise las coincidencias mostradas antes de radicar.`, 'bad');
           document.getElementById('duplicateCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
         }

@@ -251,6 +251,7 @@ export async function ecfReadiness({ realOnly = false } = {}) {
 
 // ---------------------------------------------------------------- Posibles duplicados antes de radicar
 export async function claimDuplicateCandidates(ids = null, submissionId = null) {
+  if (ids !== null && !Array.isArray(ids)) throw new Error('La consulta de coincidencias requiere una lista de reclamaciones y el identificador del lote.');
   return must(await sb().rpc('claim_duplicate_candidates', { p_ids: ids?.length ? ids : null, p_submission: submissionId || null }));
 }
 export async function reviewClaimDuplicate(lineA, lineB, decision, reason) {
