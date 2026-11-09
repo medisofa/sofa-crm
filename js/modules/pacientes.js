@@ -1,7 +1,7 @@
 /** SOFA · 22 · Pacientes del consultorio (ficha administrativa, sin datos clínicos).
  *  Buscar, crear/editar la ficha y ver su historial de citas y reclamaciones. Cada apertura queda en la bitácora.
  *  2.6.1: ARS y PLAN del paciente; sus reclamaciones se tarifan con la tarifa del plan cuando existe. */
-import { rpc, providerOptions, h, money, fmtDate, note, guarded, table } from '../services/iter18.js';
+import { rpc, providerOptions, patientPage, h, money, fmtDate, note, guarded, table } from '../services/iter18.js';
 
 const SEX = { F: 'Femenino', M: 'Masculino', X: 'No especificado' };
 
@@ -68,18 +68,40 @@ export async function render(root) {
     orgs.length > 1 ? [h('label', { for: 'px-org' }, 'Consultorio'), org] : null,
     h('label', { for: 'px-q' }, 'Buscar paciente'), q, h('div', {}, go, ' ', nuevo, ' ', link)));
 
-  async function search() {
+  let page = 0;
+  let searchId = 0;
+  const pageSize = 25;
+  async function search(reset = true) {
+    if (reset) page = 0;
+    const requestId = ++searchId;
+    const query = q.value.trim();
     card.replaceChildren();
-    const rows = await guarded(res, () => rpc('search_patients', { p_org: org.value, p_q: q.value }));
-    if (!rows) return;
+    res.replaceChildren(note('Cargando…'));
+    let rows;
+    try {
+      rows = await (query ? rpc('search_patients', { p_org: org.value, p_q: query }) : patientPage(org.value, page, pageSize));
+    } catch (e) {
+      if (requestId === searchId) res.replaceChildren(note(e.message, 'error'));
+      return;
+    }
+    if (requestId !== searchId) return;
+    const hasNext = !query && rows.length > pageSize;
+    if (!query) rows = rows.slice(0, pageSize);
     res.replaceChildren(table([
       { label: 'Paciente', get: (r) => h('button', { class: 'i18-link', type: 'button', onclick: () => open(r.id) }, r.name) },
       { label: 'Documento', get: (r) => r.doc || '—' },
       { label: 'Afiliado', get: (r) => r.member || '—' },
       { label: 'Teléfono', get: (r) => r.phone || '—' }], rows));
+    if (!query && (page > 0 || hasNext)) {
+      res.append(h('div', { class: 'i18-bar' },
+        h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: page === 0, onclick: () => { page--; search(false); } }, 'Anterior'),
+        h('span', {}, `Página ${page + 1}`),
+        h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: !hasNext, onclick: () => { page++; search(false); } }, 'Siguiente')));
+    }
   }
-  go.addEventListener('click', search);
+  go.addEventListener('click', () => search());
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+  org.addEventListener('change', () => { q.value = ''; search(); });
 
   link.addEventListener('click', async () => {
     link.disabled = true;
@@ -92,6 +114,7 @@ export async function render(root) {
 
   nuevo.addEventListener('click', () => form(null));
   const cat = await rpc('ars_catalog', { p_include_inactive: false }).catch(() => []);
+  await search();
 
   function form(p) {
     const f = (id, label, attrs = {}) => { const i = h('input', { id, ...attrs }); return [h('label', { for: id }, label), i]; };

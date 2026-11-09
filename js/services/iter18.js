@@ -30,6 +30,11 @@ async function read(query) {
 export const clientOptions = () => read(supabase.from('organizations').select('id, legal_name, trade_name').eq('kind', 'client').order('legal_name'));
 export const realClientOptions = () => read(supabase.from('sofa_real_client_organizations').select('id, legal_name').order('legal_name'));
 export const providerOptions = () => read(supabase.from('providers').select('id, full_name, organization_id').eq('is_active', true).order('full_name'));
+/** Lista administrativa del consultorio; RLS valida patient_access para la sesión actual. */
+export const patientPage = (organizationId, page = 0, pageSize = 25) => read(supabase.from('patients')
+  .select('id, name:full_name, doc:doc_number, member:member_number, phone')
+  .eq('organization_id', organizationId).eq('is_active', true)
+  .order('full_name').order('id').range(page * pageSize, (page + 1) * pageSize));
 export const pendingMessages = () => read(supabase.from('message_queue').select('id, kind, provider_id, organization_id, to_phone, subject, body, scheduled_for, status, patient_id').eq('status', 'pendiente').order('scheduled_for').limit(300));
 export const recentSummaries = () => read(supabase.from('message_queue').select('id, provider_id, organization_id, subject, body, scheduled_for, status').eq('kind', 'resumen_semanal').order('scheduled_for', { ascending: false }).limit(40));
 async function realClientIds() { return (await read(supabase.from('sofa_real_client_organizations').select('id'))).map((r) => r.id); }
