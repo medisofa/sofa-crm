@@ -13,8 +13,9 @@ try {
   try {
    let body=await readFile(new URL(u.pathname.slice(1),root));
    if(u.pathname==='/js/app.js'){
+    const favoritesImport=body.toString().split('\n').filter(line=>/^import .*nav-favorites/.test(line)).join('\n');
     body=body.toString().replace(/^import .*;\n/gm,'').replace(/\nboot\(\);\s*$/,'');
-    body=`import {html,render,raw,$,$$,applySidebarBadges} from '/js/utils/dom.js';
+    body=favoritesImport+'\n'+`import {html,render,raw,$,$$,applySidebarBadges} from '/js/utils/dom.js';
 import {visibleNav,extraNav,ROLES,homeRoute} from '/js/utils/permissions.js';
 import {initials} from '/js/utils/formatters.js';
 const APP_VERSION='5.24.0', DEFAULT_ROUTE='inicio';

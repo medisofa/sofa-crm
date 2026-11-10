@@ -8,6 +8,7 @@ import { CONFIG } from './config.js';
 import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
 import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.30.0';
+import { readNavFavorites, toggleNavFavorite } from './utils/nav-favorites.js';
 import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$, applySidebarBadges } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
@@ -51,6 +52,9 @@ const FAMILY_ICONS = {
   resultados: ICON('<path d="M3 21h18"/><rect x="5" y="11" width="3" height="7"/><rect x="10.5" y="7" width="3" height="11"/><rect x="16" y="3.5" width="3" height="14.5"/>'),
   admin: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
   cuenta: ICON('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6"/>'),
+  contratos: ICON('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>'),
+  marketing: ICON('<path d="M3 10v4h4l11 5V5L7 10zM7 14l2 7"/>'),
+  favoritos: ICON('<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>'),
   mas: ICON('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'),
   // 31/10/2026 · Las familias propias de Médico, Secretaria, Facturación, Cobros, Comercial y
   // Operaciones (FAMILIAS_ROL, 30/10/2026) usaban claves que no estaban aquí, así que CADA grupo
@@ -241,6 +245,7 @@ function layout() {
     <aside class="sidebar" id="sidebar" aria-label="Menú principal">
       <div class="brand"><img class="logo-full" src="assets/brand/sofa-logo-white.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
       <div class="nav-search"><label class="sr-only" for="navSearch">Buscar en el menú</label><input id="navSearch" type="search" placeholder="Buscar módulo…" autocomplete="off"></div>
+      <div id="navFavorites" class="nav nav-favorites" aria-label="Módulos favoritos"></div>
       <nav class="nav nav-v2" id="nav"></nav>
       <div class="side-foot">v${APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
     </aside>
@@ -264,6 +269,8 @@ function layout() {
     </div>
   </div>`);
   renderNav(); bindNav();
+  $('#navFavorites')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
+  $('#topnavTabs')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavGroups')?.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-fam]'); if (!b) return;
     horizFamilia = b.dataset.fam;
@@ -298,41 +305,81 @@ const NAV_KEY = 'sofa.nav.cerrados';
 /** 2.? · Si el menú de un rol tiene pocos módulos en total, los acordeones por familia solo estorban:
  * se muestra como lista plana, sin encabezados de grupo que haya que abrir para ver 2 o 3 enlaces. */
 const FLAT_NAV_THRESHOLD = 14;
-const closedGroups = () => { try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || '[]')); } catch (_) { return new Set(); } };
-const saveClosed = (set) => { try { localStorage.setItem(NAV_KEY, JSON.stringify([...set])); } catch (_) { /* sin almacenamiento: no se recuerda */ } };
+const closedGroups = () => { try { return new Set(JSON.parse(localStorage.getItem(navScopeKey(NAV_KEY)) || '[]')); } catch (_) { return new Set(); } };
+const saveClosed = (set) => { try { localStorage.setItem(navScopeKey(NAV_KEY), JSON.stringify([...set])); } catch (_) { /* sin almacenamiento: no se recuerda */ } };
 const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+let navMapOpen = false;
+let navContext = '';
+const navScope = () => ({ userId: state.session?.user?.id, organizationId: state.membership?.organization_id, role: state.role });
+const navScopeKey = (key) => `${key}.${[state.session?.user?.id || '', state.membership?.organization_id || '', state.role || '', state.viewAs ? 'support' : 'normal'].map(encodeURIComponent).join('.')}`;
+const allowedNavItems = () => [...visibleNav(state.role).flatMap((g) => g.items), ...extraNav(state.role)];
+function favoriteItems() {
+  const allowed = allowedNavItems();
+  const saved = readNavFavorites(navScope(), allowed.map((i) => i.route));
+  return saved.map((r) => allowed.find((i) => i.route === r)).filter(Boolean);
+}
+function favoriteButton(i) {
+  const pinned = favoriteItems().some((x) => x.route === i.route);
+  return html`<button type="button" class="nav-star" data-nav-favorite="${i.route}" aria-pressed="${String(pinned)}" aria-label="${pinned ? 'Quitar de' : 'Agregar a'} favoritos: ${i.label}" ${state.viewAs ? raw('disabled title="Modo soporte: solo lectura"') : ''}>${pinned ? '★' : '☆'}</button>`;
+}
+function changeNavFavorite(button) {
+  const origin = button?.closest('#topnavTabs') ? '#topnavTabs' : button?.closest('#navFavorites') ? '#navFavorites' : '#nav';
+  if (state.viewAs || !button) return;
+  try {
+    toggleNavFavorite(navScope(), button.dataset.navFavorite, allowedNavItems().map((i) => i.route));
+    renderNav();
+    const matches = $$('[data-nav-favorite]').filter((b) => b.dataset.navFavorite === button.dataset.navFavorite);
+    (matches.find((b) => b.closest(origin) && b.getClientRects().length) || matches.find((b) => b.getClientRects().length))?.focus();
+  } catch (e) { toast(e.message, 'bad'); }
+}
+function renderFavorites() {
+  const items = favoriteItems(); const { route } = parseHash();
+  render($('#navFavorites'), html`<div class="nav-favorites-title">★ Favoritos</div>${items.length ? items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}</a>${favoriteButton(i)}</div>`) : html`<p class="nav-favorites-empty">Marca ☆ junto a un módulo para tenerlo a mano.</p>`}`);
+}
+function navigationGroupsWithFavorites() {
+  const items = favoriteItems();
+  return [...(items.length ? [{ key: 'favoritos', group: 'Favoritos', items }] : []), ...visibleNav(state.role)];
+}
 function renderNav() {
-  renderTopNav();
+  const context = navScopeKey('context');
+  if (navContext !== context) { navMapOpen = false; navContext = context; }
+  renderFavorites(); renderTopNav();
   const nav = $('#nav'); if (!nav) return;
   const { route } = parseHash();
   const q = norm($('#navSearch')?.value).trim();
   const closed = closedGroups();
-  const link = (i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`;
+  const link = (i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>${favoriteButton(i)}</div>`;
   const groups = visibleNav(state.role);
   // 5.11.0 · la pista solo vale la pena cuando hay bastante fuera del menú. Con 2 o 4 módulos
   // (Prospecto, Facturación, Secretaria) sería ruido para quien menos navega el sistema.
   const nExtra = extraNav(state.role).length;
   const mostrarPista = nExtra >= 10;
+  const mapControl = html`<button type="button" id="navMapToggle" class="nav-map-toggle" aria-pressed="${String(navMapOpen)}">${navMapOpen ? 'Volver al menú habitual' : 'Ver todos mis módulos'}</button>`;
+  if (navMapOpen && !q) {
+    const items = allowedNavItems();
+    render(nav, html`${mapControl}<p class="nav-hint">${items.length} módulos disponibles para tu rol. Este catálogo incluye los accesos adicionales.</p><div class="nav-hits">${items.map(link)}</div>`);
+    applySidebarBadges(); return;
+  }
   if (q) {
     const hits = groups.flatMap((g) => g.items.filter((i) => norm(i.label).includes(q) || norm(g.group).includes(q)));
     // 5.11.0 · el buscador también encuentra lo que el rol puede abrir aunque no esté en su menú.
     const otros = extraNav(state.role).filter((i) => norm(i.label).includes(q));
-    render(nav, (hits.length || otros.length)
+    render(nav, html`${mapControl}${(hits.length || otros.length)
       ? html`${hits.length ? html`<div class="nav-hits">${hits.map(link)}</div>` : ''}
              ${otros.length ? html`<div class="nav-otros"><p class="nav-otros-t">Otros módulos a los que tienes acceso</p><div class="nav-hits">${otros.map(link)}</div></div>` : ''}`
-      : html`<p class="nav-empty">No hay ningún módulo con «${$('#navSearch').value}» al que tengas acceso. Borra la búsqueda para ver tu menú.</p>`);
+      : html`<p class="nav-empty">No hay ningún módulo con «${$('#navSearch').value}» al que tengas acceso. Borra la búsqueda para ver tu menú.</p>`}`);
     applySidebarBadges(); return;
   }
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   if (total <= FLAT_NAV_THRESHOLD && state.role !== 'client') {
-    render(nav, html`<div class="nav-items nav-flat">${groups.flatMap((g) => g.items).map(link)}</div>`);
+    render(nav, html`${mapControl}<div class="nav-items nav-flat">${groups.flatMap((g) => g.items).map(link)}</div>`);
     applySidebarBadges(); return;
   }
   // 28/10/2026: con muchos grupos, abrirlos uno por uno (o cerrarlos uno por uno) para buscar
   // algo se vuelve lento. Un botón arriba abre o cierra todos de una vez; el grupo de la ruta
   // activa igual se queda abierto, como ya pasa con el estado guardado por grupo.
   const anyClosed = groups.some((g) => closed.has(g.group) && !g.items.some((i) => i.route === route));
-  render(nav, html`${groups.length > 1 ? html`<button type="button" class="nav-toggle-all" id="navToggleAll">${anyClosed ? 'Abrir todo' : 'Cerrar todo'}</button>` : ''}
+  render(nav, html`${mapControl}${groups.length > 1 ? html`<button type="button" class="nav-toggle-all" id="navToggleAll">${anyClosed ? 'Abrir todo' : 'Cerrar todo'}</button>` : ''}
   ${groups.map((g) => {
     const active = g.items.some((i) => i.route === route);
     const open = active || !closed.has(g.group);
@@ -350,7 +397,7 @@ function renderTopNav() {
   const horizontal = getMenuLayout() === 'horizontal';
   if (!horizontal) { topnav.hidden = true; return; }
   const { route } = parseHash();
-  const groups = visibleNav(state.role).filter((g) => g.items.length);
+  const groups = navigationGroupsWithFavorites().filter((g) => g.items.length);
   if (!groups.length) { topnav.hidden = true; return; }
   const activeGroup = (horizFamilia && groups.find((g) => g.group === horizFamilia))
     || groups.find((g) => g.items.some((i) => i.route === route)) || groups[0];
@@ -360,17 +407,21 @@ function renderTopNav() {
     <div class="tnav-p2">
       ${groups.map((g) => html`<button type="button" class="tnb ${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}" aria-label="${g.group}" title="${g.group}" aria-pressed="${String(g.group === activeGroup.group)}">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}<span class="tnb-label">${g.group}</span></button>`)}
     </div>
-    <div class="tnav-p1">
+    <div class="tnav-p1"><button type="button" class="tnav-catalog" id="topnavCatalog" aria-label="Buscar y ver todos mis módulos" aria-controls="sidebar">⌕ <span>Mis módulos</span></button>
       <button type="button" class="tnav-user" id="topnavUserBtn" aria-label="Menú de cuenta de ${uname}" aria-haspopup="menu" aria-expanded="false">
         <span class="avatar tnav-av" aria-hidden="true">${initials(uname)}</span>
         <span class="tnav-nm">${uname}</span>
       </button>
     </div>`);
-  render($('#topnavTabs'), html`${activeGroup.items.map((i) => html`<a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>`)}`);
+  render($('#topnavTabs'), html`${activeGroup.items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>${favoriteButton(i)}</div>`)}`);
+  $('#topnavCatalog')?.addEventListener('click', () => { navMapOpen = true; renderNav(); toggleMenu(true); $('#navSearch')?.focus(); });
   $('#topnavUserBtn')?.addEventListener('click', (e) => { e.stopPropagation(); openUserMenu(); });
 }
 function bindNav() {
   $('#nav').addEventListener('click', (e) => {
+    const favorite = e.target.closest('[data-nav-favorite]');
+    if (favorite) { changeNavFavorite(favorite); return; }
+    if (e.target.closest('#navMapToggle')) { navMapOpen = !navMapOpen; renderNav(); $('#navMapToggle')?.focus(); return; }
     if (e.target.closest('#navToggleAll')) {
       const { route } = parseHash();
       const groups = visibleNav(state.role);
@@ -393,12 +444,14 @@ function bindNav() {
   });
 }
 function toggleMenu(open) {
+  const restoreCatalogFocus = !open && $('#sidebar')?.contains(document.activeElement);
   $('#sidebar')?.classList.toggle('open', open); $('#scrim')?.classList.toggle('show', open);
   $('#menuBtn')?.setAttribute('aria-expanded', String(open));
   // 28/10/2026: con el menú abierto en móvil, el contenido de atrás (p. ej. la grilla de
   // «Mis módulos») quedaba alcanzable por teclado y lector de pantalla pese a estar oculto
   // visualmente tras el velo. `inert` lo saca del tabulado y de la accesibilidad mientras dure.
   $('#appContent')?.toggleAttribute('inert', !!open);
+  if (restoreCatalogFocus) { (getMenuLayout() === 'horizontal' && innerWidth >= 1000 ? $('#topnavCatalog') : $('#menuBtn'))?.focus(); }
 }
 function closeUserMenu() { $('.menu-pop')?.remove(); ['userBtn','topnavUserBtn'].forEach(id => document.getElementById(id)?.setAttribute('aria-expanded', 'false')); }
 function openUserMenu() {

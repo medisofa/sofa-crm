@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import{readFile}from'node:fs/promises';
+const source=await readFile(new URL('../js/utils/nav-favorites.js',import.meta.url),'utf8');
+const{readNavFavorites:read,toggleNavFavorite:toggle}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)};
+const scope={userId:'a',organizationId:'org-a',role:'admin'};const allowed=['contratos','radicaciones'];
+assert.deepEqual(toggle(scope,'contratos',allowed,storage),['contratos']);
+assert.deepEqual(read({...scope,userId:'b'},allowed,storage),[]);
+assert.deepEqual(read({...scope,organizationId:'org-b'},allowed,storage),[]);
+assert.deepEqual(read({...scope,role:'client'},allowed,storage),[]);
+assert.deepEqual(read(scope,['radicaciones'],storage),[],'Permiso revocado desaparece');
+const before=JSON.stringify([...values]);assert.throws(()=>toggle(scope,'usuarios',allowed,storage));assert.equal(JSON.stringify([...values]),before);
+assert.deepEqual(read(scope,allowed,{getItem:()=>'{invalid'}),[]);
+assert.deepEqual(read(scope,allowed,{getItem:()=>{throw Error('Storage blocked')}}),[]);
+assert.throws(()=>toggle(scope,'radicaciones',allowed,{getItem:()=>null,setItem:()=>{throw Error('Storage blocked')}}),/No se pudieron guardar/);
+const many=Array.from({length:13},(_,i)=>'route'+i);for(const route of many.slice(0,12))toggle({...scope,userId:'limit'},route,many,storage);
+assert.throws(()=>toggle({...scope,userId:'limit'},many[12],many,storage),/12 favoritos/);
+console.log('PASS: aislamiento, permisos revocados, storage dañado/bloqueado y límite de favoritos.');

@@ -418,7 +418,7 @@ const OBLIGATORIAS = ['autoentrenamiento', 'perfil', 'seguridad'];
 
 /** En qué familia cae hoy una ruta, para ese rol. */
 function familiaDe(route, role) {
-  const fams = FAMILIAS_ROL[role] || FAMILIES;
+  const fams = navigationFamilies(role);
   const f = fams.find((x) => x.routes.includes(route));
   return f ? f.key : null;
 }
@@ -430,14 +430,16 @@ function familiaDe(route, role) {
  * en una familia aparece al final en «Más», para que nada se pierda.
  */
 export const FAMILIES = [
-  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'mi-incorporacion', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'verificacion', 'tareas', 'mis-horas'] },
-  { key: 'clientes', group: 'Gestión SOFA', routes: ['clientes', 'onboarding-30', 'casos-servicio', 'propuestas', 'fugas', 'casos-exito', 'salud-clientes', 'oportunidades', 'solicitudes', 'prospectos', 'contactos', 'aliados', 'medicos', 'mercado', 'honorarios', 'planes', 'suscripciones', 'puesta-en-marcha'] },
-  { key: 'facturacion', group: 'Facturación y Radicación', routes: ['captura', 'carga-google', 'puesta-al-dia', 'calidad-captura', 'reclamaciones', 'expediente', 'preradicacion', 'preauditoria', 'ecf', 'radicaciones', 'retiros', 'requisitos', 'contratos', 'vencimientos', 'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones'] },
-  { key: 'cobros', group: 'Cobros, Conciliación y Glosas', routes: ['glosas', 'reconsideracion', 'causas-glosa', 'pagos', 'senasa-certificados', 'aplicar-pago', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'analitica-glosas'] },
-  { key: 'consultorio', group: 'Consultorio', routes: ['flujo-pacientes', 'mi-ficha', 'documentos-consultorio', 'pacientes', 'historia-clinica', 'saldos-pacientes', 'seguimiento', 'avisos-pacientes', 'mensajes', 'indicadores-agenda', 'practica', 'hospitalizacion', 'tarifas-privadas', 'pagos-privados', 'insumos', 'mis-secretarias', 'mis-asistentes', 'centros', 'clinica', 'habilitacion', 'mi-habilitacion'] },
-  { key: 'resultados', group: 'Resultados', routes: ['mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'direccion', 'dashboard', 'estado-cuenta', 'informe-trimestral', 'rentabilidad', 'auditoria-expedientes', 'reportes', 'guias'] },
-  { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'salud-sistema', 'rendimiento', 'cola-correos', 'documentos', 'historial'] },
-  { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias', 'recomendar', 'novedades', 'perfil', 'cambio-clave', 'seguridad', 'diagnostico'] }
+  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'seguimiento-hoy', 'verificacion', 'tareas', 'mis-horas'] },
+  { key: 'consultorio', group: 'Pacientes y atención', routes: ['flujo-pacientes', 'pacientes', 'historia-clinica', 'hospitalizacion', 'centros', 'practica', 'documentos-consultorio', 'mensajes', 'indicadores-agenda', 'seguimiento', 'avisos-pacientes', 'mis-secretarias', 'mis-asistentes', 'clinica', 'habilitacion', 'mi-habilitacion'] },
+  { key: 'facturacion', group: 'Facturación y radicación', routes: ['captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente', 'retiros', 'preradicacion', 'requisitos', 'preauditoria', 'ecf', 'auditoria-expedientes', 'insumos', 'calidad-captura', 'radicaciones', 'documentos'] },
+  { key: 'contratos', group: 'ARS y contratos', routes: ['ars', 'codigos-ars', 'contratos', 'vencimientos', 'codificacion', 'brechas-tarifa', 'tarifas-versiones', 'mi-ficha'] },
+  { key: 'cobros', group: 'Cobros y finanzas', routes: ['pagos', 'glosas', 'senasa-certificados', 'honorarios', 'aging', 'conciliacion', 'causas-glosa', 'cartera', 'aplicar-pago', 'reconsideracion', 'tarifas-privadas', 'pagos-privados', 'saldos-pacientes', 'calendario-cobros', 'mi-dinero', 'mis-glosas'] },
+  { key: 'crecimiento', group: 'Desarrollo y crecimiento', routes: ['oportunidades', 'prospectos', 'solicitudes', 'clientes', 'salud-clientes', 'medicos', 'contactos', 'propuestas', 'onboarding-30', 'puesta-en-marcha', 'mi-incorporacion', 'mis-30-dias', 'mi-puesta-en-marcha', 'casos-servicio'] },
+  { key: 'marketing', group: 'Marketing y comunicación', routes: ['aliados', 'casos-exito', 'recomendar', 'cola-correos'] },
+  { key: 'resultados', group: 'Inteligencia y resultados', routes: ['mercado', 'guias', 'dashboard', 'direccion', 'reportes', 'mi-productividad', 'reporte-contador', 'estado-cuenta', 'rentabilidad', 'analitica-glosas', 'informe-trimestral', 'fugas'] },
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'planes', 'suscripciones', 'rendimiento', 'salud-sistema', 'historial'] },
+  { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-panel', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'novedades', 'perfil', 'seguridad', 'diagnostico', 'cambio-clave'] }
 ];
 
 /**
@@ -518,13 +520,15 @@ export const FAMILIAS_ROL = {
   ]
 };
 
+const navigationFamilies = (role) => ['client', 'capturer', 'asistente', 'prospect'].includes(role) ? (FAMILIAS_ROL[role] || FAMILIES) : FAMILIES;
+
 export const allRoutes = () => NAV.flatMap((g) => g.items);
 export const findRoute = (r) => allRoutes().find((i) => i.route === r) || null;
 export const canSee = (route, role) => !!findRoute(route)?.roles.includes(role);
 export const visibleNav = (role) => {
   const ok = (i) => i && !i.hidden && i.roles.includes(role) && enMenu(role, i.route);   // 5.10.0 · el menú solo lista lo esencial del rol
   const used = new Set();
-  const groups = (FAMILIAS_ROL[role] || FAMILIES).map((f) => ({ key: f.key, group: f.group, items: f.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
+  const groups = navigationFamilies(role).map((f) => ({ key: f.key, group: f.group, items: f.routes.map(findRoute).filter((i) => ok(i) && !used.has(i.route) && used.add(i.route)) }));
   const rest = allRoutes().filter((i) => ok(i) && !used.has(i.route));
   if (rest.length) groups.push({ key: 'mas', group: 'Más', items: rest });
   return groups.filter((g) => g.items.length).map((g) => role === 'client' ? { ...g, items: g.items.map((i) => i.route === 'flujo-pacientes' ? { ...i, label: 'Plan del día' } : i) } : g);
