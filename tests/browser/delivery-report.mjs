@@ -1,3 +1,4 @@
+import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';
 const {chromium}=await import(process.env.SOFA_PLAYWRIGHT_MODULE||'playwright');const root=new URL('../../',import.meta.url);const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
 try{const page=await browser.newPage({viewport:{width:1500,height:1100}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -12,7 +13,20 @@ await page.evaluate(async()=>{document.documentElement.dataset.theme='dark';wind
 assert.equal(await page.locator('.ars-report script').count(),0);assert.match(await page.locator('.ars-report-total').textContent(),/2 reclamación.*3 unidad.*3,200/);
 assert.equal(await page.locator('.ars-report-table tbody tr').count(),2);assert.match(await page.locator('.ars-report').textContent(),/FAC-QA/);assert.match(await page.locator('aside').textContent(),/Pendiente de acuse/);
 await page.emulateMedia({media:'print'});assert.equal(await page.locator('aside').isVisible(),false);assert.equal(await page.locator('.ars-report').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
+await page.pdf({path:'/tmp/sofa-constancia-a4.pdf',preferCSSPageSize:true,printBackground:true});
+assert.equal(await page.locator('html').evaluate(el=>getComputedStyle(el).colorScheme),'light');
+const info=execFileSync('pdfinfo',['/tmp/sofa-constancia-a4.pdf'],{encoding:'utf8'});
+assert.match(info,/Pages:\s+1/);const size=info.match(/Page size:\s+([\d.]+) x ([\d.]+) pts \(A4\)/);assert.ok(size);assert.ok(Math.abs(Number(size[1])-595.28)<1 && Math.abs(Number(size[2])-841.89)<1);
+const single=execFileSync('pdftotext',['-layout','/tmp/sofa-constancia-a4.pdf','-'],{encoding:'utf8'});
+for(const token of ['REC-A','REC-B','FAC-QA','Firma y sello','no implica aprobación ni pago'])assert.ok(single.includes(token),token);
 await page.emulateMedia({media:'screen'});await page.setViewportSize({width:375,height:812});assert.equal(await page.locator('.ars-report-layout').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),1);
 await page.evaluate(async()=>{reportData.sub.ars_receipt_number='ACUSE-QA';await reportModule.render(document.querySelector('main'),{arg:'lot/constancia'});});assert.match(await page.locator('aside').textContent(),/Acuse registrado/);
+await page.evaluate(async()=>{reportData.lines=Array.from({length:80},(_,i)=>({...reportData.lines[0],claim_folio:'REC-QA-'+String(i).padStart(3,'0'),patient_name:'Paciente de prueba '+i}));await reportModule.render(document.querySelector('main'),{arg:'lot/constancia'});});
+await page.emulateMedia({media:'print'});
+await page.pdf({path:'/tmp/sofa-constancia-a4-multipagina.pdf',preferCSSPageSize:true,printBackground:true});
+const multiInfo=execFileSync('pdfinfo',['/tmp/sofa-constancia-a4-multipagina.pdf'],{encoding:'utf8'});assert.ok(Number(multiInfo.match(/Pages:\s+(\d+)/)[1])>1);
+const multi=execFileSync('pdftotext',['-layout','/tmp/sofa-constancia-a4-multipagina.pdf','-'],{encoding:'utf8'});
+for(let i=0;i<80;i++)assert.ok(multi.includes('REC-QA-'+String(i).padStart(3,'0')),'Fila completa '+i);
+assert.ok(multi.includes('no implica aprobación ni pago'));assert.ok((multi.match(/Autorización/g)||[]).length>1,'Encabezados repetidos');
 assert.deepEqual(errors,[]);console.log('PASS: constancia, cantidades y montos, datos fiscales, escape HTML, impresión, móvil y estado de acuse');
 }finally{await browser.close();}

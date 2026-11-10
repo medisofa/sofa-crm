@@ -208,4 +208,37 @@ dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
 .ars-report-signatures{display:grid;grid-template-columns:1.3fr 1fr;gap:20px}.ars-report-blank{display:inline-block;border-bottom:1px solid #45566c;min-width:130px;height:18px}.ars-report-stamp{border:1px solid #45566c;height:85px}.ars-report-writing{height:24px;border-bottom:1px solid #45566c}.ars-report footer{border-top:1px solid #45566c;margin-top:20px;padding-top:8px;font-size:10px}
 @media(max-width:1100px){.ars-report-layout{grid-template-columns:1fr}.ars-report-layout aside{order:-1}}
 @media(max-width:600px){.ars-report{padding:14px}.ars-report-details,.ars-report-meta{grid-template-columns:1fr}.ars-report table{min-width:620px}}
-@media print{.ars-report-layout{display:block}.ars-report{padding:0;border:0;font-size:10pt;box-shadow:none}.ars-report th,.ars-report td{font-size:9pt}.ars-report table{min-width:0}.ars-report-table{overflow:visible}.ars-report thead{display:table-header-group}.ars-report tr,.ars-report-signatures{break-inside:avoid}.ars-report h3{break-after:avoid}.ars-report-layout aside{display:none!important}.ars-report-meta,.ars-report-details{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@page sofa-ars { size: A4 portrait; margin: 12mm; background: #fff; }
+@media print {
+  html:has(.ars-report), body:has(.ars-report) { color-scheme: light !important; background: #fff !important; height: auto; min-height: 0; }
+  .ars-report-layout { display: block; }
+  .ars-report { page: sofa-ars; width: 100%; max-width: 186mm; margin: 0; padding: 0; border: 0; box-sizing: border-box; font-size: 9pt; line-height: 1.25; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .ars-report-heading { padding-bottom: 2mm; }
+  .ars-report-heading > strong { font-size: 18pt; }
+  .ars-report-heading h2 { font-size: 11pt; margin: 1mm 0 0; }
+  .ars-report h3 { font-size: 9pt; padding: 1.5mm 2mm; margin: 3mm 0 1.5mm; break-after: avoid; }
+  .ars-report-meta, .ars-report-details { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.5mm 5mm; margin: 2mm 0; }
+  .ars-report dt { font-size: 8pt; }
+  .ars-report dd { margin-top: .5mm; }
+  .ars-report table { width: 100%; min-width: 0; table-layout: fixed; font-size: 8pt; }
+  .ars-report th, .ars-report td { padding: 1.5mm; font-size: 8pt; vertical-align: top; overflow-wrap: anywhere; }
+  .ars-report-table { overflow: visible; }
+  .ars-report-table th:nth-child(1) { width: 14%; }
+  .ars-report-table th:nth-child(2) { width: 16%; }
+  .ars-report-table th:nth-child(3) { width: 11%; }
+  .ars-report-table th:nth-child(4) { width: 19%; }
+  .ars-report-table th:nth-child(5) { width: 19%; }
+  .ars-report-table th:nth-child(6) { width: 6%; }
+  .ars-report-table th:nth-child(7) { width: 15%; }
+  .ars-report thead { display: table-header-group; }
+  .ars-report tr, .ars-report-meta > div, .ars-report-details > div, .ars-report-receipt { break-inside: avoid; }
+  .ars-report-total { font-size: 10pt; padding: 2mm; margin: 2mm 0; break-inside: avoid; }
+  .ars-report-small { font-size: 8pt; margin: 1mm 0; }
+  .ars-report-signatures { grid-template-columns: 1.3fr 1fr; gap: 5mm; }
+  .ars-report-signatures p, .ars-report-receipt > p { margin: 2mm 0; }
+  .ars-report-blank { min-width: 28mm; height: 4mm; }
+  .ars-report-stamp { height: 18mm; }
+  .ars-report-writing { height: 5mm; }
+  .ars-report footer { font-size: 8pt; margin-top: 3mm; padding-top: 2mm; }
+  .ars-report-layout aside { display: none !important; }
+}
