@@ -1,7 +1,8 @@
 /** SOFA · Centros de salud del médico: catálogo por cliente y asignación de varios centros a cada médico. */
 import { supabase, rpc, h, note, guarded, providerOptions } from '../services/iter18.js';
 
-export async function render(root) {
+export async function render(root, ctx = {}) {
+  if (ctx.viewAs) { root.replaceChildren(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Centros de salud'), note('Sal del modo soporte para gestionar los centros del médico. Esta vista es de solo lectura.', 'info'))); return; }
   root.replaceChildren();
   const out = h('div', { 'aria-live': 'polite' });
   const provSel = h('select', { id: 'i18-ce-prov' });
@@ -37,18 +38,20 @@ export async function render(root) {
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault(); out.replaceChildren();
     try {
+      if (!prov()) throw new Error('Seleccione un médico antes de agregar un centro.');
+      addBtn.disabled = true;
       await rpc('save_health_center', { p_id: null, p_org: prov().organization_id, p_name: nameIn.value, p_tax_id: rncIn.value || null, p_active: true });
       form.reset(); await load();
-    } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+    } catch (e) { out.replaceChildren(note(e.message, 'error')); } finally { addBtn.disabled = false; }
   });
   saveBtn.addEventListener('click', async () => {
     out.replaceChildren(); saveBtn.disabled = true;
-    try { await rpc('set_provider_centers', { p_provider: provSel.value, p_centers: mine, p_primary: primary }); out.replaceChildren(note('Centros del médico guardados.')); }
+    try { if (!prov()) throw new Error('Seleccione un médico antes de guardar centros.'); await rpc('set_provider_centers', { p_provider: provSel.value, p_centers: mine, p_primary: primary }); out.replaceChildren(note('Centros del médico guardados.')); }
     catch (e) { out.replaceChildren(note(e.message, 'error')); } finally { saveBtn.disabled = false; }
   });
   provSel.addEventListener('change', () => guarded(out, load));
 
-  root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Centros de salud del médico'),
+  root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Centros de salud del médico'), h('p', { class: 'i18-sub' }, 'Seleccione el médico, agregue los centros que falten, marque dónde trabaja y pulse «Guardar centros del médico». Puede elegir un centro principal.'),
     h('div', { class: 'i18-bar' }, h('label', {}, 'Médico', provSel)), form, list, saveBtn, out));
   await guarded(out, async () => {
     provs = await providerOptions();

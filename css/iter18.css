@@ -1225,3 +1225,39 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .clinical-modules>summary{min-height:44px;padding:12px 0;cursor:pointer;color:var(--ink);font-weight:600}
 .clinical-modules>summary:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:var(--r)}
 .clinical-pending .btn{margin:4px 8px 0 0}
+
+/* Hospitalización: casos legibles y gestión de centros dentro del consultorio. */
+.hosp-wrap{min-width:0}
+.hosp-wrap .hosp-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.hosp-wrap .hosp-header h2{margin:0}
+.hosp-wrap .hosp-overviewgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:18px;align-items:start}
+.hosp-wrap .hosp-overviewgrid>div,.hosp-wrap .hosp-overviewgrid>section{min-width:0}
+.hosp-wrap .hosp-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 18px}
+.hosp-wrap .hosp-summary>div{padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.hosp-wrap .hosp-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end}
+.hosp-wrap .hosp-form input,.hosp-wrap .hosp-form select,.hosp-wrap .hosp-form textarea{width:100%;min-width:0}
+.hosp-wrap .hosp-case-form{padding:16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);margin:12px 0 18px}
+.hosp-wrap .hosp-case-form label{display:grid;gap:5px;font-size:.86rem;color:var(--ink-2)}
+.hosp-wrap .hosp-row{background:var(--surface);color:var(--ink);border-color:var(--line);min-height:56px;align-items:center;overflow-wrap:anywhere}
+.hosp-wrap .hosp-row>span,.hosp-wrap .hosp-row>div{min-width:0}
+.hosp-wrap .hosp-mut{color:var(--ink-2)}
+.hosp-wrap .hosp-detail{border-color:var(--line)}
+.hosp-wrap .hosp-tbl th,.hosp-wrap .hosp-tbl td{border-color:var(--line);vertical-align:top}
+.hosp-wrap button,.hosp-wrap .i18-btn{min-height:44px}
+.hosp-wrap button:focus-visible,.hosp-wrap a:focus-visible,.hosp-wrap select:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+@media(max-width:900px){.hosp-wrap .hosp-overviewgrid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.hosp-wrap .hosp-summary{grid-template-columns:minmax(0,1fr)}.hosp-wrap .hosp-row{flex-wrap:wrap}.hosp-wrap .hosp-form{grid-template-columns:minmax(0,1fr)}.hosp-wrap .hosp-case-form{padding:12px}}
+
+.hosp-wrap summary{min-height:44px;padding:12px 0;cursor:pointer;color:var(--ink);font-weight:600}
+.hosp-wrap summary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.hosp-wrap .hosp-row>span:first-child{flex:1 1 180px}
+.hosp-wrap>h2,.hosp-wrap>.i18-sub{margin:0}
+.hosp-wrap>div[aria-live]:empty{display:none}
+.hosp-wrap .hosp-form input,.hosp-wrap .hosp-form select,.hosp-wrap .hosp-form textarea{min-height:42px;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--ink);font:inherit;box-sizing:border-box}
+.hosp-wrap .hosp-form textarea{min-height:76px;resize:vertical}
+.hosp-wrap .i18-btn{background:var(--navy-2);color:var(--on-navy);border:1px solid var(--line);font-weight:600;text-decoration:none}
+.hosp-wrap .i18-btn.i18-sec{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.hosp-wrap .hosp-detail{padding:16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);margin-top:0}
+.hosp-wrap .hosp-detail>h3{margin:0 0 8px}
+.hosp-wrap .hosp-detail>.i18-sub{color:var(--ink-2)}
+@media(max-width:600px){.hosp-wrap .hosp-detail{padding:12px}}

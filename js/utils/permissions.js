@@ -29,7 +29,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades', 'carga-google', 'puesta-al-dia'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso») // 28/10/2026: + Carga Google Sheets/Form — ESENCIALES.billing ya lo asignaba al menú, pero este filtro lo bloqueaba antes de llegar (quedaba un ítem muerto)
+export const BILLING_ROUTES = ['hospitalizacion', 'autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades', 'carga-google', 'puesta-al-dia'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso») // 28/10/2026: + Carga Google Sheets/Form — ESENCIALES.billing ya lo asignaba al menú, pero este filtro lo bloqueaba antes de llegar (quedaba un ítem muerto)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -46,7 +46,7 @@ export const NAV = [
     { route: 'seguimiento-hoy', label: 'Seguimiento de hoy', roles: ['client'], ready: true },
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
-    { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.7 · I68a
+    { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations', 'billing'], ready: true },   // 5.7 · I68a
     { route: 'tarifas-privadas', label: 'Tarifas privadas', roles: ['super_admin', 'admin', 'assistant', 'client'], ready: true },
     { route: 'pagos-privados', label: 'Pagos de pacientes', roles: ['super_admin', 'admin', 'operations', 'billing', 'auditor', 'client', 'capturer'], ready: true },   // 30/10/2026 · pagos directos del paciente (no ARS), autorizado por médico
     { route: 'dashboard', label: 'Dashboard BI', roles: [...NO_OPS(STAFF), 'client'], ready: true }
@@ -65,7 +65,7 @@ export const NAV = [
     { route: 'avisos-pacientes', label: 'Avisos a pacientes', roles: ['super_admin', 'admin', 'client'], ready: true },
     { route: 'mis-secretarias', label: 'Mis secretarias', roles: ['super_admin', 'admin', 'client'], ready: true },
     { route: 'mis-asistentes', label: 'Mis asistentes', roles: ['super_admin', 'admin', 'client'], ready: true },   // 29/10/2026 · el médico autoriza can_flow/can_hc a sus asistentes de consulta ya asignados
-    { route: 'centros', label: 'Centros de salud', roles: ['super_admin', 'admin', 'client'], ready: true }
+    { route: 'centros', label: 'Centros de salud', roles: ['super_admin', 'admin', 'operations', 'client'], ready: true }
   ]},
   { group: 'Mis resultados', items: [   // 1.9 · Iteraciones 18 y 26
     { route: 'mi-dinero', label: 'Mi dinero', roles: ['client', 'super_admin', 'admin', 'operations'], ready: true },   // 5.8
@@ -245,9 +245,9 @@ export const ESENCIALES = {
 
   // Facturación · perfil de referencia desde el 01/10/2026. BILLING_ROUTES sigue siendo su tope.
   billing: {
-    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente',
+    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'hospitalizacion', 'captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente',
            'retiros', 'radicaciones', 'reconsideracion', 'perfil', 'seguridad'],
-    extra: ['dashboard', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
+    extra: ['hospitalizacion', 'dashboard', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
   },
 
   // Cobros · aplicar el pago de la ARS, repartirlo, conciliar el banco y pelear la glosa.
@@ -294,14 +294,15 @@ export const ESENCIALES = {
 
   // Operaciones · retiro físico, validación, radicación, calidad de captura y puesta en marcha.
   // 16/10/2026: es una función interna de SOFA. No ve información privada del cliente —
-  // ni su agenda, ni sus mensajes a pacientes, ni su dinero, ni su clínica.
+  // ni su agenda, ni sus mensajes a pacientes, ni su dinero, ni su historia clínica.
+  // Consulta reportes hospitalarios remitidos para seguimiento y gestiona centros autorizados.
   operations: {
-    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'tareas',
+    menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'hospitalizacion', 'tareas',
            'clientes', 'salud-clientes', 'puesta-en-marcha', 'onboarding-30',
            'retiros', 'preradicacion', 'radicaciones', 'preauditoria', 'ecf',
            'requisitos', 'reclamaciones', 'expediente', 'calidad-captura',
            'perfil', 'seguridad'],
-    extra: ['inicio', 'captura',   // conserva claims.capture en la matriz de acciones
+    extra: ['centros', 'hospitalizacion', 'inicio', 'captura',   // conserva claims.capture en la matriz de acciones
             'solicitudes',             // 5.15.0: puede abrirla por enlace; no es su trabajo diario
             'medicos', 'casos-servicio', 'contratos', 'vencimientos',
             'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones',
