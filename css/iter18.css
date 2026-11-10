@@ -1391,3 +1391,35 @@ input[data-dq="advierte"]{border-color:var(--warn)}
   .tariff-workspace .tariff-table tr{grid-template-columns:minmax(0,1fr)}
   .tariff-workspace .tariff-table td{grid-column:1/-1}
 }
+
+/* Flujo de pacientes: las acciones nunca compiten por ancho con los nombres. */
+.patient-flow{container-type:inline-size;min-width:0}
+.patient-flow .flow-controls{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(150px,.7fr) minmax(200px,1.2fr) auto;gap:12px;align-items:end;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:16px}
+.patient-flow .flow-field{display:grid;gap:6px;min-width:0}
+.patient-flow .flow-field label{font-size:.78rem;color:var(--ink-2);font-weight:600}
+.patient-flow .flow-field input,.patient-flow .flow-field select{width:100%;min-width:0;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);font:inherit;font-size:.85rem}
+.patient-flow .flow-field select:disabled{opacity:1;color:var(--ink-2)}
+.patient-flow .flow-update{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.73rem;color:var(--ink-2);border-top:1px solid var(--line);padding-top:10px}
+.patient-flow .flow-summary{font-size:.82rem;color:var(--ink-2);margin:16px 0 12px}
+.patient-flow .flow-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));align-items:start;gap:12px}
+.patient-flow .flow-col{min-width:0;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.patient-flow .flow-col-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:15px 14px;border-bottom:1px solid var(--line);border-top:3px solid var(--line)}
+.patient-flow .flow-col-head h3{margin:0;font-size:.9rem;font-weight:700;color:var(--ink)}
+.patient-flow .flow-count{font-size:.75rem;font-weight:700;min-width:25px;text-align:center;padding:2px 7px;background:var(--surface);border:1px solid var(--line);border-radius:7px;color:var(--ink-2)}
+.patient-flow .flow-esperando .flow-col-head{border-top-color:var(--warn,#b98635)}
+.patient-flow .flow-consulta .flow-col-head{border-top-color:var(--navy-2,#315b8b)}
+.patient-flow .flow-atendido .flow-col-head{border-top-color:var(--ok,#238663)}
+.patient-flow .flow-patients{padding:10px;display:grid;gap:10px}
+.patient-flow .flow-card{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;min-width:0;padding:13px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 1px 2px #132b4510;word-break:normal;overflow-wrap:break-word}
+.patient-flow .flow-card-meta{display:flex;justify-content:space-between;gap:6px;align-items:start;flex-wrap:wrap;font-size:.7rem;color:var(--ink-2)}
+.patient-flow .flow-time{font-weight:700;font-variant-numeric:tabular-nums;padding:2px 6px;background:var(--surface-2);border-radius:5px;color:var(--ink)}
+.patient-flow .flow-wait{font-size:.68rem;line-height:1.5}
+.patient-flow .flow-patient{margin:3px 0 0;min-width:0;font-size:.9rem;line-height:1.5;font-weight:700;word-break:normal;overflow-wrap:break-word}
+.patient-flow .flow-doctor,.patient-flow .flow-service,.patient-flow .flow-room{font-size:.76rem;line-height:1.55;color:var(--ink-2);margin:0;min-width:0}
+.patient-flow .flow-service{padding-top:5px;border-top:1px solid var(--line)}
+.patient-flow .btn{min-height:44px;white-space:normal;font-size:.8rem;line-height:1.4}
+.patient-flow .flow-card>.btn{width:100%;margin-top:6px;min-width:0;padding:10px 8px}
+.patient-flow .flow-empty{font-size:.77rem;line-height:1.6;color:var(--ink-2);text-align:center;margin:0;padding:20px 6px;min-height:76px}
+.patient-flow .flow-footnote{font-size:.74rem;color:var(--ink-2);margin:18px 0 0;line-height:1.6}
+@container(max-width:800px){.patient-flow .flow-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-flow .flow-search{grid-column:1/-1}.patient-flow .flow-controls>#fp-refresh{grid-column:1/-1}}
+@container(max-width:460px){.patient-flow .flow-controls{grid-template-columns:minmax(0,1fr);padding:13px}.patient-flow .flow-board{grid-template-columns:minmax(0,1fr)}.patient-flow .flow-update{display:grid;gap:4px}.patient-flow .flow-card{padding:15px}}
