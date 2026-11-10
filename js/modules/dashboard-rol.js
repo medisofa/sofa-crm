@@ -3,6 +3,7 @@
  *  onOpen(code) lo provee el router para abrir un módulo desde un acceso directo. */
 import { rpc, h, money, num, note, guarded } from '../services/iter18.js';
 import { visibleNav, canSee } from '../utils/permissions.js';
+import { render as renderClinical } from './clinical-dashboard.js';
 
 const LABEL = { agenda: 'Agenda', captura_rapida: 'Captura rápida', reclamaciones: 'Reclamaciones', trabajo_hoy: 'Trabajo de hoy',
   nueva_cita: 'Nueva cita', retiros_fisicos: 'Retiros físicos', radicacion: 'Radicación' };
@@ -68,7 +69,7 @@ const VIEW_META = {
   operativo: { label: 'Vista general', hint: 'Pendientes, acciones y accesos directos.', icon: ICO.clasica },
   ejecutivo: { label: 'Ejecutivo', hint: 'Indicadores y alertas para tomar decisiones.', icon: ICO.clasica },
   visual: { label: 'Visual', hint: 'Tarjetas amplias y lectura rápida del estado.', icon: ICO.clasica },
-  clinico: { label: 'Clínico', hint: 'El pulso del logo como hilo conductor.', icon: ICO.pulso, nuevo: true },
+  clinico: { label: 'Clínico', hint: 'Resumen compacto de la actividad de hoy.', icon: ICO.pulso, nuevo: true },
   informe: { label: 'Informe', hint: 'Autoridad por tipografía, sin degradados.', icon: ICO.grilla, nuevo: true },
   operaciones: { label: 'Operaciones', hint: 'Retícula técnica, un solo tema oscuro.', icon: ICO.grilla, nuevo: true },
   cercano: { label: 'Cercano', hint: 'Anillos de progreso y tono cálido.', icon: ICO.corazon, nuevo: true },
@@ -218,9 +219,8 @@ function renderClinico(data, role, onOpen) {
   return h('div', { class: 'dash-new dash-new-clinico' },
     h('div', { class: 'dn-hero' },
       brandmark('white'),
-      h('span', { class: 'dn-eyebrow' }, 'Tu consultorio, hoy'),
-      h('h3', {}, 'Buenos días'),
-      traceSvg()),
+      h('span', { class: 'dn-eyebrow' }, 'Resumen de actividad'),
+      h('h3', {}, 'Operación de hoy')),
     h('div', { class: 'dn-body' },
       h('div', { class: 'dn-grid-4' }, ...kpis.map((k) => kpiNode(k, role, 'dn-card'))),
       shortcutButtons(shortcuts, onOpen)));
@@ -335,14 +335,22 @@ function renderBloques(data, role) {
   }));
 }
 
-export async function render(root, { onOpen = goTo, role = null } = {}) {
+export async function render(root, ctx = {}) {
+  const { onOpen = goTo, role = null } = ctx;
+  if (['client', 'capturer', 'asistente'].includes(role) || ctx.viewAs) {
+    return renderClinical(root, { ...ctx, renderLauncher: () => launcher(role) });
+  }
   root.replaceChildren();
   const box = h('div', { 'aria-live': 'polite', class: 'dash-root' });
   root.append(box);
   const data = await guarded(box, () => rpc('my_dashboard'));
   if (!data) { if (role) box.append(launcher(role)); return; }
+  const sectionByRole = { super_admin: 'direccion', admin: 'direccion', operations: 'direccion', auditor: 'direccion', billing: 'facturacion', glosas: 'glosas', assistant: 'comercial' };
+  const expected = sectionByRole[role];
+  if (expected && Array.isArray(data.sections)) data.sections = data.sections.filter((section) => section.code === expected);
   if (!data.sections || !data.sections.length) {
-    box.replaceChildren(note('Su usuario todavía no tiene un rol asignado. Pida al Administrador que se lo asigne.'));
+    box.replaceChildren(note('No hay indicadores disponibles para tu perfil activo. Puedes abrir tus módulos desde los accesos de inicio.'));
+    if (role) box.append(launcher(role));
     return;
   }
 
@@ -357,20 +365,23 @@ export async function render(root, { onOpen = goTo, role = null } = {}) {
     minimal: renderMinimal, carpeta: renderCarpeta, vidrio: renderVidrio, bloques: renderBloques
   };
 
+  data.sections = data.sections.map((section) => ({ ...section, shortcuts: (section.shortcuts || []).filter((code) => canSee(ROUTE[code] || code, role)) }));
   const draw = () => {
     box.replaceChildren();
-    box.append(viewSelector(view, selectorOpen, () => { selectorOpen = !selectorOpen; draw(); }, async (next) => {
+    const focusSelector = () => box.querySelector('.dash-viewbar-toggle')?.focus();
+    box.append(h('div', { class: 'dash-heading' }, h('h2', {}, 'Inicio'), viewSelector(view, selectorOpen, () => { selectorOpen = !selectorOpen; draw(); focusSelector(); }, async (next) => {
       selectorOpen = false;
-      if (next === view || !VIEW_META[next]) { draw(); return; }
+      if (next === view || !VIEW_META[next]) { draw(); focusSelector(); return; }
       try {
-        await rpc('set_my_dashboard_view', { p_view: next });
+        if (!ctx.viewAs) await rpc('set_my_dashboard_view', { p_view: next });
         view = next;
-        draw();
+        draw(); focusSelector();
       } catch (err) {
         draw();
         box.prepend(note(err.message || 'No se pudo guardar la vista del dashboard.', 'error'));
+        focusSelector();
       }
-    }));
+    })));
     box.append((RENDERERS[view] || renderOperative)(data, role, onOpen));
     if (role) box.append(launcher(role));
   };

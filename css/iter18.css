@@ -1126,3 +1126,102 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .mp-links{flex-wrap:wrap;gap:8px}
 .mp-caso-row{padding:6px 0;border-bottom:1px solid var(--border)}
 .mp-caso-row:last-of-type{border-bottom:none}
+
+/* Inicio clínico: jornada primero, indicadores y navegación sin bloques decorativos. */
+.dash-root .dash-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
+.dash-root .dash-heading>div:first-child{min-width:0}
+.dash-root .dash-heading h2{margin:0;font-size:1.35rem;line-height:1.25;color:var(--heading)}
+.dash-root .dash-heading p{margin:4px 0 0;color:var(--ink-2);font-size:.88rem}
+.dash-root .dash-viewbar{justify-self:end;width:min(100%,320px);border-radius:var(--r);align-self:start}
+.dash-root .dash-viewbar-toggle{min-height:44px;padding:8px 12px;gap:8px}
+.dash-root .dash-viewbar-copy{display:flex;align-items:center;gap:8px}
+.dash-root .dash-viewbar-copy>strong{font-size:.88rem}
+.dash-root .dash-viewbar-copy>span{display:none}
+.dash-root .dash-viewbar-toggle svg{stroke:var(--ink-2)}
+.dash-root .dash-view-switch{grid-template-columns:repeat(3,minmax(0,1fr));padding:0 8px 8px}
+.dash-root .dash-view-btn{min-height:52px}
+
+.clinical-home{display:grid;gap:16px;min-width:0;color:var(--ink)}
+.clinical-home *{box-sizing:border-box}
+.clinical-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:0;min-width:0}
+.clinical-head h2,.clinical-head h3{margin:0;line-height:1.25;font-size:1.35rem;color:var(--heading)}
+.clinical-head p{margin:4px 0 0;color:var(--ink-2);font-size:.9rem}
+.clinical-head .i18-actions{margin:0}
+.clinical-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;min-width:0}
+.clinical-kpis>.clinical-kpi,.clinical-kpis>.i18-kpi,.clinical-kpis>a,.clinical-kpis>article,.clinical-kpis>div{min-width:0;padding:14px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow-wrap:anywhere}
+.clinical-kpis>a{display:block;color:inherit;text-decoration:none;min-height:88px}
+.clinical-kpis .i18-kpi-v,.clinical-kpi>strong{display:block;font-size:1.45rem;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--ink)}
+.clinical-kpis .i18-kpi-l,.clinical-kpi>span,.clinical-kpi>small{display:block;margin-top:6px;font-size:.84rem;color:var(--ink-2);line-height:1.4}
+.clinical-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:16px;align-items:start;min-width:0}
+.clinical-agenda,.clinical-side{min-width:0}
+.clinical-agenda{border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;background:var(--surface)}
+.clinical-side{display:grid;gap:14px;align-content:start}
+.clinical-side>.i18-card,.clinical-side>section,.clinical-side>article{margin:0;padding:16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);min-width:0}
+.clinical-home h3{font-size:1rem;line-height:1.35;margin:0 0 10px;color:var(--heading)}
+.clinical-home h4{font-size:.9rem;line-height:1.4;margin:0;color:var(--ink)}
+.clinical-home p,.clinical-home small{overflow-wrap:anywhere}
+.clinical-home .i18-sub,.clinical-home .small,.clinical-home .muted,.clinical-home .clinical-summary{color:var(--ink-2);font-size:.85rem}
+.clinical-home .clinical-summary{margin:4px 0 12px;line-height:1.45}
+.clinical-home ul{list-style:none;margin:0;padding:0}
+.clinical-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;min-height:64px;padding:12px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
+.clinical-row:last-child{border-bottom:0}
+.clinical-row>div{min-width:0}
+.clinical-row strong,.clinical-row b{overflow-wrap:anywhere}
+.clinical-row small,.clinical-row .clinical-row-meta{display:block;margin-top:3px;font-size:.82rem;color:var(--ink-2);line-height:1.4;overflow-wrap:anywhere}
+.clinical-row time,.clinical-row .clinical-time{flex:none;font-size:.86rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+.clinical-home .clinical-empty{padding:18px 0;color:var(--ink-2);font-size:.9rem;line-height:1.5}
+.clinical-home .clinical-empty p{margin:4px 0 12px}
+.clinical-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0}
+.clinical-shortcuts>a,.clinical-shortcuts>button{display:flex;align-items:center;justify-content:center;min-height:44px;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);font:inherit;font-size:.87rem;font-weight:600;text-align:center;line-height:1.35;color:var(--ink);text-decoration:none;overflow-wrap:anywhere;cursor:pointer}
+.clinical-home .btn,.clinical-home .i18-btn,.clinical-home .i18-link{min-height:44px;white-space:normal;display:inline-flex;align-items:center;justify-content:center;line-height:1.35}
+.clinical-home a:focus-visible,.clinical-home button:focus-visible,.dash-root .dash-viewbar-toggle:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.clinical-shortcuts>a:hover,.clinical-shortcuts>button:hover,.clinical-kpis>a:hover,.clinical-row[href]:hover{background:var(--surface-2);border-color:var(--focus)}
+.clinical-home+.v2-launcher{margin-top:0}
+.dash-root:has(.clinical-home) .v2-launch-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+.dash-root:has(.clinical-home) .v2-launch-card h4{color:var(--ink-2)}
+.dash-root:has(.clinical-home) .v2-launch-card a{display:flex;align-items:center;min-height:44px;padding:9px 8px;line-height:1.4}
+
+/* La apariencia Clínica no convierte el resumen de personal en una jornada médica. */
+.dash-root .dash-new-clinico .dn-hero{padding:16px 18px;background:var(--surface-2);color:var(--ink)}
+.dash-root .dash-new-clinico .dash-new-brand,.dash-root .dash-new-clinico .dn-trace{display:none}
+.dash-root .dash-new-clinico .dn-eyebrow{font-size:.8rem;letter-spacing:.04em;color:var(--ink-2);opacity:1}
+.dash-root .dash-new-clinico .dn-hero h3{margin:4px 0 0;font-size:1.2rem}
+.dash-root .dash-new-clinico .dn-body{padding:14px 18px}
+.dash-root .dash-new-clinico .dn-card{padding:14px 50px 14px 14px;min-height:88px}
+.dash-root .dash-new-clinico .dn-card .i18-kpi-l{color:var(--ink-2)}
+.dash-root .dash-new-clinico .dash-new-sh{margin-top:10px}
+@media(max-width:900px){
+  .clinical-grid{grid-template-columns:minmax(0,1fr)}
+  .clinical-side{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+  .dash-root .dash-heading{flex-wrap:wrap;gap:10px}
+  .dash-root .dash-viewbar{width:100%;justify-self:stretch}
+  .dash-root .dash-heading>.dash-viewbar{flex:1 1 100%}
+  .clinical-head{align-items:flex-start}
+  .clinical-head h2{font-size:1.2rem}
+  .clinical-head>.i18-actions,.clinical-head>.btn{width:100%}
+  .clinical-home{gap:12px}
+  .clinical-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .clinical-kpis>.clinical-kpi,.clinical-kpis>.i18-kpi,.clinical-kpis>a,.clinical-kpis>article,.clinical-kpis>div{padding:12px}
+  .clinical-kpis .i18-kpi-v,.clinical-kpi>strong{font-size:1.25rem}
+  .clinical-side{grid-template-columns:minmax(0,1fr)}
+  .clinical-agenda,.clinical-side>.i18-card,.clinical-side>section,.clinical-side>article{padding:14px}
+  .clinical-row{align-items:flex-start;gap:8px;flex-wrap:wrap}
+}
+@media(max-width:320px){
+  .clinical-kpis,.clinical-shortcuts{grid-template-columns:minmax(0,1fr)}
+}
+.clinical-head-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.clinical-home .clinical-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.clinical-home .clinical-section-head h3{margin:0}
+.clinical-home .clinical-person{flex:1;min-width:0}
+.clinical-home .clinical-person>strong{display:block;line-height:1.4}
+.clinical-home .clinical-status{flex:none;white-space:normal;max-width:100%;text-align:center}
+.clinical-home .clinical-list{margin:0;padding:0;list-style:none}
+.clinical-kpi>small{font-size:.76rem}
+@media(max-width:600px){.clinical-head-actions{width:100%}.clinical-head-actions>.btn{flex:1 1 140px}}
+
+.clinical-modules>summary{min-height:44px;padding:12px 0;cursor:pointer;color:var(--ink);font-weight:600}
+.clinical-modules>summary:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:var(--r)}
+.clinical-pending .btn{margin:4px 8px 0 0}

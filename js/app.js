@@ -256,7 +256,7 @@ function layout() {
         ${state.viewAs ? html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`
                 : multi ? html`<label class="sr-only" for="orgSel">Organización activa</label><select class="org-select" id="orgSel">${state.memberships.map((m) => html`<option value="${m.organization_id}" ${m.organization_id === state.membership.organization_id ? raw('selected') : ''}>${m.organization} · ${m.role_name}</option>`)}</select>`
                 : html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`}
-        <button class="user-btn" id="userBtn" aria-haspopup="menu" aria-expanded="false"><span class="avatar" aria-hidden="true">${initials(name)}</span><span class="nm">${name}</span></button>
+        <button class="user-btn" id="userBtn" aria-label="Menú de cuenta de ${name}" aria-haspopup="menu" aria-expanded="false"><span class="avatar" aria-hidden="true">${initials(name)}</span><span class="nm">${name}</span></button>
       </header>
       ${state.viewAs ? html`<div class="banner viewas" role="status">👁 Viendo como ${state.viewAs.targetName ? html`<b>${state.viewAs.targetName}</b> (${VIEW_AS_ROLE_NAME[state.viewAs.role] || state.viewAs.role} · ${state.viewAs.orgName})` : html`<b>${state.viewAs.orgName}</b>`} — modo soporte, solo lectura. <button type="button" class="btn sm" id="exitViewAs">Salir</button></div>` : ''}
       <div class="banner offline" id="offline" hidden role="status">Sin conexión. Los cambios no se guardarán hasta que vuelva internet.</div>
@@ -358,10 +358,10 @@ function renderTopNav() {
   const uname = state.profile?.full_name || state.session?.user?.email || '';
   render($('#topnavGroups'), html`
     <div class="tnav-p2">
-      ${groups.map((g) => html`<button type="button" class="tnb ${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}<span class="tnb-label">${g.group}</span></button>`)}
+      ${groups.map((g) => html`<button type="button" class="tnb ${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}" aria-label="${g.group}" title="${g.group}" aria-pressed="${String(g.group === activeGroup.group)}">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}<span class="tnb-label">${g.group}</span></button>`)}
     </div>
     <div class="tnav-p1">
-      <button type="button" class="tnav-user" id="topnavUserBtn" aria-haspopup="menu" aria-expanded="false">
+      <button type="button" class="tnav-user" id="topnavUserBtn" aria-label="Menú de cuenta de ${uname}" aria-haspopup="menu" aria-expanded="false">
         <span class="avatar tnav-av" aria-hidden="true">${initials(uname)}</span>
         <span class="tnav-nm">${uname}</span>
       </button>
@@ -400,7 +400,7 @@ function toggleMenu(open) {
   // visualmente tras el velo. `inert` lo saca del tabulado y de la accesibilidad mientras dure.
   $('#appContent')?.toggleAttribute('inert', !!open);
 }
-function closeUserMenu() { $('.menu-pop')?.remove(); $('#userBtn')?.setAttribute('aria-expanded', 'false'); }
+function closeUserMenu() { $('.menu-pop')?.remove(); ['userBtn','topnavUserBtn'].forEach(id => document.getElementById(id)?.setAttribute('aria-expanded', 'false')); }
 function openUserMenu() {
   if ($('.menu-pop')) { closeUserMenu(); return; }
   const pop = document.createElement('div');
@@ -408,7 +408,7 @@ function openUserMenu() {
   render(pop, html`<div class="who"><b>${state.profile.full_name || '—'}</b><span>${state.session.user.email}</span><br><span>${state.membership.role_name} · ${state.membership.organization}</span></div>
     <a role="menuitem" href="#/perfil">Mi perfil</a><a role="menuitem" href="#/cambio-clave">Cambiar contraseña</a><a role="menuitem" href="#/seguridad">Seguridad (dos pasos)</a><button role="menuitem" data-theme-next>Tema: ${THEMES[getTheme()]}</button><span class="appearance-label">Color del sidebar</span>${Object.entries(PALETTES).map(([value, label]) => html`<button role="menuitemradio" aria-checked="${getPalette() === value}" data-palette-pick="${value}">${label}${getPalette() === value ? ' ✓' : ''}</button>`)}<span class="appearance-label">Distribución del menú</span>${Object.entries(MENU_LAYOUT_NAME).map(([value, label]) => html`<button role="menuitemradio" aria-checked="${getMenuLayout() === value}" data-menu-layout="${value}">${label}${getMenuLayout() === value ? ' ✓' : ''}</button>`)}<a role="menuitem" href="#/diagnostico">Diagnóstico</a>
     <button role="menuitem" data-out="local">Cerrar sesión</button><button role="menuitem" data-out="global">Cerrar sesión en todos los dispositivos</button>`);
-  document.body.appendChild(pop); $('#userBtn').setAttribute('aria-expanded', 'true');
+  document.body.appendChild(pop); ['userBtn','topnavUserBtn'].forEach(id => document.getElementById(id)?.setAttribute('aria-expanded', 'true'));
   pop.addEventListener('click', async (e) => {
     if (e.target.closest('[data-theme-next]')) { const order = Object.keys(THEMES); applyTheme(order[(order.indexOf(getTheme()) + 1) % order.length]); e.target.closest('[data-theme-next]').textContent = `Tema: ${THEMES[getTheme()]}`; return; }
     const palPick = e.target.closest('[data-palette-pick]');
