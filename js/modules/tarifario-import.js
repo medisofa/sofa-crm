@@ -36,6 +36,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
   const from = h('input', { id: 'ti-from', type: 'date', value: new Date().toISOString().slice(0, 10) });
   const to = h('input', { id: 'ti-to', type: 'date' });
   const contract = h('input', { id: 'ti-ct', placeholder: 'Ej.: Contrato ARS 2026', maxlength: '120' });
+  const contractHelp = h('p', { class: 'i18-sub', 'aria-live': 'polite' }, 'Seleccione médico y ARS para consultar el contrato.');
   const file = h('input', { id: 'ti-file', type: 'file', accept: '.xlsx,.csv,.txt', multiple: true, 'aria-describedby': 'ti-files-help' });
   const go = h('button', { class: 'i18-btn', type: 'button' }, 'Revisar archivos');
   const tpl = h('button', { class: 'i18-link', type: 'button' }, 'Descargar plantilla');
@@ -46,7 +47,7 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
     h('div', { class: 'hc-grid i18-form', style: 'max-width:none' },
       h('label', { for: 'ti-ars' }, 'ARS', ars), h('label', { for: 'ti-plan' }, 'Plan', plan), h('label', { for: 'ti-prov' }, 'Médico', prov),
       h('label', { for: 'ti-from' }, 'Vigencia desde', from), h('label', { for: 'ti-to' }, 'Hasta (opcional)', to),
-      h('label', { for: 'ti-ct' }, 'Contrato', contract), h('label', { for: 'ti-file', class: 'hc-wide' }, 'Archivos (.xlsx o .csv)', file)), selected,
+      h('label', { for: 'ti-ct' }, 'Contrato', contract, contractHelp), h('label', { for: 'ti-file', class: 'hc-wide' }, 'Archivos (.xlsx o .csv)', file)), selected,
     h('div', { class: 'i18-actions' }, go, tpl), out));
   tpl.addEventListener('click', () => {
     const csv = '﻿Servicio;Descripción;SIMON;CUPS;Tarifa;Desde;Hasta\r\nSOFA-P07;Escriba aquí la descripción del servicio;;;1500.00;01/01/2026;\r\n';
@@ -74,6 +75,24 @@ export async function mountTariffImport(box, { orgId, canEdit, isStaff = false }
     out.replaceChildren(note('La selección cambió. Pulse «Revisar archivos» para validar los datos actuales.'));
   }
   contextControls.forEach((el) => el.addEventListener('change', resetReview));
+  let contractSeq = 0;
+  async function loadContract() {
+    const my = ++contractSeq; contract.readOnly = true; contract.value = '';
+    if (!ars.value || !prov.value) return;
+    contractHelp.textContent = 'Consultando permisos del contrato…';
+    try {
+      const c = await rpc('ars_identifier_context', { p_provider: prov.value, p_ars: ars.value, p_plan: plan.value || null });
+      if (my !== contractSeq || !contract.isConnected) return;
+      contract.value = c.contract_ref || ''; contract.readOnly = !c.can_edit_contract;
+      contractHelp.textContent = c.can_edit_contract
+        ? (c.contract_registered ? 'Administración puede actualizar esta referencia.' : 'Primer registro permitido. Después solo Administración podrá cambiarlo.')
+        : 'Referencia registrada. Solo Administrador o Super Admin puede modificarla.';
+      resetReview();
+    } catch(e) { if (my === contractSeq) contractHelp.textContent = e.message; }
+  }
+  [ars, plan, prov].forEach(el => el.addEventListener('change', loadContract));
+  contract.readOnly = true;
+
   file.addEventListener('change', () => {
     selected.replaceChildren(h('p', {}, `${file.files.length} archivo(s) seleccionado(s). Se revisan juntos para detectar duplicados. Todos usan la ARS, plan, médico y contrato indicados arriba.`),
       h('ul', {}, [...file.files].map((f) => h('li', {}, `${f.name} (${Math.ceil(f.size / 1024)} KB)`))));

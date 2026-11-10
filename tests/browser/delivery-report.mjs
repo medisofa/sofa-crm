@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';
+const {chromium}=await import(process.env.SOFA_PLAYWRIGHT_MODULE||'playwright');const root=new URL('../../',import.meta.url);const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+try{const page=await browser.newPage({viewport:{width:1500,height:1100}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.route('**/*',async route=>{const p=new URL(route.request().url()).pathname;
+if(p==='/')return route.fulfill({contentType:'text/html',body:'<main class="page"></main>'});
+if(p==='/js/utils/diag-log.js')return route.fulfill({contentType:'text/javascript',body:'export function logDiag(){}'});
+if(p==='/js/services/delivery-report.js')return route.fulfill({contentType:'text/javascript',body:'export async function deliveryReportData(){return structuredClone(window.reportData)}'});
+if(p==='/js/supabase.js')return route.fulfill({contentType:'text/javascript',body:'export const sb=()=>({rpc:async()=>({})});'});
+return route.fulfill({contentType:p.endsWith('.css')?'text/css':'text/javascript',body:await readFile(new URL(p.slice(1),root))});});
+await page.goto('http://127.0.0.1:8881/');for(const f of ['variables.css','components.css','app.css'])await page.addStyleTag({content:await readFile(new URL('css/'+f,root),'utf8')});
+await page.evaluate(async()=>{document.documentElement.dataset.theme='dark';window.reportData={sub:{id:'lot',folio:'RAD-QA',provider_name:'Dra. Ejemplo',provider_code:'PSS-123',ars_name:'ARS ficticia',ncf:'B0100000001',fiscal_invoice_number:'FAC-QA',period:'2026-10-01'},provider:{full_name:'Dra. Ejemplo',specialty:'Medicina familiar',tax_id:'00000000000'},org:{legal_name:'Cliente ficticio',phone:'8090000000',email:'ejemplo@clinica.test'},lines:[{claim_folio:'REC-A',authorization_number:'AUT-A',service_date:'2026-10-19',patient_name:'<script>Paciente A</script>',quantity:2,amount:1700,procedures:{description:'Consulta',service_type_code:'consulta'}},{claim_folio:'REC-B',authorization_number:'AUT-B',service_date:'2026-10-20',patient_name:'Paciente B',quantity:1,amount:1500,procedures:{description:'Procedimiento',service_type_code:'procedimiento'}}]};window.reportModule=await import('/js/modules/delivery-report.js');await reportModule.render(document.querySelector('main'),{arg:'lot/constancia',setTitle(){}});});
+assert.equal(await page.locator('.ars-report script').count(),0);assert.match(await page.locator('.ars-report-total').textContent(),/2 reclamación.*3 unidad.*3,200/);
+assert.equal(await page.locator('.ars-report-table tbody tr').count(),2);assert.match(await page.locator('.ars-report').textContent(),/FAC-QA/);assert.match(await page.locator('aside').textContent(),/Pendiente de acuse/);
+await page.emulateMedia({media:'print'});assert.equal(await page.locator('aside').isVisible(),false);assert.equal(await page.locator('.ars-report').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
+await page.emulateMedia({media:'screen'});await page.setViewportSize({width:375,height:812});assert.equal(await page.locator('.ars-report-layout').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),1);
+await page.evaluate(async()=>{reportData.sub.ars_receipt_number='ACUSE-QA';await reportModule.render(document.querySelector('main'),{arg:'lot/constancia'});});assert.match(await page.locator('aside').textContent(),/Acuse registrado/);
+assert.deepEqual(errors,[]);console.log('PASS: constancia, cantidades y montos, datos fiscales, escape HTML, impresión, móvil y estado de acuse');
+}finally{await browser.close();}

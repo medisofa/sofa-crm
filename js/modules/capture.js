@@ -15,6 +15,7 @@ import {
 } from '../services/claims.js';
 import { requiredDocsPreview, dossierStatus } from '../services/dossier.js';
 import { dossierPill } from './dossier-card.js';
+import { captureIdentifiers } from './capture-identifiers.js';
 import { initCamara } from './captura-camara.js';
 import { revisarCaptura, capturarConDiagnostico, mostrarAviso, limpiarAvisos, pistaCedula, cie10Suggestions } from '../services/calidad-dato.js';   // I61: calidad del dato
 
@@ -59,6 +60,7 @@ export async function render(main, ctx) {
             <select id="c_srv" name="procedure" required disabled><option value="">Seleccione médico, ARS y fecha</option></select>
             <span class="hint" id="srvHint">Solo aparecen los servicios contratados para ese médico con esa ARS en la fecha del servicio.</span></div>
         </div>
+        <div id="capture-identifiers" aria-live="polite"></div>
         <div id="srvInfo" aria-live="polite"></div>
         <div id="notContracted"></div>
         <div class="form-grid">
@@ -80,6 +82,7 @@ export async function render(main, ctx) {
     </div>`);
 
   const form = $('#cf', main);
+  const refreshIdentifiers = captureIdentifiers($('#capture-identifiers', main));
   const el = (id) => $(`#${id}`, main);
   /** Las tareas asíncronas (búsquedas, cargas) terminan después de que el usuario puede haber salido de la pantalla */
   const alive = () => document.body.contains(form);
@@ -117,6 +120,7 @@ export async function render(main, ctx) {
   async function loadServices() {
     const provider = el('c_prov').value; const ars = el('c_ars').value; const d = el('c_date').value;
     memory.provider = provider; memory.ars = ars; memory.date = d;
+    refreshIdentifiers(provider, ars, null);
     S.service = null; S.catalogPick = null; paint(el('srvInfo'), html``); paint(el('notContracted'), html``); drawDiff();
     const sel = el('c_srv');
     if (!provider || !ars || !d) { sel.disabled = true; paint(sel, html`<option value="">Seleccione médico, ARS y fecha</option>`); return; }
@@ -137,9 +141,10 @@ export async function render(main, ctx) {
   function pickService() {
     const v = el('c_srv').value;
     S.catalogPick = null; paint(el('notContracted'), html``);
-    if (v === '__catalog') { S.service = null; paint(el('srvInfo'), html``); openCatalog(); drawDiff(); return; }
+    if (v === '__catalog') { refreshIdentifiers(el('c_prov').value, el('c_ars').value, null); S.service = null; paint(el('srvInfo'), html``); openCatalog(); drawDiff(); return; }
     S.service = S.services.find((s) => s.procedure_id === v) || null;
     const s = S.service;
+    refreshIdentifiers(el('c_prov').value, el('c_ars').value, s);
     el('c_amt').value = s ? Number(s.amount).toFixed(2) : '';
     paint(el('srvInfo'), s ? html`<div class="note ok" style="margin:6px 0 10px">
       <b>${s.name}</b><br>

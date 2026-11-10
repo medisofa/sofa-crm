@@ -23,6 +23,7 @@ const daysTo = (iso) => (iso ? Math.round((new Date(`${iso}T00:00:00`) - new Dat
 const kv = (pairs) => html`<dl class="kv">${pairs.map(([k, v]) => html`<dt>${k}</dt><dd>${v || '—'}</dd>`)}</dl>`;
 
 export async function render(main, ctx) {
+  if(ctx.arg?.endsWith('/constancia')) { const report=await import('./delivery-report.js'); return report.render(main,ctx); }
   const id = ctx.arg;
   paint(main, html`<div id="sub">${loadingView(6)}</div>`);
   const box = $('#sub', main);
@@ -145,6 +146,7 @@ export async function render(main, ctx) {
         ${canPay ? html`<button class="btn primary" id="payBtn">Registrar pago</button>` : ''}
         ${canGlosa ? html`<button class="btn" id="glosaBtn">Registrar glosa</button>` : ''}
         <button class="btn" id="csv">Exportar CSV</button>
+        <a class="btn primary" href="#/radicaciones/${id}/constancia">Constancia de entrega / PDF</a>
         ${sub.status === 'borrador' && can('subs.delete', role) ? html`<button class="btn danger" id="del">Eliminar</button>` : ''}
       </div></div>
     ${sub.provider_code_status !== 'codificado' ? html`<div class="note warn">Código del prestador en ${sub.ars_name}: <b>${codeLbl}</b>. Sin código asignado, la ARS no paga. Regístralo en la ficha del cliente.</div>` : ''}

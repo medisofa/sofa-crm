@@ -56,9 +56,14 @@ export async function mountArsCodes(box, { orgId }) {
         : h('tr', {}, h('td', { colspan: '7', class: 'i18-empty' }, 'No hay ARS en este estado.'))))));
   }
 
-  function edit(prov, r) {
+  async function edit(prov, r) {
+    const context = await guarded(pane, () => rpc('ars_identifier_context', { p_provider: prov.id, p_ars: r.ars_id }));
+    if (!context) return;
     const st = h('select', { id: 'ac-st' }, Object.entries(STATUS).map(([k, [l]]) => h('option', { value: k, selected: k === r.status }, l)));
+    if (!context.can_edit_pss && r.code) st.querySelector('option[value=sin_codigo]')?.remove();
     const code = h('input', { id: 'ac-code', value: r.code || '', placeholder: 'Ej.: 12345' });
+    code.readOnly = !context.can_edit_pss;
+    const codeHelp = h('p', { class: 'i18-sub' }, context.can_edit_pss ? 'Primer registro por personal de SoFa; cambios posteriores solo por Administración.' : 'Código protegido: solo Administrador o Super Admin puede modificarlo.');
     const req = h('input', { id: 'ac-req', value: r.request_number || '', placeholder: 'Número de la solicitud ante la ARS' });
     const date = h('input', { id: 'ac-date', type: 'date', max: new Date().toISOString().slice(0, 10) });
     const nt = h('textarea', { id: 'ac-note', rows: '2', maxlength: '500', placeholder: 'Qué se hizo o qué respondió la ARS' });
@@ -83,7 +88,7 @@ export async function mountArsCodes(box, { orgId }) {
     pane.replaceChildren(h('section', { class: 'i18-card i18-form ac-edit' },
       h('h4', { style: 'margin:0' }, `${r.ars} · ${prov.name}`),
       h('label', { for: 'ac-st' }, 'Estado', st), help,
-      h('label', { for: 'ac-code' }, 'Código asignado', code), h('label', { for: 'ac-req' }, 'N.º de solicitud', req),
+      h('label', { for: 'ac-code' }, 'Código asignado', code), codeHelp, h('label', { for: 'ac-req' }, 'N.º de solicitud', req),
       h('label', { for: 'ac-date' }, 'Fecha (si no es hoy)', date), h('label', { for: 'ac-note' }, 'Nota', nt),
       h('div', { class: 'i18-actions' }, save, h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')), msg));
     pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
