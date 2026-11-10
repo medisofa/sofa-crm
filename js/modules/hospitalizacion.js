@@ -4,7 +4,8 @@
 import { rpc, h, note, guarded, money, fmtDate } from '../services/iter18.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 
-export async function render(root) {
+export async function render(root, context = {}) {
+  if (context.viewAs) return renderSupport(root, context);
   root.replaceChildren();
   const wrap = h('div', { class: 'i18-wrap hosp-wrap' });
   root.append(wrap);
@@ -120,4 +121,83 @@ export async function render(root) {
   }
 
   await loadList();
+}
+
+
+/** Soporte conserva la identidad administrativa: usar exclusivamente el lector
+ * acotado al consultorio activo, nunca las funciones «mine» del usuario real. */
+async function renderSupport(root, context) {
+  const wrap = h('div', { class: 'i18-wrap hosp-wrap hosp-support' });
+  root.replaceChildren(wrap);
+  wrap.append(h('h2', {}, 'Hospitalización'), note('Modo soporte · consulta de reportes, solo lectura.', 'info'));
+  const organizationId = context.viewAs?.orgId || context.membership?.organization_id;
+  if (context.role !== 'client' || context.viewAs?.targetName) {
+    wrap.append(note('Esta pantalla no muestra reportes individuales en modo soporte. Abre el soporte general del consultorio.', 'info'));
+    return;
+  }
+  if (!organizationId) {
+    wrap.append(note('No se encontró el consultorio del modo soporte. Sal y vuelve a abrirlo.', 'info'));
+    return;
+  }
+  const initial = h('div', { 'aria-live': 'polite' }); wrap.append(initial);
+  const first = await guarded(initial, () => rpc('hospital_support_context', { p_org: organizationId }));
+  if (!first || !wrap.isConnected) return;
+  initial.replaceChildren();
+  const providers = first.providers || [];
+  if (!providers.length) { initial.append(note('Este consultorio no tiene médicos activos registrados.', 'info')); return; }
+  let provider = first.provider_id || '';
+  let sequence = 0;
+  let reportIds = new Set();
+  const select = h('select', { id: 'hosp-support-provider', 'aria-label': 'Médico del consultorio' },
+    h('option', { value: '' }, 'Selecciona un médico…'), providers.map((p) => h('option', { value: p.id }, p.full_name)));
+  select.value = provider;
+  const centers = h('p', { class: 'i18-sub hosp-support-centers' });
+  const list = h('div', { 'aria-live': 'polite' });
+  const detail = h('div', { 'aria-live': 'polite' });
+  initial.append(providers.length > 1 ? h('label', { for: 'hosp-support-provider' }, 'Médico del consultorio', select)
+    : h('p', {}, h('strong', {}, providers[0].full_name)), centers, h('h3', {}, 'Reportes del médico'), list, detail);
+  select.addEventListener('change', async () => {
+    const my = ++sequence;
+    provider = select.value; reportIds = new Set(); detail.replaceChildren(); centers.textContent = '';
+    if (!provider) { list.replaceChildren(note('Selecciona un médico para consultar sus reportes.', 'info')); return; }
+    list.replaceChildren(note('Consultando reportes…', 'info'));
+    try {
+      const data = await rpc('hospital_support_context', { p_org: organizationId, p_provider: provider });
+      if (my !== sequence || !wrap.isConnected) return;
+      drawList(data);
+    } catch (e) { if (my === sequence && wrap.isConnected) list.replaceChildren(note(e.message, 'error')); }
+  });
+  function drawList(data) {
+    const rows = data.reportes || [];
+    reportIds = new Set(rows.map((r) => r.id));
+    centers.textContent = (data.centros || []).length ? 'Centros visibles: ' + data.centros.map((c) => c.nombre).join(' · ') : 'Sin centros visibles en este consultorio.';
+    if (!provider) { list.replaceChildren(note('Selecciona un médico para consultar sus reportes.', 'info')); return; }
+    if (!rows.length) { list.replaceChildren(note('Este médico aún no tiene reportes visibles en el consultorio.', 'info')); return; }
+    list.replaceChildren(h('p', { class: 'i18-sub' }, `Mostrando ${rows.length} de ${data.report_count ?? rows.length} reporte(s).`),
+      h('div', { class: 'hosp-list' }, ...rows.map((r) => h('button', { class: 'hosp-row', type: 'button', onclick: () => openReport(r.id) },
+        h('span', {}, `${r.patient_name} · ${r.centro}`), h('span', { class: 'hosp-mut' }, `${r.status} · ${money(r.total)}`)))));
+  }
+  async function openReport(id) {
+    if (!provider || !reportIds.has(id)) return;
+    const my = ++sequence; const selectedProvider = provider;
+    detail.replaceChildren(note('Consultando detalle…', 'info'));
+    try {
+      const data = await rpc('hospital_support_context', { p_org: organizationId, p_provider: selectedProvider, p_report: id });
+      if (my !== sequence || selectedProvider !== provider || !wrap.isConnected) return;
+      const r = data.report;
+      if (!r || r.id !== id || r.provider_id !== selectedProvider) throw new Error('Reporte no disponible para el médico seleccionado.');
+      const lines = r.lineas || [];
+      detail.replaceChildren(h('section', { class: 'hosp-detail hosp-support-detail' },
+        h('h3', {}, `Reporte · ${r.patient_name}`),
+        h('p', { class: 'i18-sub' }, `${r.centro} · ${r.status} · Ingreso ${fmtDate(r.admission_date)}`),
+        h('div', { class: 'i18-table-wrap' }, h('table', { class: 'hosp-tbl' },
+          h('thead', {}, h('tr', {}, ...['Fecha', 'Servicio', 'Cant.', 'Precio', 'Monto'].map((label) => h('th', {}, label)))),
+          h('tbody', {}, ...(lines.length ? lines.map((l) => h('tr', {}, h('td', {}, fmtDate(l.service_date)), h('td', {}, l.servicio || l.codigo),
+            h('td', { class: 'num' }, String(l.quantity)), h('td', { class: 'num' }, money(l.unit_amount)), h('td', { class: 'num' }, money(l.amount))))
+            : [h('tr', {}, h('td', { colspan: '5' }, 'Sin servicios registrados.'))])))),
+        h('div', { class: 'hosp-foot' }, h('b', {}, `Total: ${money(r.total)}`)),
+        note('Solo lectura en modo soporte.', 'info')));
+    } catch (e) { if (my === sequence && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
+  }
+  drawList(first);
 }

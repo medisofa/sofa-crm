@@ -3,6 +3,7 @@
  *  Facturación ve solo lo suyo; Super Admin, Administrador y Operaciones ven todo lo que su acceso permite y administran asignaciones y ausencias.
  *  La cola se calcula en la base de datos desde las tablas existentes (no guarda copias) y el servidor vuelve a verificar el rol en cada función. */
 import { rpc, h, money, fmtDate, note, kpi, table, guarded, realClientOptions, clientName } from '../services/iter18.js';
+import { mountPendingDigest } from './pending-digest.js';
 import { canOpen } from '../utils/permissions.js';
 
 const TYPES = { captura_incompleta: 'Capturas incompletas', lote_por_radicar: 'Lotes por radicar', glosa_responder: 'Glosas por responder', cobro_escalar: 'Cobros por escalar' };
@@ -24,7 +25,8 @@ export async function render(root, ctx = {}) {
   const SECTIONS = sup
     ? [['bandeja', 'Bandeja'], ['carga', 'Carga por persona'], ['asignaciones', 'Asignaciones'], ['ausencias', 'Ausencias'], ['vencidas', 'Vencidas por día'], ['reglas', 'Reglas']]
     : [['bandeja', 'Mi bandeja'], ['vencidas', 'Mi indicador']];
-  const VIEW = { bandeja, carga, asignaciones, ausencias, vencidas, reglas };
+  SECTIONS.push(['resumen', 'Resumen diario']);
+  const VIEW = { bandeja, carga, asignaciones, ausencias, vencidas, reglas, resumen: () => mountPendingDigest(panel, ctx) };
   let current = 'bandeja'; let type = null;
 
   function tabs() {

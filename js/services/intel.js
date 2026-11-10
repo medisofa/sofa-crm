@@ -61,7 +61,7 @@ export async function saveIdea(operatorId, v, id = null) {
 }
 
 // ---- Fuentes y corridas (Admin)
-export async function listSources() { return must(await sb().from('intel_sources').select('id, name, kind, lang, is_active, query, topic, weight').order('is_active', { ascending: false }).order('name')); }
+export async function listSources() { return must(await sb().from('intel_sources').select('id, name, kind, lang, is_active, query, topic, weight, last_fetched_at, last_error').order('is_active', { ascending: false }).order('name')); }
 export async function saveSource(operatorId, v, id = null) {
   if (id) return must(await sb().from('intel_sources').update(v).eq('id', id).select('id').single());
   return must(await sb().from('intel_sources').insert({ ...v, operator_id: operatorId }).select('id').single());
@@ -73,10 +73,17 @@ export async function lastRuns(limit = 10) { return must(await sb().from('intel_
 export async function refreshNow() {
   const { data, error } = await sb().functions.invoke('market-intel', { body: { action: 'refresh' } });
   if (error) {
-    let msg = error.message || 'Error';
-    try { const body = await error.context?.json?.(); if (body?.message) msg = body.message; } catch { /* sin cuerpo */ }
-    if (error.context?.status === 404 || /Failed to send a request|not found/i.test(msg)) msg = 'La función market-intel no está publicada en Supabase (Iteración 11, paso 2 de la guía).';
-    throw Object.assign(new Error(msg), { code: 'SOFA' });
+    const status = error.context?.status;
+    let body = null;
+    try { body = await (error.context?.clone?.() || error.context)?.json?.(); } catch { /* cuerpo no JSON o fallo de red */ }
+    let msg = body?.message || error.message || 'No se pudo actualizar las noticias.';
+    if (status === 404) msg = 'No se encontró el servicio de actualización de noticias. Administración debe verificar su publicación.';
+    else if (status === 401) msg = body?.message || 'La sesión venció. Inicie sesión nuevamente para actualizar las noticias.';
+    else if (status === 403) msg = body?.message || 'No tiene autorización para actualizar las noticias desde esta sesión.';
+    else if (!status && /Failed to send a request|Failed to fetch|NetworkError|fetch failed/i.test(msg)) {
+      msg = 'No se pudo conectar con el servicio de noticias. Revise la conexión; si persiste, Administración debe verificar el acceso del dominio de SoFa (CORS).';
+    }
+    throw Object.assign(new Error(msg), { code: 'SOFA', status });
   }
   if (data && data.ok === false) throw Object.assign(new Error(data.message || 'No se pudo actualizar'), { code: 'SOFA' });
   return data;

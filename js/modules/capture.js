@@ -16,6 +16,7 @@ import {
 import { requiredDocsPreview, dossierStatus } from '../services/dossier.js';
 import { dossierPill } from './dossier-card.js';
 import { captureIdentifiers } from './capture-identifiers.js';
+import { viewAsState } from '../utils/view-as-state.js';
 import { initCamara } from './captura-camara.js';
 import { revisarCaptura, capturarConDiagnostico, mostrarAviso, limpiarAvisos, pistaCedula, cie10Suggestions } from '../services/calidad-dato.js';   // I61: calidad del dato
 
@@ -82,6 +83,10 @@ export async function render(main, ctx) {
     </div>`);
 
   const form = $('#cf', main);
+  if (viewAsState.active) {
+    const aviso = document.createElement('p'); aviso.className = 'note info'; aviso.textContent = 'Modo soporte, solo lectura. Salga del modo soporte para registrar reclamaciones o actualizar códigos.'; form.prepend(aviso);
+    $('#save', main).disabled = true;
+  }
   const refreshIdentifiers = captureIdentifiers($('#capture-identifiers', main));
   const el = (id) => $(`#${id}`, main);
   /** Las tareas asíncronas (búsquedas, cargas) terminan después de que el usuario puede haber salido de la pantalla */
@@ -131,9 +136,9 @@ export async function render(main, ctx) {
       if (my !== srvSeq || !alive()) return;
       S.services = rows;
       sel.disabled = false;
-      paint(sel, html`<option value="">${rows.length ? `Seleccione (${rows.length} contratados)…` : 'Sin servicios contratados vigentes en esa fecha'}</option>
+      paint(sel, html`<option value="">${rows.length ? `Seleccione (${rows.length} contratados)…` : 'Tarifario pendiente: seleccione un servicio del catálogo'}</option>
         ${rows.map((r) => opt(r.procedure_id, `${r.name}${r.cups ? ` · CUPS ${r.cups}` : ''}${r.simon ? ` · SIMON ${r.simon}` : ''} · ${money(r.amount)}`))}
-        <option value="__catalog">¿No aparece? Buscar en el catálogo maestro…</option>`);
+        <option value="__catalog">${rows.length ? '¿No aparece? Buscar en el catálogo maestro…' : 'Capturar con tarifario pendiente'}</option>`);
       if (rows.length === 1) { sel.value = rows[0].procedure_id; pickService(); }
     } catch (err) { if (my === srvSeq && alive()) { paint(sel, html`<option value="">Error al cargar</option>`); toast(friendlyError(err), 'bad'); } }
   }
@@ -184,12 +189,13 @@ export async function render(main, ctx) {
     if (contracted) { el('c_srv').value = pick.id; pickService(); return; }
     S.catalogPick = pick; el('c_amt').value = '';
     const admin = can('claims.exception', role);
+    const pending = S.services.length === 0 ? 'pendiente' : 'bloquear';
     paint(el('notContracted'), html`<div class="note bad" role="alert" style="margin:6px 0 10px">
       <b>${pick.name}</b><br>Este servicio existe en el catálogo, pero no está registrado como contratado/autorizado para este médico con esta ARS.
       <div class="field" style="margin-top:8px"><label for="nc_mode">¿Qué desea hacer?</label>
         <select id="nc_mode" name="nc_mode">
-          ${opt('bloquear', 'No registrar (corregir el servicio)', 'bloquear')}
-          ${opt('pendiente', 'Registrar como “Pendiente de configuración” y solicitar revisión del contrato')}
+          ${opt('bloquear', 'No registrar (corregir el servicio)', pending)}
+          ${opt('pendiente', 'Registrar como “Pendiente de configuración” y solicitar revisión del contrato', pending)}
           ${admin ? opt('excepcion', 'Excepción administrativa auditada (solo administradores)') : ''}
         </select></div>
       <div class="field" id="nc_rs" hidden><label for="nc_reason">Motivo de la excepción (mín. 10 caracteres, queda en bitácora) *</label><textarea id="nc_reason" name="nc_reason" rows="2" class="input"></textarea></div>
@@ -388,6 +394,7 @@ export async function render(main, ctx) {
   }
 
   async function save(allowDuplicate = false) {
+    if (viewAsState.active) { toast('Modo soporte, solo lectura. Salga del modo soporte para registrar una reclamación.', 'warn'); return; }
     const v = values();
     if (!validate(v)) return;
     const amt = el('c_amt').value === '' ? null : Number(el('c_amt').value);
@@ -453,9 +460,13 @@ export async function render(main, ctx) {
     }
   }
 
-  form.addEventListener('submit', (e) => { e.preventDefault(); busy(el('save'), () => save(false)); });
+  const submitCapture = () => {
+    if (viewAsState.active) { el('save').disabled = true; toast('Salga del modo soporte para registrar una reclamación.', 'warn'); return; }
+    return busy(el('save'), () => save(false));
+  };
+  form.addEventListener('submit', (e) => { e.preventDefault(); submitCapture(); });
   form.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); busy(el('save'), () => save(false)); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitCapture(); }
     if (e.key === 'Escape') { e.preventDefault(); clearPatient(); el('c_pat').focus(); }
   });
   el('clear').addEventListener('click', async () => {

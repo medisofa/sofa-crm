@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const source=(await readFile(new URL('../../js/services/intel.js',import.meta.url),'utf8')).replace("import { sb } from '../supabase.js';","const sb=()=>globalThis.__marketTestClient;");
+const {refreshNow}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const check=async(error,pattern)=>{globalThis.__marketTestClient={functions:{invoke:async()=>({error})}};await assert.rejects(refreshNow,pattern);};
+await check({message:'Edge Function returned a non-2xx status code',context:new Response(JSON.stringify({message:'Origen no autorizado'}),{status:403})},/Origen no autorizado/);
+await check({message:'Edge Function returned a non-2xx status code',context:new Response('',{status:404})},/No se encontró el servicio/);
+await check({message:'Unauthorized',context:new Response('',{status:401})},/sesión venció/);
+await check({message:'Forbidden',context:new Response('',{status:403})},/No tiene autorización/);
+await check({message:'Failed to send a request to the Edge Function'},/conectar.*CORS/);
+await check({message:'Failed to fetch'},/conectar.*CORS/);
+await check({message:'HTTP 502',context:new Response(JSON.stringify({message:'No se pudo leer ninguna fuente'}),{status:502})},/No se pudo leer ninguna fuente/);
+globalThis.__marketTestClient={functions:{invoke:async()=>({data:{ok:false,message:'Sin fuentes activas'}})}};await assert.rejects(refreshNow,/Sin fuentes activas/);
+globalThis.__marketTestClient={functions:{invoke:async()=>({data:{ok:true,inserted:2}})}};assert.deepEqual(await refreshNow(),{ok:true,inserted:2});
+delete globalThis.__marketTestClient;
+console.log('PASS: errores de actualización distinguen 404, sesión, permisos, red/CORS y fallos de fuentes');

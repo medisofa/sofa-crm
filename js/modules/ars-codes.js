@@ -2,6 +2,8 @@
  *  Lo usan la ficha del cliente (pestaña «Códigos ARS») y «Mi ficha» del Médico.
  *  Todo pasa por funciones de la base (114): client_ars_matrix, set_ars_code_status y ars_code_history. */
 import { rpc, h, fmtDate, note, guarded } from '../services/iter18.js';
+import { viewAsState } from '../utils/view-as-state.js';
+import { pssRegistrationControls } from './capture-identifiers.js';
 
 export const STATUS = {
   sin_codigo: ['Sin código', 'st-none'], en_preparacion: ['Documentos en preparación', 'st-prep'], solicitado: ['Solicitado', 'st-req'],
@@ -37,7 +39,8 @@ export async function mountArsCodes(box, { orgId }) {
         alerts ? h('button', { type: 'button', class: 'ac-chip st-bad', 'aria-pressed': String(filter === 'alert'), onclick: () => { filter = 'alert'; draw(); } }, `⚠ Sin respuesta > ${data.alert_days} días · ${alerts}`) : '')),
       h('div', { class: 'ac-progress', title: `${count('codificado')} de ${rows.length} ARS con código` },
         h('div', { style: `width:${Math.round((count('codificado') / rows.length) * 100)}%` })),
-      h('p', { class: 'i18-sub' }, `${count('codificado')} de ${rows.length} ARS con código. Sin código asignado, la ARS no paga.`));
+      h('p', { class: 'i18-sub' }, `${count('codificado')} de ${rows.length} ARS con código. Registrar el código asignado no requiere tener el tarifario cargado.`),
+      viewAsState.active ? note('Modo soporte, solo lectura. Salga del modo soporte para registrar o actualizar códigos.', 'info') : null);
     const list = rows.filter((r) => (!filter ? true : filter === 'alert' ? r.alert : r.status === filter));
     body.replaceChildren(h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table ac-table' },
       h('thead', {}, h('tr', {}, ['ARS', 'Estado', 'Código', 'N.º solicitud', 'Fecha', 'Tarifas', ''].map((t) => h('th', {}, t)))),
@@ -48,25 +51,28 @@ export async function mountArsCodes(box, { orgId }) {
         h('td', { 'data-l': 'Código', class: 'ac-mono' }, r.code || '—'),
         h('td', { 'data-l': 'N.º solicitud' }, r.request_number || '—'),
         h('td', { 'data-l': 'Fecha' }, r.status === 'codificado' ? fmtDate(r.granted_on) : fmtDate(r.requested_on)),
-        h('td', { 'data-l': 'Tarifas' }, r.tariffs ? `${r.tariffs} vigente${r.tariffs > 1 ? 's' : ''}` : '—'),
+        h('td', { 'data-l': 'Tarifas' }, r.tariffs ? `${r.tariffs} vigente${r.tariffs > 1 ? 's' : ''}` : r.code ? h('span', { class: 'ac-pill st-wait' }, 'Tarifario pendiente') : '—'),
         h('td', { 'data-l': '' }, h('div', { class: 'i18-actions', style: 'margin:0' },
-          data.can_edit ? h('button', { class: 'i18-btn i18-sec ac-sm', type: 'button', onclick: () => edit(prov, r) }, 'Actualizar') : '',
+          data.can_edit && !viewAsState.active ? h('button', { class: 'i18-btn i18-sec ac-sm', type: 'button', onclick: () => edit(prov, r) }, 'Actualizar') : '',
           r.days != null ? h('button', { class: 'i18-link', type: 'button', onclick: () => history(prov, r) }, 'Historial') : '',
-          data.can_edit && r.status !== 'codificado' ? h('button', { class: 'i18-link', type: 'button', onclick: () => letter(prov, r) }, 'Carta') : ''))))
+          data.can_edit && !viewAsState.active && r.status !== 'codificado' ? h('button', { class: 'i18-link', type: 'button', onclick: () => letter(prov, r) }, 'Carta') : ''))))
         : h('tr', {}, h('td', { colspan: '7', class: 'i18-empty' }, 'No hay ARS en este estado.'))))));
   }
 
   async function edit(prov, r) {
+    if (viewAsState.active) { pane.replaceChildren(note('Salga del modo soporte para registrar o actualizar códigos.', 'info')); return; }
     const context = await guarded(pane, () => rpc('ars_identifier_context', { p_provider: prov.id, p_ars: r.ars_id }));
     if (!context) return;
+    if (viewAsState.active) { pane.replaceChildren(note('Salga del modo soporte para registrar o actualizar códigos.', 'info')); return; }
     const st = h('select', { id: 'ac-st' }, Object.entries(STATUS).map(([k, [l]]) => h('option', { value: k, selected: k === r.status }, l)));
     if (!context.can_edit_pss && r.code) st.querySelector('option[value=sin_codigo]')?.remove();
     const code = h('input', { id: 'ac-code', value: r.code || '', placeholder: 'Ej.: 12345' });
     code.readOnly = !context.can_edit_pss;
-    const codeHelp = h('p', { class: 'i18-sub' }, context.can_edit_pss ? 'Primer registro por personal de SoFa; cambios posteriores solo por Administración.' : 'Código protegido: solo Administrador o Super Admin puede modificarlo.');
+    const codeHelp = h('p', { class: 'i18-sub' }, context.can_edit_pss ? 'El médico y el personal autorizado de SoFa pueden hacer el primer registro, aunque falte el tarifario. Después solo Administración puede cambiar el código.' : 'Código protegido: solo Administrador o Super Admin puede modificarlo.');
     const req = h('input', { id: 'ac-req', value: r.request_number || '', placeholder: 'Número de la solicitud ante la ARS' });
     const date = h('input', { id: 'ac-date', type: 'date', max: new Date().toISOString().slice(0, 10) });
-    const nt = h('textarea', { id: 'ac-note', rows: '2', maxlength: '500', placeholder: 'Qué se hizo o qué respondió la ARS' });
+    const registration = pssRegistrationControls(r.code, 'ac-pss', 'Registro desde Códigos ARS.');
+    const nt = registration.reason;
     const msg = h('div', { 'aria-live': 'polite' });
     const save = h('button', { class: 'i18-btn', type: 'button' }, 'Guardar');
     const help = h('p', { class: 'i18-sub' });
@@ -77,10 +83,12 @@ export async function mountArsCodes(box, { orgId }) {
     };
     st.addEventListener('change', sync); sync();
     save.addEventListener('click', async () => {
+      if (viewAsState.active) { msg.replaceChildren(note('Salga del modo soporte para registrar o actualizar códigos.', 'info')); return; }
       save.disabled = true;
       try {
+        if (st.value === 'rechazado' && nt.value.trim().length < 5) throw new Error('Escriba el motivo del rechazo (mínimo 5 caracteres).');
         await rpc('set_ars_code_status', { p_provider: prov.id, p_ars: r.ars_id, p_status: st.value, p_code: code.value || null,
-          p_request_number: req.value || null, p_note: nt.value || null, p_date: date.value || null });
+          p_request_number: req.value || null, p_note: registration.getNote(st.value === 'sin_codigo' ? '' : code.value), p_date: date.value || null });
         pane.replaceChildren(note(`${r.ars}: guardado como «${STATUS[st.value][0]}».`, 'ok'));
         await load();
       } catch (e) { msg.replaceChildren(note(e.message, 'error')); save.disabled = false; }
@@ -89,7 +97,9 @@ export async function mountArsCodes(box, { orgId }) {
       h('h4', { style: 'margin:0' }, `${r.ars} · ${prov.name}`),
       h('label', { for: 'ac-st' }, 'Estado', st), help,
       h('label', { for: 'ac-code' }, 'Código asignado', code), codeHelp, h('label', { for: 'ac-req' }, 'N.º de solicitud', req),
-      h('label', { for: 'ac-date' }, 'Fecha (si no es hoy)', date), h('label', { for: 'ac-note' }, 'Nota', nt),
+      h('label', { for: 'ac-date' }, 'Fecha (si no es hoy)', date),
+      context.can_edit_pss ? registration.element : h('label', { for: nt.id }, 'Nota', nt),
+      !r.tariffs ? note('El código se guarda de forma independiente. Si falta el tarifario, las reclamaciones deben quedar pendientes de configuración y no pueden radicarse.', 'info') : null,
       h('div', { class: 'i18-actions' }, save, h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')), msg));
     pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     st.focus();
