@@ -9,7 +9,8 @@ export async function render(root, ctx = {}) {
   let provs = [], centers = [], mine = [], primary = null;
 
   const nameIn = h('input', { id: 'i18-ce-name', placeholder: 'Nombre del centro', required: true });
-  const rncIn = h('input', { id: 'i18-ce-rnc', placeholder: 'RNC (opcional)', inputmode: 'numeric' });
+  const rncIn = h('input', { id: 'i18-ce-rnc', placeholder: 'Ej.: 132-31295-3', inputmode: 'numeric', maxlength: '20', 'aria-describedby': 'i18-ce-rnc-help' });
+  const rncHelp = h('span', { id: 'i18-ce-rnc-help', class: 'hint' }, 'RNC de 9 dígitos o cédula de 11. Puede escribir guiones y espacios.');
   const addBtn = h('button', { class: 'i18-btn i18-sec', type: 'submit' }, 'Agregar centro');
   const list = h('div', { class: 'i18-list' });
   const saveBtn = h('button', { class: 'i18-btn', type: 'button' }, 'Guardar centros del médico');
@@ -34,15 +35,19 @@ export async function render(root, ctx = {}) {
       return h('div', { class: 'i18-card' }, h('label', {}, chk, ' ', h('strong', {}, c.name), c.tax_id ? ` · RNC ${c.tax_id}` : ''), h('label', { class: 'i18-sub' }, pri, ' Principal'));
     }) : [note('Este cliente aún no tiene centros. Agregue el primero arriba.')]));
   }
-  const form = h('form', { class: 'i18-form', novalidate: true }, nameIn, rncIn, addBtn);
+  const form = h('form', { class: 'i18-form', novalidate: true }, h('label', { for: nameIn.id }, 'Nombre del centro', nameIn), h('label', { for: rncIn.id }, 'RNC / Cédula (opcional)', rncIn, rncHelp), addBtn);
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault(); out.replaceChildren();
     try {
       if (!prov()) throw new Error('Seleccione un médico antes de agregar un centro.');
+      const rawTaxId = rncIn.value.trim();
+      const taxId = rawTaxId.replace(/[\s\-\u2010-\u2015\u2212]/g, '');
+      if (rawTaxId && !/^(?:[0-9]{9}|[0-9]{11})$/.test(taxId)) { rncIn.setAttribute('aria-invalid', 'true'); rncIn.focus(); throw new Error('El RNC debe tener 9 dígitos o la cédula 11. Revise el número; los guiones y espacios están permitidos.'); }
+      rncIn.removeAttribute('aria-invalid');
       addBtn.disabled = true;
-      await rpc('save_health_center', { p_id: null, p_org: prov().organization_id, p_name: nameIn.value, p_tax_id: rncIn.value || null, p_active: true });
+      await rpc('save_health_center', { p_id: null, p_org: prov().organization_id, p_name: nameIn.value, p_tax_id: rawTaxId ? taxId : null, p_active: true });
       form.reset(); await load();
-    } catch (e) { out.replaceChildren(note(e.message, 'error')); } finally { addBtn.disabled = false; }
+    } catch (e) { const message = /health_centers_tax_id_check/.test(e.message || '') ? 'El RNC debe tener 9 dígitos o la cédula 11. Revise el número; los guiones y espacios están permitidos.' : e.message; out.replaceChildren(note(message, 'error')); } finally { addBtn.disabled = false; }
   });
   saveBtn.addEventListener('click', async () => {
     out.replaceChildren(); saveBtn.disabled = true;
@@ -51,7 +56,7 @@ export async function render(root, ctx = {}) {
   });
   provSel.addEventListener('change', () => guarded(out, load));
 
-  root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Centros de salud del médico'), h('p', { class: 'i18-sub' }, 'Seleccione el médico, agregue los centros que falten, marque dónde trabaja y pulse «Guardar centros del médico». Puede elegir un centro principal.'),
+  root.append(h('div', { class: 'i18-wrap health-centers' }, h('h2', {}, 'Centros de salud del médico'), h('p', { class: 'i18-sub' }, 'Seleccione el médico, agregue los centros que falten, marque dónde trabaja y pulse «Guardar centros del médico». Puede elegir un centro principal.'),
     h('div', { class: 'i18-bar' }, h('label', {}, 'Médico', provSel)), form, list, saveBtn, out));
   await guarded(out, async () => {
     provs = await providerOptions();

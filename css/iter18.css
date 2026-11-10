@@ -1261,3 +1261,8 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .hosp-wrap .hosp-detail>h3{margin:0 0 8px}
 .hosp-wrap .hosp-detail>.i18-sub{color:var(--ink-2)}
 @media(max-width:600px){.hosp-wrap .hosp-detail{padding:12px}}
+
+/* Centros: controles visibles y ayuda de formato fiscal. */
+.health-centers .i18-btn.i18-sec{background:var(--surface-2);color:var(--ink);border-color:var(--line);min-height:44px}
+.health-centers .i18-form>label{display:grid;gap:6px;color:var(--ink-2)}
+.health-centers .hint{font-size:.8rem;line-height:1.4;color:var(--ink-2)}
