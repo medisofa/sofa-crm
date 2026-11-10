@@ -16,7 +16,7 @@ export function captureIdentifiers(host){
     const input=h('input',{value:value||'',maxlength:'120','aria-label':label,readOnly:!editable});
     const msg=h('div',{'aria-live':'polite'});
     const button=h('button',{type:'button',class:'btn sm'},value?'Actualizar':'Registrar por primera vez');
-    button.addEventListener('click',async()=>{if(!input.value.trim()){msg.replaceChildren(note('Indique el valor antes de guardar.','error'));return;}button.disabled=true;try{await save(input.value.trim());await refresh(provider,ars,service);}catch(e){msg.replaceChildren(note(e.message,'error'));button.disabled=false;}});
+    button.addEventListener('click',async()=>{if(!input.value.trim()){msg.replaceChildren(note('Indique el valor antes de guardar.','error'));return;}button.disabled=true;try{await save(input.value.trim());if(n===seq&&host.isConnected)await refresh(provider,ars,service);}catch(e){msg.replaceChildren(note(e.message,'error'));button.disabled=false;}});
     box.append(h('div',{class:'field'},h('label',{},label,input),editable?button:h('span',{class:'hint'},'Cambios: Administración'),msg));
    }
    field('Código PSS del médico',c.code,c.can_edit_pss,value=>rpc('set_ars_code_status',{p_provider:provider,p_ars:ars,p_status:'codificado',p_code:value,p_note:'Registro desde captura rápida'}));
