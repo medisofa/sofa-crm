@@ -10,6 +10,8 @@ import { CONTRACT_STATUS } from '../utils/constants.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
 import { CONFIG } from '../config.js';
+import { viewAsState } from '../utils/view-as-state.js';
+import { editTariffPrice, formatTariffAmount } from './tariff-price-editor.js';
 import { pager } from './clients.js';
 import {
   listContracts, contractHistory, createContractTariff, setContractStatus, importContracts, captureProviders, activeArs, searchCatalog
@@ -36,78 +38,108 @@ export function parseContractRows(textIn) {
 }
 
 export async function render(main, ctx) {
-  const role = ctx.role; const edit = can('contracts.edit', role);
+  const role = ctx.role; const readOnly = !!ctx.viewAs || viewAsState.active;
+  const edit = can('contracts.edit', role) && !readOnly;
   const st = { providerId: '', arsId: '', q: '', status: '', onlyCurrent: true, page: 0 };
-  paint(main, html`
-    <div class="page-head"><div class="t"><h2>Tarifario contractual</h2>
-      <p>Servicios autorizados y tarifa pactada para cada <b>Médico × ARS</b>, con vigencia. Dos médicos pueden tener tarifas distintas para el mismo servicio en la misma ARS.</p></div>
-      <div class="toolbar" style="margin:0">${edit ? html`<button class="btn primary" id="new">+ Nueva tarifa</button><button class="btn" id="imp">Importar tarifario</button>` : ''}<button class="btn" id="csv">Exportar CSV</button></div></div>
-    <div class="toolbar">
-      <label class="sr-only" for="q">Buscar</label><input class="input grow" id="q" type="search" placeholder="Servicio, código interno, SIMON, CUPS o contrato">
-      <label class="sr-only" for="cp">Médico</label><select class="input" id="cp" style="width:auto"><option value="">Todos los médicos</option></select>
-      <label class="sr-only" for="ca">ARS</label><select class="input" id="ca" style="width:auto"><option value="">Todas las ARS</option></select>
-      <label class="sr-only" for="cs">Estado</label><select class="input" id="cs" style="width:auto"><option value="">Todos los estados</option>${Object.entries(CONTRACT_STATUS).map(([k, [l]]) => opt(k, l))}</select>
-      <label class="check"><input type="checkbox" id="cur" checked> Solo vigentes hoy</label>
-    </div>
-    <div id="l"></div>`);
+  paint(main, html`<section class="tariff-workspace" aria-label="Tarifario contractual">
+    <header class="page-head tariff-head"><div class="t"><h2>Tarifario contractual</h2>
+      <p>Consulta el precio de cada servicio por médico y ARS. Cambia un precio con fecha de efecto e historial.</p></div>
+      <div class="tariff-actions">${edit ? html`<button class="btn primary" id="new">+ Nueva tarifa</button><button class="btn" id="imp">Importar tarifario</button>` : ''}${!readOnly ? html`<button class="btn" id="csv">Exportar CSV</button>` : ''}</div></header>
+    ${readOnly ? html`<div class="note info">Modo soporte · solo lectura. Puedes consultar precios, detalles e historial.</div>` : ''}
+    <div class="tariff-kpis"><div class="tariff-kpi"><strong id="tariff-result-count">—</strong><span>Tarifas encontradas</span></div>
+      <div class="tariff-kpi"><strong id="tariff-period-label">Vigentes hoy</strong><span>Período mostrado</span></div>
+      <div class="tariff-kpi"><strong>Con historial</strong><span>Los cambios conservan las reclamaciones anteriores</span></div></div>
+    <section class="tariff-filters" aria-label="Filtrar tarifas">
+      <div class="tariff-field"><label for="q">Buscar servicio o código</label><input class="input" id="q" type="search" placeholder="Servicio, SIMON, CUPS o contrato"></div>
+      <div class="tariff-field"><label for="cp">Médico</label><select class="input" id="cp"><option value="">Todos los médicos</option></select></div>
+      <div class="tariff-field"><label for="ca">ARS</label><select class="input" id="ca"><option value="">Todas las ARS</option></select></div>
+      <div class="tariff-field"><label for="cs">Estado</label><select class="input" id="cs"><option value="">Todos los estados</option>${Object.entries(CONTRACT_STATUS).map(([k, [l]]) => opt(k, l))}</select></div>
+      <label class="check"><input type="checkbox" id="cur" checked> Solo vigentes hoy</label><button class="btn" type="button" id="clear-filters">Limpiar filtros</button>
+    </section>
+    <p class="small muted" id="tariff-summary" aria-live="polite">Consultando tarifas…</p><div id="l"></div></section>`);
   const [provs, ars] = await Promise.all([captureProviders().catch(() => []), activeArs().catch(() => [])]);
-  if (!$('#cp', main)) return;   // salió de la pantalla mientras cargaba
+  if (!$('#cp', main)) return;
   paint($('#cp', main), html`<option value="">Todos los médicos</option>${provs.map((p) => opt(p.id, p.full_name))}`);
   paint($('#ca', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`);
-
-  const list = $('#l', main);
-  const load = () => loadInto(list, () => listContracts({ ...st, size: CONFIG.PAGE_SIZE }), ({ data, count }) => html`
-    <div class="table-wrap"><table class="t cards"><thead><tr><th>Médico</th><th>ARS</th><th>Servicio</th><th>SIMON · CUPS</th><th class="n">Tarifa</th><th>Vigencia</th><th>Estado</th><th>Contrato</th><th class="n">Reclam.</th><th></th></tr></thead>
-    <tbody>${data.map((t) => { const [l, c] = CONTRACT_STATUS[t.status] || [t.status, '']; return html`<tr>
+  const list = $('#l', main); const summary = $('#tariff-summary', main); let current = []; let sequence = 0;
+  const rowTable = (data, count) => html`<div class="table-wrap tariff-table-wrap"><table class="t tariff-table"><thead><tr><th>Médico</th><th>ARS</th><th>Servicio</th><th class="n">Precio</th><th>Vigencia</th><th>Acciones</th></tr></thead><tbody>
+    ${data.map((t) => { const [label, tone] = CONTRACT_STATUS[t.status] || [t.status, '']; return html`<tr class="tariff-row">
       <td data-l="Médico">${t.provider_name}${isStaff(role) && t.client_name && t.client_name !== t.provider_name ? html`<div class="small muted">${t.client_name}</div>` : ''}</td>
-      <td data-l="ARS">${t.ars_name}</td>
-      <td data-l="Servicio">${t.service_name}<div class="small muted mono">${t.internal_code || ''}${t.ars_service_code ? ` · ARS ${t.ars_service_code}` : ''}</div></td>
-      <td data-l="Códigos" class="mono small">${t.simon || '—'}<br>${t.cups || '—'}</td>
-      <td data-l="Tarifa" class="n"><b>${money(t.amount)}</b>${t.currency !== 'DOP' ? html` <span class="small">${t.currency}</span>` : ''}</td>
-      <td data-l="Vigencia">${date(t.valid_from)} – ${t.valid_to ? date(t.valid_to) : 'abierta'}${t.is_current ? html` <span class="pill ok">Hoy</span>` : ''}</td>
-      <td data-l="Estado"><span class="pill ${c}">${l}</span></td>
-      <td data-l="Contrato" class="small">${t.contract_ref || '—'}<div class="muted">${t.source || ''}</div></td>
-      <td data-l="Reclamaciones" class="n">${num(t.claims)}</td>
-      <td class="no-print"><button class="btn" data-hist="${t.id}">Historial</button>${edit ? html` <button class="btn" data-change="${t.id}">Nueva vigencia</button> <button class="btn" data-st="${t.id}">Estado</button>` : ''}</td></tr>`; })}</tbody></table></div>${pager(count, st.page)}`,
-  { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin tarifas contractuales', 'No hay tarifas con estos filtros. Mientras un médico no tenga su tarifario, sus reclamaciones quedan “Pendiente de configuración”.',
-    edit ? html`<button class="btn primary" data-new>+ Nueva tarifa</button>` : '') });
-
-  let current = [];
-  const reload = () => load().then((r) => { current = r?.data || []; });
+      <td data-l="ARS">${t.ars_name}<div class="small muted">Plan: ${t.plan_name || (t.plan_id ? 'Específico' : 'General')}</div></td><td data-l="Servicio"><b>${t.service_name}</b></td>
+      <td data-l="Precio" class="n tariff-price"><b>${formatTariffAmount(t.amount, t.currency || 'DOP')}</b></td>
+      <td data-l="Vigencia">${date(t.valid_from)} – ${t.valid_to ? date(t.valid_to) : 'abierta'}<div><span class="pill ${tone}">${label}</span>${t.is_current ? html` <span class="pill ok">Hoy</span>` : ''}</div></td>
+      <td data-l="Acciones"><div class="tariff-row-actions">${edit && t.is_current && t.status === 'vigente' ? html`<button class="btn primary" type="button" data-change="${t.id}">Cambiar precio</button>` : ''}<button class="btn" type="button" data-details="${t.id}" aria-expanded="false" aria-controls="tariff-detail-${t.id}">Detalles</button></div></td></tr>
+      <tr class="tariff-detail-row" id="tariff-detail-${t.id}" data-detailrow="${t.id}" hidden><td colspan="6"><div class="tariff-detail-grid">
+        <dl><dt>Código interno</dt><dd class="mono">${t.internal_code || '—'}</dd><dt>SIMON</dt><dd>${t.simon || '—'}</dd><dt>CUPS</dt><dd>${t.cups || '—'}</dd></dl>
+        <dl><dt>Código de servicio ARS</dt><dd>${t.ars_service_code || '—'}</dd><dt>Contrato</dt><dd>${t.contract_ref || '—'}</dd><dt>Plan</dt><dd>${t.plan_name || (t.plan_id ? 'Plan específico' : 'General')}</dd><dt>Fuente</dt><dd>${t.source || '—'}</dd></dl>
+        <dl><dt>Estado</dt><dd>${label}</dd><dt>Reclamaciones vinculadas</dt><dd>${num(t.claims)}</dd><dt>Moneda</dt><dd>${t.currency || 'DOP'}</dd></dl>
+      </div><div class="tariff-row-actions"><button class="btn" type="button" data-hist="${t.id}">Ver historial</button>${edit ? html`<button class="btn" type="button" data-st="${t.id}">Cambiar estado</button>` : ''}</div></td></tr>`; })}
+    </tbody></table></div>${pager(count, st.page)}`;
+  async function reload() {
+    const my = ++sequence; paint(list, loadingView(4)); summary.textContent = 'Consultando tarifas…';
+    try {
+      const result = await listContracts({ ...st, size: CONFIG.PAGE_SIZE });
+      if (my !== sequence || !list.isConnected) return;
+      current = result.data || []; const count = result.count ?? current.length;
+      $('#tariff-result-count', main).textContent = num(count);
+      $('#tariff-period-label', main).textContent = st.onlyCurrent ? 'Vigentes hoy' : 'Todas las vigencias';
+      const filters = [st.providerId ? provs.find((p) => p.id === st.providerId)?.full_name || 'Médico seleccionado' : 'Todos los médicos', st.arsId ? ars.find((a) => a.id === st.arsId)?.name || 'ARS seleccionada' : 'Todas las ARS'];
+      summary.textContent = `${num(count)} tarifa(s) encontrada(s) · ${current.length ? `mostrando ${st.page * CONFIG.PAGE_SIZE + 1}–${st.page * CONFIG.PAGE_SIZE + current.length}` : 'sin resultados'} · ${filters.join(' · ')}.`;
+      paint(list, current.length ? rowTable(current, count) : emptyView('Sin tarifas con estos filtros', 'Prueba otro médico, ARS o servicio. Las combinaciones sin tarifa siguen pendientes de configuración.', edit ? html`<button class="btn primary" data-new>+ Nueva tarifa</button>` : ''));
+    } catch (err) {
+      if (my !== sequence || !list.isConnected) return;
+      current = []; $('#tariff-result-count', main).textContent = '—'; summary.textContent = 'No se pudo consultar el tarifario.';
+      paint(list, html`<div class="note bad" role="alert">${friendlyError(err)}</div><button class="btn" type="button" data-retry-contracts>Reintentar</button>`);
+    }
+  }
   debounceSearch($('#q', main), st, reload);
   $('#cp', main).addEventListener('change', (e) => { st.providerId = e.target.value; st.page = 0; reload(); });
   $('#ca', main).addEventListener('change', (e) => { st.arsId = e.target.value; st.page = 0; reload(); });
   $('#cs', main).addEventListener('change', (e) => { st.status = e.target.value; st.page = 0; reload(); });
   $('#cur', main).addEventListener('change', (e) => { st.onlyCurrent = e.target.checked; st.page = 0; reload(); });
-  const openNew = async (preset = {}) => { try { if (await contractDialog(provs, ars, preset)) { toast('Tarifa contractual registrada', 'ok'); reload(); } } catch (err) { toast(friendlyError(err), 'bad'); } };
+  $('#clear-filters', main).addEventListener('click', () => {
+    Object.assign(st, { providerId: '', arsId: '', q: '', status: '', onlyCurrent: true, page: 0 });
+    ['q', 'cp', 'ca', 'cs'].forEach((id) => { $(`#${id}`, main).value = ''; }); $('#cur', main).checked = true; reload();
+  });
+  const openNew = async (preset = {}) => { if (!edit || viewAsState.active) return; try { if (await contractDialog(provs, ars, preset)) { toast('Tarifa contractual registrada', 'ok'); reload(); } } catch (err) { toast(friendlyError(err), 'bad'); } };
   $('#new', main)?.addEventListener('click', () => openNew());
-  $('#imp', main)?.addEventListener('click', async () => { try { const r = await importDialog(); if (r) { toast(`${num(r.imported)} tarifas importadas`, 'ok'); reload(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
-  $('#csv', main).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+  $('#imp', main)?.addEventListener('click', async () => { if (!edit || viewAsState.active) return; try { const r = await importDialog(); if (r) { toast(`${num(r.imported)} tarifas importadas`, 'ok'); reload(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
+  $('#csv', main)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    if (readOnly || viewAsState.active) return;
     const r = await listContracts({ ...st, page: 0, size: 5000 });
     downloadCsv(`tarifario_contractual_${todayISO()}.csv`, ['Médico', 'ARS', 'Servicio', 'Código interno', 'SIMON', 'CUPS', 'Tarifa', 'Moneda', 'Desde', 'Hasta', 'Estado', 'Contrato', 'Código ARS', 'Reclamaciones'],
       r.data.map((x) => [x.provider_name, x.ars_name, x.service_name, x.internal_code, x.simon, x.cups, x.amount, x.currency, x.valid_from, x.valid_to, CONTRACT_STATUS[x.status]?.[0], x.contract_ref, x.ars_service_code, x.claims]));
   }));
   list.addEventListener('click', async (e) => {
     const p = e.target.closest('[data-page]'); if (p) { st.page = Number(p.dataset.page); reload(); return; }
+    if (e.target.closest('[data-retry-contracts]')) { reload(); return; }
     if (e.target.closest('[data-new]')) { openNew(); return; }
-    const row = (k) => current.find((x) => x.id === e.target.closest(`[data-${k}]`)?.dataset[k]);
-    if (e.target.closest('[data-hist]')) { historyDialog(row('hist')); return; }
-    if (e.target.closest('[data-change]')) { const x = row('change'); openNew({ provider: x.provider_id, ars: x.ars_id, procedure: x.procedure_id, service: x.service_name, contractRef: x.contract_ref }); return; }
+    const row = (key) => current.find((x) => x.id === e.target.closest(`[data-${key}]`)?.dataset[key]);
+    const details = e.target.closest('[data-details]');
+    if (details) { const target = document.getElementById(details.getAttribute('aria-controls')); if (target && list.contains(target)) { target.hidden = !target.hidden; details.setAttribute('aria-expanded', String(!target.hidden)); } return; }
+    if (e.target.closest('[data-hist]')) { const x = row('hist'); if (x) historyDialog(x); return; }
+    if (!edit || viewAsState.active) return;
+    if (e.target.closest('[data-change]')) {
+      const x = row('change'); if (!x || !x.is_current || x.status !== 'vigente') return;
+      try { const changed = await editTariffPrice(x, { readOnly }); if (changed) { toast('Nuevo precio registrado. El historial se conservó.', 'ok'); reload(); } }
+      catch (err) { toast(friendlyError(err), 'bad'); } return;
+    }
     if (e.target.closest('[data-st]')) {
-      const x = row('st');
-      const v = await formDialog({ title: 'Estado de la tarifa', submitLabel: 'Guardar',
-        body: html`<p class="small">${x.provider_name} · ${x.ars_name} · ${x.service_name} · ${money(x.amount)}</p>
-          <div class="field"><label for="ss">Estado</label><select id="ss" name="status">${Object.entries(CONTRACT_STATUS).map(([k, [l]]) => opt(k, l, x.status))}</select><span class="hint">Suspendida: no se ofrece en la captura. El monto no se edita; para cambiarlo cree una nueva vigencia.</span></div>
-          <div class="field"><label for="sn">Notas</label><input id="sn" name="notes" value="${x.notes || ''}" maxlength="300"></div>`,
-        onSubmit: async (d) => { await setContractStatus(x.id, d.status, d.notes || null); return true; } }).catch((err) => { toast(friendlyError(err), 'bad'); });
-      if (v) { toast('Estado actualizado', 'ok'); reload(); }
+      const x = row('st'); if (!x) return;
+      const changed = await formDialog({ title: 'Estado de la tarifa', submitLabel: 'Guardar',
+        body: html`<p class="small">${x.provider_name} · ${x.ars_name} · ${x.service_name} · ${formatTariffAmount(x.amount, x.currency || 'DOP')}</p>
+          <div class="field"><label for="ss">Estado</label><select id="ss" name="status">${Object.entries(CONTRACT_STATUS).map(([k, [label]]) => opt(k, label, x.status))}</select><span class="hint">El estado no cambia el precio ni las reclamaciones anteriores.</span></div>
+          <div class="field"><label for="sn">Comentario (opcional)</label><input id="sn" name="notes" maxlength="300"></div>`,
+        onSubmit: async (data) => { if (viewAsState.active) throw new Error('El modo soporte es de solo lectura.'); await setContractStatus(x.id, data.status, String(data.notes || '').trim() || undefined); return true; } }).catch((err) => { toast(friendlyError(err), 'bad'); });
+      if (changed) { toast('Estado actualizado', 'ok'); reload(); }
     }
   });
-  reload();
+  await reload();
 }
 
 /** Nueva tarifa o nueva vigencia (la anterior abierta se cierra el día previo; nunca se sobrescribe) */
 export function contractDialog(provs, ars, preset = {}) {
+  if (viewAsState.active || preset.readOnly) return Promise.resolve(false);
   let pick = preset.procedure ? { id: preset.procedure, name: preset.service } : null;
   return formDialog({
     title: preset.procedure ? 'Nueva vigencia de tarifa' : 'Nueva tarifa contractual', submitLabel: 'Registrar', wide: true,
@@ -131,6 +163,7 @@ export function contractDialog(provs, ars, preset = {}) {
       box.addEventListener('change', (e) => { if (e.target.name === 'proc') pick = { id: e.target.value, name: e.target.dataset.name }; });
     },
     onSubmit: async (d, form) => {
+      if (viewAsState.active) throw new Error('El modo soporte es de solo lectura.');
       let ok = true;
       [['provider', 'Seleccione el médico'], ['ars', 'Seleccione la ARS'], ['valid_from', 'Indique la fecha']].forEach(([k, m]) => { if (!d[k]) { fieldError(form.elements[k], m); ok = false; } else fieldError(form.elements[k], ''); });
       if (!(Number(d.amount) > 0)) { fieldError(form.elements.amount, 'Debe ser mayor que cero'); ok = false; }
@@ -145,13 +178,13 @@ export function contractDialog(provs, ars, preset = {}) {
 
 function historyDialog(x) {
   return formDialog({ title: `Historial · ${x.service_name}`, submitLabel: 'Cerrar', wide: true,
-    body: html`<p class="small">${x.provider_name} · ${x.ars_name}</p><div id="hh"></div>`,
+    body: html`<p class="small">${x.provider_name} · ${x.ars_name} · Plan ${x.plan_name || (x.plan_id ? 'específico' : 'General')}</p><div id="hh"></div>`,
     onOpen: async (form) => {
       const box = form.querySelector('#hh'); paint(box, loadingView(2));
       try {
-        const rows = await contractHistory(x.provider_id, x.ars_id, x.procedure_id);
+        const rows = await contractHistory(x.provider_id, x.ars_id, x.procedure_id, x.plan_id || null);
         paint(box, html`<div class="table-wrap"><table class="t"><thead><tr><th>Vigencia</th><th class="n">Tarifa</th><th>Estado</th><th>Contrato / fuente</th><th class="n">Reclamaciones</th></tr></thead><tbody>
-          ${rows.map((r) => html`<tr><td>${date(r.valid_from)} – ${r.valid_to ? date(r.valid_to) : 'abierta'}</td><td class="n">${money(r.amount)}</td><td>${CONTRACT_STATUS[r.status]?.[0] || r.status}</td><td class="small">${r.contract_ref || ''} ${r.source ? `· ${r.source}` : ''}</td><td class="n">${num(r.claims)}</td></tr>`)}</tbody></table></div>
+          ${rows.map((r) => html`<tr><td>${date(r.valid_from)} – ${r.valid_to ? date(r.valid_to) : 'abierta'}</td><td class="n">${money(r.amount)}</td><td>${CONTRACT_STATUS[r.status]?.[0] || r.status}</td><td class="small">${r.contract_ref || ''} ${r.source ? `· ${r.source}` : ''}${r.notes ? html`<div>${r.notes}</div>` : ''}</td><td class="n">${num(r.claims)}</td></tr>`)}</tbody></table></div>
           <p class="small muted">Las reclamaciones conservan la tarifa de la vigencia de su fecha de servicio aunque se registre una nueva.</p>`);
       } catch (err) { paint(box, html`<div class="note bad">${friendlyError(err)}</div>`); }
     },

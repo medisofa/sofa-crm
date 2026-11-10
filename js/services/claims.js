@@ -147,7 +147,7 @@ export async function confirmPickup(id, { received, deliveredBy, receivedBy = nu
 export async function cancelPickup(id, reason) { return must(await sb().rpc('cancel_pickup', { p_reception: id, p_reason: reason })); }
 
 // ---------------------------------------------------------------- Tarifario contractual
-const CONTRACT_LIST_COLS = 'id, provider_name, client_name, ars_name, service_name, internal_code, ars_service_code, simon, cups, amount, currency, valid_from, valid_to, is_current, contract_ref, source, claims, provider_id, ars_id, procedure_id, status';
+const CONTRACT_LIST_COLS = 'id, plan_id, plan_name, provider_name, client_name, ars_name, service_name, internal_code, ars_service_code, simon, cups, amount, currency, valid_from, valid_to, is_current, contract_ref, source, claims, provider_id, ars_id, procedure_id, status';
 export async function listContracts({ providerId = '', arsId = '', q = '', status = '', onlyCurrent = false, page = 0, size = 50 } = {}) {
   let query = sb().from('v_contract_tariffs').select(CONTRACT_LIST_COLS, { count: 'exact' });
   if (providerId) query = query.eq('provider_id', providerId);
@@ -161,9 +161,11 @@ export async function listContracts({ providerId = '', arsId = '', q = '', statu
   return { data, count: count ?? data.length };
 }
 /** Historial de vigencias de un mismo Médico + ARS + Servicio */
-export async function contractHistory(providerId, arsId, procedureId) {
-  return must(await sb().from('v_contract_tariffs').select('id, amount, currency, valid_from, valid_to, status, contract_ref, source, created_at, claims')
-    .eq('provider_id', providerId).eq('ars_id', arsId).eq('procedure_id', procedureId).order('valid_from', { ascending: false }));
+export async function contractHistory(providerId, arsId, procedureId, planId = null) {
+  let query = sb().from('v_contract_tariffs').select('id, amount, currency, valid_from, valid_to, status, contract_ref, source, notes, created_at, claims, plan_id, plan_name')
+    .eq('provider_id', providerId).eq('ars_id', arsId).eq('procedure_id', procedureId);
+  query = planId ? query.eq('plan_id', planId) : query.is('plan_id', null);
+  return must(await query.order('valid_from', { ascending: false }));
 }
 export async function createContractTariff(v) {
   return must(await sb().rpc('create_contract_tariff', {
