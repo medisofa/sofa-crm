@@ -68,6 +68,7 @@ export async function render(main, ctx) {
     const who = (uid) => (uid ? names[uid] || 'Usuario' : '—');
     const lastAudit = audits[0];
     const radicada = ['radicada', 'en_proceso_ars', 'devuelta', 'pago_parcial', 'glosada', 'pagada', 'cerrada'].includes(c.claim_status);
+    const authorizationEditable = ['super_admin', 'admin'].includes(role) && !ctx.viewAs;
     const contentEditable = can('subs.edit', role) && S.sub
       && ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'].includes(S.sub.status)
       && (role !== 'client' || S.sub.status === 'borrador')
@@ -113,7 +114,7 @@ export async function render(main, ctx) {
     <div class="grid two" style="margin-top:14px">
       <div class="card"><h2>Paciente y registro</h2>
         ${contentEditable ? html`<p class="no-print"><button type="button" class="btn" data-edit-claim>Editar datos de la reclamación</button></p>` : ''}
-        ${kv([['Paciente', c.patient_name], ['NSS / afiliado', c.member_number], ['Cédula', c.patient_doc], ['Autorización', c.authorization_number ? html`<span class="mono">${c.authorization_number}</span>` : ''],
+        ${kv([['Paciente', c.patient_name], ['NSS / afiliado', c.member_number], ['Cédula', c.patient_doc], ['Autorización', html`${c.authorization_number ? html`<span class="mono">${c.authorization_number}</span>` : html`<span class="muted">Sin registrar</span>`}${authorizationEditable ? html` <button type="button" class="btn sm" id="editAuthorization">${c.authorization_number ? 'Corregir autorización' : 'Registrar autorización'}</button>` : ''}`],
           ['Fecha de la autorización', html`${c.authorization_date ? date(c.authorization_date) : html`<span class="muted">sin registrar</span>`}${['pendiente_configuracion', 'capturada', 'pendiente_retiro', 'retirada', 'en_validacion', 'con_inconsistencia', 'validada', 'lista_para_radicar'].includes(c.claim_status) && can('claims.capture', role) ? html` <button class="btn sm" id="authDate" type="button">${c.authorization_date ? 'Corregir' : 'Registrar'}</button>` : ''}`],
           ['Fecha del servicio', date(c.service_date)], ['Modalidad', c.care_mode ? careMode(c.care_mode) : ''], ['Centro / clínica', c.clinic_name],
           ['Médico', c.provider_name], ...(staff ? [['Cliente', c.client_name]] : []), ['ARS', c.ars_name],
@@ -184,6 +185,10 @@ export async function render(main, ctx) {
       try { const n = await moveDialog([id], b.dataset.to, { role, transitions: trans, locations: locs, from: c.claim_status }); if (n != null) { toast('Reclamación actualizada', 'ok'); refresh(); } }
       catch (err) { toast(friendlyError(err), 'bad'); }
     }));
+    $('#editAuthorization', box)?.addEventListener('click', (event) => busy(event.currentTarget, async () => {
+      const { editClaimAuthorization } = await import('./claim-authorization.js');
+      if (await editClaimAuthorization(c, { role, viewAs: ctx.viewAs })) await refresh();
+    }).catch((error) => toast(friendlyError(error), 'bad')));
     $('#authDate', box)?.addEventListener('click', async () => {   // 1.7 · B2
       const { formDialog, fieldError } = await import('../utils/ui.js');
       try {
