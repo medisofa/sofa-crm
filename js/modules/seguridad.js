@@ -1,6 +1,7 @@
 /** SOFA · 2.0 · Seguridad: verificación en dos pasos (MFA con app autenticadora, TOTP).
  *  La historia clínica puede exigirla por consultorio. Usa Supabase Auth (auth.mfa); no guarda secretos en SOFA. */
 import { supabase, h, note } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 
 const mfa = () => supabase.auth.mfa;
 const err = (e) => (e && e.message) || 'No se pudo completar. Intente de nuevo.';
@@ -51,7 +52,7 @@ export async function render(root) {
       const verify = h('div');
       const off = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar la verificación en dos pasos');
       off.addEventListener('click', async () => {
-        if (!confirm('¿Quitar la verificación en dos pasos? Si su consultorio la exige, no podrá abrir la historia clínica hasta activarla de nuevo.')) return;
+        if (!await confirmDialog('Quitar verificación en dos pasos', 'Si su consultorio la exige, no podrá abrir la historia clínica hasta activarla de nuevo.', 'Quitar verificación', true)) return;
         const { error } = await mfa().unenroll({ factorId: st.factor.id });
         if (error) { box.prepend(note(/aal2/i.test(err(error)) ? 'Para quitarla primero verifique esta sesión con un código.' : err(error), 'error')); return; }
         draw();

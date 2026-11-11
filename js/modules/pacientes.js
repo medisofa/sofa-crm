@@ -2,6 +2,7 @@
  *  Buscar, crear/editar la ficha y ver su historial de citas y reclamaciones. Cada apertura queda en la bitácora.
  *  2.6.1: ARS y PLAN del paciente; sus reclamaciones se tarifan con la tarifa del plan cuando existe. */
 import { rpc, providerOptions, patientPage, h, money, fmtDate, note, guarded, table } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 
 const SEX = { F: 'Femenino', M: 'Masculino', X: 'No especificado' };
 
@@ -17,13 +18,13 @@ function portalBox(patientId, p) {
     const orders = h('input', { type: 'checkbox', checked: true });
     const create = h('button', { class: 'i18-btn i18-sec', type: 'button' }, st.active ? 'Crear enlace nuevo' : 'Crear enlace');
     create.addEventListener('click', async () => {
-      if (st.active && !confirm('El enlace anterior dejará de funcionar. ¿Crear uno nuevo?')) return;
+      if (st.active && !await confirmDialog('Crear enlace nuevo', 'El enlace anterior dejará de funcionar al crear uno nuevo.', 'Crear enlace nuevo', true)) return;
       create.disabled = true;
       try { const r = await rpc('portal_link_create', { p_patient: patientId, p_days: Number(days.value), p_show_orders: orders.checked }); show(r); await draw(); }
       catch (e) { out.replaceChildren(note(e.message, 'error')); create.disabled = false; }
     });
     const revoke = st.active ? h('button', { class: 'i18-link', type: 'button', onclick: async () => {
-      if (!confirm('El paciente ya no podrá abrir su enlace. ¿Anularlo?')) return;
+      if (!await confirmDialog('Anular enlace', 'El paciente ya no podrá abrir su enlace.', 'Anular enlace', true)) return;
       try { await rpc('portal_link_revoke', { p_patient: patientId }); out.replaceChildren(note('Enlace anulado.', 'ok')); await draw(); } catch (e) { out.replaceChildren(note(e.message, 'error')); }
     } }, 'Anular enlace') : '';
     box.replaceChildren(h('h4', { style: 'margin-top:0' }, 'Portal del paciente'),
@@ -149,13 +150,25 @@ export async function render(root) {
         const r = await rpc('global_patient_lookup', { p_cedula: ced || null, p_nss: ns || null, p_name: name.value || null, p_birth: birth.value || null, p_phone: phone.value || null });
         lastGlobal = r;
         if (r?.match === 'exact' && r.patient) {
-          const use = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Usar datos del paciente');
+          const g = r.patient;
+          // Auto-poblar campos vacíos desde el Registro Universal SOFA (incluye datos SISALRIL/DIDA)
+          if (g.full_name && !name.value) name.value = g.full_name;
+          if (g.birth_date && !birth.value) birth.value = g.birth_date;
+          if (g.sex && !sex.value) sex.value = g.sex;
+          if (g.phone && !phone.value) phone.value = g.phone;
+          if (g.email && !mail.value) mail.value = g.email;
+          if (g.member_number && !mem.value) mem.value = g.member_number;
+          if (g.ars_id && !ars.value) { ars.value = g.ars_id; fillPlans(null); }
+          const use = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Adjuntar paciente existente');
           use.addEventListener('click', async () => {
             use.disabled = true;
-            try { const id = await rpc('attach_global_patient', { p_global: r.patient.id, p_org: org.value }); await open(id); }
+            try { const id = await rpc('attach_global_patient', { p_global: g.id, p_org: org.value }); await open(id); }
             catch (e) { globalMatch.replaceChildren(note(e.message, 'error')); }
           });
-          globalMatch.replaceChildren(note(`Paciente encontrado en el Registro Universal SOFA: ${r.patient.full_name}. Se compartirán solo datos administrativos; no consultas ni diagnósticos.`), use);
+          const arsNombre = cat.find((a) => a.id === g.ars_id)?.name;
+          globalMatch.replaceChildren(
+            note(`Datos completados desde el Registro Universal SOFA: ${g.full_name}.${arsNombre ? ` ARS registrada: ${arsNombre} (vía SISALRIL/DIDA).` : ''} Revise los campos y pulse «Guardar ficha», o pulse el botón para adjuntar directamente sin duplicar.`),
+            use);
         } else if (r?.match === 'conflict') globalMatch.replaceChildren(note('Hay un conflicto entre cédula y NSS. No se fusionará automáticamente; revise los identificadores.', 'error'));
         else globalMatch.replaceChildren();
       } catch (e) { globalMatch.replaceChildren(note(e.message, 'error')); }

@@ -58,8 +58,9 @@ export async function profileNames(ids) {
 }
 
 // ---- Servicios (líneas)
+const LINE_COLS = 'id, service_date, patient_name, patient_doc, member_number, authorization_number, procedure_id, quantity, unit_amount, tariff_amount, contracted, amount, claim_folio, claim_status, notes, procedures(internal_code, description, service_type_code)';
 export async function listLines(submissionId) {
-  return must(await sb().from('service_lines').select('*, procedures(internal_code, description, service_type_code)').eq('submission_id', submissionId).order('service_date').order('created_at'));
+  return must(await sb().from('service_lines').select(LINE_COLS).eq('submission_id', submissionId).order('service_date').order('created_at'));
 }
 /** Datos originales para editar una reclamación desde su ficha; RLS mantiene el alcance. */
 export async function getLine(id) {

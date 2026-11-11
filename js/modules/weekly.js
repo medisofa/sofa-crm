@@ -26,16 +26,33 @@ export async function render(root) {
   const msg = h('div');
   const days = h('input', { type: 'number', min: '1', max: '7', value: '1', id: 'i18-wk-days', style: 'width:5rem' });
 
-  async function act(btn, fn, okText) {
+  async function act(btn, fn, okText, phoneCtx) {
     btn.disabled = true; msg.replaceChildren();
     try { const r = await fn(); msg.replaceChildren(note(okText(r))); await load(); }
-    catch (e) { msg.replaceChildren(note(e.message, 'error')); }
+    catch (e) {
+      if (/tel[eé]fono/i.test(e.message)) {
+        // Error de teléfono del servidor: guía numerada con deep links según contexto
+        const esMedico = phoneCtx === 'medico';
+        const pasos = esMedico
+          ? [[h('a', { href: '#/mi-ficha' }, 'Ir a Mi ficha'), ' y corrija el campo «Teléfono» del médico.'],
+             ['Vuelva aquí y pulse «Descartar» en el mensaje pendiente sin teléfono.'],
+             ['Pulse «Generar resúmenes de esta semana» para crear uno nuevo con el teléfono correcto.']]
+          : [[h('a', { href: '#/pacientes' }, 'Ir a Pacientes'), ', busque al paciente y corrija su teléfono.'],
+             ['Vuelva aquí y pulse «Descartar» en el mensaje pendiente sin teléfono.'],
+             ['Pulse «Generar recordatorios» para crear uno nuevo con el teléfono correcto.']];
+        msg.replaceChildren(h('div', { class: 'i18-note i18-error', role: 'alert' },
+          h('strong', {}, e.message),
+          h('ol', {}, ...pasos.map((p) => h('li', {}, ...p)))));
+      } else {
+        msg.replaceChildren(note(e.message, 'error'));
+      }
+    }
     finally { btn.disabled = false; }
   }
   const genRem = h('button', { class: 'i18-btn', type: 'button' }, 'Generar recordatorios');
   const genSum = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Generar resúmenes de esta semana');
-  genRem.addEventListener('click', () => act(genRem, () => rpc('generate_appointment_reminders', { p_days: Number(days.value) || 1, p_provider: null }), (n) => `${num(n)} recordatorio(s) nuevo(s) en la cola.`));
-  genSum.addEventListener('click', () => act(genSum, () => rpc('generate_weekly_summaries', {}), (n) => `${num(n)} resumen(es) nuevo(s). Cada médico también recibe una notificación en SOFA.`));
+  genRem.addEventListener('click', () => act(genRem, () => rpc('generate_appointment_reminders', { p_days: Number(days.value) || 1, p_provider: null }), (n) => `${num(n)} recordatorio(s) nuevo(s) en la cola.`, 'paciente'));
+  genSum.addEventListener('click', () => act(genSum, () => rpc('generate_weekly_summaries', {}), (n) => `${num(n)} resumen(es) nuevo(s). Cada médico también recibe una notificación en SOFA.`, 'medico'));
 
   async function load() {
     const q = await guarded(out, async () => ({ pend: await realPendingMessages(), sums: await realRecentSummaries() }));
@@ -77,7 +94,7 @@ export async function render(root) {
     const link = waLink(m.to_phone, portal ? withoutLink(m.body) : m.body);
     const open = h('a', { class: 'i18-btn', href: link || '#', target: '_blank', rel: 'noopener noreferrer', 'aria-disabled': link ? null : 'true' }, 'Abrir en WhatsApp');
     open.addEventListener('click', async (ev) => {
-      if (!link) { ev.preventDefault(); return msg.replaceChildren(note('Este mensaje no tiene un teléfono válido. Corrija el teléfono en la ficha y vuelva a generarlo.', 'error')); }
+      if (!link) { ev.preventDefault(); if (noPhone) noPhone.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       if (portal) {
         // La ventana se abre ya (si no, el navegador la bloquea) y luego se le pone la dirección con el enlace recién creado.
         ev.preventDefault();
@@ -91,10 +108,24 @@ export async function render(root) {
       try { await rpc('mark_message', { p_id: m.id, p_status: 'enviado' }); setTimeout(load, 600); } catch (e) { msg.replaceChildren(note(e.message, 'error')); }
     });
     const skip = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Descartar');
-    skip.addEventListener('click', () => act(skip, () => rpc('mark_message', { p_id: m.id, p_status: 'omitido' }), () => 'Mensaje omitido.'));
+    skip.addEventListener('click', () => act(skip,
+      () => rpc('mark_message', { p_id: m.id, p_status: 'omitido' }),
+      () => link ? 'Mensaje omitido.' : 'Mensaje descartado. Corrija el teléfono y use «Generar recordatorios» para crear uno nuevo.'));
+    // Guía numerada de pasos con deep links cuando no hay teléfono válido ────
+    const noPhonePasos = !link ? (m.kind === 'resumen_semanal'
+      ? [[h('a', { href: '#/mi-ficha' }, 'Ir a Mi ficha'), ' y corrija el campo «Teléfono» del médico.'],
+         ['Pulse «Descartar» (botón de abajo) para retirar este mensaje.'],
+         ['Pulse «Generar resúmenes de esta semana» para crear uno nuevo con el teléfono correcto.']]
+      : [[h('a', { href: '#/pacientes' }, 'Ir a Pacientes'), ', busque al paciente y corrija su teléfono.'],
+         ['Pulse «Descartar» (botón de abajo) para retirar este mensaje.'],
+         ['Pulse «Generar recordatorios» para crear uno nuevo con el teléfono correcto.']]) : null;
+    const noPhone = noPhonePasos ? h('div', { class: 'i18-note i18-error', role: 'alert' },
+      h('strong', {}, 'Sin teléfono válido — no se puede enviar.'),
+      h('ol', {}, ...noPhonePasos.map((p) => h('li', {}, ...p)))) : null;
     return h('div', { class: 'i18-card' }, h('strong', {}, `${KIND[m.kind] || m.kind} · ${fmtDate(m.scheduled_for)}`),
       h('div', { class: 'i18-sub' }, m.to_phone || 'Sin teléfono'), h('pre', { class: 'i18-pre' }, shown(m.body)),
-      portal ? h('div', { class: 'i18-sub' }, 'Lleva el enlace personal del paciente a su portal: se crea al tocar «Abrir en WhatsApp» y anula el anterior.') : null, h('div', { class: 'i18-bar' }, open, skip));
+      portal ? h('div', { class: 'i18-sub' }, 'Lleva el enlace personal del paciente a su portal: se crea al tocar «Abrir en WhatsApp» y anula el anterior.') : null,
+      noPhone, h('div', { class: 'i18-bar' }, open, skip));
   }
 
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Resumen semanal y recordatorios'),

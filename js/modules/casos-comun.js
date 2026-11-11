@@ -1,5 +1,6 @@
 /** SOFA · 3.0 · Iteración 40 · Piezas comunes de los casos de servicio (cliente y equipo SOFA). */
 import { rpc, h, money, fmtDate, note } from '../services/iter18.js';
+import { confirmDialog } from '../utils/ui.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 export const STATUS = { solicitado: 'Solicitado', en_proceso: 'En proceso', en_espera_cliente: 'Esperando documentos suyos', presentado: 'Presentado a la ARS',
@@ -28,7 +29,7 @@ export async function caseDetail(box, id, { staff = false, onChange = null } = {
     const cancel = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Cancelar mi solicitud');
     const out = h('div', { 'aria-live': 'polite' });
     cancel.addEventListener('click', async () => {
-      if (!confirm('¿Cancelar esta solicitud?')) return;
+      if (!await confirmDialog('Cancelar solicitud', '¿Cancelar esta solicitud? Esta acción no se puede deshacer.', 'Cancelar solicitud', true)) return;
       cancel.disabled = true;
       try { await rpc('service_case_cancel', { p_case: id, p_reason: 'Cancelada por el cliente' }); caseDetail(box, id, { onChange }); if (onChange) onChange(); }
       catch (e) { out.replaceChildren(note(e.message, 'error')); cancel.disabled = false; }

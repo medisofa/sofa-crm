@@ -4,8 +4,9 @@ import { sb } from '../supabase.js';
 const must = ({ data, error }) => { if (error) throw error; return data; };
 const rpc = async (fn, args) => must(await sb().rpc(fn, args));
 
+const APPT_LIST_COLS = 'id, appointment_time, patient_name, patient_doc, member_number, phone, payer_type, ars_id, authorization_number, authorization_date, reason, status, service_line_id, eligibility_status, eligibility_source, eligibility_reference, ars(name)';
 export async function listAppointments(providerId, date) {
-  return must(await sb().from('appointments').select('*, ars(name)').eq('provider_id', providerId).eq('appointment_date', date)
+  return must(await sb().from('appointments').select(APPT_LIST_COLS).eq('provider_id', providerId).eq('appointment_date', date)
     .order('appointment_time', { ascending: true, nullsFirst: false }).order('created_at'));
 }
 export async function getAppointment(id) { return must(await sb().from('appointments').select('*, ars(name)').eq('id', id).maybeSingle()); }
