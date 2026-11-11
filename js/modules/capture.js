@@ -167,8 +167,7 @@ export async function render(main, ctx) {
       S.services = rows;
       sel.disabled = false;
       paint(sel, html`<option value="">${rows.length ? `Seleccione (${rows.length} contratados)…` : 'Tarifario pendiente: seleccione un servicio del catálogo'}</option>
-        ${rows.map((r) => opt(r.procedure_id, `${r.name}${r.cups ? ` · CUPS ${r.cups}` : ''}${r.simon ? ` · SIMON ${r.simon}` : ''} · ${money(r.amount)}`))}` +
-        `<option value="__catalog">${rows.length ? '¿No aparece? Buscar en el catálogo maestro…' : 'Capturar con tarifario pendiente'}</option>`);
+        ${rows.map((r) => opt(r.procedure_id, `${r.name}${r.cups ? ` · CUPS ${r.cups}` : ''}${r.simon ? ` · SIMON ${r.simon}` : ''} · ${money(r.amount)}`))}`);
       if (rows.length === 1) { sel.value = rows[0].procedure_id; pickService(); }
     } catch (err) { if (my === srvSeq && alive()) { paint(sel, html`<option value="">Error al cargar</option>`); toast(friendlyError(err), 'bad'); } }
   }
@@ -202,7 +201,7 @@ export async function render(main, ctx) {
           try {
             const rows = await searchCatalog(q.value, 20);
             paint(box, rows.length ? html`${rows.map((r) => html`<label class="li" style="cursor:pointer"><input type="radio" name="pick" value="${r.id}" data-name="${r.name}">
-              <div class="b"><div class="t1">${r.name}</div><div class="t2">${[r.internal_code, r.simon && `SIMON ${r.simon}`, r.cups && `CUPS ${r.cups}`, r.specialty || r.category].filter(Boolean).join(' · ')}</div></div></label>`)}`
+              <div class="b"><div class="t1">${r.name}</div><div class="t2">${[r.internal_code, r.simon && `SIMON ${r.simon}`, r.cups && `CUPS ${r.cups}`, r.specialty || r.category].filter(Boolean).join(' · ')}</div></div></label>`)}` 
               : html`<p class="small muted">Sin coincidencias.</p>`);
           } catch (err) { paint(box, html`<div class="note bad">${friendlyError(err)}</div>`); }
         };
