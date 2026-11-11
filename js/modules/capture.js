@@ -13,8 +13,11 @@ import { can, isStaff } from '../utils/permissions.js';
 import {
   captureProviders, activeArs, contractedServices, searchCatalog, patientLookup, captureClaim, myRecentClaims
 } from '../services/claims.js';
+import { launchARSPortal } from '../services/ars-bridge.js';
 import { requiredDocsPreview, dossierStatus } from '../services/dossier.js';
 import { dossierPill } from './dossier-card.js';
+import { captureIdentifiers } from './capture-identifiers.js';
+import { viewAsState } from '../utils/view-as-state.js';
 import { initCamara } from './captura-camara.js';
 import { revisarCaptura, capturarConDiagnostico, mostrarAviso, limpiarAvisos, pistaCedula, cie10Suggestions } from '../services/calidad-dato.js';   // I61: calidad del dato
 
@@ -49,7 +52,7 @@ export async function render(main, ctx) {
           <div class="field"><label for="c_mode">Modalidad</label><select id="c_mode" name="care_mode">${CARE_MODES.map(([v, l]) => opt(v, l, memory.careMode))}</select></div>
           <div class="field" style="grid-column:1/-1"><label for="c_pat">4 · Paciente *</label><input id="c_pat" name="patient_name" list="c_pats" required maxlength="150" placeholder="Nombre completo (escriba 2 letras o el NSS para buscar)"><datalist id="c_pats"></datalist></div>
           <div class="field"><label for="c_nss">NSS / No. afiliado *</label><input id="c_nss" name="member" required maxlength="40" inputmode="numeric"></div>
-          <div class="hint" style="grid-column:1/-1;margin-top:-8px;font-size:12px;color:var(--ink-2)">Verifica la elegibilidad del paciente en el portal web de su ARS o en SISALRIL antes de radicar — la cobertura no se valida automáticamente en este paso.</div>
+          <div id="arsPortalBridge" style="grid-column:1/-1" aria-live="polite"></div>
           <div class="field"><label for="c_auth">No. de autorización <span id="authReq">*</span></label><input id="c_auth" name="authorization" maxlength="60"></div>
           <div class="field"><label for="c_authdate">Fecha de la autorización</label><input id="c_authdate" name="authdate" type="date" max="${todayISO()}"><span class="hint">Avisa a los 150 días si no se ha radicado</span></div>
           <div class="field"><label for="c_doc">Cédula del paciente</label><input id="c_doc" name="patient_doc" maxlength="20" inputmode="numeric"></div><div id="globalPatientMatch" style="grid-column:1/-1"></div>
@@ -59,6 +62,7 @@ export async function render(main, ctx) {
             <select id="c_srv" name="procedure" required disabled><option value="">Seleccione médico, ARS y fecha</option></select>
             <span class="hint" id="srvHint">Solo aparecen los servicios contratados para ese médico con esa ARS en la fecha del servicio.</span></div>
         </div>
+        <div id="capture-identifiers" aria-live="polite"></div>
         <div id="srvInfo" aria-live="polite"></div>
         <div id="notContracted"></div>
         <div class="form-grid">
@@ -80,6 +84,11 @@ export async function render(main, ctx) {
     </div>`);
 
   const form = $('#cf', main);
+  if (viewAsState.active) {
+    const aviso = document.createElement('p'); aviso.className = 'note info'; aviso.textContent = 'Modo soporte, solo lectura. Salga del modo soporte para registrar reclamaciones o actualizar códigos.'; form.prepend(aviso);
+    $('#save', main).disabled = true;
+  }
+  const refreshIdentifiers = captureIdentifiers($('#capture-identifiers', main));
   const el = (id) => $(`#${id}`, main);
   /** Las tareas asíncronas (búsquedas, cargas) terminan después de que el usuario puede haber salido de la pantalla */
   const alive = () => document.body.contains(form);
@@ -112,11 +121,41 @@ export async function render(main, ctx) {
   paint(el('c_prov'), html`<option value="">Seleccione…</option>${S.providers.map((p) => opt(p.id, staff && p.organizations?.legal_name && p.organizations.legal_name !== p.full_name ? `${p.full_name} · ${p.organizations.legal_name}` : p.full_name, memory.provider))}`);
   paint(el('c_ars'), html`<option value="">Seleccione…</option>${S.ars.map((a) => opt(a.id, a.name, memory.ars))}`);
 
+  // ------------------------------------------------------------ portal bridge
+  function updatePortalBridge() {
+    const selectedArs = S.ars.find((a) => a.id === el('c_ars').value);
+    const bridge = el('arsPortalBridge');
+    if (!bridge) return;
+    if (!selectedArs?.portal_url) {
+      paint(bridge, html`<div class="hint" style="margin-top:-8px;font-size:12px;color:var(--ink-2)">Verifica la elegibilidad del paciente en el portal web de su ARS o en SISALRIL antes de radicar — la cobertura no se valida automáticamente en este paso.</div>`);
+      return;
+    }
+    paint(bridge, html`<div class="note info" style="margin-top:-8px;padding:8px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="flex:1;min-width:0;font-size:13px">Verifica elegibilidad en el portal de <b>${selectedArs.name}</b> — los datos del paciente se copian al portapapeles.</span>
+      <button type="button" class="btn" id="arsPortalBtn" style="white-space:nowrap;flex-shrink:0">🔗 Ir al portal ARS</button>
+    </div>`);
+    el('arsPortalBtn')?.addEventListener('click', () => {
+      launchARSPortal(selectedArs, {
+        member:        el('c_nss')?.value,
+        patientDoc:    el('c_doc')?.value,
+        patientName:   el('c_pat')?.value,
+        serviceDate:   el('c_date')?.value,
+        diagnosis:     el('c_dx')?.value,
+        procedureName: S.service?.name,
+        simon:         S.service?.simon,
+        cups:          S.service?.cups,
+      });
+    });
+  }
+  el('c_ars').addEventListener('change', updatePortalBridge);
+  updatePortalBridge();
+
   // ------------------------------------------------------------ servicios contratados
   let srvSeq = 0;
   async function loadServices() {
     const provider = el('c_prov').value; const ars = el('c_ars').value; const d = el('c_date').value;
     memory.provider = provider; memory.ars = ars; memory.date = d;
+    refreshIdentifiers(provider, ars, null);
     S.service = null; S.catalogPick = null; paint(el('srvInfo'), html``); paint(el('notContracted'), html``); drawDiff();
     const sel = el('c_srv');
     if (!provider || !ars || !d) { sel.disabled = true; paint(sel, html`<option value="">Seleccione médico, ARS y fecha</option>`); return; }
@@ -127,9 +166,9 @@ export async function render(main, ctx) {
       if (my !== srvSeq || !alive()) return;
       S.services = rows;
       sel.disabled = false;
-      paint(sel, html`<option value="">${rows.length ? `Seleccione (${rows.length} contratados)…` : 'Sin servicios contratados vigentes en esa fecha'}</option>
-        ${rows.map((r) => opt(r.procedure_id, `${r.name}${r.cups ? ` · CUPS ${r.cups}` : ''}${r.simon ? ` · SIMON ${r.simon}` : ''} · ${money(r.amount)}`))}
-        <option value="__catalog">¿No aparece? Buscar en el catálogo maestro…</option>`);
+      paint(sel, html`<option value="">${rows.length ? `Seleccione (${rows.length} contratados)…` : 'Tarifario pendiente: seleccione un servicio del catálogo'}</option>
+        ${rows.map((r) => opt(r.procedure_id, `${r.name}${r.cups ? ` · CUPS ${r.cups}` : ''}${r.simon ? ` · SIMON ${r.simon}` : ''} · ${money(r.amount)}`))}` +
+        `<option value="__catalog">${rows.length ? '¿No aparece? Buscar en el catálogo maestro…' : 'Capturar con tarifario pendiente'}</option>`);
       if (rows.length === 1) { sel.value = rows[0].procedure_id; pickService(); }
     } catch (err) { if (my === srvSeq && alive()) { paint(sel, html`<option value="">Error al cargar</option>`); toast(friendlyError(err), 'bad'); } }
   }
@@ -137,9 +176,10 @@ export async function render(main, ctx) {
   function pickService() {
     const v = el('c_srv').value;
     S.catalogPick = null; paint(el('notContracted'), html``);
-    if (v === '__catalog') { S.service = null; paint(el('srvInfo'), html``); openCatalog(); drawDiff(); return; }
+    if (v === '__catalog') { refreshIdentifiers(el('c_prov').value, el('c_ars').value, null); S.service = null; paint(el('srvInfo'), html``); openCatalog(); drawDiff(); return; }
     S.service = S.services.find((s) => s.procedure_id === v) || null;
     const s = S.service;
+    refreshIdentifiers(el('c_prov').value, el('c_ars').value, s);
     el('c_amt').value = s ? Number(s.amount).toFixed(2) : '';
     paint(el('srvInfo'), s ? html`<div class="note ok" style="margin:6px 0 10px">
       <b>${s.name}</b><br>
@@ -179,12 +219,13 @@ export async function render(main, ctx) {
     if (contracted) { el('c_srv').value = pick.id; pickService(); return; }
     S.catalogPick = pick; el('c_amt').value = '';
     const admin = can('claims.exception', role);
+    const pending = S.services.length === 0 ? 'pendiente' : 'bloquear';
     paint(el('notContracted'), html`<div class="note bad" role="alert" style="margin:6px 0 10px">
       <b>${pick.name}</b><br>Este servicio existe en el catálogo, pero no está registrado como contratado/autorizado para este médico con esta ARS.
       <div class="field" style="margin-top:8px"><label for="nc_mode">¿Qué desea hacer?</label>
         <select id="nc_mode" name="nc_mode">
-          ${opt('bloquear', 'No registrar (corregir el servicio)', 'bloquear')}
-          ${opt('pendiente', 'Registrar como “Pendiente de configuración” y solicitar revisión del contrato')}
+          ${opt('bloquear', 'No registrar (corregir el servicio)', pending)}
+          ${opt('pendiente', 'Registrar como "Pendiente de configuración" y solicitar revisión del contrato', pending)}
           ${admin ? opt('excepcion', 'Excepción administrativa auditada (solo administradores)') : ''}
         </select></div>
       <div class="field" id="nc_rs" hidden><label for="nc_reason">Motivo de la excepción (mín. 10 caracteres, queda en bitácora) *</label><textarea id="nc_reason" name="nc_reason" rows="2" class="input"></textarea></div>
@@ -383,6 +424,7 @@ export async function render(main, ctx) {
   }
 
   async function save(allowDuplicate = false) {
+    if (viewAsState.active) { toast('Modo soporte, solo lectura. Salga del modo soporte para registrar una reclamación.', 'warn'); return; }
     const v = values();
     if (!validate(v)) return;
     const amt = el('c_amt').value === '' ? null : Number(el('c_amt').value);
@@ -448,9 +490,13 @@ export async function render(main, ctx) {
     }
   }
 
-  form.addEventListener('submit', (e) => { e.preventDefault(); busy(el('save'), () => save(false)); });
+  const submitCapture = () => {
+    if (viewAsState.active) { el('save').disabled = true; toast('Salga del modo soporte para registrar una reclamación.', 'warn'); return; }
+    return busy(el('save'), () => save(false));
+  };
+  form.addEventListener('submit', (e) => { e.preventDefault(); submitCapture(); });
   form.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); busy(el('save'), () => save(false)); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitCapture(); }
     if (e.key === 'Escape') { e.preventDefault(); clearPatient(); el('c_pat').focus(); }
   });
   el('clear').addEventListener('click', async () => {

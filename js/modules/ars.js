@@ -35,11 +35,13 @@ export async function render(root, ctx = {}) {
     list.replaceChildren(rows.length ? h('div', { class: 'ars-grid' }, rows.map(card)) : note('No hay ARS que coincidan con la búsqueda.'));
   }
   function card(a) {
+    const portalHost = (() => { try { return a.portal_url ? new URL(a.portal_url).host : null; } catch (_) { return null; } })();
     return h('section', { class: `i18-card ars-card${a.active ? '' : ' ars-off'}` },
       h('header', { class: 'hc-head' }, h('div', {}, h('strong', {}, a.name), h('div', { class: 'i18-sub' }, [a.regime, a.channel].filter(Boolean).join(' · ') || '—')),
         h('div', { class: 'i18-actions', style: 'margin:0' },
           a.active ? '' : h('span', { class: 'ac-pill st-none' }, 'Desactivada'),
           h('span', { class: `ac-pill ${a.tariffs ? 'st-ok' : 'st-req'}`, title: 'Tarifas vigentes de esta ARS' }, `${a.tariffs} tarifas`),
+          portalHost ? h('span', { class: 'ac-pill st-ok', title: `Portal PSS: ${a.portal_url}` }, `🔗 ${portalHost}`) : '',
           edit ? h('button', { class: 'i18-link', type: 'button', onclick: () => arsForm(a) }, 'Editar') : '')),
       a.notes ? h('p', { class: 'i18-sub' }, a.notes) : '',
       h('ul', { class: 'ars-plans' }, a.plans.length ? a.plans.map((p) => h('li', { class: p.active ? '' : 'ars-off' },
@@ -53,6 +55,7 @@ export async function render(root, ctx = {}) {
     const code = h('input', { value: a?.code || '', maxlength: '40', placeholder: 'Se genera solo si lo deja vacío', disabled: !!a });
     const regime = h('select', {}, REGIMES.map((r) => h('option', { value: r, selected: (a?.regime || 'Contributivo') === r }, r)));
     const channel = h('input', { value: a?.channel || '', maxlength: '120', placeholder: 'Ej.: Portal PSS + oficinas' });
+    const portalUrl = h('input', { type: 'url', value: a?.portal_url || '', maxlength: '300', placeholder: 'https://portalpss.arsejemplo.com.do/' });
     const notes = h('textarea', { rows: '2', maxlength: '500' }, a?.notes || '');
     const active = h('input', { type: 'checkbox', checked: a ? a.active : true });
     const msg = h('div', { 'aria-live': 'polite' });
@@ -60,14 +63,14 @@ export async function render(root, ctx = {}) {
     save.addEventListener('click', async () => {
       save.disabled = true;
       try {
-        await rpc('ars_save', { p_id: a?.id || null, p_name: name.value, p_code: code.value || null, p_regime: regime.value, p_channel: channel.value, p_notes: notes.value, p_active: active.checked });
+        await rpc('ars_save', { p_id: a?.id || null, p_name: name.value, p_code: code.value || null, p_regime: regime.value, p_channel: channel.value, p_notes: notes.value, p_active: active.checked, p_portal_url: portalUrl.value || null });
         pane.replaceChildren(note(`ARS «${name.value.trim()}» guardada.`, 'ok')); await load();
       } catch (e) { msg.replaceChildren(note(e.message, 'error')); save.disabled = false; }
     });
     pane.replaceChildren(h('section', { class: 'i18-card hc-form' }, h('header', { class: 'hc-head' }, h('strong', {}, a ? `Editar ${a.name}` : 'Nueva ARS'),
       h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
       h('div', { class: 'hc-grid' }, field('ars-name', 'Nombre', name), field('ars-code', 'Código corto', code), field('ars-regime', 'Régimen principal', regime),
-        field('ars-channel', 'Canal de radicación', channel)), field('ars-notes', 'Notas', notes),
+        field('ars-channel', 'Canal de radicación', channel), field('ars-portal', 'URL del Portal PSS', portalUrl)), field('ars-notes', 'Notas', notes),
       h('label', { class: 'i18-chk' }, active, ' Activa (aparece en los formularios)'), h('div', { class: 'i18-actions' }, save), msg));
     name.focus();
   }
