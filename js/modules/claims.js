@@ -22,6 +22,8 @@ export async function render(main, ctx) {
   const st = { dossier: '', group: role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas', status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
   const sel = new Set();
   let rows = []; let transitions = []; let locations = []; let dupMap = new Map(); let coreDupPairs = []; let cachedCounts = [];
+  const pendingResolutionPairs = new Set();
+  const resolutionKey = (a, b) => [a, b].sort().join(':');
 
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Reclamaciones</h2>
@@ -183,8 +185,9 @@ export async function render(main, ctx) {
       ${pairs.map((d) => html`<article class="dup-group">
         <div class="dup-group-head">
           <strong class="dup-group-patient">${d.patient_name}</strong>
-          <span class="pill ${d.review_decision ? 'ok' : 'warn'}">${d.review_decision ? `Revisada: ${reviewLabels[d.review_decision] || d.review_decision}` : 'Pendiente de revisión'}</span>
-          ${d.blocks_radicacion ? html`<span class="pill bad">Bloquea radicación</span>` : ''}
+          <span class="pill ${d.blocks_radicacion ? 'warn' : d.review_decision ? 'info' : 'warn'}">${d.review_decision ? `${reviewLabels[d.review_decision] || d.review_decision}${d.blocks_radicacion ? ' · requiere gestión' : ' · decisión registrada'}` : 'Pendiente de revisión'}</span>
+          ${d.blocks_radicacion ? html`<span class="pill bad">Bloquea radicación</span>` : html`<span class="pill info">Sin bloqueo en la comprobación actual</span>`}
+          ${d.resolution_request_status === 'pendiente' || pendingResolutionPairs.has(resolutionKey(d.line_id, d.other_line_id)) ? html`<span class="pill warn">Exclusión solicitada · pendiente</span>` : ''}
         </div>
         <div class="dup-group-meta">
           <div><b>NSS:</b> ${d.member_number || '—'}</div>
@@ -192,9 +195,11 @@ export async function render(main, ctx) {
           <div><b>Fecha de autorización:</b> ${date(d.authorization_date)}</div>
         </div>
         ${duplicateComparison(d)}
-        <div class="dup-suggest"><b>SOFA sugiere:</b> ${d.suggested_solution}</div>
+        <div class="dup-suggest"><b>${d.review_decision ? 'Próximo paso:' : 'Revisión necesaria:'}</b> ${d.review_decision === 'duplicado_confirmado' ? 'La revisión confirma el duplicado, pero no corrige las reclamaciones. Abre la ficha que corresponda o solicita al responsable gestionar la exclusión; después vuelve a comprobar.' : 'Compara los datos de ambas reclamaciones. Abre la ficha para corregir datos o registra una solicitud de gestión; ninguna reclamación se modifica automáticamente.'}</div>
+        ${d.blocks_radicacion ? html`<p class="dup-resolution-note">Registrar una decisión o solicitar exclusión no equivale a resolver este bloqueo. «Marcar retirada» solo registra el retiro físico.</p>` : ''}
         <div class="dup-actions"><span class="small muted">La revisión queda registrada en la bitácora.</span>
-          <button type="button" class="btn primary" data-core-review="${d.line_id}" data-core-other="${d.other_line_id}" aria-label="${`Comparar y revisar ${d.folio || d.line_id} y ${d.other_folio || d.other_line_id}`}">${d.review_decision ? 'Ver o actualizar revisión' : 'Comparar y revisar'}</button>
+          <button type="button" class="btn primary" data-core-resolve="${d.line_id}" data-core-other="${d.other_line_id}">${d.review_decision === 'duplicado_confirmado' ? 'Gestionar duplicado' : 'Corregir o solicitar gestión'}</button>
+          <button type="button" class="btn" data-core-review="${d.line_id}" data-core-other="${d.other_line_id}" aria-label="${`Comparar y revisar ${d.folio || d.line_id} y ${d.other_folio || d.other_line_id}`}">${d.review_decision ? 'Ver o actualizar revisión' : 'Comparar y revisar'}</button>
         </div>
       </article>`)}
     </section>`);
@@ -209,11 +214,13 @@ export async function render(main, ctx) {
         coreDupPairs = real.data.length ? await claimDuplicateCandidates(real.data.map((x) => x.id), null) : [];
       } else coreDupPairs = await claimDuplicateCandidates(null, null);
       drawCoreDuplicates();
+      return true;
     } catch (e) {
       coreDupPairs = [];
       if (!$('#coreDup', main)) return;
       paint(box, html`<div class="note bad" role="alert"><b>No se pudieron comprobar las coincidencias.</b>
         <p>${friendlyError(e)}</p><button type="button" class="btn" data-retry-duplicates>Reintentar comprobación</button></div>`);
+      return false;
     }
   }
 
@@ -221,7 +228,7 @@ export async function render(main, ctx) {
   loadCoreDuplicates();
   const load = () => loadInto(list, async () => {
     const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff });
-    const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null).catch(() => []) : [];
+    const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null) : [];
     return { ...res, dups };
   }, (res) => {
     rows = res.data; dupMap = new Map();
@@ -264,7 +271,7 @@ export async function render(main, ctx) {
         <b>Coincidencias:</b> ${(d.matched_fields || []).join(' · ')}<br>
         <b>Reclamaciones:</b> ${d.folio || d.line_id} ↔ ${d.other_folio || d.other_line_id}<br>
         <b>Paciente:</b> ${d.patient_name} · NSS ${d.member_number}<br>
-        <b>Sugerencia SOFA:</b> ${d.suggested_solution}
+        <b>Próximo paso:</b> ${d.review_decision === 'duplicado_confirmado' ? 'Gestiona la reclamación correspondiente. Guardar la revisión no excluye ni corrige ninguna reclamación.' : 'Compara ambas fichas y verifica los datos antes de registrar una decisión. La exclusión requiere una gestión separada.'}
       </div>
       ${duplicateComparison(d)}
       <p class="small muted">Guardar registra la decisión. No elimina, anula ni corrige automáticamente ninguna reclamación.</p>
@@ -289,11 +296,22 @@ export async function render(main, ctx) {
         return true;
       }
     });
-    if (r) { toast('Revisión de posible duplicado registrada en bitácora', 'ok'); await loadCoreDuplicates(); load(); }
+    if (r) { await loadCoreDuplicates(); load(); toast('Decisión registrada. Consulta el bloqueo actualizado; la revisión no modifica las reclamaciones.', 'warn'); }
   }
 
   $('#coreDup', main).addEventListener('click', (e) => {
     if (e.target.closest('[data-retry-duplicates]')) { loadCoreDuplicates(); return; }
+    const resolveButton = e.target.closest('[data-core-resolve]');
+    if (resolveButton) {
+      const d = coreDupPairs.find((x) => resolutionKey(x.line_id, x.other_line_id) === resolutionKey(resolveButton.dataset.coreResolve, resolveButton.dataset.coreOther));
+      if (!d) { toast('La coincidencia ya no está disponible. Vuelve a comprobar.', 'warn'); return; }
+      busy(resolveButton, async () => {
+        const { resolveDuplicateDialog } = await import('./duplicate-resolution.js');
+        const result = await resolveDuplicateDialog(d, { role, viewAs: ctx.viewAs, onRefresh: async () => { if (!(await loadCoreDuplicates())) throw new Error('No se pudieron comprobar las coincidencias. Vuelve a intentar.'); await load(); } });
+        if (result?.status === 'pendiente') { pendingResolutionPairs.add(resolutionKey(d.line_id, d.other_line_id)); drawCoreDuplicates(); }
+      }).catch((err) => toast(friendlyError(err), 'bad'));
+      return;
+    }
     const button = e.target.closest('[data-core-review]');
     if (!button) return;
     busy(button, () => reviewDuplicateDialog(button.dataset.coreReview, button.dataset.coreOther))
