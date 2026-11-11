@@ -254,8 +254,24 @@ export async function ecfReadiness({ realOnly = false } = {}) {
 // ---------------------------------------------------------------- Posibles duplicados antes de radicar
 export async function claimDuplicateCandidates(ids = null, submissionId = null) {
   if (ids !== null && !Array.isArray(ids)) throw new Error('La consulta de coincidencias requiere una lista de reclamaciones y el identificador del lote.');
-  return must(await sb().rpc('claim_duplicate_candidates', { p_ids: ids?.length ? ids : null, p_submission: submissionId || null }));
+  const candidates = must(await sb().rpc('claim_duplicate_candidates', { p_ids: ids?.length ? ids : null, p_submission: submissionId || null }));
+  if (!candidates?.length) return candidates || [];
+  const pairIds = [...new Set(candidates.flatMap((d) => [d.line_id, d.other_line_id]))];
+  const requests = must(await sb().rpc('claim_duplicate_resolution_request_statuses', { p_ids: pairIds }));
+  const statuses = new Map((requests || []).map((r) => [[r.line_a, r.line_b].sort().join(':'), r.status]));
+  return candidates.map((d) => ({ ...d, resolution_request_status: statuses.get([d.line_id, d.other_line_id].sort().join(':')) || null }));
 }
 export async function reviewClaimDuplicate(lineA, lineB, decision, reason) {
   return must(await sb().rpc('review_claim_duplicate', { p_line_a: lineA, p_line_b: lineB, p_decision: decision, p_reason: reason }));
+}
+
+/** Solicitar una exclusión no elimina líneas ni cambia decisiones o bloqueos. */
+export async function requestClaimDuplicateExclusion({ lineA, lineB, keepLine, reason }) {
+  return must(await sb().rpc('request_claim_duplicate_exclusion', {
+    p_line_a: lineA, p_line_b: lineB, p_keep_line: keepLine, p_reason: reason
+  }));
+}
+/** Historial privado del par; la RPC limita las columnas y el acceso por organización/rol. */
+export async function listClaimDuplicateResolutionRequests(lineA, lineB) {
+  return must(await sb().rpc('list_claim_duplicate_resolution_requests', { p_line_a: lineA, p_line_b: lineB }));
 }

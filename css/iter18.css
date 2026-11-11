@@ -1423,3 +1423,23 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .patient-flow .flow-footnote{font-size:.74rem;color:var(--ink-2);margin:18px 0 0;line-height:1.6}
 @container(max-width:800px){.patient-flow .flow-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-flow .flow-search{grid-column:1/-1}.patient-flow .flow-controls>#fp-refresh{grid-column:1/-1}}
 @container(max-width:460px){.patient-flow .flow-controls{grid-template-columns:minmax(0,1fr);padding:13px}.patient-flow .flow-board{grid-template-columns:minmax(0,1fr)}.patient-flow .flow-update{display:grid;gap:4px}.patient-flow .flow-card{padding:15px}}
+
+/* Revisión de duplicados: registrar una decisión no equivale a resolver el bloqueo. */
+.dup-resolution-note{margin:10px 0 0;font-size:.8rem;line-height:1.6;color:var(--ink-2)}
+.duplicate-resolution{display:grid;gap:14px;min-width:0}
+.duplicate-resolution .note{margin:0;line-height:1.6}
+.duplicate-resolution .note p{margin:5px 0 0}
+.duplicate-resolution .dup-comparison{min-width:0}
+.duplicate-resolution .dup-claim{min-width:0;overflow-wrap:anywhere}
+.duplicate-resolution .dup-claim h3{font-size:.85rem;margin:0 0 9px}
+.duplicate-resolution .dup-claim p{font-size:.8rem;line-height:1.6;margin:5px 0}
+.duplicate-resolution .dr-requests{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface-2);min-width:0}
+.duplicate-resolution .dr-requests>h3{font-size:.9rem;margin:0 0 10px}
+.duplicate-resolution .dr-request{padding:12px 0;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.duplicate-resolution .dr-request p{margin:7px 0;line-height:1.6}
+.duplicate-resolution .dr-links{display:flex;gap:8px;flex-wrap:wrap}
+.duplicate-resolution .dr-links .btn{min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.duplicate-resolution .dr-target{padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);font-size:.83rem;line-height:1.6}
+.duplicate-resolution .field select,.duplicate-resolution .field textarea{width:100%;min-width:0}
+.duplicate-resolution [hidden]{display:none!important}
+@media(max-width:600px){.duplicate-resolution .dr-links{display:grid;grid-template-columns:minmax(0,1fr)}.duplicate-resolution .dup-comparison{grid-template-columns:minmax(0,1fr)}.dup-actions>.btn{width:100%;white-space:normal}}

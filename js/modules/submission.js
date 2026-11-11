@@ -18,6 +18,7 @@ import { glosaStatus, claimStatus, DELIVERY_METHODS } from '../utils/constants.j
 import { getFiscal, fiscalCheck, saveFiscal, authorizeFiscalDifference, submissionLineAllocations, submissionFamily, submissionClaimMoney, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 import { getDelivery, markSubmissionSent } from '../services/dossier.js';
 
+const DUP_REVIEW_LABELS = { ambas_validas: 'Ambas válidas', duplicado_confirmado: 'Duplicado confirmado', dato_corregido: 'Dato corregido', no_duplicado: 'No es duplicado' };
 const EDITABLE = ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'];
 const daysTo = (iso) => (iso ? Math.round((new Date(`${iso}T00:00:00`) - new Date(`${todayISO()}T00:00:00`)) / 86400000) : null);
 const kv = (pairs) => html`<dl class="kv">${pairs.map(([k, v]) => html`<dt>${k}</dt><dd>${v || '—'}</dd>`)}</dl>`;
@@ -44,7 +45,7 @@ export async function render(main, ctx) {
       : [[], []];
     const [fiscal, fcheck, dist, delivery, family, money_, duplicates] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
       sub.submitted_on && can('claims.money', ctx.role) ? submissionLineAllocations(id).catch(() => []) : Promise.resolve([]), getDelivery(id).catch(() => null),
-      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([]), claimDuplicateCandidates(null, id).catch(() => [])]);
+      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([]), claimDuplicateCandidates(null, id)]);
     const names = await profileNames([...hist.map((h) => h.changed_by), ...docs.map((d) => d.uploaded_by), fiscal?.fiscal_exception_by].filter(Boolean)).catch(() => ({}));
     return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_, duplicates };
   }
@@ -81,9 +82,10 @@ export async function render(main, ctx) {
           <div class="t1"><a href="#/reclamaciones/${d.line_id}">${d.folio || 'Reclamación'}</a> ↔ <a href="#/reclamaciones/${d.other_line_id}">${d.other_folio || 'Posible duplicado'}</a></div>
           <div class="t2">${d.patient_name} · NSS ${d.member_number} · ${date(d.service_date)}${d.authorization_date ? ` · Fecha auth. ${date(d.authorization_date)}` : ''}</div>
           <div class="small"><b>Coincide:</b> ${(d.matched_fields || []).join(' · ')}</div>
-          <div class="small"><b>Solución sugerida:</b> ${d.suggested_solution}</div>
-          ${d.review_decision ? html`<div class="small"><b>Decisión registrada:</b> ${d.review_decision}</div>` : ''}
-          <div class="toolbar" style="margin-top:6px"><button class="btn sm" data-dup-review="${d.line_id}" data-dup-other="${d.other_line_id}">Revisar coincidencia</button></div>
+          <div class="small"><b>Próximo paso:</b> ${d.blocks_radicacion ? 'La revisión está registrada o pendiente, pero el bloqueo continúa. Abre la reclamación para corregir datos o solicita una gestión de exclusión.' : 'Consulta los datos y la decisión registrada; esta comprobación no presenta bloqueo para el par.'}</div>
+          ${d.review_decision ? html`<div class="small"><b>Decisión registrada:</b> ${DUP_REVIEW_LABELS[d.review_decision] || d.review_decision}</div>` : ''}
+          ${d.resolution_request_status === 'pendiente' ? html`<span class="pill warn">Exclusión solicitada · pendiente de gestión</span>` : ''}
+          <div class="toolbar" style="margin-top:6px"><button class="btn sm primary" data-dup-resolve="${d.line_id}" data-dup-other="${d.other_line_id}">Gestionar coincidencia</button><button class="btn sm" data-dup-review="${d.line_id}" data-dup-other="${d.other_line_id}">Revisar coincidencia</button></div>
         </div>
       </div>`)}</div>
     </div>`;
@@ -94,8 +96,8 @@ export async function render(main, ctx) {
     if (!d) return;
     const { formDialog } = await import('../utils/ui.js');
     const ok = await formDialog({
-      title: 'Resolver posible duplicado', submitLabel: 'Guardar decisión', wide: true,
-      body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}"><b>${(d.matched_fields || []).join(' · ')}</b><br>${d.suggested_solution}</div>
+      title: 'Registrar revisión de coincidencia', submitLabel: 'Guardar decisión', wide: true,
+      body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}"><b>${(d.matched_fields || []).join(' · ')}</b><p>Registrar esta revisión no corrige, excluye ni elimina reclamaciones. Consulta el bloqueo actualizado después de guardar.</p></div>
         <div class="form-grid">
           <div class="field"><label for="sdup_dec">Decisión *</label><select id="sdup_dec" name="decision">
             <option value="">Seleccione…</option>
@@ -113,7 +115,7 @@ export async function render(main, ctx) {
         return true;
       }
     });
-    if (ok) { toast('Revisión registrada en bitácora', 'ok'); await refresh(); }
+    if (ok) { toast('Revisión registrada. Consulta el bloqueo actualizado; las reclamaciones no se modificaron.', 'warn'); await refresh(); }
   }
 
   function draw() {
@@ -287,6 +289,12 @@ export async function render(main, ctx) {
     $('[data-invoice-focus]',box)?.addEventListener('click',()=>{ $('#invoice-data',box)?.scrollIntoView({behavior:'smooth',block:'center'}); $('#ncf',box)?.focus({preventScroll:true}); });
     $('[data-register-ecf]',box)?.addEventListener('click',()=>$('#ecfBtn',box)?.click());
     box.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', () => busy(b, () => doMove(b.dataset.to))));
+    box.querySelectorAll('[data-dup-resolve]').forEach((button) => button.addEventListener('click', () => busy(button, async () => {
+      const d = uniqueDuplicates(S.duplicates || []).find((x) => [x.line_id, x.other_line_id].includes(button.dataset.dupResolve) && [x.line_id, x.other_line_id].includes(button.dataset.dupOther));
+      if (!d) throw new Error('La coincidencia ya no está disponible. Actualiza el lote.');
+      const { resolveDuplicateDialog } = await import('./duplicate-resolution.js');
+      await resolveDuplicateDialog(d, { role: ctx.role, viewAs: ctx.viewAs, onRefresh: async () => { S = await load(); if (!S) throw new Error('Lote no disponible.'); draw(); } });
+    }).catch((e) => toast(friendlyError(e), 'bad'))));
     box.querySelectorAll('[data-dup-review]').forEach((b) => b.addEventListener('click', () => reviewDuplicate(b.dataset.dupReview, b.dataset.dupOther).catch((e) => toast(friendlyError(e), 'bad'))));
     $('#csv', box)?.addEventListener('click', exportCsv);
     $('#fiscForm', box)?.addEventListener('submit', async (e) => {
