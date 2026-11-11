@@ -93,10 +93,7 @@ export async function render(main, ctx) {
   const form = el('cf');
   let alive = () => main.contains(form);
 
-  const cam = initCamara(el('camBox'), { onCapture: (file) => {
-    // La cámara solo captura imágenes; el adjunto se sube aparte si se implementa
-    console.log('[cam] imagen capturada (adjunto pendiente de implementar)', file?.name);
-  }});
+  const cam = initCamara({ host: el('camBox'), el, ars: () => S.ars, services: () => S.services });
 
   // ---------------------------------------------------------------- Cita previa
   if (citaId) {
@@ -208,14 +205,8 @@ export async function render(main, ctx) {
   }
 
   // ------------------------------------------------------------ identificadores de captura
-  async function refreshIdentifiers(provider, ars2, service) {
-    const box = el('capture-identifiers');
-    if (!box) return;
-    try {
-      const identifiers = await captureIdentifiers(provider, ars2, service);
-      paint(box, identifiers);
-    } catch (_) { paint(box, html``); }
-  }
+  // captureIdentifiers(host) devuelve async refresh(provider, ars, service) que pinta en host.
+  const refreshIdentifiers = captureIdentifiers(el('capture-identifiers'));
 
   // ------------------------------------------------------------ documentos requeridos
   async function loadReqDocs() {
