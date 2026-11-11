@@ -23,8 +23,10 @@ try {
     export async function activeArs() {return [{id:'ars',name:'ARS ficticia'}];}
     export async function claimDuplicateCandidates() {
       if(window.duplicateFailure) throw new Error('Consulta no disponible');
-      return [{line_id:'a',other_line_id:'b',folio:'REC-A',other_folio:'REC-B',patient_name:'Paciente ficticio',member_number:'FICTICIO',service_date:'2026-09-28',authorization_date:'2026-09-28',authorization_number:'AUT-A',other_authorization_number:'AUT-B',service_name:'Consulta',other_service_name:'Seguimiento',matched_fields:['NSS','Fecha servicio','Fecha autorización'],blocks_radicacion:!window.reviewDecision,review_decision:window.reviewDecision,suggested_solution:'Compare ambas reclamaciones.'}];
+      return [{line_id:'a',other_line_id:'b',folio:'REC-A',other_folio:'REC-B',patient_name:'Paciente ficticio',member_number:'FICTICIO',service_date:'2026-09-28',authorization_date:'2026-09-28',authorization_number:'AUT-A',other_authorization_number:'AUT-B',service_name:'Consulta',other_service_name:'Seguimiento',matched_fields:['NSS','Fecha servicio','Fecha autorización'],blocks_radicacion:!['ambas_validas','no_duplicado','dato_corregido'].includes(window.reviewDecision),review_decision:window.reviewDecision,suggested_solution:'Compare ambas reclamaciones.'}];
     }
+    export async function requestClaimDuplicateExclusion(input){return {id:'request-test',status:'pendiente'};}
+    export async function listClaimDuplicateResolutionRequests(){return [];}
     export async function reviewClaimDuplicate(a,b,decision,reason) {if(window.saveFailure)throw new Error('No se pudo guardar');window.savedReview={a,b,decision,reason};window.reviewDecision=decision;return 1;}`
   };
   if (path in mocks) return route.fulfill({ contentType: path === '/' ? 'text/html' : 'text/javascript', body: mocks[path] });
@@ -68,7 +70,7 @@ try {
  await page.evaluate(()=>window.saveFailure=false);
  await page.getByRole('button',{name:'Guardar decisión',exact:true}).click();
  await page.getByRole('dialog').waitFor({state:'detached'});
- await page.getByText('Revisada: Ambas válidas',{exact:true}).waitFor();
+ await page.getByText('Ambas válidas · decisión registrada',{exact:true}).waitFor();
  assert.deepEqual(await page.evaluate(()=>savedReview),{a:'a',b:'b',decision:'ambas_validas',reason:'Son servicios diferentes autorizados.'});
  await page.locator('#coreDup [data-core-review]').click();
  assert.equal(await page.locator('#dup_dec').inputValue(),'ambas_validas');
