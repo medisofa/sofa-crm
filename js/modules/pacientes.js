@@ -90,7 +90,7 @@ export async function render(root) {
     if (!query) rows = rows.slice(0, pageSize);
     res.replaceChildren(table([
       { label: 'Paciente', get: (r) => h('button', { class: 'i18-link', type: 'button', onclick: () => open(r.id) }, r.name) },
-      { label: 'Documento', get: (r) => r.doc || '—' },
+      { label: 'Cédula', get: (r) => r.doc || '—' },
       { label: 'Afiliado', get: (r) => r.member || '—' },
       { label: 'Teléfono', get: (r) => r.phone || '—' }], rows));
     if (!query && (page > 0 || hasNext)) {
@@ -200,7 +200,7 @@ export async function render(root) {
     if (ins) Object.assign(p, { ars_id: ins.ars_id, plan_id: ins.plan_id });
     const edit = h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => form(p) }, 'Editar');
     card.replaceChildren(h('section', { class: 'i18-card' }, h('h3', {}, p.name), edit,
-      h('p', { class: 'i18-sub' }, `Documento: ${p.doc || '—'} · Nacimiento: ${fmtDate(p.birth_date)} · Sexo: ${SEX[p.sex] || '—'} · Tel.: ${p.phone || '—'} · Afiliado: ${p.member || '—'}`),
+      h('p', { class: 'i18-sub' }, `Cédula: ${p.doc || '—'} · Nacimiento: ${fmtDate(p.birth_date)} · Sexo: ${SEX[p.sex] || '—'} · Tel.: ${p.phone || '—'} · Afiliado: ${p.member || '—'}`),
       h('p', { class: 'i18-sub' }, `Seguro: ${ins?.ars ? `${ins.ars} · ${ins.plan || 'plan no indicado'}` : 'sin seguro registrado'}`),
       portalBox(id, p),
       p.notes ? note(p.notes) : null,
