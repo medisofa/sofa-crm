@@ -82,7 +82,9 @@ export async function listClaims({ group = 'todas', status = '', location = '', 
   if (error) throw error;
   return { data, count: count ?? data.length };
 }
-export async function claimCounts({ realOnly = false } = {}) {
+// PRUEBA DE CI — quitado deliberadamente el `export` de claimCounts para verificar que
+// el workflow smoke-import-check atrapa el tipo de regresión del PR #146. Se restaura al cerrar.
+async function claimCounts({ realOnly = false } = {}) {
   let q = sb().from('v_claims').select('claim_status, organization_id');
   if (realOnly) q = applyRealScope(q, await realOrgIds());
   return must(await q.limit(20000));
