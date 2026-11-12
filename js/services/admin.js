@@ -45,6 +45,16 @@ export async function setMilestoneDone(id, done) {
 /** Revisión de accesos: correo, estado y último ingreso (Admin, Super Admin y Auditor) */
 export async function usersOverview() { return must(await sb().rpc('users_overview')); }
 
+/** 5.31.0 · Super Admin edita el perfil (nombre y teléfono) de otros usuarios.
+ *  La bitácora queda registrada por el trigger profiles_audit en audit_log. */
+export async function adminUpdateUserProfile(userId, fullName, phone) {
+  return must(await sb().rpc('admin_update_user_profile', {
+    p_user: userId,
+    p_full_name: fullName == null ? null : String(fullName),
+    p_phone: phone == null ? null : String(phone)
+  }));
+}
+
 /**
  * Llama a la Edge Function "admin-users" (invitar, reenviar, cambiar rol).
  * La clave de servicio vive en Supabase; aquí solo viaja la sesión del usuario.

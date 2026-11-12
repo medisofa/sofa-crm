@@ -98,6 +98,7 @@ export async function enterViewAs(org, target = null) {
   state.membership = { organization_id: org.id, organization: org.legal_name, kind: 'client', role, role_name: VIEW_AS_ROLE_NAME[role] || role };
   state.viewAs = { sessionId, orgId: org.id, orgName: org.legal_name, targetName: target?.name || null, role };
   viewAsState.active = true;
+  document.documentElement.dataset.supportView = '1';   // 5.31.0 · activa el difuminado de PII vía CSS
   layout();
   history.replaceState(null, '', `#/${homeRoute(role)}`);
   route();
@@ -107,6 +108,7 @@ async function exitViewAs() {
   const { sessionId } = state.viewAs;
   state.role = state.real.role; state.membership = state.real.membership; state.real = null; state.viewAs = null;
   viewAsState.active = false;
+  delete document.documentElement.dataset.supportView;   // 5.31.0 · desactiva el difuminado de PII
   supportViewEnd(sessionId).catch(() => { /* la sesión se cierra sola por antigüedad si esto falla */ });
   layout();
   history.replaceState(null, '', `#/${homeRoute(state.role)}`);
@@ -206,6 +208,7 @@ async function boot() {
         state.membership = { organization_id: av.org_id, organization: av.org_name, kind: 'client', role: av.role_code, role_name: VIEW_AS_ROLE_NAME[av.role_code] || av.role_code };
         state.viewAs = { sessionId: av.session_id, orgId: av.org_id, orgName: av.org_name, targetName: av.target_name || null, role: av.role_code };
         viewAsState.active = true;
+        document.documentElement.dataset.supportView = '1';   // 5.31.0 · restaura el difuminado de PII si la sesión seguía abierta
       }
     } catch (_) { /* si no se pudo comprobar, se sigue con el rol normal: nunca bloquea el arranque */ }
   }
@@ -451,7 +454,7 @@ function toggleMenu(open) {
   // «Mis módulos») quedaba alcanzable por teclado y lector de pantalla pese a estar oculto
   // visualmente tras el velo. `inert` lo saca del tabulado y de la accesibilidad mientras dure.
   $('#appContent')?.toggleAttribute('inert', !!open);
-  if (restoreCatalogFocus) { (getMenuLayout() === 'horizontal' && innerWidth >= 1000 ? $('#topnavCatalog') : $('#menuBtn'))?.focus(); }
+  if (restoreCatalogFocus) { (getMenuLayout() === 'horizontal' && innerWidth >= 900 ? $('#topnavCatalog') : $('#menuBtn'))?.focus(); }
 }
 function closeUserMenu() { $('.menu-pop')?.remove(); ['userBtn','topnavUserBtn'].forEach(id => document.getElementById(id)?.setAttribute('aria-expanded', 'false')); }
 function openUserMenu() {

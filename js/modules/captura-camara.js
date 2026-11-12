@@ -47,7 +47,7 @@ export function initCamara({ host, el, ars, services }) {
         <button type="button" class="btn sm" id="camDrop">Quitar</button></span>` : ''}
       ${pend ? html`<span class="cam-thumbs">${pend.pages.map((p, i) => html`<img class="cam-th" src="${p.url}" alt="Página ${i + 1}">`)}</span>` : ''}
     </div>`);
-    $('#camOpen', host).addEventListener('click', abrir);
+    $('#camOpen', host)?.addEventListener('click', abrir);
     $('#camDrop', host)?.addEventListener('click', limpiarPend);
   }
 

@@ -265,6 +265,11 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .cs-tl{list-style:none;margin:8px 0 0;padding:0 0 0 14px;border-left:2px solid var(--border)}
 .cs-tl li{margin:0 0 8px}.cs-tl .cs-int{opacity:.75;font-style:italic}
 .cs-over{color:var(--bad);font-weight:600}
+/* 5.31.0 · Mi cuenta con SOFA: bitácora y resumen ARS */
+.cs-feed{display:grid;gap:8px}
+.cs-feed-row{padding:10px 14px}
+.cs-feed-row p{margin:4px 0 0}
+.cs-ars{display:grid;gap:12px}
 .i18-note.i18-warn{background:var(--warn-bg);color:var(--warn)}
 /* 3.1 a 3.5 · Iteraciones 41 a 45 */
 .ecf-l{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;white-space:nowrap}
@@ -1423,3 +1428,18 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .patient-flow .flow-footnote{font-size:.74rem;color:var(--ink-2);margin:18px 0 0;line-height:1.6}
 @container(max-width:800px){.patient-flow .flow-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-flow .flow-search{grid-column:1/-1}.patient-flow .flow-controls>#fp-refresh{grid-column:1/-1}}
 @container(max-width:460px){.patient-flow .flow-controls{grid-template-columns:minmax(0,1fr);padding:13px}.patient-flow .flow-board{grid-template-columns:minmax(0,1fr)}.patient-flow .flow-update{display:grid;gap:4px}.patient-flow .flow-card{padding:15px}}
+
+/* ===== Actualidades médicas ===== */
+.act-wrap{display:grid;gap:20px}
+.act-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0}
+.act-tab{padding:7px 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2);font:inherit;font-size:.85rem;cursor:pointer;transition:background .15s,color .15s}
+.act-tab:hover{background:var(--surface-2);color:var(--ink)}
+.act-tab.activa{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+.act-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.act-card{display:grid;gap:6px;border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--surface);text-decoration:none;color:inherit;transition:box-shadow .15s,border-color .15s}
+.act-card:hover{border-color:var(--navy-3);box-shadow:0 2px 8px rgba(34,58,93,.1)}
+.act-etiqueta{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy-3)}
+.act-titulo{font-size:.97rem;font-weight:700;color:var(--heading);line-height:1.3}
+.act-desc{margin:0;font-size:.85rem;color:var(--ink-2);line-height:1.55}
+.act-link{font-size:.8rem;color:var(--navy-3);margin-top:4px}
+.act-pie{font-size:.8rem;color:var(--ink-3);margin:4px 0 0}
