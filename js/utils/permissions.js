@@ -29,7 +29,7 @@ const NO_OPS = (list) => list.filter((r) => r !== 'operations');
  * BILLING_ROUTES es la única lista que hay que tocar para cambiar su alcance.
  * 1.9.0: se agrega «Mi dashboard» (primera página de todos los roles).
  */
-export const BILLING_ROUTES = ['hospitalizacion', 'autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades', 'carga-google', 'puesta-al-dia'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso») // 28/10/2026: + Carga Google Sheets/Form — ESENCIALES.billing ya lo asignaba al menú, pero este filtro lo bloqueaba antes de llegar (quedaba un ítem muerto)
+export const BILLING_ROUTES = ['hospitalizacion', 'autoentrenamiento', 'mi-dashboard', 'hoy', 'dashboard', 'captura', 'reclamaciones', 'retiros', 'radicaciones', 'perfil', 'diagnostico', 'cambio-clave', 'seguridad', 'mi-bandeja', 'reconsideracion', 'expediente', 'mis-avisos', 'novedades', 'actualidades', 'carga-google', 'puesta-al-dia'];   // 4.9 · I59: + Mi bandeja · 5.0 · I60/I62/I63: + Reconsideración, Expediente digital y Mis avisos // 2.0: + cambiar contraseña y seguridad (antes «Cambiar contraseña» le daba «Sin acceso») // 28/10/2026: + Carga Google Sheets/Form — ESENCIALES.billing ya lo asignaba al menú, pero este filtro lo bloqueaba antes de llegar (quedaba un ítem muerto)
 
 /**
  * Menú (§33). iteration = cuándo llega el módulo completo.
@@ -175,7 +175,8 @@ export const NAV = [
     { route: 'mi-suscripcion', label: 'Mi suscripción', roles: ['client', 'super_admin', 'admin'], ready: true },   // 4.9 · P2
     { route: 'mi-puesta-en-marcha', label: 'Mi puesta en marcha', roles: ['client'], ready: true },   // 4.9 · I56
     { route: 'mis-avisos', label: 'Mis avisos por correo', roles: ['client', 'super_admin', 'admin', 'operations', 'billing', 'glosas'], ready: true },   // 5.0 · I63
-    { route: 'novedades', label: 'Novedades', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },   // 5.5.0 · I65
+    { route: 'novedades', label: 'Novedades (versiones)', roles: STAFF, ready: true },   // 5.5.0 · I65 · 5.30.0: solo staff; los médicos ven «Actualidades»
+    { route: 'actualidades', label: 'Actualidades médicas', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },   // 5.30.0 · noticias y recursos curados para profesionales
     { route: 'perfil', label: 'Mi perfil', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },
     { route: 'seguridad', label: 'Seguridad (dos pasos)', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },   // 2.0 · MFA
     { route: 'diagnostico', label: 'Diagnóstico', roles: [...ALL, 'capturer', 'asistente', 'prospect'], ready: true },
@@ -216,7 +217,7 @@ export const ESENCIALES = {
            'captura', 'hospitalizacion',
            'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados',
            'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros',
-           'mi-panel', 'mi-cuenta-sofa', 'novedades', 'perfil', 'seguridad'],
+           'mi-panel', 'mi-cuenta-sofa', 'actualidades', 'perfil', 'seguridad'],
     // 18/10/2026: estas cinco vuelven, pero SOLO en «extra»: alcanzables desde un botón de
     // «Mi dinero» o «Mis glosas», sin llenarle el menú. Sin esto, el PDF del estado de cuenta
     // y las fechas de cobro quedaban construidos y fuera del alcance del médico, y tres notas
@@ -233,21 +234,21 @@ export const ESENCIALES = {
   capturer: {
     menu: ['mi-dashboard', 'agenda', 'flujo-pacientes', 'verificacion', 'pacientes', 'captura', 'reclamaciones',
            'expediente', 'saldos-pacientes', 'mensajes', 'documentos-consultorio', 'perfil', 'seguridad'],
-    extra: ['hoy', 'calidad-captura', 'insumos', 'pagos-privados', 'novedades', 'diagnostico', 'cambio-clave']
+    extra: ['hoy', 'calidad-captura', 'insumos', 'pagos-privados', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
   // Asistente de consulta · 29/10/2026 · ayuda al médico en consulta: mueve el flujo de pacientes
   // y, si el médico lo autoriza (can_hc), lee y escribe la Historia clínica.
   asistente: {
     menu: ['mi-dashboard', 'flujo-pacientes', 'historia-clinica', 'perfil', 'seguridad'],
-    extra: ['hoy', 'novedades', 'diagnostico', 'cambio-clave']
+    extra: ['hoy', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
   // Facturación · perfil de referencia desde el 01/10/2026. BILLING_ROUTES sigue siendo su tope.
   billing: {
     menu: ['mi-dashboard', 'hoy', 'mi-bandeja', 'hospitalizacion', 'captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente',
            'retiros', 'radicaciones', 'reconsideracion', 'perfil', 'seguridad'],
-    extra: ['hospitalizacion', 'dashboard', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
+    extra: ['hospitalizacion', 'dashboard', 'mis-avisos', 'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
   // Cobros · aplicar el pago de la ARS, repartirlo, conciliar el banco y pelear la glosa.
@@ -260,7 +261,7 @@ export const ESENCIALES = {
     extra: ['inicio', 'expediente', 'contratos', 'radicaciones', 'preauditoria', 'tareas',
             'mis-horas', 'documentos', 'clientes', 'medicos', 'casos-servicio', 'insumos',
             'dashboard', 'reportes', 'informe-trimestral', 'auditoria-expedientes', 'guias',
-            'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
+            'mis-avisos', 'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
   // Comercial · conseguir el cliente, proponerle, incorporarlo y mantenerlo sano.
@@ -273,7 +274,7 @@ export const ESENCIALES = {
     extra: ['inicio', 'mis-horas', 'casos-servicio', 'mi-habilitacion', 'radicaciones',
             'expediente', 'ecf',   // conserva dossier.upload y ecf.steps en la matriz de acciones
             'mi-plan', 'guias', 'reportes', 'dashboard', 'informe-trimestral', 'documentos',
-            'novedades', 'diagnostico', 'cambio-clave']
+            'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
   // Auditor · decide si el expediente está completo y deja constancia.
@@ -289,7 +290,7 @@ export const ESENCIALES = {
             'codificacion', 'ars', 'preradicacion', 'ecf', 'retiros', 'vencimientos',
             'brechas-tarifa', 'codigos-ars', 'tarifas-versiones', 'habilitacion',
             'mi-habilitacion', 'insumos', 'mercado', 'oportunidades', 'prospectos',
-            'contactos', 'aliados', 'casos-exito', 'novedades', 'diagnostico', 'cambio-clave']
+            'contactos', 'aliados', 'casos-exito', 'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
   // Operaciones · retiro físico, validación, radicación, calidad de captura y puesta en marcha.
@@ -308,7 +309,7 @@ export const ESENCIALES = {
             'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones',
             'causas-glosa', 'analitica-glosas', 'auditoria-expedientes', 'insumos',
             'mi-habilitacion', 'documentos', 'rendimiento', 'informe-trimestral', 'reportes',
-            'mis-horas', 'mis-avisos', 'novedades', 'diagnostico', 'cambio-clave']
+            'mis-horas', 'mis-avisos', 'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
   // Administrador · administra SOFA como empresa. extra:'*' = NO se le retira nada;
@@ -331,7 +332,7 @@ export const ESENCIALES = {
   // Prospecto · solo el avance de su incorporación.
   prospect: {
     menu: ['mi-incorporacion', 'perfil', 'seguridad'],
-    extra: ['novedades', 'diagnostico', 'cambio-clave']
+    extra: ['actualidades', 'diagnostico', 'cambio-clave']
   }
 };
 

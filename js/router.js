@@ -73,7 +73,9 @@ export const MODULES = {
   // 5.28.0 · admin · historial de acciones del sistema
   'historial': 'historial-acciones.js',
   // 5.29.0 · médico · panel unificado (cobros ARS + habilitación + cuenta SOFA)
-  'mi-panel': 'mi-panel.js'
+  'mi-panel': 'mi-panel.js',
+  // 5.30.0 · actualidades médicas curadas para profesionales de la salud
+  'actualidades': 'actualidades.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 

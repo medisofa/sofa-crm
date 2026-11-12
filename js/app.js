@@ -451,7 +451,7 @@ function toggleMenu(open) {
   // «Mis módulos») quedaba alcanzable por teclado y lector de pantalla pese a estar oculto
   // visualmente tras el velo. `inert` lo saca del tabulado y de la accesibilidad mientras dure.
   $('#appContent')?.toggleAttribute('inert', !!open);
-  if (restoreCatalogFocus) { (getMenuLayout() === 'horizontal' && innerWidth >= 1000 ? $('#topnavCatalog') : $('#menuBtn'))?.focus(); }
+  if (restoreCatalogFocus) { (getMenuLayout() === 'horizontal' && innerWidth >= 900 ? $('#topnavCatalog') : $('#menuBtn'))?.focus(); }
 }
 function closeUserMenu() { $('.menu-pop')?.remove(); ['userBtn','topnavUserBtn'].forEach(id => document.getElementById(id)?.setAttribute('aria-expanded', 'false')); }
 function openUserMenu() {
