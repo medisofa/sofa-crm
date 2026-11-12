@@ -1,7 +1,7 @@
 /** SOFA · Usuarios y roles: invitaciones, cambio de rol, activación, restablecer contraseña (2.1) y revisión periódica de accesos */
 import { html, render as paint, $ } from '../utils/dom.js';
 import { emptyView, toast, friendlyError, confirmDialog, busy, formDialog, opt, requireFields, fieldError } from '../utils/ui.js';
-import { listMemberships, setUserActive, usersOverview, adminUsers } from '../services/admin.js';
+import { listMemberships, setUserActive, usersOverview, adminUsers, adminUpdateUserProfile, getProfile } from '../services/admin.js';
 import { clientOptions } from '../services/bi.js';
 import { downloadCsv } from '../utils/filters.js';
 import { can, canSee, ROLES } from '../utils/permissions.js';
@@ -161,6 +161,7 @@ export async function render(main, ctx) {
             ${manage && u.email && !u.sharedEmail ? html`
               ${can('users.reset', ctx.role) ? html`<button class="btn sm" data-act="reset" data-user="${u.user_id}" data-name="${u.full_name || u.email}">Restablecer contraseña</button>` : ''}
               <button class="btn sm" data-act="resend" data-user="${u.user_id}" data-email="${u.email}">Enviar acceso</button>
+              ${ctx.role === 'super_admin' ? html`<button class="btn sm" data-act="editProfile" data-user="${u.user_id}" data-name="${u.full_name || ''}" data-phone="${u.phone || ''}" data-email="${u.email}" title="Editar nombre y teléfono del usuario. Cada cambio queda en la bitácora.">Editar perfil</button>` : ''}
               ${ctx.role === 'super_admin' && !u.last_sign_in_at ? html`<button class="btn sm" data-act="forcePassword" data-user="${u.user_id}" data-email="${u.email}" data-name="${u.full_name || u.email}" title="Para cuando el correo de invitación o de recuperación nunca llega: confirma el correo y asigna una contraseña temporal sin depender del envío">Activar ahora con clave temporal</button>` : ''}` : ''}
             ${canToggle && u.is_active !== null && (!u.is_active || u.memberships.length <= 1) ? html`<button class="btn sm ${u.is_active ? 'danger' : ''}" data-act="toggle" data-user="${u.user_id}" data-active="${u.is_active ? '0' : '1'}" data-name="${u.full_name || u.email}">${u.is_active ? 'Desactivar cuenta' : 'Activar cuenta'}</button>` : ''}
             ${canToggle && u.is_active && u.memberships.length > 1 ? html`<p class="small muted" title="Esta cuenta tiene más de un rol/organización: «Desactivar cuenta» la apagaría por completo de un golpe. Use «Revocar accesos seleccionados» para elegir cuáles.">Tiene ${u.memberships.length} accesos: use «Revocar accesos seleccionados» para elegir cuáles desactivar.</p>` : ''}
@@ -254,6 +255,21 @@ export async function render(main, ctx) {
     if (b.dataset.act === 'viewas') {
       const { enterViewAs } = await import('../app.js');
       await enterViewAs({ id: b.dataset.org, legal_name: b.dataset.orgname }, { userId: b.dataset.user, role: b.dataset.role, name: b.dataset.name });
+      return;
+    }
+    if (b.dataset.act === 'editProfile') {
+      // 5.31.0 · Super Admin edita nombre y teléfono del usuario. La bitácora queda en audit_log
+      // por el trigger profiles_audit, que registra actor (auth.uid()) y campos cambiados.
+      try {
+        // Carga el perfil fresco por si el nombre o teléfono cambió desde la última vista:
+        const fresh = await getProfile(b.dataset.user).catch(() => null);
+        const r = await editProfileDialog({
+          userId: b.dataset.user, email: b.dataset.email,
+          fullName: fresh?.full_name ?? b.dataset.name,
+          phone: fresh?.phone ?? b.dataset.phone
+        });
+        if (r) { toast(`Perfil de ${r.full_name} actualizado. Cambio registrado en la bitácora.`, 'ok'); load(); }
+      } catch (err) { toast(friendlyError(err), 'bad'); }
       return;
     }
     if (b.dataset.act === 'revoke') {
@@ -422,6 +438,32 @@ async function validateUser(u, reload, { allowActivation = false } = {}) {
       toast('Usuario validado y activado', 'ok');
       await reload();
       return true;
+    }
+  });
+}
+
+/**
+ * 5.31.0 · Super Admin edita el perfil (nombre y teléfono) de otro usuario. La bitácora queda
+ * registrada por el trigger profiles_audit en audit_log: cada cambio queda con fecha, actor
+ * (super_admin que lo hizo) y los valores antes/después. No se puede saltar vía UI porque la RPC
+ * subyacente valida el rol en el servidor.
+ */
+async function editProfileDialog({ userId, email, fullName, phone }) {
+  return formDialog({
+    title: `Editar perfil · ${fullName || email || 'Usuario'}`,
+    submitLabel: 'Guardar y registrar en bitácora',
+    body: html`<p class="small">Cambia el nombre y el teléfono del usuario. Cada modificación queda registrada en el <b>Historial de acciones</b> con tu identificador, la fecha y los valores antes/después. El correo no se edita aquí — para cambiar el correo abre una invitación nueva al correo correcto y revoca el acceso viejo.</p>
+      ${f('full_name', 'Nombre completo *', html`<input id="f_full_name" name="full_name" required maxlength="120" value="${fullName || ''}">`, 'Entre 3 y 120 caracteres.')}
+      ${f('phone', 'Teléfono', html`<input id="f_phone" name="phone" type="tel" maxlength="40" value="${phone || ''}">`, 'Opcional. Formato libre (con o sin «+», espacios, guiones).')}
+      ${email ? html`<p class="small muted">Correo (no editable): ${email}</p>` : ''}`,
+    onSubmit: async (d, form) => {
+      if (!requireFields(form, ['full_name'])) return false;
+      const name = String(d.full_name || '').trim();
+      if (name.length < 3) { fieldError(form.elements.full_name, 'Usa al menos 3 caracteres.'); return false; }
+      if (name === (fullName || '') && String(d.phone || '').trim() === (phone || '')) {
+        toast('No hubo cambios que guardar.', 'warn'); return false;
+      }
+      return adminUpdateUserProfile(userId, name, String(d.phone || '').trim() || null);
     }
   });
 }
