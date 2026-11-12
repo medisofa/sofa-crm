@@ -296,6 +296,36 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .di-target{position:absolute;left:0;right:0;border-top:2px dashed var(--warn);z-index:1}
 /* 4.1 a 4.5 · Iteraciones 51 a 55 */
 .qt-recs li{margin:0 0 8px}.ob-ms{padding-left:20px}.ob-ms li{margin:0 0 8px}.ob-ms li.ob-done strong{color:var(--ok)}.ob-ms li.ob-late strong{color:var(--bad)}
+/* 5.33.0 · Onboarding por etapas con porcentajes visibles */
+.ob-overview{display:grid;gap:6px;margin:6px 0 18px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.ob-overview-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ob-overview-label{font-size:.85rem;color:var(--ink-2);font-weight:600}
+.ob-overview-val{font-size:.9rem;color:var(--heading);font-weight:700}
+.ob-bar{height:10px;border-radius:999px;background:var(--surface);overflow:hidden}
+.ob-bar-lg{height:14px;margin-bottom:4px}
+.ob-bar-sm{height:8px}
+.ob-bar-fill{height:100%;background:linear-gradient(90deg,var(--navy-3),var(--navy));border-radius:999px;transition:width .4s ease}
+.ob-bar-fill-ghost{background:var(--ink-3);opacity:.55}
+.ob-stepper{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:0 0 18px}
+.ob-step{position:relative;display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);transition:border-color .15s,box-shadow .15s}
+.ob-step-completa{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 6%,var(--surface))}
+.ob-step-actual{border-color:var(--navy-3);box-shadow:0 2px 10px rgba(34,58,93,.14)}
+.ob-step-futura{opacity:.72}
+.ob-step-badge{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700;background:var(--surface-2);color:var(--ink-2)}
+.ob-step-completa .ob-step-badge{background:var(--ok);color:#fff}
+.ob-step-actual .ob-step-badge{background:var(--navy);color:#fff}
+.ob-step-body{display:grid;gap:4px;min-width:0}
+.ob-step-title{font-weight:700;color:var(--heading);font-size:.95rem}
+.ob-step-descr{font-size:.78rem;color:var(--ink-2);line-height:1.4}
+.ob-step-meter{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-top:4px}
+.ob-step-fill{height:100%;border-radius:999px;background:var(--navy-3);transition:width .4s ease}
+.ob-step-completa .ob-step-fill{background:var(--ok)}
+.ob-step-foot{font-size:.78rem;color:var(--ink-2);margin-top:2px}
+.ob-details{margin:6px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.ob-details[open]{box-shadow:0 1px 4px rgba(34,58,93,.06)}
+.ob-details summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:4px;font-size:.92rem}
+.ob-details summary::-webkit-details-marker{display:none}
+.ob-summary-pct{font-size:.82rem;color:var(--ink-2);font-weight:500}
 .i18-card blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--border);font-style:italic}
 /* 4.5.2 · Captura por cámara (usa las variables del tema: claro y oscuro) */
 .cam-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
