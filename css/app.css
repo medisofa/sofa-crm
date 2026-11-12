@@ -103,6 +103,23 @@
 .banner.offline { background: var(--warn-bg); color: var(--warn); }
 .banner.viewas { background: var(--info-bg); color: var(--info); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .banner.viewas .btn { margin-left: auto; }
+/* 5.31.0 · «Ver como»: datos privados difuminados (PII).
+   Un soporte que entra «como el cliente» ve la estructura de pantalla y los menús,
+   pero no los datos reales del paciente (nombre, cédula, teléfono, monto). El cliente
+   final al que se le da soporte nunca ve esto: solo super_admin con viewAs activo.
+   El filtro bloquea texto nítido; pointer-events y user-select evitan clic/copia. */
+html[data-support-view] .pii {
+  filter: blur(5px);
+  user-select: none;
+  pointer-events: none;
+  transition: filter .15s ease;
+}
+html[data-support-view] .pii:hover {
+  /* el soporte revela una PII bajo hover intencional si necesita verla para asistir */
+  filter: blur(0);
+  pointer-events: auto;
+  user-select: text;
+}
 main.page { padding: 20px 16px 72px; max-width: 1200px; width: 100%; margin: 0 auto; min-width: 0; }
 /* 760–899 px · tabletas en vertical: más aire sin llegar al padding de escritorio */
 @media (min-width: 760px) and (max-width: 899px) { main.page { padding: 20px 20px 76px; } }

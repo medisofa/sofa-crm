@@ -3,6 +3,7 @@
  *  2.6.1: ARS y PLAN del paciente; sus reclamaciones se tarifan con la tarifa del plan cuando existe. */
 import { rpc, providerOptions, patientPage, h, money, fmtDate, note, guarded, table } from '../services/iter18.js';
 import { confirmDialog } from '../utils/ui.js';
+import { pii } from '../utils/view-as-state.js';
 
 const SEX = { F: 'Femenino', M: 'Masculino', X: 'No especificado' };
 
@@ -89,10 +90,12 @@ export async function render(root) {
     const hasNext = !query && rows.length > pageSize;
     if (!query) rows = rows.slice(0, pageSize);
     res.replaceChildren(table([
-      { label: 'Paciente', get: (r) => h('button', { class: 'i18-link', type: 'button', onclick: () => open(r.id) }, r.name) },
-      { label: 'Cédula', get: (r) => r.doc || '—' },
-      { label: 'Afiliado', get: (r) => r.member || '—' },
-      { label: 'Teléfono', get: (r) => r.phone || '—' }], rows));
+      // 5.31.0 · Nombre, cédula, afiliado y teléfono se difuminan en modo «Ver como»:
+      // el soporte ve la estructura del listado pero no la PII del paciente del cliente.
+      { label: 'Paciente', get: (r) => h('button', { class: 'i18-link', type: 'button', onclick: () => open(r.id) }, pii(r.name)) },
+      { label: 'Cédula', get: (r) => pii(r.doc || '—') },
+      { label: 'Afiliado', get: (r) => pii(r.member || '—') },
+      { label: 'Teléfono', get: (r) => pii(r.phone || '—') }], rows));
     if (!query && (page > 0 || hasNext)) {
       res.append(h('div', { class: 'i18-bar' },
         h('button', { class: 'i18-btn i18-sec', type: 'button', disabled: page === 0, onclick: () => { page--; search(false); } }, 'Anterior'),
@@ -199,8 +202,14 @@ export async function render(root) {
     const ins = await rpc('patient_plan', { p_patient: id }).catch(() => null);
     if (ins) Object.assign(p, { ars_id: ins.ars_id, plan_id: ins.plan_id });
     const edit = h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: () => form(p) }, 'Editar');
-    card.replaceChildren(h('section', { class: 'i18-card' }, h('h3', {}, p.name), edit,
-      h('p', { class: 'i18-sub' }, `Cédula: ${p.doc || '—'} · Nacimiento: ${fmtDate(p.birth_date)} · Sexo: ${SEX[p.sex] || '—'} · Tel.: ${p.phone || '—'} · Afiliado: ${p.member || '—'}`),
+    // 5.31.0 · El H3 y la línea de identificadores se arman por piezas para poder
+    // difuminar nombre, cédula, teléfono y nº de afiliado en modo «Ver como».
+    const title = h('h3', {}, pii(p.name));
+    const subId = h('p', { class: 'i18-sub' },
+      'Cédula: ', pii(p.doc || '—'),
+      ` · Nacimiento: ${fmtDate(p.birth_date)} · Sexo: ${SEX[p.sex] || '—'} · Tel.: `, pii(p.phone || '—'),
+      ' · Afiliado: ', pii(p.member || '—'));
+    card.replaceChildren(h('section', { class: 'i18-card' }, title, edit, subId,
       h('p', { class: 'i18-sub' }, `Seguro: ${ins?.ars ? `${ins.ars} · ${ins.plan || 'plan no indicado'}` : 'sin seguro registrado'}`),
       portalBox(id, p),
       p.notes ? note(p.notes) : null,
