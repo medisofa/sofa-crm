@@ -29,7 +29,7 @@ export async function render(root) {
     out.replaceChildren(
       note(`${num(rows.length)} paciente(s) con saldo · Total pendiente ${money(total)}`),
       table([
-        { label: 'Paciente', get: (r) => r.name }, { label: 'Documento', get: (r) => r.doc || '—' },
+        { label: 'Paciente', get: (r) => r.name }, { label: 'Cédula', get: (r) => r.doc || '—' },
         { label: 'Cobros', right: true, get: (r) => num(r.charges) }, { label: 'Saldo', right: true, get: (r) => money(r.amount) },
         { label: 'Desde', get: (r) => `${fmtDate(r.oldest)} (${num(r.days)} días)` },
         { label: 'Último recordatorio', get: (r) => (r.last_reminder ? fmtDate(r.last_reminder) : '—') },

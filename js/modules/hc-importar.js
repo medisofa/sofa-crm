@@ -1,6 +1,6 @@
 /** SOFA · 2.5 · Iteración 35 · Importar historias clínicas de otro sistema (Excel o CSV).
  *  2.6.1: lo usa solo el Super Admin desde «Historia clínica: control»; las notas quedan a nombre del médico elegido (opts.author).
- *  Una fila por consulta: Documento, Nombre, Fecha, Texto y, si hay, Diagnósticos, Fecha de nacimiento y Sexo.
+ *  Una fila por consulta: Cédula, Nombre, Fecha, Texto y, si hay, Diagnósticos, Fecha de nacimiento y Sexo.
  *  Vista previa sin guardar nada; al confirmar cada fila queda como nota «Historia importada», cifrada y firmada por quien importa. */
 import { h, fmtDate, note } from '../services/iter18.js';
 import { confirmDialog } from '../utils/ui.js';
@@ -24,7 +24,7 @@ export function importPanel(main, org, rpc, opts = {}) {
   let rows = null; let fname = '';
   main.replaceChildren(h('section', { class: 'i18-card hc-form' },
     h('h3', { style: 'margin-top:0' }, 'Importar historias de otro sistema'),
-    note(`Archivo con una fila por consulta. Columnas: Documento, Nombre, Fecha, Texto (obligatorias) y Diagnósticos, Fecha de nacimiento, Sexo (opcionales). Si el paciente no existe se crea su ficha. Nada se guarda hasta que confirme. Máximo 1,000 filas por archivo.${opts.authorName ? ` Las notas quedarán a nombre de ${opts.authorName}.` : ''}`),
+    note(`Archivo con una fila por consulta. Columnas: Cédula, Nombre, Fecha, Texto (obligatorias) y Diagnósticos, Fecha de nacimiento, Sexo (opcionales). Si el paciente no existe se crea su ficha. Nada se guarda hasta que confirme. Máximo 1,000 filas por archivo.${opts.authorName ? ` Las notas quedarán a nombre de ${opts.authorName}.` : ''}`),
     h('label', { for: 'im-src' }, 'Sistema de origen', src), h('label', { for: 'im-file' }, 'Archivo (.xlsx o .csv)', file),
     h('div', { class: 'i18-actions' }, go), out));
   go.addEventListener('click', async () => {
@@ -36,7 +36,7 @@ export function importPanel(main, org, rpc, opts = {}) {
       if (t.length < 2) throw new Error('El archivo no tiene filas debajo de los encabezados.');
       const map = detectColumns(t[0], ALIASES);
       const miss = ['documento', 'fecha', 'texto'].filter((k) => map[k] == null);
-      if (miss.length) throw new Error(`No se reconocieron las columnas: ${miss.join(', ')}. La primera fila debe tener encabezados como «Documento», «Nombre», «Fecha» y «Texto».`);
+      if (miss.length) throw new Error(`No se reconocieron las columnas: ${miss.join(', ')}. La primera fila debe tener encabezados como «Cédula», «Nombre», «Fecha» y «Texto».`);
       rows = t.slice(1).map((r) => Object.fromEntries(Object.entries(map).map(([k, i]) => [k, k.startsWith('fecha') ? excelDate(r[i]) : (r[i] || '')])));
       const rep = await rpc('clinical_import', { p_org: org, p_rows: rows, p_source: src.value, p_commit: false, p_file: fname, p_author: author });
       preview(rep);
@@ -57,7 +57,7 @@ export function importPanel(main, org, rpc, opts = {}) {
       rep.errors.length ? h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Fila'), h('th', {}, 'Paciente'), h('th', {}, 'Problema'))),
         h('tbody', {}, rep.errors.map((e) => h('tr', {}, h('td', {}, String(e.row + 1)), h('td', {}, e.name || e.doc || '—'), h('td', {}, e.errors.join(' · '))))))) : '',
       rep.rows.length ? h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table' },
-        h('thead', {}, h('tr', {}, ['Paciente', 'Documento', 'Fecha', 'Texto', 'Diagnósticos'].map((x) => h('th', {}, x)))),
+        h('thead', {}, h('tr', {}, ['Paciente', 'Cédula', 'Fecha', 'Texto', 'Diagnósticos'].map((x) => h('th', {}, x)))),
         h('tbody', {}, rep.rows.slice(0, 50).map((r) => h('tr', {}, h('td', {}, r.name, r.new_patient ? h('span', { class: 'ac-pill st-prep', style: 'margin-left:6px' }, 'nuevo') : ''),
           h('td', {}, r.doc), h('td', {}, fmtDate(r.date)), h('td', {}, `${r.chars} caracteres`), h('td', {}, r.dx || '—')))))) : '',
       rep.rows.length > 50 ? h('p', { class: 'i18-sub' }, `Se muestran 50 de ${rep.rows.length}.`) : '',
