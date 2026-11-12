@@ -408,7 +408,7 @@ function renderTopNav() {
   const uname = state.profile?.full_name || state.session?.user?.email || '';
   render($('#topnavGroups'), html`
     <div class="tnav-p2">
-      ${groups.map((g) => html`<button type="button" class="tnb ${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}" aria-label="${g.group}" title="${g.group}" aria-pressed="${String(g.group === activeGroup.group)}">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}<span class="tnb-label">${g.group}</span></button>`)}
+      ${groups.map((g) => html`<button type="button" class="tnb ${g.group === activeGroup.group ? 'activo' : ''}" data-fam="${g.group}" data-tip="${g.group}" aria-label="${g.group}" aria-pressed="${String(g.group === activeGroup.group)}">${raw(FAMILY_ICONS[g.key] || FAMILY_ICONS.mas)}<span class="tnb-label">${g.group}</span></button>`)}
     </div>
     <div class="tnav-p1"><button type="button" class="tnav-catalog" id="topnavCatalog" aria-label="Buscar y ver todos mis módulos" aria-controls="sidebar">⌕ <span>Mis módulos</span></button>
       <button type="button" class="tnav-user" id="topnavUserBtn" aria-label="Menú de cuenta de ${uname}" aria-haspopup="menu" aria-expanded="false">
