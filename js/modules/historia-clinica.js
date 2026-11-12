@@ -7,6 +7,7 @@ import { rpc, supabase, providerOptions, clientOptions, clientName, h, fmtDate, 
 import { confirmDialog } from '../utils/ui.js';
 import { mfaState, verifyStep } from './seguridad.js';
 import { orderForm, ordersList, printOrder } from './hc-ordenes.js';
+import { pii } from '../utils/view-as-state.js';   // 5.34.0 · difumina PII del paciente en modo soporte
 
 const LOCK_MS = 5 * 60 * 1000;
 const KIND = { historia_externa: 'Historia de otro sistema', resultado: 'Resultado', imagen: 'Imagen', otro: 'Otro' };
@@ -202,7 +203,13 @@ export async function render(root, ctx = {}) {
     const sum = rec.summary || {};
     const consentOk = rec.consents.some((c) => c.kind === 'tratamiento_datos' && !c.revoked_at);
     main.replaceChildren(
-      h('div', { class: 'hc-head' }, h('h3', {}, p.name), h('span', { class: 'i18-sub' }, [p.doc, age != null ? `${age} años` : null, p.sex].filter(Boolean).join(' · '))),
+      // 5.34.0 · pii() difumina nombre y cédula cuando el modo soporte está activo. La edad
+      // y el sexo son datos clínicos relevantes para el soporte y no identifican al paciente.
+      h('div', { class: 'hc-head' }, h('h3', {}, pii(p.name)),
+        h('span', { class: 'i18-sub' },
+          p.doc ? pii(p.doc) : null,
+          p.doc && (age != null || p.sex) ? ' · ' : '',
+          [age != null ? `${age} años` : null, p.sex].filter(Boolean).join(' · '))),
       actions,
       consentOk ? '' : note(rec.mode === 'activa' ? 'Falta el consentimiento del paciente: regístrelo antes de escribir notas.' : 'Sin consentimiento registrado (en modo prueba no se exige).', rec.mode === 'activa' ? 'error' : 'info'),
       h('section', { class: 'i18-card' }, h('h4', { class: 'hc-sec' }, `Resumen clínico${rec.summary_at ? ' · ' + fmtTs(rec.summary_at) : ''}`),

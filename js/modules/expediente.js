@@ -7,6 +7,7 @@ import { h, note, kpi, guarded, clientOptions, clientName, fmtDate, pct, num } f
 import { openDocument, sizeLabel } from '../services/documents.js';
 import { camaraEnVivoDisponible, iniciarCamara, procesarFoto, subirCaptura } from '../services/camera.js';
 import * as X from '../services/expediente.js';
+import { pii } from '../utils/view-as-state.js';   // 5.34.0 · difumina PII del paciente en modo soporte
 
 const STAFF = ['super_admin', 'admin', 'operations', 'billing', 'glosas', 'assistant', 'auditor'];
 const CONFIG = ['super_admin', 'admin'];
@@ -97,7 +98,8 @@ export async function render(root, ctx = {}) {
       const tb = tabla([{ t: 'Semáforo' }, { t: 'Reclamación' }, { t: 'Paciente' }, { t: 'ARS' }, { t: 'Falta' }, { t: '' }], rows.map((r) => h('tr', { class: abierta === r.service_line_id ? 'ex-sel' : '' },
         h('td', {}, semPill(r.semaforo), r.excepted ? h('div', { class: 'i18-sub' }, 'Con excepción') : null),
         h('td', {}, r.claim_folio || '—', h('div', { class: 'i18-sub' }, `${r.submission_folio || ''} · ${fmtDate(r.service_date)}`)),
-        h('td', {}, r.patient_name), h('td', {}, r.ars || '—'),
+        // 5.34.0 · pii() difumina el nombre del paciente en modo soporte.
+        h('td', {}, pii(r.patient_name)), h('td', {}, r.ars || '—'),
         h('td', {}, (r.missing || []).length ? (r.missing || []).join(', ') : 'Nada'),
         h('td', {}, h('button', { type: 'button', class: 'btn sm', 'data-line': r.service_line_id, onclick: () => abrir(r.service_line_id) }, 'Abrir')))), 'No hay reclamaciones con este filtro.');
       const pie = h('div', { class: 'i18-bar' },
@@ -131,7 +133,10 @@ export async function render(root, ctx = {}) {
       const exc = d.exception;
       detalle.replaceChildren(h('section', { class: 'i18-card ex-detail', 'aria-label': 'Detalle del expediente' },
         h('div', { class: 'i18-bar' }, h('h3', {}, `Reclamación ${d.claim_folio || ''}`), semPill(d.semaforo), h('button', { type: 'button', class: 'btn sm', id: 'ex-close', onclick: () => { abierta = null; detalle.replaceChildren(); if (ultimo) pintar(ultimo); } }, 'Cerrar')),
-        h('p', { class: 'i18-sub' }, `${d.patient_name} · ${d.ars || 'ARS no disponible; verifique el lote'} · ${d.care_mode} · radicación ${d.submission_folio || '—'}`),
+        // 5.34.0 · El nombre del paciente va envuelto en pii() para difuminarse en modo soporte.
+        h('p', { class: 'i18-sub' },
+          pii(d.patient_name),
+          ` · ${d.ars || 'ARS no disponible; verifique el lote'} · ${d.care_mode} · radicación ${d.submission_folio || '—'}`),
         d.semaforo === 'completo' ? note('Expediente completo: todos los documentos obligatorios están.', 'ok') : note(`Faltan ${(d.missing || []).length} documento(s) obligatorio(s): ${(d.missing || []).join(', ')}.`, 'warn'),
         exc ? note(`Excepción de expediente autorizada: ${exc.reason}. Se puede radicar aunque falten documentos.`, 'info') : null,
         h('ul', { class: 'ex-items' }, items),
