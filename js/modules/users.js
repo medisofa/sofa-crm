@@ -422,22 +422,53 @@ async function validateUser(u, reload, { allowActivation = false } = {}) {
 
   const hardFail = !reportComplete || checks.some((x) => !x.ok) || findings.some((x) => x.severity === 'alta');
   const canActivateNow = allowActivation && !u.is_active && !hardFail;
+  // 5.34.0 · Caso real detectado en soporte: cuenta con is_active=true pero sin last_sign_in_at
+  // (invitación aceptada en base pero nunca completada desde correo). La validación pasa toda,
+  // pero el diálogo antes solo ofrecía «Cerrar». Ahora propone reenviar el acceso en un clic.
+  const canResendInvite = u.is_active && !u.last_sign_in_at && !hardFail && !!u.email;
   const SEV = { alta: ['Corregir', 'bad'], media: ['Revisar', 'warn'], info: ['Info', 'info'], ok: ['Bien', 'ok'] };
+
+  // Estado visible, ampliado para «activo sin ingreso» que antes se mostraba simplemente como «Activo».
+  const estadoLabel = u.is_active ? (u.last_sign_in_at ? 'Activo' : 'Activo · invitación sin completar') : 'Desactivado';
+  const resultadoLabel = hardFail ? 'requiere corrección antes de activar'
+    : canActivateNow ? 'listo para activar'
+    : canResendInvite ? 'listo para completar la invitación'
+    : 'validación satisfactoria';
+
+  const submitLabel = canActivateNow ? 'Activar usuario'
+    : canResendInvite ? 'Enviar acceso ahora'
+    : 'Cerrar';
 
   await formDialog({
     title: `Validar usuario · ${u.full_name || u.email || 'Usuario'}`,
-    submitLabel: canActivateNow ? 'Activar usuario' : 'Cerrar',
+    submitLabel,
     body: html`<p class="small">SOFA revisa identidad básica, rol, organización, alcance y hallazgos de gobierno antes de permitir la activación.</p>
       <div class="list">${checks.map((x) => html`<div class="li"><span class="pill ${x.ok ? 'ok' : 'bad'}">${x.ok ? 'Correcto' : 'Revisar'}</span><div class="b"><div class="t1">${x.label}</div><div class="t2">${x.detail}</div></div></div>`)}</div>
       ${findings.length ? html`<h3 style="margin-top:14px">Hallazgos relacionados</h3><div class="list">${findings.map((r) => { const [l, cls] = SEV[r.severity] || [r.severity, '']; return html`<div class="li"><span class="pill ${cls}">${l}</span><div class="b"><div class="t1">${r.title}</div><div class="t2">${r.detail}</div></div></div>`; })}</div>` : html`<p class="small muted" style="margin-top:12px">${reportComplete ? 'Sin hallazgos adicionales asociados a este usuario.' : 'Reporte de roles no disponible: validación incompleta.'}</p>`}
-      <p class="small" style="margin-top:12px"><b>Estado actual:</b> ${u.is_active ? 'Activo' : 'Desactivado'} · <b>Resultado:</b> ${hardFail ? 'requiere corrección antes de activar' : 'validación satisfactoria'}.</p>`,
+      ${canResendInvite ? html`<p class="small muted" style="margin-top:8px">La cuenta está activa en la base pero el usuario nunca inició sesión. «Enviar acceso ahora» le reenvía el enlace para crear su contraseña. Si el correo no llega, el Super Admin puede «Activar ahora con clave temporal» desde la fila.</p>` : ''}
+      <p class="small" style="margin-top:12px"><b>Estado actual:</b> ${estadoLabel} · <b>Resultado:</b> ${resultadoLabel}.</p>`,
     onSubmit: async () => {
-      if (!canActivateNow) return true;
-      if (!(await confirmDialog('Activar usuario', `${u.full_name || u.email} superó la validación y podrá volver a entrar a SOFA.`, 'Activar'))) return false;
-      await setUserActive(u.user_id, true);
-      toast('Usuario validado y activado', 'ok');
-      await reload();
-      return true;
+      if (canActivateNow) {
+        if (!(await confirmDialog('Activar usuario', `${u.full_name || u.email} superó la validación y podrá volver a entrar a SOFA.`, 'Activar'))) return false;
+        await setUserActive(u.user_id, true);
+        toast('Usuario validado y activado', 'ok');
+        await reload();
+        return true;
+      }
+      if (canResendInvite) {
+        try {
+          const r = await adminUsers({ action: 'resend', email: u.email });
+          toast(r.message || 'Acceso reenviado', 'ok');
+          await reload();
+          return true;
+        } catch (err) {
+          // Caso típico: edge function admin-users no publicada aún. Dejamos el diálogo abierto
+          // para que el super admin lo cierre y use la fila ('Activar ahora con clave temporal').
+          toast(friendlyError(err), 'bad');
+          return false;
+        }
+      }
+      return true;   // botón «Cerrar»
     }
   });
 }
