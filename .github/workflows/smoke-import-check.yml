@@ -1,0 +1,38 @@
+name: SOFA Smoke Import Check
+
+# Objetivo: atrapar en CI las regresiones del tipo del PR #146 — un servicio
+# reescrito que borra exports que medio frontend sigue importando, causando
+# «does not provide an export named X» en producción.
+#
+# Cómo: scripts/check-imports.mjs hace análisis estático (sin ejecutar código,
+# sin DOM, sin dependencias). Para cada `import { X, Y } from './rel-path'`
+# en el repo, abre el archivo destino y verifica que X y Y aparezcan como
+# `export`. Si no, falla con exit code 1 y nombra archivo + export faltante.
+#
+# Verificado localmente: atrapa exactamente los dos errores que llegaron a
+# producción hoy (claimCounts en claims.js, cancelPickup en pickups.js).
+
+on:
+  push:
+    branches: ["main", "architecture/mvp-production-v1"]
+    paths:
+      - "js/**/*.js"
+      - "scripts/check-imports.mjs"
+      - ".github/workflows/smoke-import-check.yml"
+  pull_request:
+    paths:
+      - "js/**/*.js"
+      - "scripts/check-imports.mjs"
+      - ".github/workflows/smoke-import-check.yml"
+
+jobs:
+  check-imports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Static import/export resolution check
+        run: node scripts/check-imports.mjs
