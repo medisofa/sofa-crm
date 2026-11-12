@@ -210,11 +210,11 @@ export async function render(root, ctx = {}) {
     function rowsTable(rep, only) {
       const list = rep.rows.filter((r) => !only || r.status === only);
       return list.length ? h('div', { class: 'i18-table-wrap' }, h('table', { class: 'i18-table', id: 'gl-rows' },
-        h('thead', {}, h('tr', {}, ['Fila', 'Estado', 'Documento', 'Nombre', 'Motivo'].map((x) => h('th', {}, x)))),
+        h('thead', {}, h('tr', {}, ['Fila', 'Estado', 'Cédula', 'Nombre', 'Motivo'].map((x) => h('th', {}, x)))),
         h('tbody', {}, list.slice(0, 200).map((r) => h('tr', { class: r.status === 'rechazada' ? 'gl-rej' : '' }, h('td', {}, String(r.row)), h('td', {}, r.status === 'aceptada' ? 'Aceptada' : 'Rechazada'),
           h('td', {}, r.doc || '—'), h('td', {}, r.name || '—'), h('td', {}, (r.reasons || []).join(' · ') || '—')))))) : null;
     }
-    const csv = (rep) => downloadCsv(`reporte_carga_${kind.value}_${todayIso()}.csv`, [['Fila', 'Estado', 'Motivo', 'Documento', 'Nombre']].concat(rep.rows.map((r) => [r.row, r.status === 'aceptada' ? 'Aceptada' : 'Rechazada', (r.reasons || []).join(' · '), r.doc || '', r.name || ''])));
+    const csv = (rep) => downloadCsv(`reporte_carga_${kind.value}_${todayIso()}.csv`, [['Fila', 'Estado', 'Motivo', 'Cédula', 'Nombre']].concat(rep.rows.map((r) => [r.row, r.status === 'aceptada' ? 'Aceptada' : 'Rechazada', (r.reasons || []).join(' · '), r.doc || '', r.name || ''])));
     function preview(rep) {
       const dl = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Descargar reporte (CSV)');
       dl.addEventListener('click', () => csv(rep));
@@ -246,7 +246,7 @@ export async function render(root, ctx = {}) {
         b.addEventListener('click', async () => {
           try {
             const r = await rpc('golive_load_report', { p_batch: l.id });
-            downloadCsv(`reporte_carga_${l.kind}_${String(l.at).slice(0, 10)}.csv`, [['Fila', 'Estado', 'Motivo', 'Documento', 'Nombre']].concat(r.rows.map((x) => [x.row, x.status === 'aceptada' ? 'Aceptada' : 'Rechazada', (x.reasons || []).join(' · '), x.doc || '', x.name || ''])));
+            downloadCsv(`reporte_carga_${l.kind}_${String(l.at).slice(0, 10)}.csv`, [['Fila', 'Estado', 'Motivo', 'Cédula', 'Nombre']].concat(r.rows.map((x) => [x.row, x.status === 'aceptada' ? 'Aceptada' : 'Rechazada', (x.reasons || []).join(' · '), x.doc || '', x.name || ''])));
           } catch (e) { b.after(note(e.message, 'error')); }
         });
         return h('tr', {}, h('td', {}, fmtDate(l.at)), h('td', {}, KIND[l.kind] || l.kind), h('td', {}, l.file || '—'), h('td', {}, String(l.total)), h('td', {}, String(l.accepted)),

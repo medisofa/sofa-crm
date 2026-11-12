@@ -43,7 +43,7 @@ export async function render(root, context = {}) {
     const centerSel = h('select', { 'aria-label': 'Centro', required: true }, centros.map((c) => h('option', { value: c.center_id }, c.nombre + (c.principal ? ' (principal)' : ''))));
     if (r) centerSel.value = r.center_id || '';
     const pac = h('input', { type: 'text', 'aria-label': 'Nombre del paciente', placeholder: 'Nombre del paciente', maxlength: '160', value: r?.patient_name || '', required: true });
-    const doc = h('input', { type: 'text', 'aria-label': 'Documento del paciente', placeholder: 'Documento (opcional)', maxlength: '40', value: r?.patient_doc || '' });
+    const doc = h('input', { type: 'text', 'aria-label': 'Cédula del paciente', placeholder: 'Cédula (opcional)', maxlength: '40', value: r?.patient_doc || '' });
     const phone = h('input', { type: 'tel', 'aria-label': 'Teléfono del paciente', placeholder: 'Teléfono (opcional)', maxlength: '20', value: r?.patient_phone || '' });
     const ars = h('select', { 'aria-label': 'ARS del paciente' }, h('option', { value: '' }, 'Privado / sin ARS'), (arsCatalog || []).map((a) => h('option', { value: a.id }, a.name)));
     if (r?.ars_id && !(arsCatalog || []).some((a) => a.id === r.ars_id)) ars.append(h('option', { value: r.ars_id }, r.ars || 'ARS registrada'));
@@ -68,7 +68,7 @@ export async function render(root, context = {}) {
     });
     const field = (label, input) => h('label', {}, label, input);
     box.append(h('summary', {}, r ? 'Datos del paciente y la hospitalización' : 'Nuevo reporte'), h('div', { class: 'hosp-form hosp-case-form' },
-      field('Centro', centerSel), field('Paciente', pac), field('Documento (opcional)', doc), field('Teléfono (opcional)', phone), field('ARS', ars), field('Ingreso', adm), field('Alta', discharge), field('Observaciones', notes), save, out));
+      field('Centro', centerSel), field('Paciente', pac), field('Cédula (opcional)', doc), field('Teléfono (opcional)', phone), field('ARS', ars), field('Ingreso', adm), field('Alta', discharge), field('Observaciones', notes), save, out));
     return box;
   }
   function newReportForm() { return caseForm(); }
@@ -251,7 +251,7 @@ function disabledNewReportForm(centros, arsCatalog) {
     centros.length ? centros.map((c) => h('option', { value: c.center_id }, c.nombre + (c.principal ? ' (principal)' : '')))
                    : [h('option', {}, 'Sin centros en la ficha del médico')]);
   const pac = h('input', { type: 'text', placeholder: 'Nombre del paciente', maxlength: '160' });
-  const doc = h('input', { type: 'text', placeholder: 'Documento (opcional)', maxlength: '40' });
+  const doc = h('input', { type: 'text', placeholder: 'Cédula (opcional)', maxlength: '40' });
   const phone = h('input', { type: 'tel', placeholder: 'Teléfono (opcional)', maxlength: '20' });
   const ars = h('select', { 'aria-label': 'ARS' },
     h('option', { value: '' }, 'Privado / sin ARS'), (arsCatalog || []).map((a) => h('option', { value: a.id }, a.name)));
@@ -263,7 +263,7 @@ function disabledNewReportForm(centros, arsCatalog) {
     h('summary', {}, 'Nuevo reporte (vista previa en soporte)'),
     note('Modo soporte: puedes ver el formulario que utiliza el médico, pero no se pueden crear ni editar reportes.', 'info'),
     h('fieldset', { disabled: 'disabled', class: 'hosp-form hosp-case-form', style: 'border:0;padding:0' },
-      field('Centro', centerSel), field('Paciente', pac), field('Documento (opcional)', doc),
+      field('Centro', centerSel), field('Paciente', pac), field('Cédula (opcional)', doc),
       field('Teléfono (opcional)', phone), field('ARS', ars), field('Ingreso', adm),
       field('Alta', discharge), field('Observaciones', notes), save));
 }
