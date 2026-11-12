@@ -265,6 +265,11 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .cs-tl{list-style:none;margin:8px 0 0;padding:0 0 0 14px;border-left:2px solid var(--border)}
 .cs-tl li{margin:0 0 8px}.cs-tl .cs-int{opacity:.75;font-style:italic}
 .cs-over{color:var(--bad);font-weight:600}
+/* 5.31.0 · Mi cuenta con SOFA: bitácora y resumen ARS */
+.cs-feed{display:grid;gap:8px}
+.cs-feed-row{padding:10px 14px}
+.cs-feed-row p{margin:4px 0 0}
+.cs-ars{display:grid;gap:12px}
 .i18-note.i18-warn{background:var(--warn-bg);color:var(--warn)}
 /* 3.1 a 3.5 · Iteraciones 41 a 45 */
 .ecf-l{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;white-space:nowrap}

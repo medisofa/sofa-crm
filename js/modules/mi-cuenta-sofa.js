@@ -1,11 +1,21 @@
 /** SOFA · 3.0 · Iteración 40 · «Mi cuenta con SOFA» (Médico o Centro): servicios contratados, facturas de SOFA
- *  con lo pagado y el saldo, y las solicitudes de servicio con el avance que SOFA comparte. */
+ *  con lo pagado y el saldo, y las solicitudes de servicio con el avance que SOFA comparte.
+ *  5.31.0 · Ampliado con pagos recibidos, bitácora de actividad y resumen de ARS en uso. */
 import { rpc, h, money, fmtDate, note, kpi, guarded } from '../services/iter18.js';
 import { pill, caseDetail } from './casos-comun.js';
 import { ecfSteps } from './ecf-comun.js';
 
 const CONTRACT = { borrador: 'Borrador', enviado: 'Enviado para firma', firmado: 'Firmado', terminado: 'Terminado' };
 const INVOICE = { emitida: 'Pendiente', pagada_parcial: 'Abonada', pagada: 'Pagada', anulada: 'Anulada' };
+// 5.31.0 · Labels de bitácora y estado de códigos ARS, para presentar al cliente en castellano.
+const FEED_KIND = { caso: 'Servicio', factura: 'Factura', pago: 'Pago' };
+const ARS_STATUS = {
+  aprobado: 'Con código', solicitado: 'Solicitado',
+  pendiente_respuesta: 'Pendiente de respuesta', en_preparacion: 'En preparación',
+  rechazado: 'Rechazado', cancelado: 'Cancelado'
+};
+
+function fmtDateTime(iso) { if (!iso) return '—'; return fmtDate(iso) + ' ' + String(iso).slice(11, 16); }
 
 export async function render(root, ctx = {}) {
   const org = ctx.membership?.organization_id;
@@ -30,9 +40,16 @@ export async function render(root, ctx = {}) {
   loadEcf();
 
   async function load() {
-    const d = await guarded(box, () => rpc('client_account', { p_org: org }));
+    // 5.31.0 · Dos RPCs en paralelo: el contrato existente client_account + el nuevo
+    // client_account_detail (pagos, actividad, ARS). Si el segundo falla (p.ej. la migración
+    // aún no se aplicó en un entorno), se degrada mostrando solo lo histórico.
+    const [d, detailData] = await Promise.all([
+      guarded(box, () => rpc('client_account', { p_org: org })),
+      rpc('client_account_detail', { p_org: org }).catch(() => null)
+    ]);
     if (!d) return;
     const s = d.summary;
+    const extra = detailData || { payments: [], activity: [], ars_summary: null };
     box.replaceChildren(
       h('div', { class: 'i18-kpis' }, kpi('Saldo con SOFA', money(s.balance)), kpi('Vencido', money(s.overdue), s.overdue_count ? `${s.overdue_count} factura(s)` : 'Al día'),
         kpi('Servicios contratados', String(d.contracts.length)), kpi('Solicitudes abiertas', String(s.open_cases))),
@@ -44,6 +61,33 @@ export async function render(root, ctx = {}) {
         String(i.period || '').slice(0, 7), fmtDate(i.issued_on), fmtDate(i.due_on), money(i.total), money(i.paid), money(i.balance),
         i.overdue ? h('span', { class: 'cs-over' }, 'Vencida') : (INVOICE[i.status] || i.status)])) : note('No tiene facturas de SOFA.'),
       s.overdue > 0 ? note('Tiene facturas vencidas. Si ya pagó, envíe el comprobante a su contacto en SOFA para aplicarlo.', 'warn') : null,
+      // 5.31.0 · Pagos recibidos (histórico aplicado por SOFA sobre las facturas)
+      h('h3', {}, 'Pagos recibidos'),
+      extra.payments?.length ? table(['Fecha', 'Factura', 'Período', 'Método', 'Referencia', 'Monto'],
+        extra.payments.map((p) => [fmtDate(p.paid_on), p.folio || '—', String(p.period || '').slice(0, 7), p.method || '—', p.reference || '—', money(p.amount)]))
+        : note('Aún no se han aplicado pagos a sus facturas de SOFA.'),
+      // 5.31.0 · ARS en uso: resumen del estado de códigos que tienen sus médicos
+      h('h3', {}, 'ARS en uso'),
+      extra.ars_summary ? h('div', { class: 'cs-ars' },
+        h('div', { class: 'i18-kpis' },
+          kpi('Médico-ARS con código', String(extra.ars_summary.con_codigo)),
+          kpi('En trámite', String(extra.ars_summary.en_tramite), extra.ars_summary.alertas ? `${extra.ars_summary.alertas} con alerta` : 'Sin alertas'),
+          kpi('Con alerta (>30 días)', String(extra.ars_summary.alertas))),
+        extra.ars_summary.items?.length
+          ? table(['Médico', 'ARS', 'Estado'],
+              extra.ars_summary.items.map((r) => [r.provider, r.ars,
+                h('span', { class: r.alert ? 'cs-over' : '' }, ARS_STATUS[r.status] || r.status)]))
+          : note('Sus médicos aún no tienen códigos de ARS registrados. Vaya a Códigos ARS para solicitarlos.'))
+        : note('Esta sección requiere actualizar la base (migración pendiente). Pida a SOFA aplicar la 20261112.', 'info'),
+      // 5.31.0 · Bitácora de actividad: avances de servicios + facturas + pagos (visible al cliente)
+      h('h3', {}, 'Bitácora de actividad'),
+      extra.activity?.length ? h('div', { class: 'i18-list cs-feed' }, extra.activity.map((e) => h('div', { class: 'i18-card cs-feed-row' },
+        h('div', { class: 'i18-bar' },
+          h('span', { class: 'i18-pill' }, FEED_KIND[e.kind] || e.kind),
+          h('span', { class: 'i18-sub' }, fmtDateTime(e.at))),
+        h('p', {}, e.description),
+        e.ref ? h('div', { class: 'i18-sub' }, `Ref.: ${e.ref}`) : null)))
+        : note('Aún no hay movimientos registrados en su cuenta con SOFA.'),
       h('h3', {}, 'Mis solicitudes de servicio'),
       d.cases.length ? h('div', { class: 'i18-list' }, d.cases.map((c) => {
         const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Ver avance');
