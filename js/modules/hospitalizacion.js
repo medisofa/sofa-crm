@@ -169,7 +169,10 @@ async function renderSupport(root, context) {
     return;
   }
   const initial = h('div', { 'aria-live': 'polite' }); wrap.append(initial);
-  const first = await guarded(initial, () => rpc('hospital_support_context', { p_org: organizationId }));
+  const [first, arsCatalog] = await Promise.all([
+    guarded(initial, () => rpc('hospital_support_context', { p_org: organizationId })),
+    rpc('ars_catalog', { p_include_inactive: false }).catch(() => [])
+  ]);
   if (!first || !wrap.isConnected) return;
   initial.replaceChildren();
   const providers = first.providers || [];
@@ -181,10 +184,14 @@ async function renderSupport(root, context) {
     h('option', { value: '' }, 'Selecciona un médico…'), providers.map((p) => h('option', { value: p.id }, p.full_name)));
   select.value = provider;
   const centers = h('p', { class: 'i18-sub hosp-support-centers' });
+  // 5.31.1 · Vista previa del formulario que ve el médico. Fieldset disabled bloquea entrada,
+  // y Task 1 ya intercepta submit globalmente en modo soporte. El soporte entiende qué pediría
+  // el médico sin crear ni editar nada.
+  const formPreview = h('div', { 'aria-live': 'polite' });
   const list = h('div', { 'aria-live': 'polite' });
   const detail = h('div', { 'aria-live': 'polite' });
   initial.append(providers.length > 1 ? h('label', { for: 'hosp-support-provider' }, 'Médico del consultorio', select)
-    : h('p', {}, h('strong', {}, providers[0].full_name)), centers, h('h3', {}, 'Reportes del médico'), list, detail);
+    : h('p', {}, h('strong', {}, providers[0].full_name)), centers, formPreview, h('h3', {}, 'Reportes del médico'), list, detail);
   select.addEventListener('change', async () => {
     const my = ++sequence;
     provider = select.value; reportIds = new Set(); detail.replaceChildren(); centers.textContent = '';
@@ -199,7 +206,11 @@ async function renderSupport(root, context) {
   function drawList(data) {
     const rows = data.reportes || [];
     reportIds = new Set(rows.map((r) => r.id));
-    centers.textContent = (data.centros || []).length ? 'Centros visibles: ' + data.centros.map((c) => c.nombre).join(' · ') : 'Sin centros visibles en este consultorio.';
+    const centros = data.centros || [];
+    centers.textContent = centros.length ? 'Centros visibles: ' + centros.map((c) => c.nombre).join(' · ') : 'Sin centros visibles en este consultorio.';
+    // 5.31.1 · Dibuja la vista previa del formulario de «Nuevo reporte» que ve el médico.
+    // Todo dentro de un fieldset disabled: no se puede escribir ni enviar. Task 1 difumina PII.
+    formPreview.replaceChildren(provider ? disabledNewReportForm(centros, arsCatalog) : document.createDocumentFragment());
     if (!provider) { list.replaceChildren(note('Selecciona un médico para consultar sus reportes.', 'info')); return; }
     if (!rows.length) { list.replaceChildren(note('Este médico aún no tiene reportes visibles en el consultorio.', 'info')); return; }
     list.replaceChildren(h('p', { class: 'i18-sub' }, `Mostrando ${rows.length} de ${data.report_count ?? rows.length} reporte(s).`),
@@ -229,6 +240,32 @@ async function renderSupport(root, context) {
     } catch (e) { if (my === sequence && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
   }
   drawList(first);
+}
+
+/** 5.31.1 · Vista previa del formulario «Nuevo reporte» que ve el médico, para que el soporte
+ *  entienda la pantalla sin poder crear ni editar nada. Todo dentro de un fieldset disabled;
+ *  Task 1 también intercepta submit globalmente en modo soporte. */
+function disabledNewReportForm(centros, arsCatalog) {
+  const field = (label, input) => h('label', {}, label, input);
+  const centerSel = h('select', { 'aria-label': 'Centro' },
+    centros.length ? centros.map((c) => h('option', { value: c.center_id }, c.nombre + (c.principal ? ' (principal)' : '')))
+                   : [h('option', {}, 'Sin centros en la ficha del médico')]);
+  const pac = h('input', { type: 'text', placeholder: 'Nombre del paciente', maxlength: '160' });
+  const doc = h('input', { type: 'text', placeholder: 'Documento (opcional)', maxlength: '40' });
+  const phone = h('input', { type: 'tel', placeholder: 'Teléfono (opcional)', maxlength: '20' });
+  const ars = h('select', { 'aria-label': 'ARS' },
+    h('option', { value: '' }, 'Privado / sin ARS'), (arsCatalog || []).map((a) => h('option', { value: a.id }, a.name)));
+  const adm = h('input', { type: 'date' });
+  const discharge = h('input', { type: 'date' });
+  const notes = h('textarea', { rows: '2', placeholder: 'Observaciones administrativas', maxlength: '1000' });
+  const save = h('button', { class: 'i18-btn', type: 'button' }, 'Crear reporte');
+  return h('details', { class: 'hosp-new', open: false },
+    h('summary', {}, 'Nuevo reporte (vista previa en soporte)'),
+    note('Modo soporte: puedes ver el formulario que utiliza el médico, pero no se pueden crear ni editar reportes.', 'info'),
+    h('fieldset', { disabled: 'disabled', class: 'hosp-form hosp-case-form', style: 'border:0;padding:0' },
+      field('Centro', centerSel), field('Paciente', pac), field('Documento (opcional)', doc),
+      field('Teléfono (opcional)', phone), field('ARS', ars), field('Ingreso', adm),
+      field('Alta', discharge), field('Observaciones', notes), save));
 }
 
 /** Supervisión operativa: reportes enviados, lectura autorizada en el servidor. */
