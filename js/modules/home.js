@@ -8,14 +8,39 @@ import { num, date } from '../utils/formatters.js';
 import { listTasks } from '../services/tasks.js';
 import { listOpportunities } from '../services/crm.js';
 import { canSee } from '../utils/permissions.js';
+import { destacadasDelDia } from './actualidades.js';   // 5.32.0 · widget de actualidades en Inicio
 
 export async function render(main, ctx) {
   const first = String(ctx.profile.full_name || '').split(' ')[0] || 'bienvenido';
   const staff = isStaff(ctx.role);
   const nav = visibleNav(ctx.role).flatMap((g) => g.items);
+  // 5.32.0 · Widget de actualidades médicas para clientes: 3 fuentes destacadas rotan por día
+  //   (shuffle estable con seed yyyy-mm-dd). Staff tiene su propio panel; aquí no aplica.
+  const mostrarActualidades = !staff && canSee('actualidades', ctx.role);
+  const actualidadesHoy = mostrarActualidades ? destacadasDelDia(3) : [];
+
   paint(main, html`
     <div class="page-head"><div class="t"><h2>Hola, ${first}</h2><p>${ctx.membership.role_name} · ${ctx.membership.organization}</p></div></div>
     <div class="grid kpis" id="kpis"></div>
+    ${mostrarActualidades && actualidadesHoy.length ? html`
+      <section class="card home-actualidades" style="margin-top:14px" aria-labelledby="home-act-title">
+        <div class="home-act-head">
+          <div>
+            <h2 id="home-act-title">Actualidades médicas · hoy</h2>
+            <p class="sub">Fuentes seleccionadas para hoy. Rotan cada día.</p>
+          </div>
+          <a class="btn sm" href="#/actualidades" aria-label="Ver todas las actualidades">Ver todas →</a>
+        </div>
+        <div class="home-act-grid">
+          ${actualidadesHoy.map((f) => html`
+            <a class="home-act-card" href="${f.url}" target="_blank" rel="noopener noreferrer">
+              <span class="home-act-etiq">${f.etiqueta}</span>
+              <strong class="home-act-titulo">${f.titulo}</strong>
+              <p class="home-act-desc">${f.desc}</p>
+              <span class="home-act-link">Ir al sitio ↗</span>
+            </a>`)}
+        </div>
+      </section>` : ''}
     <div class="grid two" style="margin-top:14px">
       ${staff ? html`<div class="card"><h2>Seguimiento de hoy</h2><p class="sub">Tus tareas vencidas y de hoy, y oportunidades con la próxima acción atrasada.</p><div id="today"></div></div>` : ''}
       ${staff ? html`<div class="card"><h2>Plan de 90 días</h2><p class="sub">Hitos comerciales y técnicos. ${can('milestones.edit', ctx.role) ? 'Márcalos al cumplirlos.' : 'Solo lectura para tu rol.'}</p><div id="plan"></div></div>` : ''}

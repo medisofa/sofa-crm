@@ -1443,3 +1443,23 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .act-desc{margin:0;font-size:.85rem;color:var(--ink-2);line-height:1.55}
 .act-link{font-size:.8rem;color:var(--navy-3);margin-top:4px}
 .act-pie{font-size:.8rem;color:var(--ink-3);margin:4px 0 0}
+/* 5.32.0 · Búsqueda, destacados y estado vacío en Actualidades */
+.act-controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between}
+.act-search{flex:1;min-width:240px;max-width:360px}
+.act-search input{width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:.9rem}
+.act-search input:focus{outline:none;border-color:var(--navy-3);box-shadow:0 0 0 3px rgba(34,58,93,.12)}
+.act-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.act-card.destacada{border-color:var(--navy-3);box-shadow:0 1px 4px rgba(34,58,93,.06)}
+.act-chip-destacada{font-size:.65rem;font-weight:700;letter-spacing:.04em;color:var(--navy);background:rgba(34,58,93,.08);padding:3px 8px;border-radius:999px;white-space:nowrap}
+.act-empty{grid-column:1/-1;display:grid;gap:10px;justify-items:start;padding:24px;border:1px dashed var(--line);border-radius:12px;color:var(--ink-2);font-size:.9rem}
+/* 5.32.0 · Widget de Actualidades en Inicio: 3 tarjetas rotativas por día */
+.home-actualidades{display:grid;gap:12px}
+.home-act-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.home-act-head h2{margin:0}
+.home-act-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.home-act-card{display:grid;gap:4px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--surface);text-decoration:none;color:inherit;transition:box-shadow .15s,border-color .15s}
+.home-act-card:hover{border-color:var(--navy-3);box-shadow:0 2px 8px rgba(34,58,93,.1)}
+.home-act-etiq{font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy-3)}
+.home-act-titulo{font-size:.92rem;font-weight:700;color:var(--heading);line-height:1.3}
+.home-act-desc{margin:0;font-size:.8rem;color:var(--ink-2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.home-act-link{font-size:.75rem;color:var(--navy-3);margin-top:2px}
