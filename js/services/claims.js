@@ -286,13 +286,3 @@ export async function requestClaimDuplicateExclusion({ lineA, lineB, keepLine, r
 export async function listClaimDuplicateResolutionRequests(lineA, lineB) {
   return must(await sb().rpc('list_claim_duplicate_resolution_requests', { p_line_a: lineA, p_line_b: lineB }));
 }
-
-// ── Billing channel (cobro vía clínica) ──────────────────────────────────────
-/** Marca una línea como cobro vía clínica (la clínica cobra a la ARS por el médico). */
-export async function setBillingChannelViaClinica(lineId) {
-  return must(await sb().rpc('set_billing_channel_via_clinica', { p_line_id: lineId }));
-}
-/** Revierte una línea al flujo normal de cobro directo. */
-export async function revertBillingChannelToDirecto(lineId) {
-  return must(await sb().rpc('revert_billing_channel_to_directo', { p_line_id: lineId }));
-}

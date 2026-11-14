@@ -5,13 +5,14 @@
 import { rpc, h, money, fmtDate, note, kpi, table, guarded, realClientOptions, clientName } from '../services/iter18.js';
 import { mountPendingDigest } from './pending-digest.js';
 import { canOpen } from '../utils/permissions.js';
+import { todayISO } from '../utils/formatters.js';
 
 const TYPES = { captura_incompleta: 'Capturas incompletas', lote_por_radicar: 'Lotes por radicar', glosa_responder: 'Glosas por responder', cobro_escalar: 'Cobros por escalar' };
 const PRIO = { critica: 'Crítica', alta: 'Alta', normal: 'Normal' };
 const REASON = { sin_asignacion: 'Sin asignar: asigne el cliente a una persona', ausente_sin_suplente: 'Responsable ausente y sin suplente', persona_no_disponible: 'La persona asignada ya no está disponible' };
 const ABS = { en_curso: 'En curso', programada: 'Programada', terminada: 'Terminada' };
-const localIso = (add = 0) => { const d = new Date(); d.setDate(d.getDate() + add); return d.toLocaleDateString('en-CA'); };
-const dueText = (n) => (n > 0 ? `Vencida hace ${n} día${n === 1 ? '' : 's'}` : n === 0 ? 'Vence hoy' : `Vence en ${-n} día${n === -1 ? '' : 's'}`);
+const localIso = (add = 0) => { const d = new Date(`${todayISO()}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + add); return d.toISOString().slice(0, 10); };
+const dueText = (n) => (n == null || !Number.isFinite(Number(n)) ? 'Sin plazo informado' : n > 0 ? `Vencida hace ${n} día${n === 1 ? '' : 's'}` : n === 0 ? 'Vence hoy' : `Vence en ${-n} día${n === -1 ? '' : 's'}`);
 
 export async function render(root, ctx = {}) {
   root.replaceChildren();
@@ -28,6 +29,9 @@ export async function render(root, ctx = {}) {
   SECTIONS.push(['resumen', 'Resumen diario']);
   const VIEW = { bandeja, carga, asignaciones, ausencias, vencidas, reglas, resumen: () => mountPendingDigest(panel, ctx) };
   let current = 'bandeja'; let type = null;
+  const taskFilterLabels = new Map();
+  const taskFilters = { q: '', focus: 'todas', priority: '', client: '', assignee: '' };
+  const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
   function tabs() {
     tabsBar.replaceChildren(...SECTIONS.map(([k, label]) => {
@@ -44,38 +48,98 @@ export async function render(root, ctx = {}) {
     return hrefs.find((x) => canOpen(x, ctx.role)) || null;
   }
   async function bandeja() {
-    const box = h('div', { 'aria-live': 'polite' }); panel.append(box);
+    const box = h('div', { class: 'inbox-workspace' }); panel.append(box);
     const d = await guarded(box, () => rpc('inbox_my', { p_type: type }));
-    if (!d) return;
+    if (!panel.contains(box)) return;
+    if (!d) {
+      const retry = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Reintentar carga de tareas');
+      retry.addEventListener('click', () => show()); box.append(retry); return;
+    }
     const out = [];
     if (d.my_absence) out.push(note(`${d.my_absence.in_progress ? 'Está ausente' : 'Tiene una ausencia programada'} del ${fmtDate(d.my_absence.starts_on)} al ${fmtDate(d.my_absence.ends_on)}${d.my_absence.backup ? `: su trabajo lo atiende ${d.my_absence.backup}` : ': sin suplente, su trabajo lo ve la supervisión'}.`, 'warn'));
     (d.covering || []).forEach((c) => out.push(note(`Hoy cubre a ${c.name} hasta el ${fmtDate(c.until)}: sus tareas aparecen aquí marcadas «Cubriendo».`, 'info')));
     const t = d.totals;
     out.push(h('div', { class: 'i18-kpis' }, kpi('Tareas', String(t.total), d.view === 'todo' ? 'De todos los clientes que usted ve' : 'Las suyas'), kpi('Vencidas', String(t.overdue), money(t.overdue_amount)),
       kpi('Prioridad alta', String(t.high), 'Vencen pronto o son de monto alto'), kpi('Monto pendiente', money(t.amount)), d.view === 'todo' ? kpi('Sin responsable', String(t.unassigned), t.unassigned ? 'Asígnelos en «Asignaciones»' : 'Todo tiene dueño') : null));
+    out.push(h('p', { class: 'iw-scope' }, 'Los indicadores corresponden al alcance del servidor. Los filtros siguientes se aplican a las tareas cargadas.'));
     const all = h('button', { class: 'mb-count', type: 'button', 'aria-pressed': type ? 'false' : 'true' }, h('strong', {}, String(t.total)), h('span', {}, 'Todas'));
     all.addEventListener('click', () => { type = null; show(); });
-    out.push(h('div', { class: 'mb-counters', role: 'group', 'aria-label': 'Tareas por tipo' }, all, ...d.counts.map((c) => {
+    out.push(h('div', { class: 'mb-counters', role: 'group', 'aria-label': 'Tareas por tipo' }, all, ...(d.counts || []).map((c) => {
       const b = h('button', { class: `mb-count${c.overdue ? ' mb-late' : ''}`, type: 'button', 'aria-pressed': type === c.type ? 'true' : 'false', 'data-type': c.type },
         h('strong', {}, String(c.total)), h('span', {}, c.label), c.overdue ? h('small', {}, `${c.overdue} vencida${c.overdue === 1 ? '' : 's'}`) : h('small', {}, c.total ? 'Al día' : 'Nada pendiente'));
       b.addEventListener('click', () => { type = type === c.type ? null : c.type; show(); });
       return b;
     })));
-    if (!d.tasks.length) out.push(note(type ? `No hay ${TYPES[type].toLowerCase()} pendientes.` : d.view === 'todo' ? 'No hay tareas pendientes.' : 'No tiene tareas pendientes. Si espera trabajo, pida a su supervisor que le asigne clientes.', 'ok'));
-    else {
-      const cols = [
-        { label: 'Prioridad', get: (x) => h('span', { class: `mb-prio mb-${x.priority}` }, PRIO[x.priority] || x.priority) },
-        { label: 'Tarea', get: (x) => h('div', {}, h('strong', {}, x.type_label), h('div', {}, x.title), h('small', { class: 'i18-sub' }, x.detail), x.covering ? h('div', { class: 'mb-cover' }, `Cubriendo a ${x.assigned_to}`) : null) },
-        { label: 'Cliente', get: (x) => x.client },
-        { label: 'Vence', get: (x) => h('div', {}, fmtDate(x.due_on), h('small', { class: x.days_late > 0 ? 'mb-over' : 'i18-sub' }, dueText(x.days_late))) },
-        { label: 'Monto', right: true, get: (x) => money(x.amount) }
-      ];
-      if (d.view === 'todo') cols.push({ label: 'Responsable', get: (x) => (x.assignee ? x.assignee : h('span', { class: 'mb-none' }, REASON[x.unassigned_reason] || 'Sin responsable')) });
-      cols.push({ label: '', get: (x) => { const href = target(x); return href ? h('a', { class: 'i18-btn i18-sec', href }, 'Abrir') : h('small', { class: 'i18-sub' }, 'Solo lectura'); } });
-      out.push(table(cols, d.tasks));
-      if (d.truncated) out.push(note('Se muestran las primeras 300 tareas. Filtre por tipo para ver el resto.', 'info'));
+    const tasks = d.tasks || [];
+    const clientKey = (task) => String(task.organization_id || task.client || '');
+    const assigneeKey = (task) => String(task.assignee_id || task.assignee || '');
+    const options = (key, label, empty, selected) => {
+      const values = new Map(tasks.map((task) => [key(task), label(task) || 'Sin nombre informado']).filter(([value]) => value));
+      values.forEach((name, value) => taskFilterLabels.set(`${empty}:${value}`, name));
+      if (selected && !values.has(selected)) values.set(selected, taskFilterLabels.get(`${empty}:${selected}`) || 'Filtro seleccionado');
+      return [h('option', { value: '' }, empty), ...[...values].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'es')).map(([value, name]) => h('option', { value, selected: value === selected }, name))];
+    };
+    const search = h('input', { id: 'iw-search', type: 'search', value: taskFilters.q, placeholder: 'Cliente, folio, ARS o tarea', autocomplete: 'off' });
+    const priority = h('select', { id: 'iw-priority' }, h('option', { value: '' }, 'Todas las prioridades'), Object.entries(PRIO).map(([value, label]) => h('option', { value, selected: value === taskFilters.priority }, label)));
+    const client = h('select', { id: 'iw-client' }, options(clientKey, (task) => task.client, 'Todos los clientes', taskFilters.client));
+    const assignee = d.view === 'todo' ? h('select', { id: 'iw-assignee' }, options(assigneeKey, (task) => task.assignee, 'Todos los responsables', taskFilters.assignee)) : null;
+    const clear = h('button', { class: 'i18-btn i18-sec', type: 'button', id: 'iw-clear' }, 'Limpiar filtros');
+    const refresh = h('button', { class: 'i18-btn i18-sec', type: 'button', id: 'iw-refresh' }, 'Actualizar tareas');
+    const chips = h('div', { class: 'iw-focus', role: 'group', 'aria-label': 'Priorizar tareas' });
+    const resultSummary = h('p', { class: 'iw-results', id: 'iw-results', role: 'status' });
+    const feed = h('div', { class: 'iw-task-list', id: 'iw-task-list' });
+    const filters = h('section', { class: 'iw-filters', 'aria-label': 'Filtros de tareas' },
+      h('div', { class: 'iw-field iw-search' }, h('label', { for: 'iw-search' }, 'Buscar tarea'), search),
+      h('div', { class: 'iw-field' }, h('label', { for: 'iw-priority' }, 'Prioridad'), priority),
+      h('div', { class: 'iw-field' }, h('label', { for: 'iw-client' }, 'Cliente'), client),
+      assignee ? h('div', { class: 'iw-field' }, h('label', { for: 'iw-assignee' }, 'Responsable'), assignee) : null,
+      h('div', { class: 'iw-filter-actions' }, clear, refresh), chips);
+    const focusOptions = [['todas', 'Todas'], ['vencidas', 'Vencidas'], ['hoy', 'Vencen hoy'], ...(d.view === 'todo' ? [['sin_responsable', 'Sin responsable']] : [])];
+    function drawFocus() {
+      chips.replaceChildren(...focusOptions.map(([value, label]) => {
+        const button = h('button', { class: 'iw-chip', type: 'button', 'data-focus': value, 'aria-pressed': taskFilters.focus === value ? 'true' : 'false' }, label);
+        button.addEventListener('click', () => { taskFilters.focus = value; drawFocus(); drawTasks(); });
+        return button;
+      }));
     }
-    box.replaceChildren(...out);
+    const action = (task) => ({ captura_incompleta: 'Completar captura', lote_por_radicar: 'Revisar lote', glosa_responder: 'Preparar respuesta', cobro_escalar: 'Revisar cobro' }[task.type] || 'Abrir gestión');
+    function drawTasks() {
+      const query = norm(taskFilters.q.trim());
+      const visible = tasks.filter((task) => {
+        const days = task.days_late == null ? null : Number(task.days_late);
+        return (!query || norm([task.title, task.detail, task.client, task.folio, task.ars, task.ars_name, task.assignee, task.type_label].join(' ')).includes(query))
+          && (!taskFilters.priority || task.priority === taskFilters.priority)
+          && (!taskFilters.client || clientKey(task) === taskFilters.client)
+          && (!taskFilters.assignee || assigneeKey(task) === taskFilters.assignee)
+          && (taskFilters.focus !== 'vencidas' || (days != null && days > 0))
+          && (taskFilters.focus !== 'hoy' || days === 0)
+          && (taskFilters.focus !== 'sin_responsable' || !task.assignee);
+      });
+      resultSummary.textContent = `${visible.length} de ${tasks.length} tareas cargadas${type ? ` · ${TYPES[type] || type}` : ''}. Se conserva el orden de prioridad del servidor.`;
+      feed.replaceChildren(...(visible.length ? visible.map((task) => {
+        const href = target(task);
+        const due = task.due_on ? h('div', { class: 'iw-meta' }, h('span', {}, 'Vencimiento'), h('strong', {}, fmtDate(task.due_on)), h('small', { class: Number(task.days_late) > 0 ? 'mb-over' : '' }, dueText(task.days_late))) : h('div', { class: 'iw-meta' }, h('span', {}, 'Vencimiento'), h('strong', {}, 'Sin plazo informado'));
+        return h('article', { class: 'iw-task', 'data-task': task.task_key || task.entity_id },
+          h('div', { class: 'iw-task-main' }, h('div', { class: 'iw-task-head' }, h('span', { class: `mb-prio mb-${task.priority}` }, PRIO[task.priority] || task.priority || 'Sin prioridad'), h('span', { class: 'iw-type' }, task.type_label || TYPES[task.type] || 'Gestión')),
+            h('h3', {}, task.title || 'Tarea pendiente'), h('p', { class: 'iw-task-client' }, task.client || 'Cliente no informado'),
+            h('p', { class: 'iw-task-detail' }, task.detail || 'Abre la gestión para consultar los datos pendientes.'),
+            task.covering ? h('p', { class: 'mb-cover' }, `Cubriendo a ${task.assigned_to || 'otra persona del equipo'}`) : null),
+          h('div', { class: 'iw-task-meta' }, due,
+            h('div', { class: 'iw-meta' }, h('span', {}, 'Responsable'), h('strong', { class: task.assignee ? '' : 'mb-none' }, task.assignee || 'Sin responsable'), !task.assignee && d.view === 'todo' ? h('small', {}, REASON[task.unassigned_reason] || 'Asigna el cliente desde «Asignaciones».') : null),
+            h('div', { class: 'iw-meta' }, h('span', {}, 'Monto pendiente'), h('strong', {}, money(task.amount)))),
+          h('div', { class: 'iw-next' }, h('div', {}, h('span', {}, 'Siguiente acción'), h('strong', {}, href ? action(task) : 'Consultar con el responsable autorizado')),
+            href ? h('a', { class: 'i18-btn', href, 'aria-label': `${action(task)}: ${task.title || task.client || 'tarea'}` }, `${action(task)} →`) : h('small', { class: 'i18-sub' }, 'Sin enlace disponible para tu rol')));
+      }) : [note(tasks.length ? 'No hay tareas con estos filtros. Cambia los filtros o limpia la búsqueda.' : type ? `No hay ${(TYPES[type] || 'tareas').toLowerCase()} pendientes.` : d.view === 'todo' ? 'No hay tareas pendientes.' : 'No tiene tareas pendientes. Si espera trabajo, pida a su supervisor que le asigne clientes.', tasks.length ? 'info' : 'ok')]));
+    }
+    search.addEventListener('input', () => { taskFilters.q = search.value; drawTasks(); });
+    priority.addEventListener('change', () => { taskFilters.priority = priority.value; drawTasks(); });
+    client.addEventListener('change', () => { taskFilters.client = client.value; drawTasks(); });
+    assignee?.addEventListener('change', () => { taskFilters.assignee = assignee.value; drawTasks(); });
+    clear.addEventListener('click', () => { Object.assign(taskFilters, { q: '', focus: 'todas', priority: '', client: '', assignee: '' }); search.value = ''; priority.value = ''; client.value = ''; if (assignee) assignee.value = ''; drawFocus(); drawTasks(); search.focus(); });
+    refresh.addEventListener('click', () => show());
+    out.push(filters, resultSummary, feed);
+    if (d.truncated) out.push(note('Se muestran las primeras 300 tareas del tipo seleccionado. La búsqueda y los filtros locales solo incluyen esas tareas; cambie el tipo para consultar el resto.', 'warn'));
+    box.replaceChildren(...out); drawFocus(); drawTasks();
   }
 
   // ── Carga por persona (supervisor) ─────────────────────────────────────────────────────────────────────────────────

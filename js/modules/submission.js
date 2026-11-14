@@ -17,6 +17,7 @@ import { listGlosas, submissionPayments } from '../services/finance.js';
 import { glosaStatus, claimStatus, DELIVERY_METHODS } from '../utils/constants.js';
 import { getFiscal, fiscalCheck, saveFiscal, authorizeFiscalDifference, submissionLineAllocations, submissionFamily, submissionClaimMoney, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 import { getDelivery, markSubmissionSent } from '../services/dossier.js';
+import { ensureSubmissionQualityStyles, submissionQualityPanel } from './submission-quality.js';
 
 const DUP_REVIEW_LABELS = { ambas_validas: 'Ambas válidas', duplicado_confirmado: 'Duplicado confirmado', dato_corregido: 'Dato corregido', no_duplicado: 'No es duplicado' };
 const EDITABLE = ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'];
@@ -25,6 +26,7 @@ const kv = (pairs) => html`<dl class="kv">${pairs.map(([k, v]) => html`<dt>${k}<
 
 export async function render(main, ctx) {
   if(ctx.arg?.endsWith('/constancia')) { const report=await import('./delivery-report.js'); return report.render(main,ctx); }
+  ensureSubmissionQualityStyles();
   const id = ctx.arg;
   paint(main, html`<div id="sub">${loadingView(6)}</div>`);
   const box = $('#sub', main);
@@ -34,20 +36,35 @@ export async function render(main, ctx) {
   async function load() {
     const sub = await getSubmission(id);
     if (!sub) return null;
+    const qualitySources = {};
+    const read = async (key, fetcher, fallback, valid = () => true) => {
+      try {
+        const value = await fetcher();
+        if (!valid(value)) throw new Error('La respuesta no incluye una comprobación válida.');
+        qualitySources[key] = { state: 'checked' }; return value;
+      } catch (err) {
+        qualitySources[key] = { state: 'unavailable', error: friendlyError(err) }; return fallback;
+      }
+    };
+    const skip = (key, fallback) => { qualitySources[key] = { state: 'not_applicable' }; return fallback; };
     const [lines, lineCk, reqs, docs, trans, hist, val, types, org] = await Promise.all([
-      listLines(id), lineChecklist(id), requirements(), listDocuments({ submissionId: id }), transitionsFrom(sub.status),
-      statusHistory(id), validateSubmission(id, false), documentTypes(),
+      listLines(id), read('lineChecklist', () => lineChecklist(id), [], Array.isArray), requirements(), read('docs', () => listDocuments({ submissionId: id }), [], Array.isArray), transitionsFrom(sub.status),
+      statusHistory(id), read('validation', () => validateSubmission(id, false), { items: [], passed: null, total: null, critical_ok: false }, (v) => v && Array.isArray(v.items) && typeof v.critical_ok === 'boolean'), documentTypes(),
       isStaff(ctx.role) ? organizationContact(sub.organization_id).catch(() => null) : Promise.resolve(null)
     ]);
-    const checks = await lineChecks(lines.map((l) => l.id));
+    const checks = await read('checks', () => lineChecks(lines.map((l) => l.id)), [], Array.isArray);
     const [glosas, pays] = sub.submitted_on
-      ? await Promise.all([listGlosas({ group: 'todas', submissionId: id, size: 50 }).then((r) => r.data).catch(() => []), submissionPayments(id).catch(() => [])])
-      : [[], []];
-    const [fiscal, fcheck, dist, delivery, family, money_, duplicates] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
-      sub.submitted_on && can('claims.money', ctx.role) ? submissionLineAllocations(id).catch(() => []) : Promise.resolve([]), getDelivery(id).catch(() => null),
-      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([]), claimDuplicateCandidates(null, id)]);
+      ? await Promise.all([read('glosas', () => listGlosas({ group: 'todas', submissionId: id, size: 50 }).then((r) => r.data), [], Array.isArray), read('pays', () => submissionPayments(id), [], Array.isArray)])
+      : [skip('glosas', []), skip('pays', [])];
+    const [fiscal, fcheck, dist, delivery, family, money_, duplicates] = await Promise.all([
+      read('fiscal', () => getFiscal(id), null), read('fiscalCheck', () => fiscalCheck(id), null, (v) => v && typeof v.registered === 'boolean' && Object.hasOwn(v, 'ok') && (typeof v.ok === 'boolean' || v.ok === null)),
+      sub.submitted_on && can('claims.money', ctx.role) ? read('distribution', () => submissionLineAllocations(id), [], Array.isArray) : skip('distribution', []),
+      read('delivery', () => getDelivery(id), null), submissionFamily(id).catch(() => null),
+      sub.submitted_on && can('claims.money', ctx.role) ? read('claimMoney', () => submissionClaimMoney(id), [], Array.isArray) : skip('claimMoney', []),
+      read('duplicates', () => claimDuplicateCandidates(null, id), [], Array.isArray)
+    ]);
     const names = await profileNames([...hist.map((h) => h.changed_by), ...docs.map((d) => d.uploaded_by), fiscal?.fiscal_exception_by].filter(Boolean)).catch(() => ({}));
-    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_, duplicates };
+    return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_, duplicates, qualitySources, qualityCheckedAt: new Date().toISOString() };
   }
 
   async function refresh() {
@@ -68,6 +85,7 @@ export async function render(main, ctx) {
   }
 
   function duplicateCard(rows = []) {
+    if (S.qualitySources?.duplicates?.state === 'unavailable') return html`<div class="card" id="duplicateCard"><h2>Filtro de duplicados</h2><p class="note warn">No comprobado: no se pudo consultar la coincidencia de reclamaciones. No equivale a «Sin coincidencias».</p><button type="button" class="btn" data-quality-refresh>Reintentar comprobación</button></div>`;
     const dups = uniqueDuplicates(rows);
     if (!dups.length) return html`<div class="card" id="duplicateCard"><h2>Filtro de duplicados</h2><p class="small"><span class="pill ok">Sin coincidencias</span> No se detectaron reclamaciones con NSS y fecha de servicio coincidentes.</p></div>`;
     const blockers = dups.filter((d) => d.blocks_radicacion);
@@ -120,8 +138,8 @@ export async function render(main, ctx) {
 
   function draw() {
     const { sub, lines, lineCk, docs, trans, hist, val, types, org, names, glosas, pays, fiscal, fcheck, dist, family, money_, duplicates = [] } = S;
-    const canGlosa = can('glosas.edit', ctx.role) && !!sub.submitted_on && !['cerrada', 'rechazada'].includes(sub.status);
-    const canPay = can('payments.create', ctx.role) && Number(sub.balance) > 0 && ['radicada', 'en_auditoria_ars'].includes(sub.status);
+    const canGlosa = S.qualitySources?.glosas?.state !== 'unavailable' && can('glosas.edit', ctx.role) && !!sub.submitted_on && !['cerrada', 'rechazada'].includes(sub.status);
+    const canPay = S.qualitySources?.pays?.state !== 'unavailable' && can('payments.create', ctx.role) && Number(sub.balance) > 0 && ['radicada', 'en_auditoria_ars'].includes(sub.status);
     ctx.setTitle(sub.folio);
     const role = ctx.role;
     const editable = EDITABLE.includes(sub.status) && can('subs.edit', role) && (role !== 'client' || sub.status === 'borrador');
@@ -130,7 +148,8 @@ export async function render(main, ctx) {
     const ckMap = Object.fromEntries(lineCk.map((c) => [c.service_line_id, c]));
     const lineName = Object.fromEntries(lines.map((l) => [l.id, l.patient_name]));
     const total = lines.reduce((t, l) => t + Number(l.amount), 0);
-    const failing = val.items.filter((i) => !i.ok);
+    const validationUnknown = S.qualitySources?.validation?.state === 'unavailable';
+    const documentsUnknown = ['lineChecklist', 'checks', 'docs'].some((key) => S.qualitySources?.[key]?.state === 'unavailable') || lines.some((line) => !lineCk.some((check) => check.service_line_id === line.id));
     const codeLbl = CODE_STATUS[sub.provider_code_status || 'sin_codigo'][0];
     const dl = daysTo(sub.payment_deadline);
     const moveLabel = (to) => (role === 'client' && to === 'recibida' ? 'Enviar a SOFA' : TRANSITION_LABELS[to] || to);
@@ -154,6 +173,7 @@ export async function render(main, ctx) {
     ${sub.provider_code_status !== 'codificado' ? html`<div class="note warn">Código del prestador en ${sub.ars_name}: <b>${codeLbl}</b>. Sin código asignado, la ARS no paga. Regístralo en la ficha del cliente.</div>` : ''}
     ${role === 'client' && sub.status === 'borrador' ? html`<div class="note">Agrega los servicios del mes y sus documentos. Cuando termines, pulsa <b>Enviar a SOFA</b>: el equipo la revisará y la radicará ante la ARS.</div>` : ''}
 
+    ${submissionQualityPanel(S, role)}
     <div style="margin-bottom:14px">${duplicateCard(duplicates)}</div>
     <div class="grid two">
       <div class="card" id="invoice-data"><h2>Factura y radicación</h2>
@@ -166,18 +186,19 @@ export async function render(main, ctx) {
         ${kv([['Radicada', sub.submitted_on ? date(sub.submitted_on) : ''], ['Recepción ARS', sub.ars_receipt_number ? html`<span class="mono">${sub.ars_receipt_number}</span>` : ''],
               ['Límite de pago', sub.payment_deadline ? html`${date(sub.payment_deadline)} <span class="small ${dl < 0 ? '' : 'muted'}" style="${dl < 0 ? 'color:var(--bad);font-weight:600' : ''}">(${dl < 0 ? `vencido hace ${-dl} días` : `faltan ${dl} días`})</span>` : '']])}
       </div>
-      <div class="card"><h2>Validación prefacturación · ${val.passed} de ${val.total}</h2>
+      <div class="card" id="submission-validation"><h2>Validación prefacturación · ${validationUnknown ? 'No comprobada' : `${val.passed} de ${val.total}`}</h2>
+        ${validationUnknown ? html`<p class="note warn">No se pudo consultar la validación. Vuelve a comprobar; no se interpreta como aprobada.</p>` : ''}
         <div class="list">${val.items.map((i) => html`<div class="li"><span aria-hidden="true" style="font-weight:700;color:${i.ok ? 'var(--ok)' : i.critical ? 'var(--bad)' : 'var(--warn)'}">${i.ok ? '✓' : i.critical ? '✕' : '!'}</span>
           <div class="b"><div class="t1" style="font-weight:500">${i.label}</div>${!i.ok && i.n > 1 ? html`<div class="t2">${i.ok_count} de ${i.n} servicios cumplen</div>` : ''}</div><span class="sr-only">${i.ok ? 'Aprobada' : 'Pendiente'}</span></div>`)}</div>
-        <div class="small" style="margin-top:10px">Expediente <b>${sub.docs_pct}% completo</b> · ${num(sub.complete_lines)} de ${num(sub.lines)} servicios con todos sus documentos</div>
-        <div style="height:10px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin-top:6px"><div style="height:100%;width:${Math.min(100, sub.docs_pct)}%;background:var(--ok)"></div></div>
+        ${documentsUnknown ? html`<p class="note warn">Expediente documental no comprobado. La cobertura anterior no confirma el estado actual.</p>` : html`<div class="small" style="margin-top:10px">Expediente <b>${sub.docs_pct}% completo</b> · ${num(sub.complete_lines)} de ${num(sub.lines)} servicios con todos sus documentos</div>
+        <div style="height:10px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin-top:6px"><div style="height:100%;width:${Math.min(100, sub.docs_pct)}%;background:var(--ok)"></div></div>`}
         ${!val.critical_ok && EDITABLE.includes(sub.status) ? html`<div class="note warn" style="margin-top:10px">No puede pasar a "Lista para radicar" hasta resolver las validaciones marcadas con ✕, salvo excepción autorizada por un administrador.</div>` : ''}
       </div>
     </div>
 
     ${S.delivery?.sent_on && !sub.submitted_on ? html`<div class="note info" style="margin-top:14px"><b>Enviada a la ARS</b> el ${date(S.delivery.sent_on)} · ${S.delivery.sent_via}${S.delivery.sent_tracking ? ` · guía ${S.delivery.sent_tracking}` : ''}${S.delivery.sent_evidence_id ? ' · con evidencia' : ''}.
       Las reclamaciones están en poder del mensajero o del portal. Cuando llegue el acuse de la ARS, pulse <b>Radicar</b> con el número de recepción.</div>` : ''}
-    ${fiscal ? fiscalCard(sub, fiscal, fcheck, names, role, docs) : ''}
+    ${S.qualitySources?.fiscal?.state === 'unavailable' ? html`<div class="card" id="fisc"><h2>Factura fiscal · No comprobada</h2><p class="note warn">No se pudieron consultar los datos fiscales. Vuelve a comprobar antes de registrar cambios.</p></div>` : fiscal ? fiscalCard(sub, fiscal, fcheck, names, role, docs, S.qualitySources?.fiscalCheck?.state === 'unavailable') : html`<div class="card" id="fisc"><h2>Factura fiscal</h2><p class="small muted">La consulta no devolvió una ficha fiscal para este lote.</p></div>`}
 
     ${sub.submitted_on ? html`<div class="grid kpis" style="margin-top:14px">
       <div class="kpi"><div class="l">Radicado</div><div class="v">${money(sub.claimed)}</div></div>
@@ -185,13 +206,13 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">Glosado</div><div class="v">${money(sub.glosado)}</div><div class="h">${money(sub.glosa_in_dispute)} en disputa</div></div>
       <div class="kpi"><div class="l">Saldo</div><div class="v">${money(sub.balance)}</div><div class="h">${sub.age_days} días desde la radicación</div></div></div>
     <div class="grid two" style="margin-top:14px">
-      <div class="card"><h2>Glosas · ${num(glosas.length)}</h2>${glosas.length ? html`<div class="list">${glosas.map((g) => { const [gl, gc] = glosaStatus(g.status); return html`<div class="li"><div class="b"><div class="t1"><a href="#/glosas/${g.id}">${money(g.amount)} · ${g.main_reason || 'Glosa'}</a></div><div class="t2">Notificada ${date(g.notified_on)} · ${num(g.items)} servicios${g.in_dispute > 0 ? ` · ${money(g.in_dispute)} en disputa` : ''}</div></div><span class="pill ${gc}">${gl}</span></div>`; })}</div>` : html`<p class="small muted">Sin glosas.</p>`}</div>
-      <div class="card"><h2>Pagos aplicados · ${num(pays.length)}</h2>${pays.length ? html`<div class="list">${pays.map((a) => html`<div class="li"><div class="b"><div class="t1">${money(a.amount)}</div><div class="t2">${date(a.payments?.paid_on)} · <span class="mono">${a.payments?.reference}</span></div></div></div>`)}</div>` : html`<p class="small muted">Sin pagos todavía.</p>`}</div>
+      <div class="card"><h2>Glosas · ${S.qualitySources?.glosas?.state === 'unavailable' ? 'No comprobadas' : num(glosas.length)}</h2>${S.qualitySources?.glosas?.state === 'unavailable' ? html`<p class="note warn">No comprobado: no se pudieron consultar las glosas.</p>` : glosas.length ? html`<div class="list">${glosas.map((g) => { const [gl, gc] = glosaStatus(g.status); return html`<div class="li"><div class="b"><div class="t1"><a href="#/glosas/${g.id}">${money(g.amount)} · ${g.main_reason || 'Glosa'}</a></div><div class="t2">Notificada ${date(g.notified_on)} · ${num(g.items)} servicios${g.in_dispute > 0 ? ` · ${money(g.in_dispute)} en disputa` : ''}</div></div><span class="pill ${gc}">${gl}</span></div>`; })}</div>` : html`<p class="small muted">Sin glosas.</p>`}</div>
+      <div class="card"><h2>Pagos aplicados · ${S.qualitySources?.pays?.state === 'unavailable' ? 'No comprobados' : num(pays.length)}</h2>${S.qualitySources?.pays?.state === 'unavailable' ? html`<p class="note warn">No comprobado: no se pudieron consultar los pagos aplicados. No equivale a saldo sin pagos.</p>` : pays.length ? html`<div class="list">${pays.map((a) => html`<div class="li"><div class="b"><div class="t1">${money(a.amount)}</div><div class="t2">${date(a.payments?.paid_on)} · <span class="mono">${a.payments?.reference}</span></div></div></div>`)}</div>` : html`<p class="small muted">Sin pagos todavía.</p>`}</div>
     </div>
-    ${dist?.length ? distributionCard(dist, lines, role) : ''}
-    ${money_?.length ? approvedPaidCard(money_) : ''}` : ''}
+    ${S.qualitySources?.distribution?.state === 'unavailable' ? html`<div class="card"><h2>Reparto del pago · No comprobado</h2><p class="note warn">No se pudo consultar la distribución por reclamación.</p></div>` : dist?.length ? distributionCard(dist, lines, role) : ''}
+    ${S.qualitySources?.claimMoney?.state === 'unavailable' ? html`<div class="card"><h2>Aprobado y pagado · No comprobado</h2><p class="note warn">No se pudieron consultar los importes por reclamación.</p></div>` : money_?.length ? approvedPaidCard(money_) : ''}` : ''}
 
-    <div class="card" style="margin-top:14px"><h2>Servicios del período · ${num(lines.length)} · ${money(total)}</h2>
+    <div class="card" id="submission-lines" style="margin-top:14px"><h2>Servicios del período · ${num(lines.length)} · ${money(total)}</h2>
       ${editable ? html`<div class="toolbar"><button class="btn primary" id="addLine">+ Agregar servicio</button><button class="btn" id="import">Carga masiva</button></div>` : ''}
       ${lines.length ? html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Reclamación</th><th>Afiliado</th><th>NSS</th><th>Autorización</th><th>Concepto</th><th class="n">Cant.</th><th class="n">Unitario</th><th class="n">Total</th><th>Documentos</th>${editable ? html`<th></th>` : ''}</tr></thead>
         <tbody>${lines.map((l) => {
@@ -206,13 +227,13 @@ export async function render(main, ctx) {
             <td data-l="Cant." class="n">${num(l.quantity)}</td>
             <td data-l="Unitario" class="n">${money(l.unit_amount)}${l.tariff_amount == null ? html`<div><span class="pill ${l.contracted === false ? 'bad' : 'warn'}">${l.contracted === false ? 'No contratado' : 'Sin tarifa'}</span></div>` : over ? html`<div><span class="pill bad">Contrato ${money(l.tariff_amount)}</span></div>` : ''}</td>
             <td data-l="Total" class="n"><b>${money(l.amount)}</b></td>
-            <td data-l="Documentos"><button class="btn sm" data-ck="${l.id}"><span class="pill ${ck.pct >= 100 ? 'ok' : ck.pct > 0 ? 'warn' : 'bad'}">${ck.required ? `${ck.pct}%` : 'N/A'}</span></button></td>
+            <td data-l="Documentos"><button class="btn sm" data-ck="${l.id}" ${documentsUnknown ? raw('disabled') : ''}><span class="pill ${documentsUnknown ? 'warn' : ck.pct >= 100 ? 'ok' : ck.pct > 0 ? 'warn' : 'bad'}">${documentsUnknown ? 'No comprobado' : ck.required ? `${ck.pct}%` : 'N/A'}</span></button></td>
             ${editable ? html`<td data-l=""><button class="btn sm" data-edit="${l.id}">Editar</button> <button class="btn sm danger" data-rm="${l.id}" aria-label="Eliminar servicio de ${l.patient_name}">✕</button></td>` : ''}</tr>`;
         })}</tbody></table></div>` : emptyView('Sin servicios', editable ? 'Agrega el primer servicio o usa la carga masiva para pegar las filas desde Excel.' : 'Esta radicación no tiene servicios.')}
     </div>
 
     <div class="grid two" style="margin-top:14px">
-      <div class="card"><h2>Expediente digital · ${num(docs.length)}</h2><p class="sub">Documentos privados: se abren con un enlace temporal de 5 minutos.</p>
+      <div class="card" id="submission-documents"><h2>Expediente digital · ${S.qualitySources?.docs?.state === 'unavailable' ? 'No comprobado' : num(docs.length)}</h2><p class="sub">Documentos privados: se abren con un enlace temporal de 5 minutos.</p>
         ${can('docs.upload', role) ? html`<form id="fu" novalidate class="form-grid">
           <div class="field"><label for="dtype">Tipo de documento</label><select id="dtype" name="type">${types.map((t) => opt(t.code, t.name, 'factura_ncf'))}</select></div>
           <div class="field"><label for="dline">Servicio</label><select id="dline" name="line"><option value="">Toda la radicación</option>${lines.map((l) => opt(l.id, `${date(l.service_date)} · ${l.patient_name}`))}</select></div>
@@ -222,7 +243,7 @@ export async function render(main, ctx) {
         ${docs.length ? html`<div class="list">${docs.map((d) => html`<div class="li"><div class="b"><div class="t1">${d.file_name}</div>
             <div class="t2">${d.document_types?.name || 'Sin tipo'}${d.service_line_id ? ` · ${lineName[d.service_line_id] || 'servicio'}` : ' · toda la radicación'} · ${sizeLabel(d.size_bytes)} · ${dateTime(d.uploaded_at)}${names[d.uploaded_by] ? ` · ${names[d.uploaded_by]}` : ''}</div></div>
             <button class="btn sm" data-open="${d.id}">Abrir</button>${can('docs.delete', role) ? html` <button class="btn sm danger" data-drm="${d.id}" aria-label="Eliminar ${d.file_name}">✕</button>` : ''}</div>`)}</div>`
-          : html`<p class="small muted">Aún no hay documentos.</p>`}
+          : S.qualitySources?.docs?.state === 'unavailable' ? html`<p class="note warn">No se pudo consultar el expediente; no se interpreta como ausencia de documentos.</p>` : html`<p class="small muted">Aún no hay documentos.</p>`}
       </div>
       <div class="card"><h2>Historial</h2>
         <div class="list">${hist.map((h) => html`<div class="li"><div class="b"><div class="t1" style="font-weight:500">${h.from_status ? `${subStatus(h.from_status)[0]} → ` : ''}${subStatus(h.to_status)[0]}${h.is_override ? html` <span class="pill warn">Excepción</span>` : ''}</div>
@@ -252,6 +273,7 @@ export async function render(main, ctx) {
     const { sub, trans } = S;
     const opts = {};
     try {
+      if (['lista_para_radicar', 'radicada'].includes(to) && ['validation', 'duplicates', 'lineChecklist', 'checks', 'docs', 'fiscal', 'fiscalCheck'].some((key) => S.qualitySources?.[key]?.state === 'unavailable')) { toast('Hay comprobaciones no disponibles. Usa «Volver a comprobar» antes de avanzar.', 'bad'); $('#submission-quality', box)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (to === 'radicada') {
         const fc = await fiscalCheck(id);
         if (!fc.registered) { toast('Registre la factura fiscal del contador (número, NCF y monto) antes de radicar.', 'bad'); document.getElementById('fisc')?.scrollIntoView({ behavior: 'smooth' }); return; }
@@ -286,6 +308,20 @@ export async function render(main, ctx) {
   }
 
   function bind(editable) {
+    box.querySelectorAll('[data-quality-refresh]').forEach((button) => button.addEventListener('click', () => busy(button, async () => {
+      const forms = ['ff', 'fiscForm', 'fu'].map((formId) => document.getElementById(formId)).filter(Boolean);
+      try {
+        const data = await load(); if (!data) throw new Error('Lote no disponible.');
+        S = data; draw();
+        forms.forEach((form) => { const replacement = document.getElementById(form.id); if (replacement) replacement.replaceWith(form); });
+        const errors = Object.values(S.qualitySources).filter((source) => source.state === 'unavailable').length;
+        toast(errors ? 'La consulta terminó con comprobaciones no disponibles. Revisa el control de calidad.' : 'Comprobaciones actualizadas. Los campos en edición se conservaron.', errors ? 'warn' : 'ok');
+      } catch (error) { toast(friendlyError(error), 'bad'); }
+    })));
+    box.querySelectorAll('[data-quality-target]').forEach((button) => button.addEventListener('click', () => {
+      if (button.dataset.qualityTarget === 'submission-quality') { $('[data-quality-refresh]', box)?.click(); return; }
+      document.getElementById(button.dataset.qualityTarget)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
     $('[data-invoice-focus]',box)?.addEventListener('click',()=>{ $('#invoice-data',box)?.scrollIntoView({behavior:'smooth',block:'center'}); $('#ncf',box)?.focus({preventScroll:true}); });
     $('[data-register-ecf]',box)?.addEventListener('click',()=>$('#ecfBtn',box)?.click());
     box.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', () => busy(b, () => doMove(b.dataset.to))));
@@ -331,6 +367,7 @@ export async function render(main, ctx) {
       } catch (err) { toast(friendlyError(err), 'bad'); }
     });
     $('#sendBtn', box)?.addEventListener('click', async () => {
+      if (['validation', 'duplicates', 'fiscal', 'fiscalCheck', 'docs', 'delivery'].some((key) => S.qualitySources?.[key]?.state === 'unavailable')) { toast('Hay comprobaciones no disponibles. Vuelve a comprobar el lote antes de registrar su envío.', 'bad'); return; }
       const { formDialog, opt } = await import('../utils/ui.js');
       const { DELIVERY_METHODS } = await import('../utils/constants.js');
       const fc = S.fcheck;
@@ -458,12 +495,12 @@ export async function render(main, ctx) {
 }
 
 /** D2 · Factura fiscal del contador: total de reclamaciones = total de la factura */
-function fiscalCard(sub, f, fc, names, role, docs) {
+function fiscalCard(sub, f, fc, names, role, docs, unchecked = false) {
   const locked = !!sub.submitted_on;
   const editable = !locked && can('fiscal.edit', role);
   const diff = fc?.difference;
   const excepted = fc?.excepted;
-  const state = !fc || !fc.registered ? ['Sin factura fiscal', 'warn'] : fc.matches ? ['Cuadra con las reclamaciones', 'ok'] : excepted ? ['Diferencia autorizada', 'warn'] : fc.mode === 'advertir' ? ['Diferencia (modo advertir)', 'warn'] : ['Diferencia: radicación bloqueada', 'bad'];
+  const state = unchecked ? ['No comprobada', 'warn'] : !fc || !fc.registered ? ['Sin factura fiscal', 'warn'] : fc.matches ? ['Cuadra con las reclamaciones', 'ok'] : excepted ? ['Diferencia autorizada', 'warn'] : fc.mode === 'advertir' ? ['Diferencia (modo advertir)', 'warn'] : ['Diferencia: radicación bloqueada', 'bad'];
   // 1.7 · B4: e-CF del lote (obligatorio desde la fecha del cliente; la base no radica sin E31 aceptado por la DGII)
   const org = f.organizations || {}; const reqFrom = org.ecf_required_from; const required = reqFrom && reqFrom <= (f.invoice_date || todayISO());
   const ecfOk = /^E31\d{10}$/.test(f.ncf || '') && f.ecf_security_code && ['aceptado', 'aceptado_condicional'].includes(f.ecf_dgii_status);
@@ -473,6 +510,7 @@ function fiscalCard(sub, f, fc, names, role, docs) {
     ${!locked && can('fiscal.edit', role) && ['admin', 'super_admin'].includes(role) ? html`<div><button class="btn sm" id="ecfBtn" type="button">${f.ecf_security_code ? 'Actualizar e-CF' : 'Registrar e-CF'}</button></div>` : ''}</div>`;
   return html`<div class="card" id="fisc" style="margin-top:14px"><h2>Factura fiscal del contador · <span class="pill ${state[1]}">${state[0]}</span></h2>
     ${ecfBox}
+    ${unchecked ? html`<p class="note warn">No se pudo comprobar la factura fiscal contra las reclamaciones. Vuelve a comprobar antes de avanzar.</p>` : ''}
     ${!can('fiscal.edit',role)?html`<p class="note">El registro de la factura fiscal y del e-CF corresponde a Administración de SOFA. Tu perfil puede consultar estos datos.</p>`:''}
     <div class="grid two">
       <div>${editable ? html`<form id="fiscForm" novalidate class="form-grid">
