@@ -68,7 +68,7 @@ export async function render(main, ctx) {
 
   claimCounts({ realOnly: staff }).then((all) => {
     if (!$('#k', main)) return;
-    const c = (list) => all.filter((r) => list.includes(r.claim_status)).length;
+    const c = (list) => all.filter((r) => list.includes(r.claim_status)).reduce((t, r) => t + Number(r.cnt), 0);
     paint($('#k', main), html`
       <button type="button" class="kpi claim-kpi-filter" data-g="captura" aria-pressed="${st.group === 'captura' && !st.status}"><span class="l">En captura / por retirar</span><span class="v">${num(c(CLAIM_GROUPS.captura.statuses))}</span></button>
       <button type="button" class="kpi claim-kpi-filter" data-g="custodia" aria-pressed="${st.group === 'custodia' && !st.status}"><span class="l">En SOFA / validación</span><span class="v">${num(c(CLAIM_GROUPS.custodia.statuses))}</span></button>
@@ -80,7 +80,7 @@ export async function render(main, ctx) {
   /** Pipeline progresivo con callouts de próximo paso accionable */
   function drawFunnel() {
     const funnel = $('#funnel', main); if (!funnel) return;
-    const c = (ss) => cachedCounts.filter((r) => ss.includes(r.claim_status)).length;
+    const c = (ss) => cachedCounts.filter((r) => ss.includes(r.claim_status)).reduce((t, r) => t + Number(r.cnt), 0);
     const TAB_STEP = { captura: 0, custodia: 1, ars: 2, cobro: 3 };
     const cur = TAB_STEP[st.group] ?? -1;
     const STEPS = [

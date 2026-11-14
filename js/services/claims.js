@@ -83,9 +83,7 @@ export async function listClaims({ group = 'todas', status = '', location = '', 
   return { data, count: count ?? data.length };
 }
 export async function claimCounts({ realOnly = false } = {}) {
-  let q = sb().from('v_claims').select('claim_status, organization_id');
-  if (realOnly) q = applyRealScope(q, await realOrgIds());
-  return must(await q.limit(20000));
+  return must(await sb().rpc('claim_status_counts', { p_real_only: realOnly }));
 }
 export async function getClaim(id) { return must(await sb().from('v_claims').select('*').eq('id', id).maybeSingle()); }
 export async function claimHistory(id) {
