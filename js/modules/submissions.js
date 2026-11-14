@@ -32,17 +32,12 @@ export async function render(main, ctx) {
   listArs().then((ars) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`)).catch(() => { toast('No se pudieron cargar las ARS', 'warn'); });
 
   // Tarjetas
-  submissionSummary({ realOnly: staff }).then((rows) => {
-    const prep = rows.filter((r) => ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'].includes(r.status));
-    const ready = rows.filter((r) => r.status === 'lista_para_radicar');
-    const open = rows.filter((r) => ['radicada', 'en_auditoria_ars'].includes(r.status) && Number(r.balance) > 0);
-    const late = open.filter((r) => daysTo(r.payment_deadline) < 0);
-    const soon = open.filter((r) => { const d = daysTo(r.payment_deadline); return d >= 0 && d <= 15; });
+  submissionSummary({ realOnly: staff }).then((k) => {
     paint($('#k', main), html`
-      <div class="kpi"><div class="l">En preparación</div><div class="v">${num(prep.length)}</div><div class="h">${money(prep.reduce((t, r) => t + Number(r.claimed), 0))}</div></div>
-      <div class="kpi"><div class="l">Listas para radicar</div><div class="v">${num(ready.length)}</div><div class="h">${money(ready.reduce((t, r) => t + Number(r.claimed), 0))}</div></div>
-      <div class="kpi"><div class="l">Radicadas por cobrar</div><div class="v">${money(open.reduce((t, r) => t + Number(r.balance), 0))}</div><div class="h">${num(open.length)} radicaciones</div></div>
-      <div class="kpi"><div class="l">Plazo de pago vencido</div><div class="v" style="${late.length ? 'color:var(--bad)' : ''}">${num(late.length)}</div><div class="h">${num(soon.length)} vencen en 15 días o menos</div></div>`);
+      <div class="kpi"><div class="l">En preparación</div><div class="v">${num(k.prep_count)}</div><div class="h">${money(k.prep_claimed)}</div></div>
+      <div class="kpi"><div class="l">Listas para radicar</div><div class="v">${num(k.ready_count)}</div><div class="h">${money(k.ready_claimed)}</div></div>
+      <div class="kpi"><div class="l">Radicadas por cobrar</div><div class="v">${money(k.open_balance)}</div><div class="h">${num(k.open_count)} radicaciones</div></div>
+      <div class="kpi"><div class="l">Plazo de pago vencido</div><div class="v" style="${k.late_count ? 'color:var(--bad)' : ''}">${num(k.late_count)}</div><div class="h">${num(k.soon_count)} vencen en 15 días o menos</div></div>`);
   }).catch((e) => paint($('#k', main), html`<div class="note bad">${friendlyError(e)}</div>`));
 
   const list = $('#l', main);

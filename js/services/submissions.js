@@ -27,11 +27,10 @@ export async function listSubmissions({ group = 'todas', orgId = '', arsId = '',
   if (error) throw error;
   return { data, count: count ?? data.length };
 }
-/** Cifras para las tarjetas del listado (solo columnas livianas) */
+/** KPIs pre-agregados del servidor (antes traía 5,000 filas para filtrar en el cliente) */
 export async function submissionSummary({ realOnly = false } = {}) {
-  let q = sb().from('v_submissions').select('status, display_status, claimed, balance, payment_deadline, submitted_on, is_demo');
-  if (realOnly) q = q.eq('is_demo', false);
-  return must(await q.limit(5000));
+  const rows = must(await sb().rpc('submission_summary_kpis', { p_real_only: realOnly }));
+  return rows[0] || { prep_count: 0, prep_claimed: 0, ready_count: 0, ready_claimed: 0, open_count: 0, open_balance: 0, late_count: 0, soon_count: 0 };
 }
 export async function getSubmission(id) { return must(await sb().from('v_submissions').select('*').eq('id', id).maybeSingle()); }
 export async function newSubmission({ provider, ars, period, plan = null, notes = null }) {
