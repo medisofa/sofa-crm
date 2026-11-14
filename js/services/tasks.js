@@ -20,11 +20,8 @@ export async function listTasks({ bucket = '', assignee = '', entityType = '', e
   return must(await q.order('due_date', { ascending: bucket !== 'completadas' }).limit(300));
 }
 export async function taskCounts(assignee = '', { realOnly = false } = {}) {
-  let q = sb().from('v_tasks').select('bucket, organization_id');
-  if (realOnly) q = applyTaskScope(q, await realOrgIds());
-  if (assignee) q = q.eq('assignee_id', assignee);
-  const rows = must(await q.limit(2000));
-  return rows.reduce((m, r) => { m[r.bucket] = (m[r.bucket] || 0) + 1; return m; }, { hoy: 0, vencidas: 0, proximas: 0, completadas: 0 });
+  const rows = must(await sb().rpc('task_bucket_counts', { p_assignee: assignee || null, p_real_only: realOnly }));
+  return rows.reduce((m, r) => { m[r.bucket] = Number(r.cnt); return m; }, { hoy: 0, vencidas: 0, proximas: 0, completadas: 0 });
 }
 export async function createTask(operatorId, v, entity = null) {
   return must(await sb().from('tasks').insert({ operator_id: operatorId, title: v.title.trim(), priority: v.priority || 'media', due_date: v.due_date,
