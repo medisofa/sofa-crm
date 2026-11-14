@@ -1,7 +1,7 @@
 /** SOFA · Glosas: bandeja con plazos, Pareto de motivos, tasa por ARS y ficha de cada glosa */
 import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, errorView, loadingView, toast, friendlyError, opt, busy } from '../utils/ui.js';
-import { listGlosas, glosaSummary, glosaPareto, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs } from '../services/finance.js';
+import { listGlosas, glosaSummary, glosaByReason, glosaByArs, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs } from '../services/finance.js';
 import { profileNames } from '../services/submissions.js';
 import { listArs } from '../services/catalog.js';
 import { money, num, date, dateTime, period, todayISO } from '../utils/formatters.js';
@@ -44,7 +44,7 @@ export async function render(main, ctx) {
   drawTabs();
   listArs().then((a) => paint($('#ars', main), html`<option value="">Todas las ARS</option>${a.map((x) => opt(x.id, x.name))}`)).catch(() => { toast('No se pudieron cargar las ARS', 'warn'); });
 
-  Promise.all([glosaSummary({ realOnly: staff }), glosaPareto({ realOnly: staff }), arsReconciliation({ realOnly: staff })]).then(([k, par, rec]) => {
+  Promise.all([glosaSummary({ realOnly: staff }), glosaByReason({ realOnly: staff }), glosaByArs({ realOnly: staff }), arsReconciliation({ realOnly: staff })]).then(([k, reasons, byArs, rec]) => {
     const recov = Number(k.total_recovered), acc = Number(k.total_accepted);
     paint($('#k', main), html`
       <div class="kpi"><div class="l">Glosado</div><div class="v">${money(k.total_amount)}</div><div class="h">${num(k.total_count)} glosas</div></div>
@@ -52,12 +52,10 @@ export async function render(main, ctx) {
       <div class="kpi"><div class="l">Recuperado</div><div class="v" style="color:var(--ok)">${money(recov)}</div><div class="h">${pct(recov, recov + acc)}% de lo resuelto</div></div>
       <div class="kpi"><div class="l">Vencen en 7 días o menos</div><div class="v" style="${k.soon_count ? 'color:var(--bad)' : ''}">${num(k.soon_count)}</div><div class="h">Incluye las vencidas</div></div>
       <div class="kpi" title="Glosas abiertas que deben responderse en los próximos 15 días (SLA interno SOFA)"><div class="l">SLA ≤ 15 días</div><div class="v" style="${k.sla15_count > 5 ? 'color:var(--warn)' : ''}">${num(k.sla15_count)}</div><div class="h">${money(k.sla15_amount)}</div></div>`);
-    const byReason = {}; par.forEach((p) => { byReason[p.reason_name] = (byReason[p.reason_name] || 0) + Number(p.amount); });
-    const reasons = Object.entries(byReason).sort((a, b) => b[1] - a[1]).slice(0, 8); const maxR = reasons[0]?.[1] || 0;
-    paint($('#par', main), reasons.length ? html`${reasons.map(([n, v]) => html`<div style="margin:8px 0"><div class="small" style="display:flex;justify-content:space-between"><span>${n}</span><b>${money(v)}</b></div>${bar(v, maxR, 'var(--red)')}</div>`)}` : html`<p class="small muted">Aún no hay glosas.</p>`);
-    const byArs = {}; par.forEach((p) => { byArs[p.ars_id] = byArs[p.ars_id] || { name: p.ars_name, g: 0 }; byArs[p.ars_id].g += Number(p.amount); });
-    const radByArs = {}; rec.forEach((r) => { radByArs[r.ars_id] = (radByArs[r.ars_id] || 0) + Number(r.radicado || 0); });
-    const rates = Object.entries(byArs).map(([id, x]) => [x.name, pct(x.g, radByArs[id]), x.g]).sort((a, b) => b[1] - a[1]);
+    const top8 = reasons.slice(0, 8); const maxR = Number(top8[0]?.total_amount) || 0;
+    paint($('#par', main), top8.length ? html`${top8.map((r) => html`<div style="margin:8px 0"><div class="small" style="display:flex;justify-content:space-between"><span>${r.reason_name}</span><b>${money(r.total_amount)}</b></div>${bar(Number(r.total_amount), maxR, 'var(--red)')}</div>`)}` : html`<p class="small muted">Aún no hay glosas.</p>`);
+    const radByArs = {}; rec.forEach((r) => { radByArs[r.ars_id] = Number(r.radicado || 0); });
+    const rates = byArs.map((x) => [x.ars_name, pct(x.total_amount, radByArs[x.ars_id]), Number(x.total_amount)]).sort((a, b) => b[1] - a[1]);
     paint($('#rate', main), rates.length ? html`${rates.map(([n, r, g]) => html`<div style="margin:8px 0"><div class="small" style="display:flex;justify-content:space-between"><span>${n}</span><b>${r}% · ${money(g)}</b></div>${bar(r, Math.max(...rates.map((x) => x[1])), r > 5 ? 'var(--red)' : 'var(--navy-2)')}</div>`)}<p class="small muted">Meta de SOFA: menos de 5%.</p>` : html`<p class="small muted">Sin datos.</p>`);
   }).catch((e) => paint($('#k', main), errorView(e)));
 

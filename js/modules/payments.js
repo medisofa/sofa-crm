@@ -53,8 +53,7 @@ export async function render(main, ctx) {
     { isEmpty: (r) => !r.data.length, empty: () => emptyView('Sin pagos registrados', 'Registra el primer pago de una ARS y repártelo entre sus radicaciones.', can('payments.create', ctx.role) ? html`<button class="btn primary" data-first-pay>+ Registrar pago</button>` : '') });
 
     if (st.tab === 'conciliacion') return loadInto(list, async () => (await arsReconciliation({ realOnly: staff })).filter((r) => !st.arsId || r.ars_id === st.arsId), (rows) => {
-      const by = {}; rows.forEach((r) => { const k = r.ars_id; by[k] = by[k] || { ars: r.ars, radicado: 0, pagado: 0, glosa: 0, saldo: 0 }; by[k].radicado += Number(r.radicado || 0); by[k].pagado += Number(r.pagado || 0); by[k].glosa += Number(r.glosa_aceptada || 0); by[k].saldo += Number(r.saldo || 0); });
-      const list2 = Object.values(by).filter((x) => x.radicado > 0).sort((a, b) => b.saldo - a.saldo);
+      const list2 = rows.map((r) => ({ ars: r.ars, radicado: Number(r.radicado || 0), pagado: Number(r.pagado || 0), glosa: Number(r.glosa_aceptada || 0), saldo: Number(r.saldo || 0) })).filter((x) => x.radicado > 0).sort((a, b) => b.saldo - a.saldo);
       lastRecon = list2;
       csvRecon.disabled = !list2.length;
       const tot = list2.reduce((t, x) => ({ radicado: t.radicado + x.radicado, pagado: t.pagado + x.pagado, glosa: t.glosa + x.glosa, saldo: t.saldo + x.saldo }), { radicado: 0, pagado: 0, glosa: 0, saldo: 0 });

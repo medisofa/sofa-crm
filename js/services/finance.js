@@ -31,8 +31,9 @@ export async function glosaSummary({ realOnly = false } = {}) {
   const rows = must(await sb().rpc('glosa_summary_kpis', { p_real_only: realOnly }));
   return rows[0] || { total_amount: 0, total_in_dispute: 0, total_recovered: 0, total_accepted: 0, total_count: 0, soon_count: 0, sla15_count: 0, sla15_amount: 0 };
 }
-export async function glosaPareto({ realOnly = false } = {}) { let q = sb().from('v_glosa_pareto').select('reason_name, ars_id, ars_name, amount'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
-export async function arsReconciliation({ realOnly = false } = {}) { let q = sb().from('v_ars_reconciliation').select('ars_id, ars, radicado, pagado, glosa_aceptada, saldo'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
+export async function glosaByReason({ realOnly = false } = {}) { return must(await sb().rpc('glosa_pareto_by_reason', { p_real_only: realOnly })); }
+export async function glosaByArs({ realOnly = false } = {}) { return must(await sb().rpc('glosa_pareto_by_ars', { p_real_only: realOnly })); }
+export async function arsReconciliation({ realOnly = false } = {}) { return must(await sb().rpc('ars_reconciliation_agg', { p_real_only: realOnly })); }
 export async function getGlosa(id) { return must(await sb().from('v_glosas').select('*').eq('id', id).maybeSingle()); }
 export async function glosaItems(id) {
   return must(await sb().from('glosa_items').select('id, service_line_id, reason_code, amount, accepted_amount, recovered_amount, notes, glosa_reasons(name, category), service_lines(claim_folio, patient_name, service_date, member_number, procedures(description))').eq('glosa_id', id));
@@ -67,10 +68,8 @@ export async function openSubmissions(orgId, arsId) {
     .eq('organization_id', orgId).eq('ars_id', arsId).in('status', ['radicada', 'en_auditoria_ars']).gt('balance', 0).order('submitted_on'));
 }
 export async function clientsWithOpenBalance({ realOnly = false } = {}) {
-  let q = sb().from('v_submissions').select('organization_id, client_name, ars_id, ars_name, balance').in('status', ['radicada', 'en_auditoria_ars']).gt('balance', 0);
-  if (realOnly) q = applyOnlyReal(q, await realOrgIds());
-  const rows = must(await q.limit(5000));
-  return rows;
+  const rows = must(await sb().rpc('clients_open_balance', { p_real_only: realOnly }));
+  return rows.map((r) => ({ ...r, balance: r.total_balance }));
 }
 export async function registerPayment({ orgId, arsId, paidOn, amount, method, reference, allocations, notes }) {
   return must(await sb().rpc('register_payment', { p_org: orgId, p_ars: arsId, p_paid_on: paidOn, p_amount: amount, p_method: method, p_reference: reference, p_allocations: allocations, p_notes: notes || null }));
