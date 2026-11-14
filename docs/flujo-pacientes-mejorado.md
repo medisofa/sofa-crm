@@ -1,4 +1,4 @@
-# Flujo de pacientes · 5.38.0
+# Flujo de pacientes · 5.40.0
 
 Las tarjetas presentan hora, nombre completo, médico, servicio y sala en bloques separados. Las acciones van debajo y ocupan el ancho de la tarjeta. Las columnas se adaptan al ancho disponible y en móvil se muestran en una columna.
 
@@ -8,6 +8,6 @@ La actualización automática conserva los controles, la búsqueda, el foco y la
 
 El tiempo transcurrido solo se muestra para la fecha actual de República Dominicana. Los registros de días anteriores se identifican como tales y las fechas históricas no acumulan minutos hasta hoy.
 
-Se mantienen los cinco estados y las transiciones de Agenda: registrar llegada y volver a espera usan en_espera; llamar a consulta solicita la sala. Atendida sigue dependiendo de la reclamación o cobro. El modo soporte muestra el tablero sin acciones de escritura. No cambia el backend ni los permisos.
+Se mantienen los cinco estados y las transiciones de Agenda: registrar llegada y volver a espera usan en_espera; llamar a consulta solicita la sala. Las citas atendidas se separan en dos columnas: **Atendidos** (sin cobro registrado) y **Facturada** (con cobro privado registrado en Agenda). Las tarjetas facturadas llevan el badge «Cobro registrado». Las reclamaciones ARS aún no enlazan con cita individual, por lo que la columna Facturada hoy solo refleja cobros privados; la señal ARS se agregará cuando `submissions` tenga `appointment_id`. El modo soporte muestra el tablero sin acciones de escritura. No cambia los permisos.
 
 Validación con datos ficticios en Chromium: nombres largos, cinco tamaños de pantalla, búsqueda y foco durante la actualización, errores y reintento, diálogo estable, RPC exactos y soporte de solo lectura.

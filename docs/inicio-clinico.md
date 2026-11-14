@@ -1,9 +1,10 @@
-# Inicio clínico · 5.33.0
+# Inicio clínico · 5.40.0
 
 La pantalla **Inicio** del menú (`mi-dashboard`) prioriza la jornada del consultorio para Médico, Capturista y Asistente de consulta:
 
 - Citas de hoy, pacientes en espera, en consulta y citas atendidas.
 - Agenda con las primeras ocho citas, ordenadas por hora, y el total de citas del día. Las canceladas se excluyen.
+- **Siguiente cita** — tarjeta lateral con la próxima cita pendiente (programada, confirmada o en sala de espera), mostrando hora, paciente, médico y estado. Si la cita es ARS y falta la autorización, se muestra una alerta roja; si la cobertura no está verificada, alerta amarilla. Sin alerta para citas privadas o ARS con autorización completa.
 - Confirmaciones pendientes y accesos a los módulos autorizados.
 - **Todos mis módulos** conserva el resto de accesos en un bloque plegable.
 
