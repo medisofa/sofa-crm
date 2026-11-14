@@ -31,9 +31,8 @@ export async function glosaSummary({ realOnly = false } = {}) {
   const rows = must(await sb().rpc('glosa_summary_kpis', { p_real_only: realOnly }));
   return rows[0] || { total_amount: 0, total_in_dispute: 0, total_recovered: 0, total_accepted: 0, total_count: 0, soon_count: 0, sla15_count: 0, sla15_amount: 0 };
 }
-export async function glosaByReason({ realOnly = false } = {}) { return must(await sb().rpc('glosa_pareto_by_reason', { p_real_only: realOnly })); }
-export async function glosaByArs({ realOnly = false } = {}) { return must(await sb().rpc('glosa_pareto_by_ars', { p_real_only: realOnly })); }
-export async function arsReconciliation({ realOnly = false } = {}) { return must(await sb().rpc('ars_reconciliation_agg', { p_real_only: realOnly })); }
+export async function glosaPareto({ realOnly = false } = {}) { let q = sb().from('v_glosa_pareto').select('reason_name, ars_id, ars_name, amount'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
+export async function arsReconciliation({ realOnly = false } = {}) { let q = sb().from('v_ars_reconciliation').select('ars_id, ars, radicado, pagado, glosa_aceptada, saldo'); if (realOnly) q = applyOnlyReal(q, await realOrgIds()); return must(await q.limit(5000)); }
 export async function getGlosa(id) { return must(await sb().from('v_glosas').select('*').eq('id', id).maybeSingle()); }
 export async function glosaItems(id) {
   return must(await sb().from('glosa_items').select('id, service_line_id, reason_code, amount, accepted_amount, recovered_amount, notes, glosa_reasons(name, category), service_lines(claim_folio, patient_name, service_date, member_number, procedures(description))').eq('glosa_id', id));
