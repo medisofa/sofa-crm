@@ -1,18 +1,82 @@
 /** SOFA · 3.9 · Iteración 49 · Tablero de dirección de SOFA (Super Admin y Administrador).
- *  MRR contra la meta, mezcla por servicio, retención, ARPA, horas por cliente y conversión de diagnósticos. */
-import { rpc, h, money, note, guarded, kpi } from '../services/iter18.js';
+ *  MRR contra la meta, mezcla por servicio, retención, ARPA, horas por cliente y conversión de diagnósticos.
+ *  5.35.0 · Sección operativa arriba: alertas semanales, break-even, pipeline, facturación agregada.
+ *  Los dos tableros conviven: el operativo responde «qué hago esta semana», el financiero «cómo va el negocio». */
+import { rpc, h, money, fmtDate, note, guarded, kpi } from '../services/iter18.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 
 export async function render(root, ctx = {}) {
   root.replaceChildren();
   const m = h('input', { type: 'month', id: 'di-m', value: new Date().toISOString().slice(0, 7) });
   const pdf = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Informe del mes (imprimir o PDF)');
+  const ops = h('div', { 'aria-live': 'polite', id: 'di-ops' });
   const box = h('div', { 'aria-live': 'polite' });
   const cfg = h('div');
   root.append(h('div', { class: 'i18-wrap' }, h('h2', {}, 'Tablero de dirección'),
-    h('p', { class: 'i18-sub' }, 'El negocio SOFA contra su meta. Los ingresos salen de los honorarios calculados de cada mes.'),
+    h('p', { class: 'i18-sub' }, 'Operación de la semana y negocio del mes. Los ingresos salen de los honorarios calculados de cada mes.'),
+    ops,   // 5.35.0 · operativo (arriba)
     h('div', { class: 'i18-bar' }, h('label', { for: 'di-m' }, 'Mes', m), pdf), box, cfg));
   let last = null;
+
+  // 5.35.0 · Panel operativo: alertas semanales, break-even, pipeline. Falla en silencio si la
+  // migración no está aplicada (entornos previos) — el tablero financiero sigue cargando normal.
+  loadOps();
+  async function loadOps() {
+    const d = await rpc('direction_operations_overview').catch(() => null);
+    if (!d) return;   // tablero operativo opcional
+    const alerts = [];
+    (d.invoices_due_soon || []).forEach((i) => alerts.push({
+      sev: i.days_left <= 2 ? 'bad' : 'warn', icon: '!',
+      t: `Factura ${i.folio} vence en ${i.days_left} día(s)`,
+      s: `${i.client} · ${money(i.saldo)} · ${fmtDate(i.due_on)}` }));
+    (d.clients_at_risk || []).forEach((c) => alerts.push({
+      sev: 'warn', icon: '◐',
+      t: `${c.client}: ${c.razon}`,
+      s: `Último servicio: ${c.ult_servicio ? fmtDate(c.ult_servicio) : '—'} · Último login: ${c.ult_login === '—' ? 'nunca' : fmtDate(c.ult_login)}` }));
+    (d.clients_activating || []).forEach((c) => alerts.push({
+      sev: 'info', icon: '◇',
+      t: `${c.client}: activación pendiente (día ${c.dias} desde alta)`,
+      s: `${c.users} usuario(s) · 0 reclamaciones aún` }));
+    const bar = Number(d.pct_to_breakeven || 0);
+    const beColor = bar < 25 ? 'var(--bad)' : bar < 60 ? 'var(--warn)' : 'var(--ok)';
+    const p = d.pipeline || {}; const b = d.billing || {};
+    ops.replaceChildren(h('section', { class: 'di-ops' },
+      h('div', { class: 'di-ops-head' }, h('h3', { style: 'margin:0' }, 'Operación de la semana'),
+        h('span', { class: 'i18-sub' }, `Actualizado ${new Date(d.generated_at).toLocaleString('es-DO')}`)),
+      // Fila 1 · KPIs operativos
+      h('div', { class: 'i18-kpis' },
+        kpi('Clientes activos', `${d.clients_active} / ${d.clients_total}`, `Operando con al menos 1 médico`),
+        kpi('Rumbo al break-even', `${d.clients_active} / ${d.breakeven_target}`, `${d.gap_to_breakeven} para cubrir costos`),
+        kpi('Facturado este mes', money(b.mes_actual_mrr), `Cobrado: ${money(b.mes_actual_cobrado)}`),
+        kpi('Total vencido', money(b.total_vencido), b.total_vencido > 0 ? '⚠ Hay cobros atrasados' : 'Al día')),
+      // Barra break-even
+      h('div', { class: 'di-be-wrap' },
+        h('div', { class: 'di-be-head' }, h('span', { class: 'i18-sub' }, 'Camino al break-even'), h('strong', {}, `${bar} %`)),
+        h('div', { class: 'di-be-bar', role: 'progressbar', 'aria-valuenow': String(bar), 'aria-valuemin': '0', 'aria-valuemax': '100' },
+          h('div', { class: 'di-be-fill', style: `width:${bar}%; background:${beColor}` }))),
+      // Fila 2 · Pipeline
+      h('h4', { style: 'margin:18px 0 8px' }, 'Pipeline'),
+      h('div', { class: 'di-pipeline' },
+        pipeCell('Prospectos', p.prospectos || 0, 'leads sin convertir'),
+        pipeCell('Organizaciones cliente', p.organizaciones_cliente || 0, 'Total alta'),
+        pipeCell('Activas', p.organizaciones_activas || 0, 'Con médico activo'),
+        pipeCell('Pagando', p.clientes_pagando || 0, 'Con al menos 1 pago'),
+        pipeCell('Facturas emitidas', p.facturas_emitidas || 0, `Cobradas: ${p.facturas_cobradas || 0}`)),
+      // Alertas
+      h('h4', { style: 'margin:18px 0 8px' }, `Alertas · ${alerts.length}`),
+      alerts.length ? h('div', { class: 'di-alerts' }, alerts.map((a) => h('div', { class: `di-alert di-alert-${a.sev}` },
+        h('span', { class: 'di-alert-icon' }, a.icon),
+        h('div', { class: 'di-alert-body' },
+          h('strong', {}, a.t),
+          h('span', { class: 'i18-sub' }, a.s)))))
+        : note('No hay alertas esta semana — todo al día.', 'info')));
+  }
+  function pipeCell(label, value, sub) {
+    return h('div', { class: 'di-pipe-cell' },
+      h('div', { class: 'di-pipe-label' }, label),
+      h('div', { class: 'di-pipe-value' }, String(value)),
+      h('div', { class: 'di-pipe-sub' }, sub));
+  }
 
   async function load() {
     const d = await guarded(box, () => rpc('direction_board', { p_month: `${m.value}-01` }));
