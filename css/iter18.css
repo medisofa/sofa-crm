@@ -1261,6 +1261,17 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .clinical-modules>summary:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:var(--r)}
 .clinical-pending .btn{margin:4px 8px 0 0}
 
+/* Siguiente cita */
+.clinical-next{border-left:3px solid var(--accent, #6366f1)}
+.clinical-next-body{display:flex;gap:12px;align-items:flex-start;margin:8px 0}
+.clinical-next-time{font-size:1.5rem;font-weight:700;line-height:1;color:var(--accent, #6366f1);min-width:3.2em;text-align:center}
+.clinical-next-info{display:flex;flex-direction:column;gap:2px}
+.clinical-next-info strong{font-size:.95rem}
+.clinical-next-info small{color:var(--muted)}
+.clinical-next-alert{padding:8px 12px;border-radius:var(--r);font-size:.85rem;line-height:1.4}
+.clinical-next-alert.bad{background:var(--red-bg, #fef2f2);color:var(--red, #dc2626);border:1px solid var(--red-border, #fecaca)}
+.clinical-next-alert.warn{background:var(--yellow-bg, #fffbeb);color:var(--yellow, #d97706);border:1px solid var(--yellow-border, #fde68a)}
+
 /* Hospitalización: casos legibles y gestión de centros dentro del consultorio. */
 .hosp-wrap{min-width:0}
 .hosp-wrap .hosp-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
@@ -1444,6 +1455,7 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .patient-flow .flow-esperando .flow-col-head{border-top-color:var(--warn,#b98635)}
 .patient-flow .flow-consulta .flow-col-head{border-top-color:var(--navy-2,#315b8b)}
 .patient-flow .flow-atendido .flow-col-head{border-top-color:var(--ok,#238663)}
+.patient-flow .flow-facturada .flow-col-head{border-top-color:var(--accent,#6366f1)}
 .patient-flow .flow-patients{padding:10px;display:grid;gap:10px}
 .patient-flow .flow-card{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;min-width:0;padding:13px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 1px 2px #132b4510;word-break:normal;overflow-wrap:break-word}
 .patient-flow .flow-card-meta{display:flex;justify-content:space-between;gap:6px;align-items:start;flex-wrap:wrap;font-size:.7rem;color:var(--ink-2)}

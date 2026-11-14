@@ -1,7 +1,7 @@
 /** Inicio del equipo clínico: agenda, estado del día y accesos permitidos. */
 import { h, num, note } from '../services/iter18.js';
 import { canSee } from '../utils/permissions.js';
-import { loadClinicalDashboard } from '../services/clinical-dashboard.js';
+import { loadClinicalDashboard, coverageAlert } from '../services/clinical-dashboard.js';
 
 const STATUS = { programada: ['Por confirmar', 'warn'], confirmada: ['Confirmada', 'info'], en_espera: ['En sala', 'warn'], en_consulta: ['En consulta', 'info'], atendida: ['Atendida', 'ok'], no_asistio: ['No asistió', 'bad'] };
 const shortDate = (iso) => new Intl.DateTimeFormat('es-DO', { timeZone: 'America/Santo_Domingo', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${iso}T12:00:00-04:00`));
@@ -68,18 +68,43 @@ export async function render(root, ctx = {}) {
       agenda.append(h('p', { class: 'small muted' }, `Mostrando ${data.appointments.length} de ${data.totalAppointments} citas de hoy, en orden de horario.`));
     }
     agenda.append(routeLink(ctx.role, 'agenda', 'Ver agenda completa', 'btn'));
+    const nextCard = buildNextCard(data, ctx.role);
     const pending = h('section', { class: 'card clinical-pending', 'aria-labelledby': 'clinical-pending-title' },
       h('h3', { id: 'clinical-pending-title' }, 'Pendientes de hoy'),
       h('p', {}, data.metrics.pendingConfirmation == null ? 'Confirmaciones no disponibles.' : `${num(data.metrics.pendingConfirmation)} cita(s) por confirmar.`),
       h('p', { class: 'small muted' }, 'Revisa las citas programadas y el flujo de pacientes antes de continuar.'),
       routeLink(ctx.role, 'agenda', 'Revisar citas'), routeLink(ctx.role, 'flujo-pacientes', 'Ver plan del día'));
-    shell.append(h('div', { class: 'clinical-grid' }, agenda, h('aside', { class: 'clinical-side', 'aria-label': 'Pendientes y accesos' }, pending, shortcuts(ctx.role))));
+    shell.append(h('div', { class: 'clinical-grid' }, agenda, h('aside', { class: 'clinical-side', 'aria-label': 'Pendientes y accesos' }, nextCard, pending, shortcuts(ctx.role))));
     shell.append(allModules());
     if (Object.keys(data.errors).length) shell.append(h('p', { class: 'clinical-empty', role: 'status' }, 'Algunos datos no están disponibles. Los guiones indican información pendiente de consultar.'));
     shell.setAttribute('aria-busy', 'false');
     if (refreshing) refresh.focus();
   }
   await draw();
+}
+
+function buildNextCard(data, role) {
+  const a = data.nextAppointment;
+  if (!a && !data.errors.next) return null;
+  const card = h('section', { class: 'card clinical-next', 'aria-labelledby': 'clinical-next-title' },
+    h('h3', { id: 'clinical-next-title' }, 'Siguiente cita'));
+  if (data.errors.next || !a) {
+    card.append(h('p', { class: 'clinical-empty' }, data.errors.next || 'No hay citas pendientes por atender hoy.'));
+    return card;
+  }
+  const time = a.appointment_time ? String(a.appointment_time).slice(0, 5) : 'Sin hora';
+  const [label, tone] = STATUS[a.status] || [a.status || 'Sin estado', ''];
+  const alert = coverageAlert(a);
+  card.append(
+    h('div', { class: 'clinical-next-body' },
+      h('time', { class: 'clinical-next-time' }, time),
+      h('div', { class: 'clinical-next-info' },
+        h('strong', {}, a.patient_name || 'Paciente'),
+        h('small', {}, a.providers?.full_name || 'Médico del consultorio'),
+        h('span', { class: `pill clinical-status ${tone}` }, label))));
+  if (alert) card.append(h('p', { class: `clinical-next-alert ${alert.tone}`, role: 'status' }, alert.text));
+  card.append(routeLink(role, 'agenda', 'Abrir agenda', 'btn'));
+  return card;
 }
 
 function shortcuts(role) {

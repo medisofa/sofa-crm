@@ -31,7 +31,7 @@ try{
  await page.evaluate(async()=>{
   window.reads=[];window.rpcs=[];window.writes=[];
   const statuses=['programada','confirmada','en_espera','en_consulta','atendida','cancelada'];
-  window.fixture={appointments:statuses.map((status,i)=>({id:'appt-'+i,organization_id:'org-clinic',appointment_date:'2026-11-09',appointment_time:String(8+i).padStart(2,'0')+':00',patient_name:i===0?'<script>Paciente ficticio</script>':'Paciente ficticio '+i,status,provider_id:'doctor',providers:{full_name:'Dra. Ejemplo'}})),admin:{sections:[{code:'direccion',title:'Administración',kpis:[{code:'cartera_ars',label:'Cartera ARS ficticia',value:750,unit:'RD$',level:'normal'},{code:'clientes_activos',label:'Clientes activos',value:3,level:'normal'}],shortcuts:['agenda']}]}};
+  window.fixture={appointments:statuses.map((status,i)=>({id:'appt-'+i,organization_id:'org-clinic',appointment_date:'2026-11-09',appointment_time:String(8+i).padStart(2,'0')+':00',patient_name:i===0?'<script>Paciente ficticio</script>':'Paciente ficticio '+i,status,provider_id:'doctor',providers:{full_name:'Dra. Ejemplo'},payer_type:i%2===0?'ars':'privado',authorization_number:i===0?null:'AUT-'+i,eligibility_status:i===2?'no_verificada':'verificada'})),admin:{sections:[{code:'direccion',title:'Administración',kpis:[{code:'cartera_ars',label:'Cartera ARS ficticia',value:750,unit:'RD$',level:'normal'},{code:'clientes_activos',label:'Clientes activos',value:3,level:'normal'}],shortcuts:['agenda']}]}};
   fixture.appointments.push({id:'foreign',organization_id:'org-foreign',appointment_date:'2026-11-09',appointment_time:'07:00',patient_name:'NO DEBE MOSTRARSE',status:'programada',provider_id:'other'});
   window.ctx={role:'client',profile:{full_name:'Dra. Ejemplo'},membership:{organization_id:'org-clinic',organization:'Consultorio ficticio'},viewAs:null};
   window.dashboard=await import('/js/modules/dashboard-rol.js');window.clinicalService=await import('/js/services/clinical-dashboard.js');
@@ -46,7 +46,9 @@ try{
  const reads=await page.evaluate(()=>reads);assert.ok(reads.length>=5);
  for(const q of reads){assert.equal(q.table,'appointments');assert.ok(q.filters.some(f=>f[1]==='organization_id'&&f[2]==='org-clinic'));assert.ok(q.filters.some(f=>f[1]==='appointment_date'&&f[2]==='2026-11-09'));}
  assert.ok(reads.some(q=>q.limit===8&&!q.options?.head),'Agenda limitada a ocho filas');
+ assert.ok(reads.some(q=>q.filters.some(f=>f[0]==='in'&&f[1]==='status')),'Query next filtra por status programada/confirmada/en_espera');
  assert.equal(await page.locator('.clinical-row').count(),5,'Canceladas excluidas');
+ assert.equal(await page.locator('.clinical-next').count(),1,'Tarjeta de siguiente cita visible');
  assert.equal(await page.locator('.clinical-home').evaluate(el=>el.textContent.includes('Clientes activos')),false);
  async function linksAllowed(){assert.equal(await page.evaluate(async()=>{const {canSee}=await import('/js/utils/permissions.js');return [...document.querySelectorAll('main a[href^="#/"]')].every(a=>canSee(a.getAttribute('href').slice(2).split('/')[0],ctx.role));}),true,'Todos los enlaces respetan canSee');}
  await linksAllowed();
@@ -75,5 +77,29 @@ try{
  const toggle=page.locator('.dash-viewbar-toggle');await toggle.focus();await page.keyboard.press('Space');assert.equal(await toggle.getAttribute('aria-expanded'),'true');assert.equal(await toggle.evaluate(el=>el===document.activeElement),true,'Foco conservado al abrir selector');
  const next=page.locator('.dash-view-btn[aria-pressed="false"]').first();await next.focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.querySelector('.dash-viewbar-toggle')?.getAttribute('aria-expanded')==='false');assert.equal(await toggle.evaluate(el=>el===document.activeElement),true,'Foco vuelve al selector al elegir vista');
  assert.ok(await page.evaluate(()=>writes.some(w=>w.name==='set_my_dashboard_view')));
- assert.deepEqual(errors,[]);console.log('PASS: inicio clínico acotado por organización y fecha RD, soporte sin escrituras ni asignaciones simuladas, permisos, móvil, vacíos, fallos, admin y selector con teclado.');
+ // pickNext y coverageAlert
+ const pickResult=await page.evaluate(()=>{
+  const {pickNext,coverageAlert,clinicalClock}=clinicalService;
+  const now=new Date('2026-11-09T14:00:00-04:00');
+  const rows=[{id:'1',appointment_time:'09:00',status:'programada',payer_type:'ars',authorization_number:null},{id:'2',appointment_time:'10:30',status:'confirmada',payer_type:'privado'},{id:'3',appointment_time:'11:00',status:'programada',payer_type:'ars',authorization_number:'AUT-123',eligibility_status:'no_verificada'}];
+  const next=pickNext(rows,now);
+  return {nextId:next?.id,clock:clinicalClock(now),alertNoAuth:coverageAlert(rows[0]),alertPrivado:coverageAlert(rows[1]),alertNoVerif:coverageAlert(rows[2]),alertNull:coverageAlert(null)};
+ });
+ assert.equal(pickResult.nextId,'1','pickNext devuelve la primera cita aún pendiente');
+ assert.equal(pickResult.clock,'14:00');
+ assert.equal(pickResult.alertNoAuth.tone,'bad','Falta autorización → tono bad');
+ assert.equal(pickResult.alertPrivado,null,'Privado sin alerta');
+ assert.equal(pickResult.alertNoVerif.tone,'warn','No verificada → tono warn');
+ assert.equal(pickResult.alertNull,null);
+ // pickNext: todas pasadas devuelve la primera
+ const pickAllPast=await page.evaluate(()=>{
+  const {pickNext}=clinicalService;
+  const rows=[{id:'a',appointment_time:'07:00',status:'programada'},{id:'b',appointment_time:'08:00',status:'confirmada'}];
+  return pickNext(rows,new Date('2026-11-09T18:00:00-04:00'))?.id;
+ });
+ assert.equal(pickAllPast,'a','Todas pasadas → primera');
+ // alert con autorización completa
+ const alertOk=await page.evaluate(()=>clinicalService.coverageAlert({payer_type:'ars',authorization_number:'AUT-999',eligibility_status:'verificada'}));
+ assert.equal(alertOk,null,'ARS con autorización y verificada → sin alerta');
+ assert.deepEqual(errors,[]);console.log('PASS: inicio clínico acotado por organización y fecha RD, soporte sin escrituras ni asignaciones simuladas, permisos, móvil, vacíos, fallos, admin, selector con teclado, siguiente cita y alertas de cobertura.');
 }finally{await browser.close();}

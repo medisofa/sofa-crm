@@ -16,7 +16,7 @@ export async function loadClinicalDashboard(ctx, now = new Date()) {
     date: clinicalDay(now), organizationId,
     scopeLabel: ctx.viewAs ? (ctx.role === 'client' && !ctx.viewAs.targetName ? 'Consultorio completo · vista de soporte' : 'Vista de soporte · solo lectura') : ctx.role === 'client' ? 'Tu consultorio' : 'Médicos visibles según tu asignación',
     unavailable: null, metrics: { total: null, waiting: null, inConsultation: null, attended: null, pendingConfirmation: null },
-    appointments: [], totalAppointments: null, errors: {}
+    appointments: [], totalAppointments: null, nextAppointment: null, errors: {}
   };
   // La sesión de soporte conserva la identidad del administrador. No simular una
   // asignación individual usando los permisos amplios de esa identidad.
@@ -38,15 +38,22 @@ export async function loadClinicalDashboard(ctx, now = new Date()) {
   const queries = [
     scope(client.from('appointments').select('id,appointment_time,patient_name,status,provider_id,providers(full_name)', { count: 'exact' }))
       .neq('status', 'cancelada').order('appointment_time', { ascending: true, nullsFirst: false }).order('id').limit(8),
-    countStatus('en_espera'), countStatus('en_consulta'), countStatus('atendida'), countStatus('programada')
+    countStatus('en_espera'), countStatus('en_consulta'), countStatus('atendida'), countStatus('programada'),
+    scope(client.from('appointments').select('id,appointment_time,patient_name,status,payer_type,authorization_number,eligibility_status,providers(full_name)'))
+      .in('status', ['programada', 'confirmada', 'en_espera']).order('appointment_time', { ascending: true, nullsFirst: false }).order('id').limit(30)
   ];
-  const keys = ['agenda', 'waiting', 'inConsultation', 'attended', 'pendingConfirmation'];
+  const keys = ['agenda', 'waiting', 'inConsultation', 'attended', 'pendingConfirmation', 'next'];
   const settled = await Promise.allSettled(queries);
   settled.forEach((item, index) => {
     const key = keys[index];
     const response = item.status === 'fulfilled' ? item.value : null;
-    if (!response || response.error || !Number.isFinite(response.count)) {
+    if (key !== 'next' && (!response || response.error || !Number.isFinite(response.count))) {
       result.errors[key] = 'No disponible. Actualiza para volver a consultar.';
+      return;
+    }
+    if (key === 'next') {
+      if (response && !response.error) result.nextAppointment = pickNext(response.data || [], now);
+      else result.errors.next = 'No disponible. Actualiza para volver a consultar.';
       return;
     }
     if (key === 'agenda') {
@@ -56,4 +63,24 @@ export async function loadClinicalDashboard(ctx, now = new Date()) {
     } else result.metrics[key] = response.count;
   });
   return result;
+}
+
+/** Hora actual de Santo Domingo como «HH:MM». */
+export function clinicalClock(now = new Date()) {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Santo_Domingo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+}
+
+/** Primera cita pendiente que aún no pasa de hora; si todas pasaron, la primera sin atender. */
+export function pickNext(rows, now = new Date()) {
+  const clock = clinicalClock(now);
+  const open = rows;
+  return open.find((r) => r.appointment_time && String(r.appointment_time).slice(0, 5) >= clock) || open[0] || null;
+}
+
+/** Alerta de cobertura de una cita: null si no hay nada que resolver. */
+export function coverageAlert(a) {
+  if (!a || a.payer_type !== 'ars') return null;
+  if (!String(a.authorization_number || '').trim()) return { tone: 'bad', text: 'Falta la autorización de la ARS. Regístrala antes de que llegue el paciente.' };
+  if (a.eligibility_status === 'no_verificada') return { tone: 'warn', text: 'La cobertura no está verificada. Confírmala antes de la consulta.' };
+  return null;
 }

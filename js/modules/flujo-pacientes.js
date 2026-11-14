@@ -11,7 +11,8 @@ const COLS = [
   { key: 'confirmados', title: 'Confirmados', empty: 'Sin pacientes confirmados', match: (a) => a.status === 'confirmada' },
   { key: 'esperando', title: 'En sala', empty: 'Nadie en sala de espera', match: (a) => a.status === 'en_espera' },
   { key: 'consulta', title: 'En consulta', empty: 'Ninguna consulta en curso', match: (a) => a.status === 'en_consulta' },
-  { key: 'atendido', title: 'Atendidos', empty: 'Sin atenciones registradas', match: (a) => a.status === 'atendida' }
+  { key: 'atendido', title: 'Atendidos', empty: 'Sin atenciones registradas', match: (a) => a.status === 'atendida' && !a.billed },
+  { key: 'facturada', title: 'Facturada', empty: 'Sin citas facturadas', match: (a) => a.status === 'atendida' && a.billed }
 ];
 const mem = { org: '', date: '' };
 const rdDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -52,7 +53,7 @@ async function renderBoard(box, ctx) {
     <div class="flow-field flow-search"><label for="fp-search">Buscar en este día</label><input id="fp-search" type="search" placeholder="Paciente, médico o servicio" autocomplete="off"></div>
     <button class="btn" id="fp-refresh" type="button">Actualizar</button>
     <div class="flow-update"><span>Actualización automática cada 25 s</span><span id="fp-updated" role="status">Cargando pacientes…</span></div>
-  </section>${readOnly ? html`<p class="note">Modo soporte: consulta de solo lectura.</p>` : ''}<div id="fp-error" role="alert"></div><p id="fp-summary" class="flow-summary" role="status"></p><div id="fp-board"></div><p class="flow-footnote">La atención se cierra al registrar la reclamación o el cobro en Agenda.</p>`);
+  </section>${readOnly ? html`<p class="note">Modo soporte: consulta de solo lectura.</p>` : ''}<div id="fp-error" role="alert"></div><p id="fp-summary" class="flow-summary" role="status"></p><div id="fp-board"></div><p class="flow-footnote">La cita pasa a «Facturada» al registrar el cobro privado en Agenda. Las reclamaciones ARS se reflejarán en una versión futura.</p>`);
   const normal = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const paintRows = () => {
     const q = normal($('#fp-search', box).value.trim());
@@ -111,7 +112,7 @@ function flowCard(a, col, selectedDate, readOnly) {
   const time = typeof a.time === 'string' && /^\d{2}:\d{2}/.test(a.time) ? a.time.slice(0, 5) : a.time;
   const wait = elapsed(col === 'esperando' ? a.status_changed_at : col === 'consulta' ? a.consult_started_at : null, selectedDate);
   return html`<article class="flow-card"><div class="flow-card-meta"><span class="flow-time">${time || 'Sin hora'}</span>${wait ? html`<span class="flow-wait">${col === 'esperando' ? 'Espera' : 'En consulta'} · ${wait}</span>` : ''}</div>
-    <h4 class="flow-patient">${a.patient}</h4><div class="flow-doctor">${a.doctor}</div>${a.type ? html`<p class="flow-service">${a.type}</p>` : ''}${col === 'consulta' && a.room ? html`<p class="flow-room">Sala: ${a.room}</p>` : ''}
+    <h4 class="flow-patient">${a.patient}</h4><div class="flow-doctor">${a.doctor}</div>${a.type ? html`<p class="flow-service">${a.type}</p>` : ''}${col === 'consulta' && a.room ? html`<p class="flow-room">Sala: ${a.room}</p>` : ''}${col === 'facturada' ? html`<span class="pill ok">Cobro registrado</span>` : ''}
     ${!readOnly && ['agendados', 'confirmados'].includes(col) ? html`<button class="btn" data-arrive="${a.id}">Registrar llegada</button>` : ''}
     ${!readOnly && col === 'esperando' ? html`<button class="btn primary" data-call="${a.id}">Llamar a consulta</button>` : ''}
     ${!readOnly && col === 'consulta' ? html`<button class="btn" data-back="${a.id}" title="La atención se cierra al registrar la reclamación o el cobro en Agenda">Volver a espera</button>` : ''}
