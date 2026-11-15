@@ -45,6 +45,11 @@ export async function setMilestoneDone(id, done) {
 /** Revisión de accesos: correo, estado y último ingreso (Admin, Super Admin y Auditor) */
 export async function usersOverview() { return must(await sb().rpc('users_overview')); }
 
+/** 5.35.10 · Cambios recientes a mi perfil hechos por otra persona (Super Admin). */
+export async function myRecentProfileChanges() { return must(await sb().rpc('my_recent_profile_changes')); }
+/** Marca los cambios de mi perfil como vistos. Devuelve true al terminar. */
+export async function ackProfileChanges() { must(await sb().rpc('my_profile_changes_acknowledge')); return true; }
+
 /** 5.31.0 · Super Admin edita el perfil (nombre y teléfono) de otros usuarios.
  *  La bitácora queda registrada por el trigger profiles_audit en audit_log. */
 export async function adminUpdateUserProfile(userId, fullName, phone) {
