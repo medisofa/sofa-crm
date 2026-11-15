@@ -55,10 +55,34 @@ try{
  const allModules=page.locator('.clinical-modules summary');assert.equal(await allModules.count(),1);await allModules.focus();await page.keyboard.press('Space');assert.equal(await page.locator('.clinical-modules').getAttribute('open'),'');await page.keyboard.press('Space');assert.equal(await page.locator('.clinical-modules').getAttribute('open'),null);
  for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});if(process.env.SOFA_SCREENSHOT_DIR&&width!==320)await page.screenshot({path:process.env.SOFA_SCREENSHOT_DIR+'/sofa-clinical-'+(width===1440?'desktop':'mobile')+'.png',fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Sin overflow a '+width);}
  await page.setViewportSize({width:1440,height:1100});
- await page.evaluate(async()=>{reads=[];rpcs=[];writes=[];await renderTest({viewAs:{orgId:'org-clinic',orgName:'Consultorio ficticio',role:'client'}});});
+ // Inicio guiado de secretaría: navegación, teclado, temas y ausencia de escrituras.
+ await page.evaluate(async()=>{reads=[];rpcs=[];writes=[];fixture.appointments[0].patient_name='Paciente de ejemplo';await renderTest({role:'capturer',viewAs:null});});
+ assert.equal(await page.getByRole('heading',{name:'Mi día',exact:true}).count(),1);
+ assert.equal(await page.locator('.clinical-primary-actions a').count(),2);
+ assert.equal(await page.getByRole('link',{name:'Agendar cita →'}).getAttribute('href'),'#/agenda');
+ assert.equal(await page.getByRole('link',{name:'Buscar paciente →'}).getAttribute('href'),'#/pacientes');
+ await linksAllowed();
+ await page.getByRole('button',{name:'Ver pendientes ↓'}).click();
+ assert.equal(await page.locator('#clinical-pending-title').evaluate(el=>el===document.activeElement),true);
+ const guide=page.locator('.clinical-first-steps summary');await guide.focus();await page.keyboard.press('Space');
+ assert.equal(await page.locator('.clinical-first-steps').getAttribute('open'),'');
+ assert.match(await page.locator('.clinical-first-steps').textContent(),/cita real/);
+ await page.keyboard.press('Space');
+ for(const theme of ['light','dark']){
+  await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+  for(const width of [1440,390,320]){
+   await page.setViewportSize({width,height:1100});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Inicio guiado sin overflow');
+   if(process.env.SOFA_SCREENSHOT_DIR&&width!==320)await page.screenshot({path:process.env.SOFA_SCREENSHOT_DIR+'/secretaria-'+theme+'-'+width+'.png',fullPage:true});
+  }
+ }
+ assert.deepEqual(await page.evaluate(()=>writes),[]);
+ await page.setViewportSize({width:1440,height:1100});
+ await page.evaluate(async()=>{reads=[];rpcs=[];writes=[];await renderTest({role:'client',viewAs:{orgId:'org-clinic',orgName:'Consultorio ficticio',role:'client'}});});
  assert.equal(await page.locator('.clinical-home').count(),1);assert.deepEqual(await page.evaluate(()=>writes),[]);assert.equal(await page.evaluate(()=>rpcs.some(r=>r.name==='my_dashboard')),false);
  for(const role of ['capturer','asistente']){
   await page.evaluate(async role=>{reads=[];rpcs=[];await renderTest({role,viewAs:{orgId:'org-clinic',orgName:'Consultorio ficticio',targetName:'Usuario de prueba',role}});},role);
+  assert.equal(await page.locator('.clinical-secretary-start').count(),0,'Soporte no muestra guía de escritura');
   assert.equal(await page.evaluate(()=>reads.length),0,'Soporte '+role+' no simula asignaciones');
   assert.equal(await page.evaluate(()=>rpcs.length),0);assert.match(await page.locator('main').textContent(),/soporte|asignaci|vista/i);await linksAllowed();
  }

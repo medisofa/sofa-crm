@@ -32,7 +32,7 @@ export async function render(root, ctx = {}) {
     const refreshing = focusRefresh; focusRefresh = false;
     const refresh = h('button', { type: 'button', id: 'clinical-refresh', class: 'btn', onclick: () => { focusRefresh = true; refresh.disabled = true; draw(); } }, 'Actualizar');
     shell.replaceChildren(h('header', { class: 'clinical-head' },
-      h('div', { class: 'clinical-heading' }, h('h2', {}, 'Tu consultorio, hoy'),
+      h('div', { class: 'clinical-heading' }, h('h2', {}, ctx.role === 'capturer' ? 'Mi día' : 'Tu consultorio, hoy'),
         h('p', { class: 'clinical-summary' }, `${shortDate(data.date)} · ${ctx.viewAs?.orgName || ctx.membership?.organization || 'Consultorio activo'}`),
         h('p', { class: 'clinical-scope' }, data.scopeLabel)),
       h('div', { class: 'clinical-head-actions' }, routeLink(ctx.role, 'agenda', 'Abrir agenda', 'btn primary'), refresh)));
@@ -42,6 +42,7 @@ export async function render(root, ctx = {}) {
       if (refreshing) refresh.focus();
       return;
     }
+    if (ctx.role === 'capturer' && !ctx.viewAs) shell.append(secretaryStart(ctx.role));
     const metricDefs = [
       ['Citas de hoy', data.metrics.total, 'Excluye las canceladas', 'agenda'],
       ['En sala de espera', data.metrics.waiting, 'Pacientes que ya llegaron', 'flujo-pacientes'],
@@ -70,7 +71,7 @@ export async function render(root, ctx = {}) {
     agenda.append(routeLink(ctx.role, 'agenda', 'Ver agenda completa', 'btn'));
     const nextCard = buildNextCard(data, ctx.role);
     const pending = h('section', { class: 'card clinical-pending', 'aria-labelledby': 'clinical-pending-title' },
-      h('h3', { id: 'clinical-pending-title' }, 'Pendientes de hoy'),
+      h('h3', { id: 'clinical-pending-title', tabindex: '-1' }, 'Pendientes de hoy'),
       h('p', {}, data.metrics.pendingConfirmation == null ? 'Confirmaciones no disponibles.' : `${num(data.metrics.pendingConfirmation)} cita(s) por confirmar.`),
       h('p', { class: 'small muted' }, 'Revisa las citas programadas y el flujo de pacientes antes de continuar.'),
       routeLink(ctx.role, 'agenda', 'Revisar citas'), routeLink(ctx.role, 'flujo-pacientes', 'Ver plan del día'));
@@ -81,6 +82,31 @@ export async function render(root, ctx = {}) {
     if (refreshing) refresh.focus();
   }
   await draw();
+}
+
+/** Ayuda local y enlaces autorizados: no escribe datos ni preferencias. */
+function secretaryStart(role) {
+  const pendingButton = h('button', { type: 'button', class: 'btn', onclick: () => {
+    const heading = pendingButton.closest('.clinical-home')?.querySelector('#clinical-pending-title');
+    heading?.focus();
+    heading?.scrollIntoView({ block: 'center' });
+  } }, 'Ver pendientes ↓');
+  const guide = h('details', { class: 'card clinical-first-steps' },
+    h('summary', {}, '¿Es tu primera vez? Crea tu primera cita paso a paso'),
+    h('ol', {},
+      h('li', {}, 'Abre Agenda y comprueba el médico, el consultorio y la fecha.'),
+      h('li', {}, 'Pulsa Nueva cita. Busca al paciente o completa sus datos y la hora.'),
+      h('li', {}, 'Revisa la información antes de guardar. Comprueba que la cita aparezca en la agenda.')),
+    h('p', { class: 'small muted' }, 'Guardar registra una cita real. Usa los datos del paciente; esta guía no es un entorno de práctica.'),
+    routeLink(role, 'agenda', 'Abrir agenda para comenzar'));
+  return h('section', { class: 'clinical-secretary-start', 'aria-label': 'Comienza tu jornada' },
+    h('nav', { class: 'clinical-primary-actions', 'aria-label': 'Acciones principales' },
+      routeLink(role, 'agenda', 'Agendar cita →', 'btn primary'),
+      routeLink(role, 'pacientes', 'Buscar paciente →'), pendingButton),
+    guide,
+    h('details', { class: 'clinical-state-help' }, h('summary', {}, 'Ayuda: ¿qué significan los estados?'),
+      h('p', {}, 'Por confirmar: cita registrada, aún sin confirmación. En sala: el paciente llegó. En consulta: atención en curso. Atendida: consulta registrada como finalizada.'),
+      h('p', {}, 'Agenda organiza las citas. Pacientes contiene las fichas. Abre una cita para comprobar su médico antes de hacer cambios.')));
 }
 
 function buildNextCard(data, role) {
