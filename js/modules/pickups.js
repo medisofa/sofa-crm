@@ -10,6 +10,7 @@ import { money, num, date, dateTime } from '../utils/formatters.js';
 import { PICKUP_STATUS, claimStatus } from '../utils/constants.js';
 import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
+import { pii } from '../utils/view-as-state.js';   // 5.35.4 · difumina paciente y afiliado en modo soporte
 import { waLink } from '../utils/whatsapp.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
@@ -94,7 +95,7 @@ function newPickupDialog(provs, providerId) {
           const rows = await pendingPickupClaims(p);
           paint(box, rows.length ? html`<p class="small"><label class="check"><input type="checkbox" id="np_all" checked> Todas (${num(rows.length)})</label></p>
             <div class="list" style="max-height:300px;overflow:auto">${rows.map((c) => html`<label class="li" style="cursor:pointer"><input type="checkbox" name="line" value="${c.id}" checked>
-              <div class="b"><div class="t1"><span class="mono">${c.folio}</span> · ${c.patient_name}</div><div class="t2">${date(c.service_date)} · ${c.service_name} · ${c.ars_name} · ${claimStatus(c.claim_status)[0]}</div></div></label>`)}</div>`
+              <div class="b"><div class="t1"><span class="mono">${c.folio}</span> · ${pii(c.patient_name)}</div><div class="t2">${date(c.service_date)} · ${c.service_name} · ${c.ars_name} · ${claimStatus(c.claim_status)[0]}</div></div></label>`)}</div>`
             : html`<div class="note">Este médico no tiene reclamaciones capturadas pendientes de retiro.</div>`);
           form.querySelector('#np_all')?.addEventListener('change', (e) => $$('input[name=line]', form).forEach((c) => { c.checked = e.target.checked; }));
         } catch (err) { paint(box, html`<div class="note bad">${friendlyError(err)}</div>`); }
@@ -146,7 +147,7 @@ async function renderDetail(main, ctx) {
           <dt>Diferencias</dt><dd>${r.differences || (r.status === 'confirmado' ? 'Ninguna' : '')}</dd><dt>Observaciones</dt><dd>${r.notes || '—'}</dd>
           <dt>Monto total reclamado</dt><dd>${money(total)}</dd></dl>
         <div class="table-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>#</th><th>Folio</th><th>Fecha</th><th>Paciente · NSS</th><th>Autorización</th><th>Servicio</th><th>ARS</th><th class="n">Monto</th><th>Recibida</th><th>Observación</th></tr></thead>
-          <tbody>${items.map((i, n) => html`<tr><td>${n + 1}</td><td class="mono">${i.claim?.folio || '—'}</td><td>${date(i.claim?.service_date)}</td><td>${i.claim?.patient_name || ''}<div class="small muted">${i.claim?.member_number || ''}</div></td>
+          <tbody>${items.map((i, n) => html`<tr><td>${n + 1}</td><td class="mono">${i.claim?.folio || '—'}</td><td>${date(i.claim?.service_date)}</td><td>${pii(i.claim?.patient_name || '')}<div class="small muted">${pii(i.claim?.member_number || '')}</div></td>
             <td class="mono">${i.claim?.authorization_number || '—'}</td><td>${i.claim?.service_name || ''}</td><td>${i.claim?.ars_name || ''}</td><td class="n">${money(i.claim?.claimed)}</td>
             <td>${i.received == null ? '☐' : i.received ? '✓ Sí' : html`<b style="color:var(--bad)">✕ No</b>`}</td><td>${i.observation || ''}</td></tr>`)}</tbody></table></div>
         <div class="grid two" style="margin-top:28px"><div style="border-top:1px solid #999;padding-top:6px" class="small">Firma de quien entrega</div><div style="border-top:1px solid #999;padding-top:6px" class="small">Firma de quien recibe (SOFA)</div></div>
@@ -170,7 +171,7 @@ async function renderDetail(main, ctx) {
       title: `Confirmar retiro ${S.r.folio}`, submitLabel: 'Confirmar recepción', wide: true,
       body: html`<p class="small">Marque cada reclamación entregada físicamente. Las no entregadas quedan pendientes con su observación.</p>
         <div class="table-wrap"><table class="t"><thead><tr><th>Recibida</th><th>Folio · paciente</th><th>Observación</th></tr></thead><tbody>
-        ${items.map((i) => html`<tr><td><input type="checkbox" name="rc_${i.service_line_id}" checked aria-label="Recibida ${i.claim?.folio}"></td><td><span class="mono">${i.claim?.folio}</span> · ${i.claim?.patient_name}</td>
+        ${items.map((i) => html`<tr><td><input type="checkbox" name="rc_${i.service_line_id}" checked aria-label="Recibida ${i.claim?.folio}"></td><td><span class="mono">${i.claim?.folio}</span> · ${pii(i.claim?.patient_name)}</td>
           <td><input name="ob_${i.service_line_id}" maxlength="200" style="width:100%" aria-label="Observación ${i.claim?.folio}"></td></tr>`)}</tbody></table></div>
         <div class="form-grid" style="margin-top:10px">
           <div class="field"><label for="cf_d">Quién entrega en el consultorio *</label><input id="cf_d" name="delivered" maxlength="120" required></div>

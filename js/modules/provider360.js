@@ -8,6 +8,7 @@ import { loadInto, loadingView, emptyView, errorView } from '../utils/ui.js';
 import { money, num, date, period } from '../utils/formatters.js';
 import { claimStatus, subStatus } from '../utils/constants.js';
 import { can, canOpen, isStaff } from '../utils/permissions.js';
+import { pii } from '../utils/view-as-state.js';   // 5.35.4 · difumina nombres y teléfonos en modo soporte
 import { sb } from '../supabase.js';
 import { provider360 } from '../services/crm.js';
 
@@ -25,7 +26,7 @@ export async function render(main, ctx) {
     <div class="toolbar"><label class="sr-only" for="q">Buscar médico</label><input class="input grow" id="q" type="search" placeholder="Nombre del médico"></div><div id="l"></div>`);
   const box = $('#l', main);
   const load = (q = '') => loadInto(box, () => listProviders(q), (rows) => html`<div class="list">${rows.map((p) => html`<a class="li" href="#/medicos/${p.id}" style="text-decoration:none;color:inherit">
-      <div class="b"><div class="t1">${p.full_name}${p.is_active ? '' : html` <span class="pill">Inactivo</span>`}</div><div class="t2">${[p.specialty, p.organizations?.legal_name].filter(Boolean).join(' · ')}</div></div>
+      <div class="b"><div class="t1">${pii(p.full_name)}${p.is_active ? '' : html` <span class="pill">Inactivo</span>`}</div><div class="t2">${[p.specialty, p.organizations?.legal_name].filter(Boolean).join(' · ')}</div></div>
       ${p.organizations?.status === 'incorporacion' ? html`<span class="pill warn">En implementación</span>` : ''}</a>`)}</div>`,
     { isEmpty: (r) => !r.length, empty: () => emptyView('Sin médicos', 'No hay médicos visibles para tu usuario con ese nombre.') });
   let t; $('#q', main).addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => load(e.target.value.trim()), 350); });
@@ -46,7 +47,7 @@ async function renderOne(main, ctx) {
   ctx.setTitle(p.full_name);
   const byStatus = Object.entries(cl.by_status || {}).sort((a, b) => b[1] - a[1]);
   paint(box, html`
-    <div class="page-head"><div class="t"><p><a href="#/medicos">← Médicos 360</a></p><h2>${p.full_name}</h2>
+    <div class="page-head"><div class="t"><p><a href="#/medicos">← Médicos 360</a></p><h2>${pii(p.full_name)}</h2>
       <p>${[p.specialty, p.exequatur && `Exequátur ${p.exequatur}`, p.tax_id && `Cédula ${p.tax_id}`].filter(Boolean).join(' · ') || 'Sin datos profesionales registrados'}${p.is_active ? '' : ' · Inactivo'}</p></div>
       <div class="toolbar" style="margin:0">${link(`#/clientes/${c.id}`, role, html`<span class="btn">Cliente: ${c.legal_name}</span>`)}${can('claims.capture', role) ? html`<a class="btn primary" href="#/captura">+ Captura rápida</a>` : ''}</div></div>
     ${!p.tax_id || !p.exequatur || !p.specialty ? html`<div class="note warn">Faltan datos del médico (cédula, exequátur o especialidad): se necesitan para los documentos A–E y el paso 3 del onboarding.</div>` : ''}
@@ -64,8 +65,11 @@ async function renderOne(main, ctx) {
       <div class="card"><h2>Reclamaciones por estado</h2>${byStatus.length ? html`<div class="list">${byStatus.map(([k, n]) => { const [l, cls] = claimStatus(k); return html`<div class="li"><span class="pill ${cls}">${l}</span><div class="b"></div><b>${num(n)}</b></div>`; })}</div>`
         : html`<p class="small muted">Aún no tiene reclamaciones registradas.</p>`}${link('#/reclamaciones', role, html`<span class="small">Ir a Reclamaciones →</span>`)}</div>
       <div class="card"><h2>Clínicas</h2>${d.clinics.length ? html`<p>${d.clinics.join(' · ')}</p>` : html`<p class="small muted">Se completan con la clínica registrada en cada reclamación.</p>`}</div>
-      <div class="card"><h2>Secretarias</h2>${d.secretaries.length ? html`<div class="list">${d.secretaries.map((s) => html`<div class="li"><div class="b"><div class="t1">${s.name}</div>
-        <div class="t2">${[s.phone, s.clinic, s.inducted_on ? `inducida el ${date(s.inducted_on)}` : 'sin inducción registrada'].filter(Boolean).join(' · ')}</div></div></div>`)}</div>` : html`<p class="small muted">Sin secretarias registradas como contacto del cliente.</p>`}
+      <div class="card"><h2>Secretarias</h2>${d.secretaries.length ? html`<div class="list">${d.secretaries.map((s) => {
+        const resto = [s.clinic, s.inducted_on ? `inducida el ${date(s.inducted_on)}` : 'sin inducción registrada'].filter(Boolean).join(' · ');
+        return html`<div class="li"><div class="b"><div class="t1">${pii(s.name)}</div>
+          <div class="t2">${s.phone ? html`${pii(s.phone)}${resto ? ' · ' + resto : ''}` : resto}</div></div></div>`;
+      })}</div>` : html`<p class="small muted">Sin secretarias registradas como contacto del cliente.</p>`}
         <p class="small">${num(d.capturers)} usuario(s) Capturador asignado(s) a este médico.</p></div>
       <div class="card" style="grid-column:1/-1"><h2>Últimos lotes de radicación</h2>${d.submissions.length ? html`<div class="table-wrap"><table class="t cards"><thead><tr><th>Lote</th><th>ARS</th><th>Período</th><th>Estado</th><th class="n">Reclamado</th></tr></thead>
         <tbody>${d.submissions.map((s) => { const [l, cls] = subStatus(s.status); return html`<tr><td data-l="Lote" class="mono">${link(`#/radicaciones/${s.id}`, role, s.folio)}</td><td data-l="ARS">${s.ars}</td><td data-l="Período">${period(s.period)}</td>
