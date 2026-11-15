@@ -1,4 +1,5 @@
 -- SOFA · 5.35.1 · Bitácora de hospitalización: procesos / hallazgos / observaciones.
+-- Ya aplicado en producción (mcp__Supabase__apply_migration 2026-11-15).
 -- Append-only (protegida por trigger). Cada entrada tiene visibilidad explícita:
 --   shared_with_admin=false → solo el autor y el staff SOFA.
 --   shared_with_admin=true  → además, el super_admin y el admin del cliente (organization_id del center).

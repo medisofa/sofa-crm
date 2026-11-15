@@ -1,4 +1,5 @@
 -- SOFA · 5.35.3 · Módulo #/mercadeo: seguimiento de actividades de marketing y backlog de materiales.
+-- Ya aplicado en producción (mcp__Supabase__apply_migration 2026-11-15).
 -- Panel ejecutivo (super_admin, admin, operations). No es CRM: el CRM vive en leads/opportunities.
 -- Aquí se registran acciones concretas (posts publicados, llamadas, demos, referidos pedidos) y el
 -- pipeline de materiales (idea → en proceso → listo → publicado). Las actividades pueden vincularse
