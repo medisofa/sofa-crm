@@ -1,4 +1,5 @@
 -- SOFA · 5.35.6 · Agente de análisis de glosas (zero-cost, basado en reglas).
+-- Ya aplicado en producción (mcp__Supabase__apply_migration 2026-11-15).
 --
 -- Dado el id de una glosa, para cada uno de sus ítems (motivo), devuelve:
 --   · la causa probable (de un catálogo editable por el equipo de glosas),

@@ -1,0 +1,35 @@
+name: SOFA Migrations · aplicada-primero guard
+
+# Bloquea el merge de un PR que agregue un .sql en supabase/migrations/ si el
+# archivo no declara que ya fue aplicado en producción. La regla del repo
+# (CLAUDE.md §2) es:
+#
+#   «Toda migración de base de datos se aplica primero en producción
+#    (mcp__Supabase__apply_migration) y después se documenta en
+#    supabase/migrations/ con la nota "ya aplicado en producción" —
+#    nunca al revés.»
+#
+# Por qué: SOFA no tiene un pipeline que aplique automáticamente las
+# migraciones de main, así que main puede referenciar RPCs/tablas que no
+# existen en producción. Este workflow es la comprobación mecánica de la
+# nota que el archivo tiene que llevar antes de fusionar.
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**/*.sql"
+      - ".github/workflows/migrations-applied-first.yml"
+      - "scripts/check-migration-applied-note.js"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Cada migración nueva debe declarar «ya aplicado en producción»
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-migration-applied-note.js

@@ -1,4 +1,5 @@
 -- SOFA · 5.35.5 · ARS × tarifario de la sociedad.
+-- Ya aplicado en producción (mcp__Supabase__apply_migration 2026-11-15).
 -- Algunas ARS reconocen directamente la tarifa publicada por la sociedad médica de cada
 -- especialidad (Sociedad Dominicana de ...). Cuando aplica, el médico no necesita negociar
 -- tarifa propia con la ARS: se factura al valor de la sociedad. Esta bandera lo deja explícito
