@@ -95,7 +95,8 @@ export async function render(root, context = {}) {
       h('h3', {}, `Reporte · ${r.patient_name}`), h('p', { class: 'i18-sub' }, `Ingreso ${fmtDate(r.admission_date)} · Alta ${fmtDate(r.discharge_date)} · ${r.ars || 'Privado / sin ARS'}${r.patient_phone ? ' · Tel. ' + r.patient_phone : ''}`),
       r.puede_editar ? caseForm(r) : null, table, foot,
       r.puede_editar ? addLineForm(r) : note('Reporte enviado: ya no se edita.', 'info'),
-      r.puede_editar ? sendBtn(r) : printBtn(r), out));
+      r.puede_editar ? sendBtn(r) : printBtn(r), out,
+      bitacoraBlock(r.id)));
 
     function delBtn(lineId) { const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar'); b.addEventListener('click', async () => { try { const rr = await rpc('hospital_report_line_remove', { p_line: lineId }); drawReport(rr); await loadList(); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
     function sendBtn(rep) { const b = h('button', { class: 'i18-btn', type: 'button' }, 'Enviar y avisar a SoFa'); b.addEventListener('click', async () => { if (!rep.admission_date) { out.replaceChildren(note('Indica la fecha de ingreso antes de enviar el reporte.', 'warn')); return; } if (!await confirmDialog('Enviar reporte', '¿Enviar el reporte y avisar al equipo de SoFa? Después no se edita.', 'Enviar', true)) return; try { const rr = await rpc('hospital_report_submit', { p_report: rep.id }); await loadList(); drawReport(rr); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
@@ -236,7 +237,8 @@ async function renderSupport(root, context) {
             h('td', { class: 'num' }, String(l.quantity)), h('td', { class: 'num' }, money(l.unit_amount)), h('td', { class: 'num' }, money(l.amount))))
             : [h('tr', {}, h('td', { colspan: '5' }, 'Sin servicios registrados.'))])))),
         h('div', { class: 'hosp-foot' }, h('b', {}, `Total: ${money(r.total)}`)),
-        note('Solo lectura en modo soporte.', 'info')));
+        note('Solo lectura en modo soporte.', 'info'),
+        bitacoraBlock(r.id)));
     } catch (e) { if (my === sequence && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
   }
   drawList(first);
@@ -302,5 +304,72 @@ function readOnlyReport(r) {
     h('div', { class: 'i18-table-wrap' }, h('table', { class: 'hosp-tbl' },
       h('thead', {}, h('tr', {}, ...['Fecha', 'Servicio', 'Cantidad', 'Unitario', 'Monto'].map((v) => h('th', {}, v)))),
       h('tbody', {}, ...(r.lineas || []).map((l) => h('tr', {}, h('td', {}, fmtDate(l.service_date)), h('td', {}, l.servicio || l.codigo), h('td', { class: 'num' }, String(l.quantity)), h('td', { class: 'num' }, money(l.unit_amount)), h('td', { class: 'num' }, money(l.amount))))))),
-    h('div', { class: 'hosp-foot' }, h('strong', {}, `Total: ${money(r.total)}`)), note('Solo lectura para el equipo de seguimiento.', 'info'));
+    h('div', { class: 'hosp-foot' }, h('strong', {}, `Total: ${money(r.total)}`)), note('Solo lectura para el equipo de seguimiento.', 'info'),
+    bitacoraBlock(r.id));
+}
+
+/** SOFA · 5.35.1 · Bitácora de hospitalización: procesos, hallazgos y observaciones.
+ *  Append-only (el backend protege con trigger). Cada entrada se marca con shared_with_admin
+ *  para que el super_admin/admin del cliente la vea; por defecto queda solo para el autor y el
+ *  staff de SOFA. Reutilizable en las tres vistas (médico, soporte, staff). */
+const BITACORA_KIND_LABEL = { proceso: 'Proceso', hallazgo: 'Hallazgo', observacion: 'Observación' };
+
+function bitacoraBlock(reportId) {
+  const section = h('section', { class: 'hosp-bita', 'data-report': reportId });
+  const title = h('h4', {}, 'Bitácora interna');
+  const subtitle = h('p', { class: 'i18-sub' }, 'Procesos, hallazgos y observaciones para el seguimiento interno del reporte. Puedes marcar «compartir con administración» para que el super admin y el admin del cliente lo vean.');
+  const list = h('div', { class: 'hosp-bita-list', 'aria-live': 'polite' }, note('Cargando bitácora…', 'info'));
+  const formSlot = h('div');
+  section.append(title, subtitle, list, formSlot);
+
+  async function reload() {
+    try {
+      const data = await rpc('hospital_log_list', { p_report: reportId });
+      const entries = data?.entries || [];
+      if (!entries.length) list.replaceChildren(note('Aún no hay entradas en la bitácora.', 'info'));
+      else list.replaceChildren(...entries.map(renderEntry));
+      formSlot.replaceChildren(data?.can_write ? renderForm() : document.createDocumentFragment());
+    } catch (e) { list.replaceChildren(note(e.message, 'error')); }
+  }
+
+  function renderEntry(e) {
+    const kind = BITACORA_KIND_LABEL[e.kind] || e.kind;
+    const when = e.created_at ? new Date(e.created_at).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    return h('article', { class: `hosp-bita-item hosp-bita-${e.kind}` },
+      h('header', { class: 'hosp-bita-head' },
+        h('span', { class: `hosp-bita-tag hosp-bita-tag-${e.kind}` }, kind),
+        h('span', { class: 'hosp-mut' }, `${e.author_name || '—'} · ${when}`),
+        e.shared_with_admin ? h('span', { class: 'hosp-bita-share hosp-bita-share-on' }, 'Visible a administración') : h('span', { class: 'hosp-bita-share hosp-mut' }, 'Interno SOFA')),
+      h('p', { class: 'hosp-bita-body' }, e.content));
+  }
+
+  function renderForm() {
+    const kindSel = h('select', { 'aria-label': 'Tipo de entrada' },
+      h('option', { value: 'proceso' }, 'Proceso'),
+      h('option', { value: 'hallazgo' }, 'Hallazgo'),
+      h('option', { value: 'observacion' }, 'Observación'));
+    const content = h('textarea', { rows: '3', maxlength: '4000', 'aria-label': 'Contenido', placeholder: 'Describe el proceso, hallazgo u observación…' });
+    const share = h('input', { type: 'checkbox', id: `hosp-bita-share-${reportId}` });
+    const shareLabel = h('label', { for: `hosp-bita-share-${reportId}`, class: 'hosp-bita-sharelabel' }, share, ' Compartir con administración (super admin y admin del cliente)');
+    const out = h('div', { 'aria-live': 'polite' });
+    const btn = h('button', { class: 'i18-btn', type: 'button' }, 'Agregar entrada');
+    btn.addEventListener('click', async () => {
+      const text = content.value.trim();
+      if (!text) { out.replaceChildren(note('Escribe el contenido antes de guardar.', 'warn')); return; }
+      btn.disabled = true;
+      try {
+        await rpc('hospital_log_add', { p_report: reportId, p_kind: kindSel.value, p_content: text, p_shared_with_admin: share.checked });
+        content.value = ''; share.checked = false; out.replaceChildren();
+        await reload();
+      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      finally { btn.disabled = false; }
+    });
+    return h('div', { class: 'hosp-bita-form' },
+      h('label', {}, 'Tipo', kindSel),
+      h('label', {}, 'Contenido', content),
+      shareLabel, btn, out);
+  }
+
+  queueMicrotask(reload);
+  return section;
 }

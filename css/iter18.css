@@ -632,6 +632,29 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .hosp-tbl td.num,.hosp-tbl th.num{text-align:right}
 .hosp-foot{margin:6px 0 12px}
 .hosp-detail{border-top:2px solid var(--i18-line,#d9dee2);margin-top:16px;padding-top:12px}
+/* 5.35.1 · Bitácora de hospitalización (procesos/hallazgos/observaciones) */
+.hosp-bita{margin-top:20px;padding-top:14px;border-top:1px dashed var(--i18-line,#d9dee2)}
+.hosp-bita h4{margin:0 0 4px}
+.hosp-bita-list{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.hosp-bita-item{border:1px solid var(--i18-line,#d9dee2);border-radius:var(--r,8px);padding:10px 12px;background:var(--surface,#fff)}
+.hosp-bita-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:4px;font-size:12px}
+.hosp-bita-body{margin:0;white-space:pre-wrap;line-height:1.4}
+.hosp-bita-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+.hosp-bita-tag-proceso{background:color-mix(in srgb,#1e3a5f 14%,transparent);color:#1e3a5f}
+.hosp-bita-tag-hallazgo{background:color-mix(in srgb,#d64545 16%,transparent);color:#9b2b2b}
+.hosp-bita-tag-observacion{background:color-mix(in srgb,#b8860b 16%,transparent);color:#7a5a08}
+.hosp-bita-share{font-size:11px;padding:2px 6px;border-radius:4px}
+.hosp-bita-share-on{background:color-mix(in srgb,#1e7a3c 14%,transparent);color:#145c2c}
+.hosp-bita-form{display:grid;gap:10px;padding:12px;border:1px dashed var(--i18-line,#d9dee2);border-radius:var(--r,8px);margin-top:8px}
+.hosp-bita-form label{display:flex;flex-direction:column;gap:4px;font-weight:500;font-size:13px}
+.hosp-bita-form textarea{resize:vertical;min-height:72px}
+.hosp-bita-sharelabel{flex-direction:row!important;align-items:center;gap:8px;font-weight:400}
+@media (prefers-color-scheme:dark){
+  .hosp-bita-item{background:var(--surface,#161c25)}
+  .hosp-bita-tag-proceso{color:#9ec0ea}
+  .hosp-bita-tag-hallazgo{color:#f29a9a}
+  .hosp-bita-tag-observacion{color:#e8c070}
+}
 
 /* 5.11.0 · El buscador del menú alcanza también los módulos fuera del menú */
 .nav-otros{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
