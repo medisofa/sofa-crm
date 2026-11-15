@@ -6,6 +6,7 @@
  *  verificar el rol en cada llamada. Los documentos viven en un bucket privado y se abren con un
  *  enlace firmado que dura un minuto; no hay URL permanente que se pueda reenviar. */
 import { rpc, h, note, table, kpi, guarded, fmtDate, supabase } from '../services/iter18.js';
+import { pii } from '../utils/view-as-state.js';   // 5.35.4 · difumina datos del prospecto en modo soporte
 
 const ESTADOS = {
   nueva: 'Nueva',
@@ -109,10 +110,10 @@ export async function render(root, ctx = {}) {
         return h('div', {}, a, h('div', { class: 'i18-sub' }, edad(r.creada, CERRADOS.includes(r.estado))));
       } },
       { key: 'quien', label: 'Quién', get: (r) => h('div', {},
-        h('b', {}, r.nombre || '—'),
+        h('b', {}, pii(r.nombre || '—')),
         h('div', { class: 'i18-sub' }, [r.especialidad, r.empresa].filter(Boolean).join(' · ') || '—')) },
       { key: 'contacto', label: 'Contacto', get: (r) => h('div', {},
-        r.telefono || '—', h('div', { class: 'i18-sub' }, r.correo || '')) },
+        pii(r.telefono), h('div', { class: 'i18-sub' }, pii(r.correo || ''))) },
       { key: 'pide', label: 'Qué pide', get: (r) => r.servicios || '—' },
       { key: 'canal', label: 'Canal', get: (r) => canal(r.canal) },
       { key: 'docs', label: 'Docs', right: true, get: (r) => String(r.documentos ?? 0) },
@@ -144,15 +145,15 @@ export async function render(root, ctx = {}) {
 
     box.replaceChildren(
       h('div', { class: 'i18-bar' }, volver),
-      h('h3', {}, `${d.folio} · ${d.nombre || 'Sin nombre'}`),
+      h('h3', {}, `${d.folio} · `, pii(d.nombre || 'Sin nombre')),
       h('p', { class: 'i18-sub' },
         `${estado(d.estado)} · entró ${cuando(d.creada)} por ${canal(d.canal)}. El enlace del prospecto sirve hasta el ${fmtDate(d.expira)}.`),
       aviso,
 
       h('div', { class: 'sol-datos' },
-        dato('Teléfono', d.telefono),
-        dato('WhatsApp', d.whatsapp),
-        dato('Correo', d.correo),
+        dato('Teléfono', pii(d.telefono)),
+        dato('WhatsApp', pii(d.whatsapp)),
+        dato('Correo', pii(d.correo)),
         dato('Qué es', d.tipo === 'medico' ? 'Médico o profesional de la salud' : d.tipo === 'centro' ? 'Centro o clínica' : d.tipo),
         dato('Consultorio o centro', d.empresa),
         dato('Especialidad', d.especialidad),
