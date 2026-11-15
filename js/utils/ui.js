@@ -11,28 +11,64 @@ export function toast(message, kind = '') {
   setTimeout(() => el.remove(), kind === 'bad' ? 6500 : 4000);
 }
 
-/** Traduce errores de Supabase/PostgREST/red a mensajes comprensibles */
+/** Traduce errores de Supabase/PostgREST/red a mensajes comprensibles.
+ *  5.35.8 · El mensaje redactado en la base siempre gana sobre el genérico. Antes, un error
+ *  42501 lanzado por una RPC con un texto específico («Solo el Super Admin puede editar el
+ *  tarifario») se perdía detrás de un genérico «No tienes permiso para esta acción». Ahora,
+ *  si la base mandó un mensaje en español ya redactado, se usa tal cual. Si no, se cae al
+ *  mensaje genérico por código. */
 export function friendlyError(err) {
   const e = err || {};
-  const msg = String(e.message || e.error_description || e.msg || e || '');
+  const msg = String(e.message || e.error_description || e.msg || e || '').trim();
   const code = String(e.code || e.status || '');
-  // 5.11.1 · Un módulo que no se pudo descargar NO es falta de internet. Pasa cuando la red falla
-  // un instante al abrir una pantalla por primera vez, o cuando la publicación aún se está propagando.
-  // Va ANTES del caso de red porque el navegador incluye «Failed to fetch» en este mismo mensaje.
+  // Red / infraestructura
   if (/dynamically imported module|error loading dynamically|importing a module script/i.test(msg))
     return 'No se pudo descargar esta pantalla. Recarga la página y vuelve a entrar. Si vuelve a pasar, avísanos: el archivo de esta pantalla no está llegando.';
   if (!navigator.onLine) return 'Sin conexión a internet. Revisa tu conexión y vuelve a intentar.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'No se pudo conectar con el servidor. Puede ser tu conexión o una caída momentánea. Espera unos segundos y vuelve a intentar.';
+  if (/aborted|AbortError/i.test(msg)) return 'Operación cancelada.';
+  // Autenticación
   if (/invalid login credentials|invalid_credentials/i.test(msg)) return 'Correo o contraseña incorrectos.';
   if (/email not confirmed/i.test(msg)) return 'Tu correo aún no está confirmado. Pide al administrador que lo confirme.';
   if (/rate limit|too many/i.test(msg) || code === '429') return 'Demasiados intentos. Espera unos minutos y vuelve a intentar.';
   if (code === 'PGRST301' || /jwt expired|invalid jwt|session.*(missing|expired)/i.test(msg)) return 'Tu sesión expiró. Inicia sesión de nuevo.';
-  if (code === '42501' || /permission denied|row-level security/i.test(msg)) return 'No tienes permiso para esta acción.';
-  if (code === '23505') return 'Ya existe un registro con esos datos.';
-  if (code === '23514' || code === '22023' || code === 'P0002' || code === 'SOFA') return msg; // mensajes de negocio ya redactados en español // mensajes de negocio escritos en español en la base de datos
+  if (/debe iniciar sesión|not authenticated|not_authenticated/i.test(msg)) return 'Debes iniciar sesión para hacer esta acción.';
+  // Base de datos — infraestructura
+  if (code === '57014' || /statement timeout|canceling statement due to statement timeout/i.test(msg))
+    return 'La consulta tomó demasiado tiempo y se canceló. Intenta de nuevo con un filtro más estrecho o avísanos si vuelve a pasar.';
+  if (code === '42883' || /function .* does not exist/i.test(msg))
+    return 'La acción que intentaste usar todavía no está disponible en esta versión. Avísanos: puede faltar una migración.';
+  if (code === '53200' || /out of memory/i.test(msg))
+    return 'La operación consumió demasiada memoria. Intenta con un rango más pequeño.';
+  // Negocio — si el mensaje viene redactado desde la base, usarlo tal cual (regla de oro)
+  const esRedactado = looksLikeBusinessMessage(msg);
+  if (code === '42501') {
+    if (esRedactado) return msg;
+    if (/permission denied|row-level security/i.test(msg)) return 'No tienes permiso para esta acción.';
+    return 'No tienes permiso para esta acción.';
+  }
+  if (code === '23505') { return esRedactado ? msg : 'Ya existe un registro con esos datos.'; }
+  if (code === '23503') { return esRedactado ? msg : 'No se puede guardar: hay un dato relacionado que no existe o fue eliminado.'; }
+  if (code === '23514' || code === '22023' || code === 'P0002' || code === 'SOFA') return msg;
+  // Contraseñas
   if (/same.*password|different from the old/i.test(msg)) return 'La nueva contraseña debe ser distinta de la anterior.';
   if (/password/i.test(msg) && /weak|short|at least/i.test(msg)) return 'La contraseña es muy débil. Usa al menos 10 caracteres con letras y números.';
+  // Cualquier otro mensaje redactado en español que venga de la base
+  if (esRedactado) return msg;
   return msg ? `Ocurrió un error: ${msg}` : 'Ocurrió un error inesperado.';
+}
+
+/** Detección simple de mensaje de negocio en español ya redactado en la base.
+ *  Criterios: tiene al menos 10 caracteres, contiene espacio o puntuación (no es un
+ *  identificador bare), no parece una traza de código PostgreSQL ni inglés técnico. */
+function looksLikeBusinessMessage(msg) {
+  if (!msg || msg.length < 10) return false;
+  // Técnicos: tablas/columnas/pg_*/context lines
+  if (/\b(pg_|CONTEXT|LINE \d+|STATEMENT|HINT|ERROR:|FATAL|column|relation|function)\b/i.test(msg)) return false;
+  // Inglés evidente
+  if (/\b(permission denied|does not exist|duplicate key|invalid input|null value|violates)\b/i.test(msg)) return false;
+  // Español evidente (artículos y verbos comunes)
+  return /\b(el|la|los|las|un|una|de|del|al|no|sin|con|para|por|debe|puede|falta|faltan|existe|hay|aún|solo|solo el|ya)\b/i.test(msg);
 }
 
 export const loadingView = (rows = 4) => html`<div aria-busy="true" aria-label="Cargando">${raw('<div class="skeleton"></div>'.repeat(rows))}</div>`;
