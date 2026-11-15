@@ -294,6 +294,29 @@ a.i18-btn{text-decoration:none;display:inline-block}
 .di-col span{display:block;width:100%;max-width:38px;background:var(--navy-3,#1f6feb);border-radius:4px 4px 0 0;min-height:2px}
 .di-col small{position:absolute;bottom:-20px;font-size:11px;color:var(--text-muted)}
 .di-target{position:absolute;left:0;right:0;border-top:2px dashed var(--warn);z-index:1}
+/* 5.35.0 · Panel operativo del tablero de dirección */
+.di-ops{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px;box-shadow:0 1px 2px rgba(15,26,43,.04),0 4px 14px rgba(15,26,43,.06)}
+.di-ops-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.di-be-wrap{margin:14px 0 4px}
+.di-be-head{display:flex;justify-content:space-between;margin-bottom:6px;align-items:baseline}
+.di-be-bar{height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.di-be-fill{height:100%;border-radius:999px;transition:width .4s ease}
+.di-pipeline{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.di-pipe-cell{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.di-pipe-label{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:4px}
+.di-pipe-value{font-family:inherit;font-weight:700;font-size:1.5rem;color:var(--navy);line-height:1;font-variant-numeric:tabular-nums}
+.di-pipe-sub{font-size:.7rem;color:var(--ink-3);margin-top:4px}
+.di-alerts{display:flex;flex-direction:column;gap:6px}
+.di-alert{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 12px;border-radius:8px;align-items:center}
+.di-alert-icon{width:24px;height:24px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+.di-alert-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.di-alert-body strong{color:var(--ink);font-size:.9rem}
+.di-alert-bad{background:color-mix(in srgb,var(--bad) 10%,var(--surface))}
+.di-alert-bad .di-alert-icon{background:var(--bad)}
+.di-alert-warn{background:color-mix(in srgb,var(--warn) 10%,var(--surface))}
+.di-alert-warn .di-alert-icon{background:var(--warn)}
+.di-alert-info{background:color-mix(in srgb,var(--navy-3) 8%,var(--surface))}
+.di-alert-info .di-alert-icon{background:var(--navy-3)}
 /* 4.1 a 4.5 · Iteraciones 51 a 55 */
 .qt-recs li{margin:0 0 8px}.ob-ms{padding-left:20px}.ob-ms li{margin:0 0 8px}.ob-ms li.ob-done strong{color:var(--ok)}.ob-ms li.ob-late strong{color:var(--bad)}
 /* 5.33.0 · Onboarding por etapas con porcentajes visibles */
