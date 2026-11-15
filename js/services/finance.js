@@ -147,6 +147,8 @@ export async function registerConciliationAct(id, v) {
 export async function startArbitration(id, filedOn, reference, comment) { must(await sb().rpc('start_arbitration', { p_glosa: id, p_filed_on: filedOn, p_reference: reference, p_comment: comment || null })); return true; }
 export async function conciliationActs(glosaId) { return must(await sb().from('glosa_conciliation_acts').select('id, folio, held_on, result, ars_representative, sofa_representative, recovered_total, accepted_total, agreements').eq('glosa_id', glosaId).order('created_at')); }
 export async function glosaTemplates() { return must(await sb().from('v_glosa_template_stats').select('id, reason_name, reason_code, title, is_active, body, ars_id').order('reason_name').order('title')); }
+// 5.35.6 · Agente de análisis de glosas (rule-based). Devuelve causa probable, acciones, templates y patrón.
+export async function glosaAiAnalyze(id) { return must(await sb().rpc('glosa_ai_analyze', { p_glosa: id })); }
 export async function saveGlosaTemplate(v) {
   return must(await sb().rpc('save_glosa_template', { p_id: v.id || null, p_reason: v.reason, p_ars: v.ars || null, p_title: v.title, p_body: v.body, p_active: v.active !== false }));
 }

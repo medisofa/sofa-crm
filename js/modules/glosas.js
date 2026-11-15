@@ -1,7 +1,7 @@
 /** SOFA · Glosas: bandeja con plazos, Pareto de motivos, tasa por ARS y ficha de cada glosa */
 import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, errorView, loadingView, toast, friendlyError, opt, busy } from '../utils/ui.js';
-import { listGlosas, glosaSummary, glosaPareto, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs } from '../services/finance.js';
+import { listGlosas, glosaSummary, glosaPareto, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs, glosaAiAnalyze } from '../services/finance.js';
 import { profileNames } from '../services/submissions.js';
 import { listArs } from '../services/catalog.js';
 import { money, num, date, dateTime, period, todayISO } from '../utils/formatters.js';
@@ -131,6 +131,9 @@ async function renderDetail(main, ctx) {
         <div class="kpi"><div class="l">En disputa</div><div class="v">${money(g.in_dispute)}</div></div>
         <div class="kpi"><div class="l">Recuperado</div><div class="v" style="color:var(--ok)">${money(g.recovered)}</div></div>
         <div class="kpi"><div class="l">Aceptado (pérdida)</div><div class="v" style="color:var(--bad)">${money(g.accepted)}</div></div></div>
+      ${edit ? html`<div class="card" style="margin-top:14px" id="glosa-ai-card"><h2>Análisis automático</h2>
+        <p class="sub">Causa probable, acciones recomendadas y plantillas sugeridas basadas en el catálogo del equipo. No reemplaza el juicio humano.</p>
+        <div id="glosa-ai-out"><button class="btn" id="glosa-ai-run">Analizar glosa</button></div></div>` : ''}
       <div class="card" style="margin-top:14px"><h2>Servicios glosados</h2>
         <div class="table-wrap"><table class="t cards"><thead><tr><th>Servicio</th><th>Motivo</th><th class="n">Glosado</th><th class="n">Recuperado</th><th class="n">Aceptado</th></tr></thead><tbody>
         ${items.map((i) => html`<tr><td data-l="Servicio">${i.service_lines?.patient_name}<div class="small muted">${date(i.service_lines?.service_date)} · ${i.service_lines?.procedures?.description}</div></td>
@@ -145,6 +148,13 @@ async function renderDetail(main, ctx) {
         toast(`Descargado ${await downloadActaPdf({ act: actas.find((a) => a.id === b.dataset.actaPdf), glosa: g, items, normRef: st?.glosa_norm_reference })}`, 'ok'); }
       catch (err) { toast(friendlyError(err), 'bad'); }
     })));
+    const aiBtn = box.querySelector('#glosa-ai-run');
+    if (aiBtn) aiBtn.addEventListener('click', () => busy(aiBtn, async () => {
+      try {
+        const data = await glosaAiAnalyze(g.id);
+        renderGlosaAi(box.querySelector('#glosa-ai-out'), data);
+      } catch (err) { toast(friendlyError(err), 'bad'); }
+    }));
     box.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => busy(b, async () => {
       try {
         const d = await import('./finance-dialogs.js');
@@ -194,4 +204,31 @@ async function drawBank(box) {
     } catch (err) { toast(friendlyError(err), 'bad'); }
   });
   load();
+}
+
+/** 5.35.6 · Pinta el resultado del agente de análisis de glosas. */
+function renderGlosaAi(container, data) {
+  if (!container) return;
+  const items = data?.items || [];
+  const actions = data?.top_actions || [];
+  const templates = data?.suggested_templates || [];
+  const pattern = data?.pattern?.repeated || [];
+  const conf = (n) => '★'.repeat(Math.max(0, Math.min(5, Number(n) || 0))) + '☆'.repeat(5 - Math.max(0, Math.min(5, Number(n) || 0)));
+  paint(container, html`
+    <div class="note info">${data?.summary || ''}</div>
+    ${items.length ? html`<h3 style="margin:14px 0 6px">Por motivo</h3>
+      <div class="list">${items.map((i) => html`<div class="li" style="align-items:flex-start"><div class="b">
+        <div class="t1"><b>${i.reason_name}</b> · ${money(i.amount)} <span class="small muted" title="Confianza del agente">${conf(i.confidence)}</span></div>
+        <div class="t2" style="margin-top:4px"><b>Causa probable:</b> ${i.probable_cause}</div>
+        ${(i.recommended_actions || []).length ? html`<ul class="small" style="margin:4px 0 0 18px">${(i.recommended_actions || []).map((a) => html`<li>${a}</li>`)}</ul>` : ''}
+        ${i.prevention_tip ? html`<div class="small muted" style="margin-top:4px"><b>Prevención:</b> ${i.prevention_tip}</div>` : ''}
+      </div></div>`)}</div>` : ''}
+    ${actions.length ? html`<h3 style="margin:14px 0 6px">Acciones recomendadas</h3>
+      <ol class="small">${actions.map((a) => html`<li>${a}</li>`)}</ol>` : ''}
+    ${templates.length ? html`<h3 style="margin:14px 0 6px">Plantillas del banco de respuestas</h3>
+      <div class="list">${templates.map((t) => html`<div class="li"><div class="b"><div class="t1"><b>${t.title}</b> ${t.ars_match ? html`<span class="pill ok">ARS exacta</span>` : html`<span class="pill">genérica</span>`}</div>
+        <div class="small muted">${t.reason_name}</div><div class="t2 small">${t.body_preview}…</div></div></div>`)}</div>` : ''}
+    ${pattern.length ? html`<div class="note warn" style="margin-top:14px"><b>Patrón detectado:</b> en los últimos 90 días esta ARS glosó
+      ${pattern.map((p, n) => html`${n ? ', ' : ''}${p.n} veces por «${p.reason_name}» (${money(p.total)})`)}. Revisar el proceso de captura o la configuración contractual.</div>` : ''}
+    <p class="small muted" style="margin-top:14px">Agente determinístico (${data?.engine || 'rule-based'}). Las causas y acciones las edita el equipo de glosas.</p>`);
 }
