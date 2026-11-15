@@ -143,6 +143,7 @@ export const NAV = [
   ]},
   { group: 'Inteligencia', items: [
     { route: 'mercado', label: 'Inteligencia de mercado', roles: ['super_admin', 'admin', 'auditor', 'assistant'], ready: true },
+    { route: 'mercadeo', label: 'Mercadeo', roles: ['super_admin', 'admin', 'operations'], ready: true },   // 5.35.3 · Actividades y backlog de materiales
     { route: 'guias', label: 'Buenas prácticas', roles: ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'auditor'], ready: true }
   ]},
   { group: 'Catálogos', items: [
@@ -438,7 +439,7 @@ export const FAMILIES = [
   { key: 'cobros', group: 'Cobros y finanzas', routes: ['pagos', 'glosas', 'senasa-certificados', 'honorarios', 'aging', 'conciliacion', 'causas-glosa', 'cartera', 'aplicar-pago', 'reconsideracion', 'tarifas-privadas', 'pagos-privados', 'saldos-pacientes', 'calendario-cobros', 'mi-dinero', 'mis-glosas'] },
   { key: 'crecimiento', group: 'Desarrollo y crecimiento', routes: ['oportunidades', 'prospectos', 'solicitudes', 'clientes', 'salud-clientes', 'medicos', 'contactos', 'propuestas', 'onboarding-30', 'puesta-en-marcha', 'mi-incorporacion', 'mis-30-dias', 'mi-puesta-en-marcha', 'casos-servicio'] },
   { key: 'marketing', group: 'Marketing y comunicación', routes: ['aliados', 'casos-exito', 'recomendar', 'cola-correos'] },
-  { key: 'resultados', group: 'Inteligencia y resultados', routes: ['mercado', 'guias', 'dashboard', 'direccion', 'reportes', 'mi-productividad', 'reporte-contador', 'estado-cuenta', 'rentabilidad', 'analitica-glosas', 'informe-trimestral', 'fugas'] },
+  { key: 'resultados', group: 'Inteligencia y resultados', routes: ['mercado', 'mercadeo', 'guias', 'dashboard', 'direccion', 'reportes', 'mi-productividad', 'reporte-contador', 'estado-cuenta', 'rentabilidad', 'analitica-glosas', 'informe-trimestral', 'fugas'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'planes', 'suscripciones', 'rendimiento', 'salud-sistema', 'historial'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-panel', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'novedades', 'perfil', 'seguridad', 'diagnostico', 'cambio-clave'] }
 ];

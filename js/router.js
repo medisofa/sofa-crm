@@ -15,7 +15,7 @@ export const MODULES = {
   glosas: 'glosas.js', pagos: 'payments.js', 'senasa-certificados': 'senasa-certificados.js', honorarios: 'fees.js', medicos: 'provider360.js', agenda: 'agenda.js', practica: 'practice.js', 'tarifas-privadas': 'private-tariffs.js',
   'flujo-pacientes': 'flujo-pacientes.js',   // 29/10/2026
   hoy: 'today.js', dashboard: 'dashboard.js', aging: 'aging.js', reportes: 'reports.js',
-  habilitacion: 'habilitation.js', mercado: 'market.js', guias: 'guides.js',
+  habilitacion: 'habilitation.js', mercado: 'market.js', mercadeo: 'mercadeo.js', guias: 'guides.js',
   captura: 'capture.js', reclamaciones: 'claims.js', retiros: 'pickups.js', contratos: 'contracts.js', 'carga-google': 'google-intake.js',
   'puesta-al-dia': 'puesta-al-dia.js',   // 29/10/2026
   preradicacion: 'prerad.js', requisitos: 'requirements.js',
