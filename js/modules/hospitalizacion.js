@@ -6,6 +6,44 @@ import { confirmDialog } from '../utils/ui.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 import { canSee } from '../utils/permissions.js';
 
+/** 5.35.9 · Tabla de líneas de un reporte. Un único helper DRY para las tres vistas
+ *  (médico/soporte/staff). Cuando `rowAction` está presente se agrega una columna extra
+ *  de acciones; si no, la tabla usa solo los 5 encabezados declarados. */
+function reportLinesTable(lineas, {
+  headers = ['Fecha', 'Servicio', 'Cant.', 'Precio', 'Monto'],
+  empty = 'Sin servicios registrados.',
+  rowAction = null,
+} = {}) {
+  const hasAction = rowAction != null;
+  const ths = headers.map((t) => h('th', {}, t));
+  if (hasAction) ths.push(h('th', {}, ''));
+  const rows = (lineas || []).map((l) => {
+    const cells = [
+      h('td', {}, fmtDate(l.service_date)),
+      h('td', {}, l.servicio || l.codigo),
+      h('td', { class: 'num' }, String(l.quantity)),
+      h('td', { class: 'num' }, money(l.unit_amount)),
+      h('td', { class: 'num' }, money(l.amount)),
+    ];
+    if (hasAction) cells.push(h('td', {}, rowAction(l) || ''));
+    return h('tr', {}, ...cells);
+  });
+  const colspan = String(headers.length + (hasAction ? 1 : 0));
+  const body = rows.length ? rows : [h('tr', {}, h('td', { colspan, class: 'hosp-mut' }, empty))];
+  return h('table', { class: 'hosp-tbl' },
+    h('thead', {}, h('tr', {}, ...ths)),
+    h('tbody', {}, ...body));
+}
+
+/** 5.35.9 · Pie total del reporte. `extra` añade una línea gris a la derecha; `strong` usa
+ *  <strong> en lugar de <b> (match con la vista de staff). */
+function reportFoot(r, { strong = false, extra = null } = {}) {
+  const totalEl = strong ? h('strong', {}, `Total: ${money(r.total)}`) : h('b', {}, `Total: ${money(r.total)}`);
+  const children = [totalEl];
+  if (extra) children.push(h('span', { class: 'hosp-mut' }, extra));
+  return h('div', { class: 'hosp-foot' }, ...children);
+}
+
 export async function render(root, context = {}) {
   if (context.viewAs) return renderSupport(root, context);
   if (['super_admin','admin','operations','billing'].includes(context.role)) return renderStaff(root, context);
@@ -81,16 +119,11 @@ export async function render(root, context = {}) {
 
   async function drawReport(r) {
     const out = h('div', { 'aria-live': 'polite' });
-    const lines = (r.lineas || []).map((l) => h('tr', {},
-      h('td', {}, fmtDate(l.service_date)), h('td', {}, `${l.servicio || l.codigo}`),
-      h('td', { class: 'num' }, String(l.quantity)), h('td', { class: 'num' }, money(l.unit_amount)),
-      h('td', { class: 'num' }, money(l.amount)),
-      h('td', {}, r.puede_editar ? delBtn(l.id) : '')));
-    const table = h('table', { class: 'hosp-tbl' },
-      h('thead', {}, h('tr', {}, h('th', {}, 'Fecha'), h('th', {}, 'Servicio'), h('th', {}, 'Cant.'), h('th', {}, 'Precio'), h('th', {}, 'Monto'), h('th', {}, ''))),
-      h('tbody', {}, lines.length ? lines : h('tr', {}, h('td', { colspan: '6', class: 'hosp-mut' }, 'Sin servicios todavía.'))));
-    const foot = h('div', { class: 'hosp-foot' }, h('b', {}, `Total: ${money(r.total)}`),
-      h('span', { class: 'hosp-mut' }, `  ${r.patient_name} · ${r.centro} · ${r.status}`));
+    const table = reportLinesTable(r.lineas, {
+      empty: 'Sin servicios todavía.',
+      rowAction: r.puede_editar ? (l) => delBtn(l.id) : null,
+    });
+    const foot = reportFoot(r, { extra: `  ${r.patient_name} · ${r.centro} · ${r.status}` });
     detailBox.replaceChildren(h('div', { class: 'hosp-detail' },
       h('h3', {}, `Reporte · ${r.patient_name}`), h('p', { class: 'i18-sub' }, `Ingreso ${fmtDate(r.admission_date)} · Alta ${fmtDate(r.discharge_date)} · ${r.ars || 'Privado / sin ARS'}${r.patient_phone ? ' · Tel. ' + r.patient_phone : ''}`),
       r.puede_editar ? caseForm(r) : null, table, foot,
@@ -227,16 +260,11 @@ async function renderSupport(root, context) {
       if (my !== sequence || selectedProvider !== provider || !wrap.isConnected) return;
       const r = data.report;
       if (!r || r.id !== id || r.provider_id !== selectedProvider) throw new Error('Reporte no disponible para el médico seleccionado.');
-      const lines = r.lineas || [];
       detail.replaceChildren(h('section', { class: 'hosp-detail hosp-support-detail' },
         h('h3', {}, `Reporte · ${r.patient_name}`),
         h('p', { class: 'i18-sub' }, `${r.centro} · ${r.status} · Ingreso ${fmtDate(r.admission_date)}`),
-        h('div', { class: 'i18-table-wrap' }, h('table', { class: 'hosp-tbl' },
-          h('thead', {}, h('tr', {}, ...['Fecha', 'Servicio', 'Cant.', 'Precio', 'Monto'].map((label) => h('th', {}, label)))),
-          h('tbody', {}, ...(lines.length ? lines.map((l) => h('tr', {}, h('td', {}, fmtDate(l.service_date)), h('td', {}, l.servicio || l.codigo),
-            h('td', { class: 'num' }, String(l.quantity)), h('td', { class: 'num' }, money(l.unit_amount)), h('td', { class: 'num' }, money(l.amount))))
-            : [h('tr', {}, h('td', { colspan: '5' }, 'Sin servicios registrados.'))])))),
-        h('div', { class: 'hosp-foot' }, h('b', {}, `Total: ${money(r.total)}`)),
+        h('div', { class: 'i18-table-wrap' }, reportLinesTable(r.lineas)),
+        reportFoot(r),
         note('Solo lectura en modo soporte.', 'info'),
         bitacoraBlock(r.id)));
     } catch (e) { if (my === sequence && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
@@ -298,13 +326,13 @@ async function renderStaff(root, context) {
 }
 
 function readOnlyReport(r) {
-  return h('section', { class: 'hosp-detail hosp-staff-detail' }, h('h3', {}, `Reporte · ${r.patient_name}`),
+  return h('section', { class: 'hosp-detail hosp-staff-detail' },
+    h('h3', {}, `Reporte · ${r.patient_name}`),
     h('p', { class: 'i18-sub' }, `${r.medico || ''} · ${r.centro} · ${r.status}`),
     h('p', {}, `Ingreso ${fmtDate(r.admission_date)} · Alta ${fmtDate(r.discharge_date)} · ${r.ars || 'Privado / sin ARS'}${r.patient_phone ? ' · Tel. ' + r.patient_phone : ''}`),
-    h('div', { class: 'i18-table-wrap' }, h('table', { class: 'hosp-tbl' },
-      h('thead', {}, h('tr', {}, ...['Fecha', 'Servicio', 'Cantidad', 'Unitario', 'Monto'].map((v) => h('th', {}, v)))),
-      h('tbody', {}, ...(r.lineas || []).map((l) => h('tr', {}, h('td', {}, fmtDate(l.service_date)), h('td', {}, l.servicio || l.codigo), h('td', { class: 'num' }, String(l.quantity)), h('td', { class: 'num' }, money(l.unit_amount)), h('td', { class: 'num' }, money(l.amount))))))),
-    h('div', { class: 'hosp-foot' }, h('strong', {}, `Total: ${money(r.total)}`)), note('Solo lectura para el equipo de seguimiento.', 'info'),
+    h('div', { class: 'i18-table-wrap' }, reportLinesTable(r.lineas, { headers: ['Fecha', 'Servicio', 'Cantidad', 'Unitario', 'Monto'] })),
+    reportFoot(r, { strong: true }),
+    note('Solo lectura para el equipo de seguimiento.', 'info'),
     bitacoraBlock(r.id));
 }
 
