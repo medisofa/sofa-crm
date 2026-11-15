@@ -151,6 +151,19 @@ export async function conciliationActs(glosaId) { return must(await sb().from('g
 export async function glosaTemplates() { return must(await sb().from('v_glosa_template_stats').select('id, reason_name, reason_code, title, is_active, body, ars_id').order('reason_name').order('title')); }
 // 5.35.6 · Agente de análisis de glosas (rule-based). Devuelve causa probable, acciones, templates y patrón.
 export async function glosaAiAnalyze(id) { return must(await sb().rpc('glosa_ai_analyze', { p_glosa: id })); }
+// 5.35.7 · Catálogo editable de causas por motivo (lo consume el agente). Join contra glosa_reasons para tener name/category.
+export async function glosaCauseCatalog() {
+  return must(await sb().from('glosa_reasons').select('code, name, category, is_active, glosa_cause_catalog(probable_cause, recommended_actions, prevention_tip, confidence, updated_at)').eq('is_active', true).order('name'));
+}
+export async function saveGlosaCause(v) {
+  return must(await sb().rpc('glosa_cause_save', {
+    p_reason_code: v.reason_code,
+    p_probable_cause: v.probable_cause,
+    p_recommended_actions: v.recommended_actions || [],
+    p_prevention_tip: v.prevention_tip || null,
+    p_confidence: v.confidence ?? 3,
+  })) ?? true;
+}
 export async function saveGlosaTemplate(v) {
   return must(await sb().rpc('save_glosa_template', { p_id: v.id || null, p_reason: v.reason, p_ars: v.ars || null, p_title: v.title, p_body: v.body, p_active: v.active !== false }));
 }

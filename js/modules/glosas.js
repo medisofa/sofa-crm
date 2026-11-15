@@ -1,7 +1,7 @@
 /** SOFA · Glosas: bandeja con plazos, Pareto de motivos, tasa por ARS y ficha de cada glosa */
 import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, errorView, loadingView, toast, friendlyError, opt, busy } from '../utils/ui.js';
-import { listGlosas, glosaSummary, glosaByReason, glosaByArs, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs, glosaAiAnalyze } from '../services/finance.js';
+import { listGlosas, glosaSummary, glosaByReason, glosaByArs, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs, glosaAiAnalyze, glosaCauseCatalog, saveGlosaCause } from '../services/finance.js';
 import { profileNames } from '../services/submissions.js';
 import { listArs } from '../services/catalog.js';
 import { money, num, date, dateTime, period, todayISO } from '../utils/formatters.js';
@@ -37,8 +37,10 @@ export async function render(main, ctx) {
     <div class="toolbar"><label class="sr-only" for="q">Buscar</label><input class="input grow" id="q" type="search" placeholder="Folio, prestador, cliente o referencia ARS">
       <label class="sr-only" for="ars">ARS</label><select class="input" id="ars" style="width:auto"><option value="">Todas las ARS</option></select></div>
     <div id="l"></div>
-    ${can('glosas.edit', ctx.role) ? html`<div class="card" style="margin-top:14px"><h2>Banco de respuestas</h2><p class="sub">Respuestas por motivo y ARS para apelar más rápido. La tasa de éxito es lo recuperado sobre lo glosado en las glosas ya resueltas que usaron cada respuesta.</p><div id="bank"></div></div>` : ''}`);
+    ${can('glosas.edit', ctx.role) ? html`<div class="card" style="margin-top:14px"><h2>Banco de respuestas</h2><p class="sub">Respuestas por motivo y ARS para apelar más rápido. La tasa de éxito es lo recuperado sobre lo glosado en las glosas ya resueltas que usaron cada respuesta.</p><div id="bank"></div></div>
+    <div class="card" style="margin-top:14px"><h2>Catálogo de causas (agente IA)</h2><p class="sub">Causa probable, acciones recomendadas y tip de prevención por motivo. Lo consume el análisis automático de cada glosa.</p><div id="causas"></div></div>` : ''}`);
   if ($('#bank', main)) drawBank($('#bank', main));
+  if ($('#causas', main)) drawCauseCatalog($('#causas', main));
   const tabs = [['abiertas', 'Abiertas'], ['resueltas', 'Resueltas'], ['todas', 'Todas']];
   const drawTabs = () => paint($('#tabs', main), html`${tabs.map(([k, l]) => html`<button data-g="${k}" aria-pressed="${st.group === k}">${l}</button>`)}`);
   drawTabs();
@@ -226,4 +228,60 @@ function renderGlosaAi(container, data) {
     ${pattern.length ? html`<div class="note warn" style="margin-top:14px"><b>Patrón detectado:</b> en los últimos 90 días esta ARS glosó
       ${pattern.map((p, n) => html`${n ? ', ' : ''}${p.n} veces por «${p.reason_name}» (${money(p.total)})`)}. Revisar el proceso de captura o la configuración contractual.</div>` : ''}
     <p class="small muted" style="margin-top:14px">Agente determinístico (${data?.engine || 'rule-based'}). Las causas y acciones las edita el equipo de glosas.</p>`);
+}
+
+/** 5.35.7 · Catálogo de causas por motivo. Lista editable que alimenta al agente IA. */
+async function drawCauseCatalog(box) {
+  const { formDialog, fieldError } = await import('../utils/ui.js');
+  const reload = async () => {
+    try {
+      const rows = await glosaCauseCatalog();
+      if (!rows.length) { paint(box, html`<p class="small muted">No hay motivos activos todavía.</p>`); return; }
+      const stars = (n) => '★'.repeat(Math.max(0, Math.min(5, Number(n) || 0))) + '☆'.repeat(5 - Math.max(0, Math.min(5, Number(n) || 0)));
+      paint(box, html`<div class="table-wrap"><table class="t cards"><thead><tr>
+        <th>Motivo</th><th>Causa probable</th><th>Acciones</th><th>Confianza</th><th></th></tr></thead><tbody>
+        ${rows.map((r) => {
+          const c = Array.isArray(r.glosa_cause_catalog) ? r.glosa_cause_catalog[0] : r.glosa_cause_catalog;
+          return html`<tr>
+            <td data-l="Motivo"><b>${r.name}</b><div class="small muted">${r.category || ''}</div></td>
+            <td data-l="Causa probable">${c?.probable_cause || html`<span class="small muted">Sin registrar</span>`}</td>
+            <td data-l="Acciones">${(c?.recommended_actions || []).length ? html`<ol class="small" style="margin:0 0 0 18px">${(c.recommended_actions).map((a) => html`<li>${a}</li>`)}</ol>` : html`<span class="small muted">—</span>`}</td>
+            <td data-l="Confianza" class="small">${c ? stars(c.confidence) : '—'}</td>
+            <td data-l=""><button class="btn sm" data-edit-cause="${r.code}">${c ? 'Editar' : 'Agregar'}</button></td></tr>`;
+        })}</tbody></table></div>`);
+      box.querySelectorAll('[data-edit-cause]').forEach((b) => b.addEventListener('click', async () => {
+        const row = rows.find((x) => x.code === b.dataset.editCause);
+        const c = Array.isArray(row?.glosa_cause_catalog) ? row.glosa_cause_catalog[0] : row?.glosa_cause_catalog;
+        const ok = await causeEditDialog(row, c, formDialog, fieldError);
+        if (ok) { toast('Catálogo actualizado', 'ok'); reload(); }
+      }));
+    } catch (err) { paint(box, html`<div class="note bad">${friendlyError(err)}</div>`); }
+  };
+  reload();
+}
+
+async function causeEditDialog(reason, current, formDialog, fieldError) {
+  const actions = (current?.recommended_actions || []).join('\n');
+  return formDialog({
+    title: `Causa: ${reason.name}`, submitLabel: 'Guardar', wide: true,
+    body: html`<p class="small muted">Motivo: <b>${reason.name}</b> (código <span class="mono">${reason.code}</span>, ${reason.category || 'sin categoría'})</p>
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label for="cz_c">Causa probable *</label>
+          <textarea id="cz_c" name="probable_cause" rows="2" maxlength="400" required>${current?.probable_cause || ''}</textarea></div>
+        <div class="field" style="grid-column:1/-1"><label for="cz_a">Acciones recomendadas (una por línea, máximo 10)</label>
+          <textarea id="cz_a" name="actions" rows="6" placeholder="Verificar afiliación en el portal...
+Adjuntar captura con fecha y número...">${actions}</textarea></div>
+        <div class="field" style="grid-column:1/-1"><label for="cz_p">Tip de prevención (opcional)</label>
+          <textarea id="cz_p" name="prevention_tip" rows="2" maxlength="400">${current?.prevention_tip || ''}</textarea></div>
+        <div class="field"><label for="cz_conf">Confianza (1–5)</label>
+          <input id="cz_conf" name="confidence" type="number" min="1" max="5" step="1" value="${current?.confidence ?? 3}"></div>
+      </div>`,
+    onSubmit: async (d, f) => {
+      if (!d.probable_cause?.trim()) { fieldError(f.elements.probable_cause, 'Escribe la causa probable'); return false; }
+      const arr = String(d.actions || '').split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 10);
+      const conf = Math.max(1, Math.min(5, Number(d.confidence) || 3));
+      return saveGlosaCause({ reason_code: reason.code, probable_cause: d.probable_cause.trim(),
+        recommended_actions: arr, prevention_tip: (d.prevention_tip || '').trim() || null, confidence: conf });
+    }
+  });
 }
