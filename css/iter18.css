@@ -1611,5 +1611,3 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .clinical-state-help{padding:0 16px;color:var(--muted)}
 .clinical-secretary-start :is(a,button,summary):focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 @media(max-width:640px){.clinical-primary-actions{grid-template-columns:1fr;gap:10px}.clinical-primary-actions .btn{min-height:48px}}
-.clinical-home .btn:not(.primary){background:var(--surface);color:var(--ink);border:1px solid var(--border)}
-.clinical-home .btn:not(.primary):hover{background:var(--surface-2,var(--surface));border-color:var(--focus)}

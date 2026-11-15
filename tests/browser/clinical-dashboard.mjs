@@ -69,7 +69,7 @@ try{
  assert.match(await page.locator('.clinical-first-steps').textContent(),/cita real/);
  await page.keyboard.press('Space');
  for(const theme of ['light','dark']){
-  await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+  await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.clock.runFor(300);
   for(const width of [1440,390,320]){
    await page.setViewportSize({width,height:1100});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Inicio guiado sin overflow');
