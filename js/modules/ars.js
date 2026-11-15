@@ -41,9 +41,11 @@ export async function render(root, ctx = {}) {
         h('div', { class: 'i18-actions', style: 'margin:0' },
           a.active ? '' : h('span', { class: 'ac-pill st-none' }, 'Desactivada'),
           h('span', { class: `ac-pill ${a.tariffs ? 'st-ok' : 'st-req'}`, title: 'Tarifas vigentes de esta ARS' }, `${a.tariffs} tarifas`),
+          a.uses_society_tariff ? h('span', { class: 'ac-pill st-ok', title: a.society_tariff_notes || 'Usa el tarifario de la sociedad médica' }, 'Tarifario sociedad') : '',
           portalHost ? h('span', { class: 'ac-pill st-ok', title: `Portal PSS: ${a.portal_url}` }, `🔗 ${portalHost}`) : '',
           edit ? h('button', { class: 'i18-link', type: 'button', onclick: () => arsForm(a) }, 'Editar') : '')),
       a.notes ? h('p', { class: 'i18-sub' }, a.notes) : '',
+      a.uses_society_tariff && a.society_tariff_notes ? h('p', { class: 'i18-sub' }, 'Tarifario sociedad: ', a.society_tariff_notes) : '',
       h('ul', { class: 'ars-plans' }, a.plans.length ? a.plans.map((p) => h('li', { class: p.active ? '' : 'ars-off' },
         h('span', {}, p.name), h('span', { class: 'i18-sub' }, ` · ${p.regime}${p.tariffs ? ` · ${p.tariffs} tarifas propias` : ''}${p.active ? '' : ' · desactivado'}`),
         edit ? h('button', { class: 'i18-link', type: 'button', onclick: () => planForm(a, p) }, 'Editar') : '')) : h('li', { class: 'i18-sub' }, 'Sin planes registrados.')),
@@ -58,12 +60,19 @@ export async function render(root, ctx = {}) {
     const portalUrl = h('input', { type: 'url', value: a?.portal_url || '', maxlength: '300', placeholder: 'https://portalpss.arsejemplo.com.do/' });
     const notes = h('textarea', { rows: '2', maxlength: '500' }, a?.notes || '');
     const active = h('input', { type: 'checkbox', checked: a ? a.active : true });
+    // 5.35.5 · Bandera «usa el tarifario de la sociedad médica».
+    const usesSociety = h('input', { type: 'checkbox', checked: !!a?.uses_society_tariff });
+    const societyNotes = h('textarea', { rows: '2', maxlength: '500', placeholder: 'Opcional: especialidades donde aplica, limitaciones, etc.', style: a?.uses_society_tariff ? '' : 'display:none' }, a?.society_tariff_notes || '');
+    const societyNotesField = field('ars-soc-notes', 'Detalle del tarifario de sociedad', societyNotes);
+    societyNotesField.style.display = a?.uses_society_tariff ? '' : 'none';
+    usesSociety.addEventListener('change', () => { societyNotesField.style.display = usesSociety.checked ? '' : 'none'; if (!usesSociety.checked) societyNotes.value = ''; });
     const msg = h('div', { 'aria-live': 'polite' });
     const save = h('button', { class: 'i18-btn', type: 'button' }, 'Guardar ARS');
     save.addEventListener('click', async () => {
       save.disabled = true;
       try {
-        await rpc('ars_save', { p_id: a?.id || null, p_name: name.value, p_code: code.value || null, p_regime: regime.value, p_channel: channel.value, p_notes: notes.value, p_active: active.checked, p_portal_url: portalUrl.value || null });
+        await rpc('ars_save', { p_id: a?.id || null, p_name: name.value, p_code: code.value || null, p_regime: regime.value, p_channel: channel.value, p_notes: notes.value, p_active: active.checked, p_portal_url: portalUrl.value || null,
+          p_uses_society_tariff: usesSociety.checked, p_society_tariff_notes: usesSociety.checked ? societyNotes.value : null });
         pane.replaceChildren(note(`ARS «${name.value.trim()}» guardada.`, 'ok')); await load();
       } catch (e) { msg.replaceChildren(note(e.message, 'error')); save.disabled = false; }
     });
@@ -71,6 +80,8 @@ export async function render(root, ctx = {}) {
       h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
       h('div', { class: 'hc-grid' }, field('ars-name', 'Nombre', name), field('ars-code', 'Código corto', code), field('ars-regime', 'Régimen principal', regime),
         field('ars-channel', 'Canal de radicación', channel), field('ars-portal', 'URL del Portal PSS', portalUrl)), field('ars-notes', 'Notas', notes),
+      h('label', { class: 'i18-chk' }, usesSociety, ' Esta ARS reconoce el tarifario de la sociedad médica para esta especialidad'),
+      societyNotesField,
       h('label', { class: 'i18-chk' }, active, ' Activa (aparece en los formularios)'), h('div', { class: 'i18-actions' }, save), msg));
     name.focus();
   }
