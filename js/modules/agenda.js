@@ -20,6 +20,30 @@ const ELIG = { verificada: ['Elegible ✓', 'ok'], no_elegible: ['No elegible', 
 const ELIG_SRC = { portal_ars: 'Portal de la ARS', sisalril: 'Consulta de afiliación SISALRIL', senasa: 'Consulta SeNaSa', telefono: 'Llamada a la ARS', otro: 'Otro' };
 const mem = { provider: '', date: '' };   // se conserva durante la sesión
 
+/** 5.35.2 · Botón WhatsApp zero-cost en agenda: abre wa.me con el mensaje prellenado.
+ *  No envía nada desde SOFA; la persona (asistente/médico) revisa el texto en WhatsApp y envía.
+ *  Normaliza el teléfono asumiendo RD (+1 809/829/849) cuando viene local de 10 dígitos. */
+function waNormalize(raw) {
+  const digits = String(raw || '').replace(/\D+/g, '');
+  if (!digits) return '';
+  if (digits.length === 10 && /^(809|829|849)/.test(digits)) return '1' + digits;   // RD local → +1 AAA XXX XXXX
+  if (digits.length === 11 && digits.startsWith('1')) return digits;                // ya E.164 sin signo
+  return digits;                                                                     // otro país ya con prefijo
+}
+
+function openWhatsApp(a, provider) {
+  const num = waNormalize(a.phone);
+  if (!num) { toast('El paciente no tiene teléfono registrado.', 'bad'); return; }
+  const dateStr = (() => { try { return date(a.appointment_date); } catch { return a.appointment_date || ''; } })();
+  const nombre = (a.patient_name || '').split(/\s+/).slice(0, 2).join(' ');   // solo nombre y 1er apellido
+  const medico = provider?.full_name ? `con ${provider.full_name}` : 'con su médico';
+  const hora = a.appointment_time ? String(a.appointment_time).slice(0, 5) : '';
+  const motivo = a.reason ? ` (${a.reason})` : '';
+  const texto = `Hola ${nombre}, le recordamos su cita ${medico}${motivo} el ${dateStr} a las ${hora}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.`;
+  const url = `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank', 'noopener');
+}
+
 export async function render(main, ctx) {
   paint(main, html`<div class="page-head"><div class="t"><h2>Agenda del consultorio</h2><p>Citas del día, cobros a pacientes privados y cuadre de caja.</p></div></div><div id="ag"></div>`);
   return renderAgenda($('#ag', main), ctx);
@@ -73,6 +97,7 @@ export async function renderAgenda(box, ctx) {
         <span class="pill ${c}">${l}</span>
         ${a.payer_type === 'ars' && !closed && !['cancelada', 'no_asistio'].includes(a.status) ? html`<button class="btn sm" data-copay="${a.id}" title="Copago o diferencia cobrada al afiliado">Copago</button>` : ''}
         ${open && !closed ? html`<div class="toolbar" style="margin:0;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+          ${a.phone ? html`<button class="btn sm" data-wa="${a.id}" title="Recordar la cita por WhatsApp (abre WhatsApp con el mensaje listo)">WhatsApp</button>` : ''}
           ${a.status !== 'en_espera' ? html`<button class="btn sm" data-st="en_espera" data-id="${a.id}" title="El paciente llegó">Llegó</button>` : ''}
           <button class="btn sm primary" data-attend="${a.id}">Atendido</button>
           ${a.payer_type === 'ars' ? html`<button class="btn sm" data-elig="${a.id}">Elegibilidad</button>` : ''}
@@ -206,7 +231,8 @@ export async function renderAgenda(box, ctx) {
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     try {
-      if (b.dataset.st) { await setAppointmentStatus(b.dataset.id, b.dataset.st); toast('Cita actualizada', 'ok'); load(); }
+      if (b.dataset.wa) { const a = appts.find((x) => x.id === b.dataset.wa); if (a) openWhatsApp(a, providers.find((p) => p.id === mem.provider)); }
+      else if (b.dataset.st) { await setAppointmentStatus(b.dataset.id, b.dataset.st); toast('Cita actualizada', 'ok'); load(); }
       else if (b.dataset.edit) { if (await apptDialog(appts.find((a) => a.id === b.dataset.edit))) { toast('Cita actualizada', 'ok'); load(); } }
       else if (b.dataset.attend) {
         const a = appts.find((x) => x.id === b.dataset.attend);
