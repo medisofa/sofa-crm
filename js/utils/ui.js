@@ -97,13 +97,19 @@ export async function loadInto(el, fetcher, view, { isEmpty = (d) => Array.isArr
   }
 }
 
-/** Ejecuta una acción con el botón en estado ocupado */
+/** Ejecuta una acción con el botón en estado ocupado. Si el botón se detacha del DOM
+ *  durante `fn` (p. ej. porque se re-pintó la lista que lo contenía), la restauración
+ *  en finally es un no-op silencioso sobre un nodo detached — NO se lanza error. */
 export async function busy(btn, fn) {
   if (!btn || btn.getAttribute('aria-busy') === 'true') return;
   const label = btn.innerHTML;
   btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
   btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Procesando…';
-  try { return await fn(); } finally { btn.removeAttribute('aria-busy'); btn.disabled = false; btn.innerHTML = label; }
+  try { return await fn(); }
+  finally {
+    try { btn.removeAttribute('aria-busy'); btn.disabled = false; btn.innerHTML = label; }
+    catch (_) { /* botón reemplazado por un re-render durante fn; nada que restaurar */ }
+  }
 }
 
 /** Confirmación accesible con <dialog>. Devuelve true/false. */
@@ -156,8 +162,22 @@ export function formDialog({ title, body, submitLabel = 'Guardar', wide = false,
       form.querySelectorAll('input[type=checkbox][name]').forEach((c) => { data[c.name] = c.checked; });
       const msg = d.querySelector('.fd-msg');
       await busy(e.submitter || form.querySelector('[type=submit]'), async () => {
-        try { result = await onSubmit(data, form); if (result !== undefined && result !== false) d.close(); }
-        catch (err) { console.warn(err); render(msg, html`<div class="note bad" role="alert">${friendlyError(err)}</div>`); }
+        try {
+          result = await onSubmit(data, form);
+          // 5.35.12 · Cierra siempre que onSubmit NO devuelva false explícito.
+          // Un onSubmit sin return (undefined) también cierra: evita el honeypot de
+          // «olvidar return true» que dejaba el diálogo abierto en "Procesando..."
+          // sin mensaje claro. Para evitar el cierre hay que `return false` con un
+          // fieldError visible (el patrón ya usado por las validaciones).
+          if (result !== false) {
+            d.close();
+            // Defensa contra navegadores donde el evento close llega como macrotask:
+            // si el diálogo sigue conectado al DOM tras close(), lo removemos ya
+            // para que el usuario no vea el botón congelado en "Procesando..."
+            // mientras la continuación `.then()` hace recargas pesadas.
+            if (d.isConnected) d.remove();
+          }
+        } catch (err) { console.warn(err); render(msg, html`<div class="note bad" role="alert">${friendlyError(err)}</div>`); }
       });
     });
     d.showModal();
