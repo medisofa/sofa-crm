@@ -5,8 +5,8 @@
 --
 -- Estado de lo que crea:
 --   · ars_contacts / ars_contact_log y sus funciones: vigentes, sin pantalla todavía, tablas vacías.
---   · hospital_report_notes y hospital_note_*: DUPLICAN la bitácora hospital_report_log (5.35.1), que ya
---     tiene pantalla. Están vacías y se retirarán junto con la pantalla de contactos de ARS.
+--   · hospital_report_notes y hospital_note_*: DUPLICABAN la bitácora hospital_report_log (5.35.1).
+--     RETIRADAS el 2026-11-16 (20261116_retire_cancel_design_and_hospital_notes.sql). No volver a crearlas.
 -- Se conserva tal como se aplicó, para que el repositorio refleje lo que hay en la base.
 -- =====================================================================================================
 
