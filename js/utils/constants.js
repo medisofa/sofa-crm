@@ -81,7 +81,8 @@ export const CLAIM_STATUS = {
   pendiente_configuracion: ['Pendiente de configuración', 'bad'], capturada: ['Capturada', 'info'], pendiente_retiro: ['Pendiente de retiro', 'warn'],
   retirada: ['Retirada', 'info'], en_validacion: ['En validación', 'info'], con_inconsistencia: ['Con inconsistencia', 'bad'], validada: ['Validada', 'ok'],
   lista_para_radicar: ['Lista para radicar', 'ok'], radicada: ['Radicada', 'info'], en_proceso_ars: ['En proceso ARS', 'info'], devuelta: ['Devuelta por la ARS', 'bad'],
-  pago_parcial: ['Pago parcial', 'warn'], glosada: ['Glosada', 'bad'], pagada: ['Pagada', 'ok'], cerrada: ['Cerrada', '']
+  pago_parcial: ['Pago parcial', 'warn'], glosada: ['Glosada', 'bad'], pagada: ['Pagada', 'ok'], cerrada: ['Cerrada', ''],
+  anulada_duplicado: ['Anulada por duplicado', '']
 };
 export const claimStatus = (c) => CLAIM_STATUS[c] || [c, ''];
 /** Filtros rápidos del listado de reclamaciones */

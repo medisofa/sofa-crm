@@ -40,7 +40,7 @@ export async function render(main, ctx) {
       <label class="sr-only" for="fl">Ubicación</label><select class="input" id="fl" style="width:auto"><option value="">Todas las ubicaciones</option></select>
       <label class="sr-only" for="fp">Médico</label><select class="input" id="fp" style="width:auto"><option value="">Todos los médicos</option></select>
       <label class="sr-only" for="fa">ARS</label><select class="input" id="fa" style="width:auto"><option value="">Todas las ARS</option></select>
-      <label class="sr-only" for="fx">Expediente</label><select class="input" id="fx" style="width:auto"><option value="">Expediente: todos</option><option value="incompleto">Expediente incompleto</option><option value="completo">Expediente completo o con excepción</option></select>
+      <label class="sr-only" for="fx">Expediente</label><select class="input" id="fx" style="width:auto;max-width:100%"><option value="">Expediente: todos</option><option value="incompleto">Expediente incompleto</option><option value="completo">Expediente completo o con excepción</option></select>
       <label class="sr-only" for="ff">Desde</label><input class="input" id="ff" type="date" style="width:auto" max="${todayISO()}" title="Servicio desde">
       <label class="sr-only" for="ft">Hasta</label><input class="input" id="ft" type="date" style="width:auto" max="${todayISO()}" title="Servicio hasta">
     </div>
