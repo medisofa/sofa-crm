@@ -17,9 +17,11 @@ Infraestructura aplicada: claim_duplicate_resolution_requests_private_api y clai
 
 Verificado con usuario QA y datos ficticios en una transacción revertida: aislamiento por organización/rol, soporte, motivo, idempotencia, historial y auditoría, conservación de las reclamaciones y del lote y continuidad del bloqueo. Sin cuentas QA persistentes ni solicitudes sobre pacientes reales. Pruebas Chromium de comparación, solicitud, corrección, confirmación, reconsulta y ficha de radicación; servicio con estados por par en una consulta en lote.
 
-## Estado al 16/11/2026 (5.41.0)
+## Ejecución de la exclusión (5.41.0)
 
-- Esta entrega pone al día la gestión trazable contra `main` (5.40.0). No agrega la ejecución de la exclusión.
-- En producción existe `public.cancel_duplicate_line(p_cancel_id, p_keep_id)`: solo Administración o Super Admin, siempre sobre una solicitud pendiente; deja la reclamación en `anulada_duplicado` y la solicitud en `ejecutada`. **Está deshabilitada** (sin `EXECUTE` para `authenticated`).
-- Motivo: la reclamación anulada sigue perteneciendo a su lote. Al radicar, `app.sync_claims_from_submission` la pasaría a `radicada`, y los totales por lote la seguirían contando. No se debe rehabilitar ni exponer en pantalla hasta excluir `anulada_duplicado` de esa sincronización y de los totales por lote, o hasta decidir otra forma de sacar la reclamación del lote.
-- `CLAIM_STATUS` ya refleja `anulada_duplicado` para que el estado se lea bien si aparece.
+- **Quién:** Operaciones y Facturación solicitan; **Administración y Super Admin ejecutan**, siempre sobre una solicitud pendiente. En modo soporte no se ejecuta.
+- **Qué hace:** «Ejecutar la exclusión solicitada» en «Gestionar duplicado» llama a `public.execute_claim_duplicate_exclusion(p_request)`. La reclamación que la solicitud pidió excluir **sale del lote** por la vía ya existente, `public.remove_service_line`: exige lote editable, sin pagos, glosas ni reenvíos; deja el motivo en la bitácora del cliente y la fila completa en `audit_log`. La solicitud pasa a `ejecutada` (`executed_by`, `executed_at`) y se registra `EXCLUSION_DUPLICADO_EJECUTADA`.
+- **Límites:** solo se quita una reclamación que sigue en captura (`pendiente_configuracion`, `capturada`, `pendiente_retiro`). Si ya avanzó, el servidor pide devolverla a «Capturada». La reclamación quitada no se recupera desde la pantalla.
+- **Por qué no un estado «anulada»:** se probó y se retiró. Una reclamación anulada seguía perteneciendo a su lote; `app.sync_claims_from_submission` la habría pasado a `radicada` y los totales por lote la habrían contado.
+- **Pruebas:** `app.qa_run_tests_exclusion_duplicados()` (15 pruebas; crea sus datos y los deshace) y `tests/browser/duplicate-resolution.mjs`.
+- **Pendiente conocido:** `remove_service_line` devuelve las rutas de los archivos de la reclamación quitada, pero la pantalla no los borra de Storage (igual que antes de esta entrega).

@@ -25,6 +25,7 @@ try{
     export async function claimDuplicateCandidates(){window.candidateChecks++;return [structuredClone(window.duplicate)];}
     export async function reviewClaimDuplicate(){window.reviewWrites++;}
     export async function requestClaimDuplicateExclusion(input){window.requestWrites.push(structuredClone(input));if(window.failRequest)throw Error('No se pudo solicitar');window.requests=[{id:'request-demo',status:'pendiente',keep_line:input.keepLine,exclude_line:input.keepLine===input.lineA?input.lineB:input.lineA,line_a:input.lineA,line_b:input.lineB,reason:input.reason,created_at:'2026-11-10T15:00:00Z'}];return {id:'request-demo',status:'pendiente'};}
+    export async function executeClaimDuplicateExclusion(id){window.executeWrites.push(id);if(window.failExecute)throw Error('La reclamación REC-EJEMPLO-001 está en «retirada»: ya salió de captura y no se quita del lote.');window.requests=[];return {ok:true,status:'ejecutada',request_id:id,message:'Reclamación REC-EJEMPLO-001 quitada del lote RAD-DEMO por duplicado. Se conserva REC-EJEMPLO-002.'};}
     export async function listClaimDuplicateResolutionRequests(lineA,lineB){window.requestReads.push({lineA,lineB});if(window.failRequestRead)throw Error('No se pudo consultar');return structuredClone(window.requests);}
    `
   };
@@ -33,7 +34,7 @@ try{
  });
  await page.goto('http://127.0.0.1:8898/');
  await page.evaluate(async()=>{
-  window.candidateChecks=0;window.reviewWrites=0;window.requestWrites=[];window.requestReads=[];window.requests=[];window.refreshes=0;
+  window.candidateChecks=0;window.reviewWrites=0;window.requestWrites=[];window.executeWrites=[];window.requestReads=[];window.requests=[];window.refreshes=0;
   window.duplicate={line_id:'line-a',other_line_id:'line-b',folio:'REC-EJEMPLO-001',other_folio:'REC-EJEMPLO-002',patient_name:'Paciente de ejemplo',member_number:'NSS-FICTICIO',service_date:'2026-09-28',authorization_date:'2026-09-28',authorization_number:'AUT-DEMO',other_authorization_number:'AUT-DEMO',service_name:'Consulta de ejemplo',other_service_name:'Consulta de ejemplo',matched_fields:['NSS','Fecha servicio','Fecha autorización','Autorización','Servicio'],risk:'critico',blocks_radicacion:true,review_decision:'duplicado_confirmado',suggested_solution:'Conserve la correcta y retire la duplicada.'};
   window.claimsModule=await import('/js/modules/claims.js');await claimsModule.render(document.querySelector('main'),{role:'admin'});
  });
@@ -96,14 +97,48 @@ try{
  await page.locator('#dr-recheck').click();await page.waitForFunction(()=>refreshes>=2);
  assert.equal(await page.evaluate(()=>lastCandidates[0].blocks_radicacion),true);
  await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'detached'});
+ // Ejecución: solo Administración/Super Admin, sobre la solicitud pendiente y con confirmación.
+ await page.evaluate(()=>{window.openResolution({role:'billing'});});await page.getByRole('dialog').waitFor();
+ assert.equal(await page.locator('#dr-action option[value="ejecutar"]').count(),0,'Facturación no ve la opción de ejecutar');
+ assert.match(await page.getByRole('dialog').textContent(),/La ejecuta Administración o Super Admin/);
+ await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'detached'});
+ await page.evaluate(()=>{window.openResolution();});await page.getByRole('dialog').waitFor();
+ assert.equal(await page.locator('#dr-action option[value="ejecutar"]').isDisabled(),false,'Admin puede ejecutar la solicitud pendiente');
+ await page.locator('#dr-action').selectOption('ejecutar');
+ assert.match(await page.locator('#dr-execute').textContent(),/Se quitará del lote REC-EJEMPLO-001 y se conservará REC-EJEMPLO-002/);
+ await page.getByRole('button',{name:'Ejecutar exclusión',exact:true}).click();
+ const execConfirm=page.getByRole('dialog',{name:'Confirmar exclusión del duplicado',exact:true});await execConfirm.waitFor();
+ assert.match(await execConfirm.textContent(),/Quitar del lote: REC-EJEMPLO-001\. Conservar: REC-EJEMPLO-002/);
+ await execConfirm.getByRole('button',{name:'Cancelar',exact:true}).click();
+ assert.equal(await page.evaluate(()=>executeWrites.length),0,'Cancelar la confirmación no ejecuta');
+ await page.evaluate(()=>{window.failExecute=true;});
+ await page.getByRole('button',{name:'Ejecutar exclusión',exact:true}).click();
+ await page.getByRole('dialog',{name:'Confirmar exclusión del duplicado',exact:true}).getByRole('button',{name:'Quitar reclamación',exact:true}).click();
+ await page.waitForFunction(()=>executeWrites.length===1);
+ await page.getByText(/ya salió de captura y no se quita del lote/).first().waitFor();
+ assert.equal(await page.locator('#dr-action').count(),1,'Si el servidor rechaza, el diálogo sigue abierto con el motivo');
+ const refreshesBefore=await page.evaluate(()=>refreshes);
+ await page.evaluate(()=>{window.failExecute=false;});
+ await page.getByRole('button',{name:'Ejecutar exclusión',exact:true}).click();
+ await page.getByRole('dialog',{name:'Confirmar exclusión del duplicado',exact:true}).getByRole('button',{name:'Quitar reclamación',exact:true}).click();
+ await page.waitForFunction(()=>executeWrites.length===2);
+ assert.deepEqual(await page.evaluate(()=>executeWrites),['request-demo','request-demo'],'Ejecuta exactamente la solicitud registrada');
+ await page.waitForFunction((n)=>refreshes>n,refreshesBefore);
+ await page.getByRole('dialog').waitFor({state:'detached'});
+ assert.equal(await page.evaluate(()=>reviewWrites),0,'Ejecutar no altera la decisión de revisión');
+ await page.evaluate(()=>{window.openResolution();});await page.getByRole('dialog').waitFor();
+ assert.equal(await page.locator('#dr-action option[value="ejecutar"]').isDisabled(),true,'Sin solicitud pendiente no hay nada que ejecutar');
+ await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'detached'});
  const writesBefore=await page.evaluate(()=>requestWrites.length);
  await page.evaluate(()=>{window.requests=[];window.openResolution({viewAs:{orgId:'org-demo'}});});
  if(await page.getByRole('dialog').count()){
   assert.equal(await page.locator('#dr-action option[value="excluir"]').isDisabled(),true,'Soporte no puede elegir exclusión');
+  assert.equal(await page.locator('#dr-action option[value="ejecutar"]').count(),0,'Soporte no ve la opción de ejecutar');
   assert.equal(await page.locator('button[type=submit]:enabled').filter({hasText:'Solicitar exclusión'}).count(),0);
   await page.keyboard.press('Escape');
  }
  assert.equal(await page.evaluate(()=>requestWrites.length),writesBefore,'Soporte no solicita exclusión');
+ assert.equal(await page.evaluate(()=>executeWrites.length),2,'Soporte no ejecuta exclusión');
  assert.deepEqual(errors,[]);
  console.log('PASS: duplicado confirmado permanece bloqueante; selección explícita, motivo, confirmación, solicitud exacta sin borrado/desbloqueo, corrección, reconsulta y soporte.');
 }finally{await browser.close();}

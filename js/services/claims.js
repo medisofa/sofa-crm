@@ -251,6 +251,18 @@ export async function ecfReadiness({ realOnly = false } = {}) {
 }
 
 // ---------------------------------------------------------------- Posibles duplicados antes de radicar
+/**
+ * Ejecuta una exclusión ya solicitada: quita del lote la reclamación excluida y marca la solicitud como ejecutada.
+ * RPC public.execute_claim_duplicate_exclusion(p_request uuid)
+ *   → {ok, status:'ejecutada', request_id, excluded_folio, kept_folio, submission_folio, files, message}.
+ * El servidor exige Administración o Super Admin, solicitud pendiente, par aún «duplicado confirmado»,
+ * lote editable y reclamación todavía en captura.
+ * @param {string} requestId id de la solicitud (listClaimDuplicateResolutionRequests)
+ */
+export async function executeClaimDuplicateExclusion(requestId) {
+  return must(await sb().rpc('execute_claim_duplicate_exclusion', { p_request: requestId }));
+}
+
 export async function claimDuplicateCandidates(ids = null, submissionId = null) {
   if (ids !== null && !Array.isArray(ids)) throw new Error('La consulta de coincidencias requiere una lista de reclamaciones y el identificador del lote.');
   const candidates = must(await sb().rpc('claim_duplicate_candidates', { p_ids: ids?.length ? ids : null, p_submission: submissionId || null }));

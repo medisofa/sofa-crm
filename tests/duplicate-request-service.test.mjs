@@ -16,4 +16,6 @@ calls=[];candidates=[];assert.deepEqual(await api.claimDuplicateCandidates(),[])
 await assert.rejects(api.claimDuplicateCandidates('invalid'),/lista de reclamaciones/);
 calls=[];await api.requestClaimDuplicateExclusion({lineA:'a',lineB:'b',keepLine:'b',reason:'Motivo ficticio'});
 assert.deepEqual(calls,[{name:'request_claim_duplicate_exclusion',args:{p_line_a:'a',p_line_b:'b',p_keep_line:'b',p_reason:'Motivo ficticio'}}]);
+calls=[];await api.executeClaimDuplicateExclusion('request');
+assert.deepEqual(calls,[{name:'execute_claim_duplicate_exclusion',args:{p_request:'request'}}]);
 console.log('PASS metadatos por par en lote, estado bloqueante preservado y RPC exacta sin modificación de reclamaciones.');
