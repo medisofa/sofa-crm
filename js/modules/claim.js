@@ -96,7 +96,9 @@ export async function render(main, ctx) {
     <div class="grid two">
       <div class="card"><h2>¿Dónde está y quién la tiene?</h2>
         ${kv([['Ubicación actual', html`<b>${c.location_name || '—'}</b>`], ['Responsable', html`<b>${c.custodian_name || 'Sin responsable asignado'}</b>`],
-          ['Estado', html`<span class="pill ${cls}">${lbl}</span> desde ${dateTime(c.status_changed_at)}`], ['Última acción', c.last_action ? html`${c.last_action}<div class="small muted">${dateTime(c.last_action_at)}</div>` : ''],
+          ['Estado', html`<span class="pill ${cls}">${lbl}</span> desde ${dateTime(c.status_changed_at)}`],
+          ['Avance', html`<div style="display:flex;align-items:center;gap:8px"><div class="ac-progress" style="flex:1;min-width:80px" role="progressbar" aria-valuenow="${c.avance ?? 0}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance ${c.avance ?? 0}%"><div style="width:${c.avance ?? 0}%;background:${(c.avance ?? 0) >= 100 ? 'var(--ok)' : (c.avance ?? 0) >= 68 ? 'var(--info,#3b82f6)' : (c.avance ?? 0) >= 45 ? 'var(--warning,#f59e0b)' : 'var(--ok)'}"></div></div><b>${c.avance ?? 0}%</b></div>`],
+          ['Última acción', c.last_action ? html`${c.last_action}<div class="small muted">${dateTime(c.last_action_at)}</div>` : ''],
           ['Próximo paso', html`<b>${c.next_step}</b>`], ['¿Fue validada?', lastAudit ? html`${lastAudit.result === 'validada' ? '✓ Sí' : '✕ Con inconsistencia'} · ${who(lastAudit.auditor_id)} · ${dateTime(lastAudit.audited_at)}` : 'No'],
           ['¿Fue radicada?', radicada ? html`Sí · lote ${lnk(`#/radicaciones/${c.submission_id}`, role, c.submission_folio, 'mono')}` : html`No · lote ${lnk(`#/radicaciones/${c.submission_id}`, role, c.submission_folio, 'mono')}`]])}
       </div>
