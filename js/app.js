@@ -16,6 +16,7 @@ import { initials } from './utils/formatters.js';
 import { supportViewStart, supportViewEnd, supportViewActive } from './services/admin.js';
 import { viewAsState } from './utils/view-as-state.js';
 import { setDiagContext, setDiagRoute, logDiag } from './utils/diag-log.js';
+import { initCommandPalette } from './modules/command-palette.js';
 
 const app = document.getElementById('app');
 
@@ -272,6 +273,7 @@ function layout() {
     </div>
   </div>`);
   renderNav(); bindNav();
+  cmdPalette = cmdPalette || initCommandPalette({ items: paletteItems, scopeKey: navScopeKey, currentRoute: () => parseHash().route });
   $('#navFavorites')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavTabs')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavGroups')?.addEventListener('click', (e) => {
@@ -316,6 +318,15 @@ let navContext = '';
 const navScope = () => ({ userId: state.session?.user?.id, organizationId: state.membership?.organization_id, role: state.role });
 const navScopeKey = (key) => `${key}.${[state.session?.user?.id || '', state.membership?.organization_id || '', state.role || '', state.viewAs ? 'support' : 'normal'].map(encodeURIComponent).join('.')}`;
 const allowedNavItems = () => [...visibleNav(state.role).flatMap((g) => g.items), ...extraNav(state.role)];
+/** 5.42 · Paleta de comandos: rutas que el rol puede abrir, con su familia, para el salto rápido (Ctrl/⌘+K). */
+let cmdPalette = null;
+const paletteItems = () => {
+  const groups = visibleNav(state.role);
+  const inGroups = groups.flatMap((g) => g.items.map((i) => ({ route: i.route, label: i.label, group: g.group })));
+  const seen = new Set(inGroups.map((i) => i.route));
+  const extra = extraNav(state.role).filter((i) => !seen.has(i.route)).map((i) => ({ route: i.route, label: i.label, group: 'Otros módulos' }));
+  return [...inGroups, ...extra];
+};
 function favoriteItems() {
   const allowed = allowedNavItems();
   const saved = readNavFavorites(navScope(), allowed.map((i) => i.route));
@@ -520,6 +531,7 @@ async function route() {
   if (r.kind === 'notfound') { setTitle('No encontrado'); render(main, emptyView('Página no encontrada', 'La dirección no existe.', html`<a class="btn primary" href="#/${home}">Ir al inicio</a>`)); return; }
   if (r.kind === 'forbidden') { setTitle(r.def.label); render(main, emptyView('Sin acceso a este módulo', `Tu rol (${ROLES[state.role]?.name}) no incluye "${r.def.label}". Si lo necesitas, pide al Super Admin que revise tus permisos.`, html`<a class="btn" href="#/${home}">Volver al inicio</a>`)); return; }
   setTitle(r.def.label);
+  cmdPalette?.recordVisit(r.def.route);
   render(main, html`<div class="loading-skeleton" aria-busy="true" aria-label="Cargando…">
     <div class="sk-bar sk-title"></div>
     <div class="sk-row"><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div></div>
