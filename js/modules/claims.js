@@ -235,7 +235,7 @@ export async function render(main, ctx) {
     (res.dups || []).forEach((d) => { const a = dupMap.get(d.line_id) || []; a.push(d); dupMap.set(d.line_id, a); }); [...sel].forEach((id) => { if (!rows.some((r) => r.id === id)) sel.delete(id); }); drawBulk();
     return html`<div class="table-wrap"><table class="t cards"><thead><tr>
       <th><label class="sr-only" for="all">Seleccionar todas</label><input type="checkbox" id="all"></th>
-      <th>Folio</th><th>Servicio</th><th>Paciente</th><th>Duplicado</th>${staff || rows.some((r) => r.provider_name) ? html`<th>Médico · ARS</th>` : ''}<th class="n">Reclamado</th><th>Estado</th><th>Expediente</th><th>Dónde está · responsable</th>${money_ ? html`<th class="n">Saldo</th>` : ''}</tr></thead>
+      <th>Folio</th><th>Servicio</th><th>Paciente</th><th>Duplicado</th>${staff || rows.some((r) => r.provider_name) ? html`<th>Médico · ARS</th>` : ''}<th class="n">Reclamado</th><th>Estado</th><th>Avance</th><th>Expediente</th><th>Dónde está · responsable</th>${money_ ? html`<th class="n">Saldo</th>` : ''}</tr></thead>
     <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer">
       <td data-l="Seleccionar"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Seleccionar ${c.folio}"></td>
       <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
@@ -255,6 +255,7 @@ export async function render(main, ctx) {
       <td data-l="Médico · ARS">${c.provider_name}<div class="small muted">${c.ars_name}</div></td>
       <td data-l="Reclamado" class="n">${money(c.claimed)}${c.tariff_amount != null && Math.abs(Number(c.claimed) - Number(c.tariff_amount) * 1) > 0.005 && c.discrepancy_status ? html`<div><span class="pill ${DISCREPANCY_STATUS[c.discrepancy_status]?.[1] || ''}" title="Tarifa contractual ${money(c.tariff_amount)}">${DISCREPANCY_STATUS[c.discrepancy_status]?.[0] || ''}</span></div>` : ''}${!c.contracted ? html`<div><span class="pill bad">No contratado</span></div>` : ''}</td>
       <td data-l="Estado"><span class="pill ${cl}" title="${l} desde ${dateTime(c.status_changed_at)}">${l}</span><div class="small muted">${dateTime(c.status_changed_at)}</div></td>
+      <td data-l="Avance"><div class="avance" title="Avance hacia el pago: ${c.avance ?? 0}% (100 = pagada)"><span class="avance-bar"><i class="${Number(c.avance) >= 100 ? 'full' : ''}" style="width:${Math.max(0, Math.min(100, Number(c.avance) || 0))}%"></i></span><span class="avance-pct">${c.avance ?? 0}%</span></div></td>
       <td data-l="Expediente">${c.dossier_ok ? (c.dossier_missing ? html`<span class="pill warn">Con excepción</span>` : html`<span class="pill ok">Completo</span>`) : html`<span class="pill bad">Faltan ${c.dossier_missing}</span>`}</td>
       <td data-l="Dónde está">${c.location_name || '—'}<div class="small muted">${c.custodian_name || 'Sin responsable asignado'}</div><div class="small">→ ${c.next_step}</div></td>
       ${money_ ? html`<td data-l="Saldo" class="n">${['radicada', 'en_proceso_ars', 'pago_parcial', 'glosada', 'pagada', 'cerrada', 'devuelta'].includes(c.claim_status) ? money(c.balance) : '—'}${Number(c.glosado) > 0 ? html`<div class="small" style="color:var(--bad)">Glosado ${money(c.glosado)}</div>` : ''}</td>` : ''}
@@ -375,11 +376,11 @@ export async function render(main, ctx) {
   $('#csv', main).addEventListener('click', (e) => busy(e.currentTarget, async () => {
     const all = []; let page = 0;
     for (;;) { const r = await listClaims({ ...st, page, size: 1000, realOnly: staff }); all.push(...r.data); if (r.data.length < 1000 || all.length >= 20000) break; page += 1; }
-    const head = ['Folio', 'Fecha servicio', 'Médico', 'ARS', 'Radicación', 'Paciente', 'NSS', 'Autorización', 'Servicio', 'SIMON', 'CUPS', 'Tarifa contractual', 'Reclamado', 'Expediente', 'Estado', 'Ubicación', 'Responsable', 'Próximo paso'];
+    const head = ['Folio', 'Fecha servicio', 'Médico', 'ARS', 'Radicación', 'Paciente', 'NSS', 'Autorización', 'Servicio', 'SIMON', 'CUPS', 'Tarifa contractual', 'Reclamado', 'Expediente', 'Estado', 'Avance', 'Ubicación', 'Responsable', 'Próximo paso'];
     if (money_) head.push('Pagado', 'Glosado', 'Saldo');
     downloadCsv(`reclamaciones_${todayISO()}.csv`, head, all.map((c) => {
       const r = [c.folio, c.service_date, c.provider_name, c.ars_name, c.submission_folio, c.patient_name, c.member_number, c.authorization_number, c.service_name, c.simon, c.cups,
-        c.tariff_amount, c.claimed, c.dossier_ok ? (c.dossier_missing ? 'Con excepción' : 'Completo') : `Faltan ${c.dossier_missing}`, claimStatus(c.claim_status)[0], c.location_name, c.custodian_name, c.next_step];
+        c.tariff_amount, c.claimed, c.dossier_ok ? (c.dossier_missing ? 'Con excepción' : 'Completo') : `Faltan ${c.dossier_missing}`, claimStatus(c.claim_status)[0], `${c.avance ?? 0}%`, c.location_name, c.custodian_name, c.next_step];
       if (money_) r.push(c.paid, c.glosado, c.balance);
       return r;
     }));

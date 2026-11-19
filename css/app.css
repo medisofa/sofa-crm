@@ -263,3 +263,11 @@ main.page:focus { outline: none; }
 .nav-v2 .fam-contratos .nav-ico{color:#c1b0ef}.nav-v2 .fam-marketing .nav-ico{color:#8fd3ff}
 .tnav-catalog{display:inline-flex;align-items:center;gap:5px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 9px;min-height:36px;font:inherit;font-size:12px;cursor:pointer;margin-right:10px}
 @media(min-width:900px){.app[data-menu="horizontal"] .sidebar.open{display:flex;position:fixed;inset:0 auto 0 0;width:290px;transform:none}.app[data-menu="horizontal"] .scrim.show{display:block!important}}
+
+/* Avance hacia el pago en la lista de reclamaciones (0-100, 100 = pagada) */
+.avance{display:flex;align-items:center;gap:6px;min-width:84px}
+.avance-bar{position:relative;flex:1;height:7px;border-radius:999px;background:var(--surface-2,#eef2f7);overflow:hidden;border:1px solid var(--line)}
+.avance-bar i{display:block;height:100%;border-radius:999px;background:var(--warn,#e0a800);transition:width .25s ease}
+.avance-bar i.full{background:var(--ok,#1e9e5a)}
+.avance-pct{font-size:11.5px;font-weight:700;color:var(--ink-2);min-width:30px;text-align:right;font-variant-numeric:tabular-nums}
+:root[data-theme="dark"] .avance-bar{background:rgba(255,255,255,.08)}

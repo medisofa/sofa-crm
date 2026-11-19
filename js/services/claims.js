@@ -64,7 +64,7 @@ export async function myRecentClaims(limit = 15) {
 }
 
 // ---------------------------------------------------------------- Reclamaciones
-const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, discrepancy_status, paid, glosado, balance, next_step, last_action_at, status_changed_at, dossier_ok, dossier_missing';
+const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, discrepancy_status, paid, glosado, balance, avance, next_step, last_action_at, status_changed_at, dossier_ok, dossier_missing';
 export async function listClaims({ group = 'todas', status = '', location = '', providerId = '', arsId = '', q = '', from = '', to = '', dossier = '', page = 0, size = 25, realOnly = false } = {}) {
   let query = sb().from('v_claims').select(LIST_COLS, { count: 'exact' });
   if (realOnly) query = applyRealScope(query, await realOrgIds());
