@@ -75,7 +75,9 @@ export const MODULES = {
   // 5.29.0 · médico · panel unificado (cobros ARS + habilitación + cuenta SOFA)
   'mi-panel': 'mi-panel.js',
   // 5.30.0 · actualidades médicas curadas para profesionales de la salud
-  'actualidades': 'actualidades.js'
+  'actualidades': 'actualidades.js',
+  // 5.40.0 · directorio de centros de salud tipo ficha
+  'directorio-centros': 'health-center-directory.js'
 };
 export const DEFAULT_ROUTE = 'inicio';
 
