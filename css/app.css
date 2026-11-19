@@ -251,6 +251,8 @@ main.page:focus { outline: none; }
 .nav .nav-star:disabled,.topnav .nav-star:disabled{cursor:default;opacity:.4}
 .nav .nav-star:focus-visible,.topnav .nav-star:focus-visible,.nav-map-toggle:focus-visible{outline:2px solid currentColor;outline-offset:-2px}
 #navFavorites{flex:none;padding:12px 10px 8px;border-bottom:1px solid rgba(255,255,255,.14)}
+#navFrequent{flex:none;padding:10px 10px 8px;border-bottom:1px solid rgba(255,255,255,.14)}
+#navFrequent[hidden]{display:none}
 .nav-favorites-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:2px 12px 7px;opacity:.8}
 .nav-favorites-empty{font-size:12px;line-height:1.5;padding:0 12px;margin:3px 0 6px;opacity:.75}
 .nav.nav-v2 .nav-link-row>a{padding-left:12px;font-size:13px;line-height:1.4}

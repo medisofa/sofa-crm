@@ -9,6 +9,7 @@ import { sb, configProblem } from './supabase.js';
 import { getSession, loadContext, pickMembership, rememberMembership, signOut, watchAuth, startInactivityTimer } from './auth.js';
 import { resolve, parseHash, DEFAULT_ROUTE } from './router.js?v=5.30.0';
 import { readNavFavorites, toggleNavFavorite } from './utils/nav-favorites.js';
+import { recordNavVisit, topNavRoutes } from './utils/nav-frequency.js';
 import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$, applySidebarBadges } from './utils/dom.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
@@ -249,6 +250,7 @@ function layout() {
       <div class="brand"><img class="logo-full" src="assets/brand/sofa-logo-white.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
       <div class="nav-search"><label class="sr-only" for="navSearch">Buscar en el menú</label><input id="navSearch" type="search" placeholder="Buscar módulo…" autocomplete="off"></div>
       <div id="navFavorites" class="nav nav-favorites" aria-label="Módulos favoritos"></div>
+      <div id="navFrequent" class="nav nav-frequent" aria-label="Módulos frecuentes" hidden></div>
       <nav class="nav nav-v2" id="nav"></nav>
       <div class="side-foot">v${APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
     </aside>
@@ -273,6 +275,7 @@ function layout() {
   </div>`);
   renderNav(); bindNav();
   $('#navFavorites')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
+  $('#navFrequent')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavTabs')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavGroups')?.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-fam]'); if (!b) return;
@@ -339,6 +342,20 @@ function renderFavorites() {
   const items = favoriteItems(); const { route } = parseHash();
   render($('#navFavorites'), html`<div class="nav-favorites-title">★ Favoritos</div>${items.length ? items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}</a>${favoriteButton(i)}</div>`) : html`<p class="nav-favorites-empty">Marca ☆ junto a un módulo para tenerlo a mano.</p>`}`);
 }
+/** «Frecuentes»: los módulos que este usuario abre más seguido, para tenerlos a mano sin buscarlos.
+ *  Deja fuera los que ya están en Favoritos y la ruta activa; solo rutas que el rol puede abrir.
+ *  Se nutre de recordNavVisit() en cada navegación real (ver route()). */
+function renderFrequent() {
+  const host = $('#navFrequent'); if (!host) return;
+  const allowed = allowedNavItems();
+  const pinned = favoriteItems().map((i) => i.route);
+  const { route } = parseHash();
+  const top = topNavRoutes(navScope(), allowed.map((i) => i.route), { exclude: [...pinned, route], limit: 6 });
+  const items = top.map((r) => allowed.find((i) => i.route === r)).filter(Boolean);
+  if (!items.length) { host.hidden = true; render(host, html``); return; }
+  host.hidden = false;
+  render(host, html`<div class="nav-favorites-title">🕑 Frecuentes</div>${items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}</a>${favoriteButton(i)}</div>`)}`);
+}
 function navigationGroupsWithFavorites() {
   const items = favoriteItems();
   return [...(items.length ? [{ key: 'favoritos', group: 'Favoritos', items }] : []), ...visibleNav(state.role)];
@@ -346,7 +363,7 @@ function navigationGroupsWithFavorites() {
 function renderNav() {
   const context = navScopeKey('context');
   if (navContext !== context) { navMapOpen = false; navContext = context; }
-  renderFavorites(); renderTopNav();
+  renderFavorites(); renderFrequent(); renderTopNav();
   const nav = $('#nav'); if (!nav) return;
   const { route } = parseHash();
   const q = norm($('#navSearch')?.value).trim();
@@ -483,6 +500,7 @@ function openUserMenu() {
 }
 
 let routeSeq = 0;
+let lastFrequentRoute = null;   // evita contar dos veces la misma ruta en re-render
 let renderedHash = null;
 async function route() {
   const targetHash=location.hash;
@@ -520,6 +538,12 @@ async function route() {
   if (r.kind === 'notfound') { setTitle('No encontrado'); render(main, emptyView('Página no encontrada', 'La dirección no existe.', html`<a class="btn primary" href="#/${home}">Ir al inicio</a>`)); return; }
   if (r.kind === 'forbidden') { setTitle(r.def.label); render(main, emptyView('Sin acceso a este módulo', `Tu rol (${ROLES[state.role]?.name}) no incluye "${r.def.label}". Si lo necesitas, pide al Super Admin que revise tus permisos.`, html`<a class="btn" href="#/${home}">Volver al inicio</a>`)); return; }
   setTitle(r.def.label);
+  // «Frecuentes»: cuenta la visita a un módulo real (no en modo soporte, para no mezclar el uso
+  // del titular con el del personal que lo ve). No bloquea la navegación si falla el almacenamiento.
+  if (!state.viewAs && r.def?.route && r.def.route !== lastFrequentRoute) {
+    lastFrequentRoute = r.def.route;
+    try { if (recordNavVisit(navScope(), r.def.route)) renderFrequent(); } catch (_) { /* navegador sin almacenamiento */ }
+  }
   render(main, html`<div class="loading-skeleton" aria-busy="true" aria-label="Cargando…">
     <div class="sk-bar sk-title"></div>
     <div class="sk-row"><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div></div>
