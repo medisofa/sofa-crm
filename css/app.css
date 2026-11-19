@@ -263,3 +263,9 @@ main.page:focus { outline: none; }
 .nav-v2 .fam-contratos .nav-ico{color:#c1b0ef}.nav-v2 .fam-marketing .nav-ico{color:#8fd3ff}
 .tnav-catalog{display:inline-flex;align-items:center;gap:5px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 9px;min-height:36px;font:inherit;font-size:12px;cursor:pointer;margin-right:10px}
 @media(min-width:900px){.app[data-menu="horizontal"] .sidebar.open{display:flex;position:fixed;inset:0 auto 0 0;width:290px;transform:none}.app[data-menu="horizontal"] .scrim.show{display:block!important}}
+
+/* Íconos por ruta en el menú (route-icons.js) — para escanear el menú de un vistazo */
+.nav-link-row>a{display:flex;align-items:center;gap:8px}
+.nav-link-row>a>svg{flex:none;opacity:.72}
+.nav-link-row>a[aria-current="page"]>svg{opacity:1}
+.nav-ic-lbl{flex:1;min-width:0;overflow-wrap:anywhere}
