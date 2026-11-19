@@ -247,10 +247,16 @@ function layout() {
   <div class="app" data-menu="${getMenuLayout()}">
     <aside class="sidebar" id="sidebar" aria-label="Menú principal">
       <div class="brand"><img class="logo-full" src="assets/brand/sofa-logo-white.png" alt="SOFA · Soluciones de Facturación Médica" width="942" height="321"></div>
+      <div class="ws-context" id="wsContext">
+        <div class="ws-org">${state.membership.organization}</div>
+        <div class="ws-role"><span class="ws-role-badge">${ROLES[state.role]?.name || state.role}</span></div>
+        ${multi ? html`<button class="ws-switch" id="wsSwitch" aria-label="Cambiar organización" title="Cambiar organización">${raw('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>')} Cambiar</button>` : ''}
+      </div>
       <div class="nav-search"><label class="sr-only" for="navSearch">Buscar en el menú</label><input id="navSearch" type="search" placeholder="Buscar módulo…" autocomplete="off"></div>
       <div id="navFavorites" class="nav nav-favorites" aria-label="Módulos favoritos"></div>
       <nav class="nav nav-v2" id="nav"></nav>
-      <div class="side-foot">v${APP_VERSION} · ${ROLES[state.role]?.name || state.role}</div>
+      <div class="activity-feed" id="activityFeed" aria-label="Actividad reciente"></div>
+      <div class="side-foot">v${APP_VERSION}</div>
     </aside>
     <div class="scrim" id="scrim"></div>
     <div id="appContent" style="min-width:0;display:flex;flex-direction:column">
@@ -271,13 +277,17 @@ function layout() {
       <main class="page" id="main" tabindex="-1"></main>
     </div>
   </div>`);
-  renderNav(); bindNav();
+  renderNav(); bindNav(); renderActivityFeed();
   $('#navFavorites')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavTabs')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavGroups')?.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-fam]'); if (!b) return;
     horizFamilia = b.dataset.fam;
     renderTopNav();
+  });
+  $('#wsSwitch')?.addEventListener('click', () => {
+    const sel = $('#orgSel'); if (sel) { sel.focus(); sel.showPicker?.(); }
+    else { const wsEl = $('#wsContext'); wsEl?.classList.toggle('ws-expanded'); }
   });
   $('#menuBtn').onclick = () => toggleMenu(true);
   $('#scrim').onclick = () => toggleMenu(false);
@@ -290,6 +300,38 @@ function layout() {
   $('#exitViewAs')?.addEventListener('click', () => exitViewAs());
   const net = () => { $('#offline').hidden = navigator.onLine; };
   window.addEventListener('online', net); window.addEventListener('offline', net); net();
+}
+
+/** CX Hub · Actividad reciente — muestra las últimas 3 pantallas visitadas como accesos rápidos
+ *  en el sidebar, entre la navegación principal y el pie. Se lee de sessionStorage para no
+ *  persistir datos sensibles, y se actualiza en cada cambio de ruta. */
+const ACTIVITY_MAX = 3;
+const ACTIVITY_KEY = 'sofa.recent';
+function pushRecentRoute(route, label) {
+  if (!route || route === 'inicio') return;
+  try {
+    const list = JSON.parse(sessionStorage.getItem(ACTIVITY_KEY) || '[]');
+    const filtered = list.filter((r) => r.route !== route);
+    filtered.unshift({ route, label, ts: Date.now() });
+    sessionStorage.setItem(ACTIVITY_KEY, JSON.stringify(filtered.slice(0, 8)));
+  } catch { /* sessionStorage no disponible */ }
+}
+function renderActivityFeed() {
+  const el = $('#activityFeed'); if (!el) return;
+  try {
+    const list = JSON.parse(sessionStorage.getItem(ACTIVITY_KEY) || '[]').slice(0, ACTIVITY_MAX);
+    if (!list.length) { render(el, html`<div class="af-empty">Tus últimas pantallas aparecerán aquí.</div>`); return; }
+    render(el, html`<div class="af-title">Recientes</div>${list.map((r) =>
+      html`<a class="af-item" href="#/${r.route}"><span class="af-dot"></span><span class="af-label">${r.label}</span><span class="af-time">${recentTimeAgo(r.ts)}</span></a>`
+    )}`);
+  } catch { /* sessionStorage no disponible */ }
+}
+function recentTimeAgo(ts) {
+  const diff = Math.floor((Date.now() - ts) / 60000);
+  if (diff < 1) return 'ahora';
+  if (diff < 60) return `${diff}m`;
+  const h = Math.floor(diff / 60);
+  return h < 24 ? `${h}h` : '';
 }
 
 /** 29/10/2026 · Menú horizontal, alternativa al lateral (conviven: el usuario elige cuál ver,
@@ -528,7 +570,7 @@ async function route() {
   const ctx = { ...state, def: r.def, arg: r.arg, setTitle, sb: sb() };
   try { await r.mod.render(main, ctx); }
   catch (e) { console.error(e); render(main, errorView(e)); }
-  if (my === routeSeq) { renderedHash=targetHash; main.focus({ preventScroll: true }); }
+  if (my === routeSeq) { renderedHash=targetHash; main.focus({ preventScroll: true }); pushRecentRoute(r.def.route, r.def.label); renderActivityFeed(); }
 }
 
 function swUpdateBanner() {
