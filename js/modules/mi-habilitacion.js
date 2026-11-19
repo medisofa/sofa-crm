@@ -31,12 +31,47 @@ export async function render(root, ctx = {}) {
     box.replaceChildren(...d.map((c) => caseCard(c, org)));
   }
 
+  /** Un área = un <details> plegable con barra de avance en el encabezado.
+   *  Devuelve también sus <li> para que el buscador del caso pueda filtrarlos. */
+  function areaBlock(a, orgId) {
+    const total = a.items.length;
+    const verde = a.items.filter((i) => i.status === 'verde').length;
+    const p = total ? Math.round((100 * verde) / total) : 0;
+    const lis = a.items.map((i) => itemRow(i, orgId, a.area));
+    const det = h('details', { open: a.items.some((i) => i.status !== 'verde') },
+      h('summary', {}, h('span', { class: 'mh-sum' },
+        h('span', { class: 'mh-sum-t' }, a.area),
+        h('span', { class: 'mh-sum-bar', role: 'img', 'aria-label': `${p} % de ${total}` }, h('i', { style: `width:${p}%` })),
+        h('span', { class: 'mh-sum-n' }, `${verde}/${total}`))),
+      h('ul', { class: 'mh-items' }, lis));
+    return { det, lis };
+  }
+
   function caseCard(c, orgId) {
     const k = c.counts; const pct = k.applicable ? Math.round((100 * k.verde) / k.applicable) : 0;
     const sim = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Revisión interna previa a la auditoría oficial. No genera efectos legales ni ante el MISPAS.' }, 'Simulacro de inspección (imprimir)');
     sim.addEventListener('click', () => simulacro(c));
     const pend = h('button', { class: 'i18-btn i18-sec', type: 'button', title: 'Lista de lo que aún debe preparar o entregar, para revisar fuera de SOFA.' }, 'Mis pendientes (imprimir)');
     pend.addEventListener('click', () => pendientes(c));
+
+    const bloques = (c.areas || []).map((a) => areaBlock(a, orgId));
+    const vacio = note('Ningún documento coincide con la búsqueda. Borre el texto para ver todos.');
+    vacio.style.display = 'none';
+    const buscar = h('input', { type: 'search', class: 'mh-search', placeholder: 'Buscar documento o requisito…', 'aria-label': `Buscar en ${c.name}` });
+    const filtrar = () => {
+      const q = buscar.value.trim().toLowerCase();
+      let total = 0;
+      bloques.forEach(({ det, lis }) => {
+        let vis = 0;
+        lis.forEach((li) => { const ok = !q || (li.dataset.q || '').includes(q); li.style.display = ok ? '' : 'none'; if (ok) vis++; });
+        det.style.display = vis ? '' : 'none';
+        if (q && vis) det.open = true;
+        total += vis;
+      });
+      vacio.style.display = total ? 'none' : '';
+    };
+    buscar.addEventListener('input', filtrar);
+
     return h('section', { class: 'i18-card' }, h('h3', {}, `${c.name} · ${c.type}`),
       c.sofa_reset_note ? note(`⚠ Caso reiniciado por SOFA: ${c.sofa_reset_note}`, 'warn') : null,
       c.license_valid_until && c.license_days_left != null && c.license_days_left <= 30 ? note(`Su licencia de operación vence en ${c.license_days_left} día(s) (${fmtDate(c.license_valid_until)}). Gestione la renovación para evitar retrasos en la habilitación.`, 'warn') : null,
@@ -44,12 +79,14 @@ export async function render(root, ctx = {}) {
       h('div', { class: 'mh-bar', role: 'img', 'aria-label': `${pct} % listo` }, h('span', { style: `width:${pct}%` })),
       h('p', {}, `${pct} % listo · ${k.verde} listos · ${k.amarillo} corregibles · ${k.rojo} con obra · ${k.pendiente} pendientes${k.critical_open ? ` · ${k.critical_open} crítico(s) abiertos` : ''}`),
       h('div', { class: 'i18-bar' }, sim, pend),
-      ...(c.areas || []).map((a) => h('details', { open: a.items.some((i) => i.status !== 'verde') }, h('summary', {}, `${a.area} (${a.items.filter((i) => i.status === 'verde').length} de ${a.items.length})`),
-        h('ul', { class: 'mh-items' }, a.items.map((i) => itemRow(i, orgId))))));
+      h('div', { class: 'mh-tools' }, buscar),
+      vacio,
+      ...bloques.map((b) => b.det));
   }
 
-  function itemRow(i, orgId) {
+  function itemRow(i, orgId, area = '') {
     const li = h('li', {});
+    li.dataset.q = `${area} ${i.requirement} ${i.hint || ''} ${ST[i.status] || ''}`.toLowerCase();
     li.append(
       h('span', { class: `ecf-l ${i.status === 'verde' ? 'verde' : i.status === 'pendiente' ? 'gris' : i.status === 'amarillo' ? 'amarillo' : 'rojo'}` }, ST[i.status] || i.status), ' ',
       h('strong', {}, i.requirement),
