@@ -38,11 +38,21 @@ function reportLinesTable(lineas, {
     h('tbody', {}, ...body));
 }
 
+/** 5.44.0 · Indicador compacto de avance hacia el cobro (0–100, 100 = cobrado). Barra + porcentaje.
+ *  Reutilizado en las filas de la lista y en el pie del reporte. Devuelve fragmento vacío si no hay dato. */
+function avanceTag(av) {
+  if (av == null) return document.createDocumentFragment();
+  const pct = Math.max(0, Math.min(100, Number(av) || 0));
+  const bar = h('span', { class: 'hosp-av-bar' }, h('i', { class: pct >= 100 ? 'full' : '', style: `width:${pct}%` }));
+  return h('span', { class: 'hosp-av', title: `Avance hacia el cobro: ${av}% (100 = cobrado)` },
+    bar, h('span', { class: 'hosp-av-pct' }, `${av}%`));
+}
+
 /** 5.35.9 · Pie total del reporte. `extra` añade una línea gris a la derecha; `strong` usa
- *  <strong> en lugar de <b> (match con la vista de staff). */
+ *  <strong> en lugar de <b> (match con la vista de staff). Desde 5.44.0 muestra el avance del reporte. */
 function reportFoot(r, { strong = false, extra = null } = {}) {
   const totalEl = strong ? h('strong', {}, `Total: ${money(r.total)}`) : h('b', {}, `Total: ${money(r.total)}`);
-  const children = [totalEl];
+  const children = [totalEl, avanceTag(r.avance)];
   if (r.projected_total != null && r.projected_total !== r.total) {
     const projEl = h('span', { class: 'hosp-proj-total' }, `Proyectado ARS: ${money(r.projected_total)}`);
     children.push(projEl);
@@ -80,7 +90,7 @@ export async function render(root, context = {}) {
     listBox.replaceChildren(h('div', { class: 'hosp-list' }, data.map((r) =>
       h('button', { class: 'hosp-row', type: 'button', onclick: () => openReport(r.id) },
         h('span', {}, `${r.patient_name} · ${r.centro}`),
-        h('span', { class: 'hosp-mut' }, `${r.status} · ${money(r.total)}`)))));
+        h('span', { class: 'hosp-mut' }, `${r.status} · ${money(r.total)}`, avanceTag(r.avance))))));
   }
 
   function caseForm(r = null) {
@@ -260,7 +270,7 @@ async function renderSupport(root, context) {
     if (!rows.length) { list.replaceChildren(note('Este médico aún no tiene reportes visibles en el consultorio.', 'info')); return; }
     list.replaceChildren(h('p', { class: 'i18-sub' }, `Mostrando ${rows.length} de ${data.report_count ?? rows.length} reporte(s).`),
       h('div', { class: 'hosp-list' }, ...rows.map((r) => h('button', { class: 'hosp-row', type: 'button', onclick: () => openReport(r.id) },
-        h('span', {}, `${r.patient_name} · ${r.centro}`), h('span', { class: 'hosp-mut' }, `${r.status} · ${money(r.total)}`)))));
+        h('span', {}, `${r.patient_name} · ${r.centro}`), h('span', { class: 'hosp-mut' }, `${r.status} · ${money(r.total)}`, avanceTag(r.avance))))));
   }
   async function openReport(id) {
     if (!provider || !reportIds.has(id)) return;
@@ -356,7 +366,7 @@ async function renderStaff(root, context) {
             ? h('div', { class: 'hosp-list' }, ...rows.map((r) =>
                 h('button', { type: 'button', class: 'hosp-row', onclick: () => openRec(r.id) },
                   h('span', {}, `${r.patient_name} · ${r.centro}`),
-                  h('span', { class: 'hosp-mut' }, `${r.medico} · ${r.status} · ${money(r.total)}`))))
+                  h('span', { class: 'hosp-mut' }, `${r.medico} · ${r.status} · ${money(r.total)}`, avanceTag(r.avance)))))
             : note('No hay reportes enviados visibles en tu ámbito.', 'info')),
         detail));
     if (data.report) detail.append(readOnlyReport(data.report));
