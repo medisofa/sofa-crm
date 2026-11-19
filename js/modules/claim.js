@@ -14,7 +14,8 @@ import { renderDossier } from './dossier-card.js';
 import { runClaimPreaudit } from '../services/claim-agent-runner.js';
 import {
   getClaim, claimHistory, claimAudits, claimDiscrepancies, claimChecks, claimLocations, claimTransitions,
-  claimPaymentLines, claimGlosaItems, recheckContract, claimTimeline, claimResubmissions, resubmitClaims
+  claimPaymentLines, claimGlosaItems, recheckContract, claimTimeline, claimResubmissions, resubmitClaims,
+  setBillingChannelViaClinica, revertBillingChannelToDirecto
 } from '../services/claims.js';
 
 const kv = (pairs) => html`<dl class="kv">${pairs.map(([k, v]) => html`<dt>${k}</dt><dd>${v == null || v === '' ? '—' : v}</dd>`)}</dl>`;
@@ -85,6 +86,8 @@ export async function render(main, ctx) {
         ${c.claim_status === 'pendiente_configuracion' && can('claims.recheck', role) ? html`<button class="btn" id="recheck">Volver a buscar contrato</button>` : ''}
         ${can('claims.override', role) ? html`<button class="btn" id="force">Cambio excepcional…</button>` : ''}
         ${canResubmit ? html`<button class="btn primary" id="resubmit">Reenviar en radicación complementaria</button>` : ''}
+        ${staff && c.billing_channel === 'directo' ? html`<button class="btn" id="setBillingViaClinica" title="Marcar que la clínica cobra a la ARS por el médico">Cobro vía clínica</button>` : ''}
+        ${staff && c.billing_channel === 'via_clinica' ? html`<button class="btn" id="revertBillingDirecto" title="Revertir al flujo directo médico → ARS">Revertir a cobro directo</button>` : ''}
         <button class="btn" id="print">Imprimir</button>
       </div></div>
 
@@ -96,7 +99,7 @@ export async function render(main, ctx) {
     <div class="grid two">
       <div class="card"><h2>¿Dónde está y quién la tiene?</h2>
         ${kv([['Ubicación actual', html`<b>${c.location_name || '—'}</b>`], ['Responsable', html`<b>${c.custodian_name || 'Sin responsable asignado'}</b>`],
-          ['Estado', html`<span class="pill ${cls}">${lbl}</span> desde ${dateTime(c.status_changed_at)}`],
+          ['Estado', html`<span class="pill ${cls}">${lbl}</span>${c.billing_channel === 'via_clinica' ? html`<span class="pill" style="background:var(--info-bg,#e0f0ff);color:var(--info,#0066cc);font-size:0.72rem;margin-left:4px" title="La clínica cobra a la ARS por el médico">Vía clínica</span>` : ''} desde ${dateTime(c.status_changed_at)}`],
           ['Avance', html`<div style="display:flex;align-items:center;gap:8px"><div class="ac-progress" style="flex:1;min-width:80px" role="progressbar" aria-valuenow="${c.avance ?? 0}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance ${c.avance ?? 0}%"><div style="width:${c.avance ?? 0}%;background:${(c.avance ?? 0) >= 100 ? 'var(--ok)' : (c.avance ?? 0) >= 68 ? 'var(--info,#3b82f6)' : (c.avance ?? 0) >= 45 ? 'var(--warning,#f59e0b)' : 'var(--ok)'}"></div></div><b>${c.avance ?? 0}%</b></div>`],
           ['Última acción', c.last_action ? html`${c.last_action}<div class="small muted">${dateTime(c.last_action_at)}</div>` : ''],
           ['Próximo paso', html`<b>${c.next_step}</b>`], ['¿Fue validada?', lastAudit ? html`${lastAudit.result === 'validada' ? '✓ Sí' : '✕ Con inconsistencia'} · ${who(lastAudit.auditor_id)} · ${dateTime(lastAudit.audited_at)}` : 'No'],
@@ -120,6 +123,7 @@ export async function render(main, ctx) {
           ['Fecha de la autorización', html`${c.authorization_date ? date(c.authorization_date) : html`<span class="muted">sin registrar</span>`}${['pendiente_configuracion', 'capturada', 'pendiente_retiro', 'retirada', 'en_validacion', 'con_inconsistencia', 'validada', 'lista_para_radicar'].includes(c.claim_status) && can('claims.capture', role) ? html` <button class="btn sm" id="authDate" type="button">${c.authorization_date ? 'Corregir' : 'Registrar'}</button>` : ''}`],
           ['Fecha del servicio', date(c.service_date)], ['Modalidad', c.care_mode ? careMode(c.care_mode) : ''], ['Centro / clínica', c.clinic_name],
           ['Médico', c.provider_name], ...(staff ? [['Cliente', c.client_name]] : []), ['ARS', c.ars_name],
+          ['Canal de cobro', c.billing_channel === 'via_clinica' ? html`<span class="pill" style="background:var(--info-bg,#e0f0ff);color:var(--info,#0066cc)">Vía clínica</span> — la clínica cobra a la ARS por el médico` : 'Directo — el médico cobra directamente a la ARS'],
           ['Registrada por', html`${c.created_by_name || who(c.created_by)} · ${dateTime(c.created_at)}`], ['Última modificación', html`${who(c.updated_by)} · ${dateTime(c.updated_at)}`]])}
       </div>
       <div class="card"><h2>Revisión automática${checks ? html` · ${checks.ok ? html`<span class="pill ok">Lista</span>` : html`<span class="pill bad">Con pendientes</span>`}` : ''}</h2>
@@ -249,6 +253,17 @@ export async function render(main, ctx) {
       try { const sub = await resubmitDialog([id], c.submission_folio); if (sub) { toast('Radicación complementaria creada', 'ok'); location.hash = `#/radicaciones/${sub}`; } }
       catch (err) { toast(friendlyError(err), 'bad'); }
     });
+
+    $('#setBillingViaClinica', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      if (!confirm('¿Marcar esta reclamación como cobro vía clínica?\n\nLa clínica cobrará a la ARS por el médico. SoFa registra la reclamación pero no la radica.')) return;
+      try { await setBillingChannelViaClinica(id); toast('Canal de cobro cambiado a vía clínica', 'ok'); refresh(); }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    }));
+    $('#revertBillingDirecto', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      if (!confirm('¿Revertir esta reclamación al flujo directo?\n\nEl médico cobrará directamente a la ARS.')) return;
+      try { await revertBillingChannelToDirecto(id); toast('Canal de cobro revertido a directo', 'ok'); refresh(); }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    }));
   }
 
   refresh();
