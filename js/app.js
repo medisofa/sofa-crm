@@ -409,21 +409,7 @@ function renderFrequent() {
   const items = top.map((r) => allowed.find((i) => i.route === r)).filter(Boolean);
   if (!items.length) { host.hidden = true; render(host, html``); return; }
   host.hidden = false;
-  render(host, html`<div class="nav-favorites-title">🕑 Frecuentes</div>${items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}</a>${favoriteButton(i)}</div>`)}`);
-}
-/** «Frecuentes»: los módulos que este usuario abre más seguido, para tenerlos a mano sin buscarlos.
- *  Deja fuera los que ya están en Favoritos y la ruta activa; solo rutas que el rol puede abrir.
- *  Se nutre de recordNavVisit() en cada navegación real (ver route()). */
-function renderFrequent() {
-  const host = $('#navFrequent'); if (!host) return;
-  const allowed = allowedNavItems();
-  const pinned = favoriteItems().map((i) => i.route);
-  const { route } = parseHash();
-  const top = topNavRoutes(navScope(), allowed.map((i) => i.route), { exclude: [...pinned, route], limit: 6 });
-  const items = top.map((r) => allowed.find((i) => i.route === r)).filter(Boolean);
-  if (!items.length) { host.hidden = true; render(host, html``); return; }
-  host.hidden = false;
-  render(host, html`<div class="nav-favorites-title">🕑 Frecuentes</div>${items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}</a>${favoriteButton(i)}</div>`)}`);
+  render(host, html`<div class="nav-favorites-title">🕑 Frecuentes</div>${items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${raw(routeIcon(i.route))}<span class="nav-ic-lbl">${i.label}</span></a>${favoriteButton(i)}</div>`)}`);
 }
 function navigationGroupsWithFavorites() {
   const items = favoriteItems();
