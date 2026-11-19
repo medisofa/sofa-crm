@@ -266,6 +266,7 @@ function layout() {
       </nav>
       <header class="topbar">
         <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <span class="topbar-crumb" id="topbarCrumb" aria-hidden="true"></span>
         <h1 id="pageTitle">SOFA</h1>
         ${state.viewAs ? html`<span class="org-chip" title="${state.membership.organization}">${state.membership.organization}</span>`
                 : multi ? html`<label class="sr-only" for="orgSel">Organización activa</label><select class="org-select" id="orgSel">${state.memberships.map((m) => html`<option value="${m.organization_id}" ${m.organization_id === state.membership.organization_id ? raw('selected') : ''}>${m.organization} · ${m.role_name}</option>`)}</select>`
@@ -570,7 +571,21 @@ async function route() {
   const ctx = { ...state, def: r.def, arg: r.arg, setTitle, sb: sb() };
   try { await r.mod.render(main, ctx); }
   catch (e) { console.error(e); render(main, errorView(e)); }
-  if (my === routeSeq) { renderedHash=targetHash; main.focus({ preventScroll: true }); pushRecentRoute(r.def.route, r.def.label); renderActivityFeed(); }
+  if (my === routeSeq) {
+    renderedHash=targetHash; main.focus({ preventScroll: true });
+    pushRecentRoute(r.def.route, r.def.label); renderActivityFeed();
+    updateTopbarCrumb(r.def);
+  }
+}
+
+/** CX Hub · Breadcrumb contextual — muestra la familia del módulo activo en el topbar (solo
+ *  en modo lateral, donde el sidebar ya muestra la navegación completa y el topbar queda limpio). */
+function updateTopbarCrumb(def) {
+  const crumb = $('#topbarCrumb'); if (!crumb) return;
+  if (getMenuLayout() !== 'lateral') { crumb.textContent = ''; return; }
+  const groups = visibleNav(state.role);
+  const family = groups.find((g) => g.items.some((i) => i.route === def?.route));
+  crumb.textContent = family ? family.group : '';
 }
 
 function swUpdateBanner() {
