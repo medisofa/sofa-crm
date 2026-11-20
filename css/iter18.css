@@ -1591,3 +1591,12 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .mh-sum-bar{flex:0 0 84px;height:8px;border-radius:999px;background:var(--border);overflow:hidden}
 .mh-sum-bar i{display:block;height:100%;background:var(--ok)}
 .mh-sum-n{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:13px}
+
+/* 5.44.0 · Avance hacia el cobro en Hospitalización (0–100, 100 = cobrado) */
+.hosp-av{display:inline-flex;align-items:center;gap:6px;margin-left:8px;vertical-align:middle}
+.hosp-av-bar{position:relative;width:60px;height:7px;border-radius:999px;background:var(--surface-2,#eef2f7);overflow:hidden;border:1px solid var(--i18-line,#d9dee2)}
+.hosp-av-bar i{display:block;height:100%;border-radius:999px;background:var(--warn,#e0a800)}
+.hosp-av-bar i.full{background:var(--ok,#1e9e5a)}
+.hosp-av-pct{font-size:11.5px;font-weight:700;color:var(--i18-mut,#5b6872);font-variant-numeric:tabular-nums}
+.hosp-foot .hosp-av{margin-left:12px}
+:root[data-theme="dark"] .hosp-av-bar{background:rgba(255,255,255,.08);border-color:var(--line)}
