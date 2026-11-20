@@ -311,12 +311,7 @@ export async function render(main, ctx) {
         return true;
       }
     });
-    // 5.35.12 · El toast confirma. Los dos reloads (uno trae hasta 1000 reclamaciones
-    // para re-detectar duplicados, otro repinta la lista visible) se disparan en
-    // background: NO van en await. Antes, el `await loadCoreDuplicates()` mantenía
-    // al botón externo «Comparar y revisar» dentro de `busy(btn, fn)` varios segundos
-    // después de que el diálogo ya había cerrado, dejándolo con el texto «Procesando…».
-    if (r) { toast('Decisión registrada. Consulta el bloqueo actualizado; la revisión no modifica las reclamaciones.', 'warn'); loadCoreDuplicates().catch((e) => toast(friendlyError(e), 'warn')); load(); }
+    if (r) { await loadCoreDuplicates(); load(); toast('Decisión registrada. Consulta el bloqueo actualizado; la revisión no modifica las reclamaciones.', 'warn'); }
   }
 
   $('#coreDup', main).addEventListener('click', (e) => {

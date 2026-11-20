@@ -1,0 +1,19 @@
+/* Correcciones administrativas: alcance limitado y comparación legible en cualquier ancho. */
+.ca-dialog{width:min(720px,96vw);max-width:96vw;color:var(--ink)}
+.ca-edit{display:grid;gap:15px;min-width:0}
+.ca-context{display:grid;gap:3px;margin:0;line-height:1.5;overflow-wrap:anywhere}
+.ca-context>span{font-size:.82rem;color:var(--ink-2)}
+.ca-edit .note{margin:0;line-height:1.6}
+.ca-edit .field{min-width:0;margin:0}
+.ca-edit .field input,.ca-edit .field textarea{width:100%;min-width:0}
+.ca-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0}
+.ca-comparison>div{display:grid;gap:7px;align-content:start;padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;min-width:0}
+.ca-comparison span,.ca-comparison dt{font-size:.75rem;color:var(--ink-2);font-weight:600}
+.ca-comparison b,.ca-comparison dd{font-size:.9rem;line-height:1.6;margin:0;color:var(--ink);overflow-wrap:anywhere}
+.ca-history-body{display:grid;gap:18px;max-height:65vh;overflow:auto;min-width:0}
+.ca-history-list{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.ca-history-entry{padding:15px;border:1px solid var(--line);border-radius:10px;background:var(--surface);min-width:0}
+.ca-history-meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:.8rem}
+.ca-history-meta time{font-size:.74rem;color:var(--ink-2)}
+.ca-history-reason{font-size:.8rem;line-height:1.6;margin:12px 0 0;overflow-wrap:anywhere}
+@media(max-width:480px){.ca-comparison{grid-template-columns:minmax(0,1fr)}.ca-history-entry{padding:12px}.ca-dialog .df{flex-wrap:wrap}.ca-dialog .df .btn{flex:1;min-height:44px;white-space:normal}}

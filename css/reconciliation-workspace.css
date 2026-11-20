@@ -1,0 +1,58 @@
+/* Mesa bancaria: estilos limitados a la pantalla y a sus paneles de comparación. */
+.reconciliation-workspace{display:grid;gap:18px;min-width:0;color:var(--ink)}
+.reconciliation-workspace .rw-page-head h2{margin:0 0 6px;color:var(--heading)}
+.reconciliation-workspace .rw-page-head p{margin:0;max-width:85ch;line-height:1.6}
+.reconciliation-workspace .rw-filters{display:grid;grid-template-columns:1.25fr .7fr .7fr 1.3fr .8fr;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.reconciliation-workspace label{display:grid;gap:6px;font-size:.8rem;font-weight:600;color:var(--ink-2);min-width:0}
+.reconciliation-workspace input,.reconciliation-workspace select{width:100%;min-width:0;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);font:inherit;font-size:.84rem}
+.reconciliation-workspace .rw-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.reconciliation-workspace .rw-kpi{padding:16px;border:1px solid var(--line);border-radius:11px;background:var(--surface);min-width:0}
+.reconciliation-workspace .rw-kpi>span{display:block;font-size:.78rem;color:var(--ink-2)}
+.reconciliation-workspace .rw-kpi>strong{display:block;font-size:1.5rem;margin:7px 0;overflow-wrap:anywhere}
+.reconciliation-workspace .rw-kpi>small{font-size:.76rem;color:var(--ink-2)}
+.reconciliation-workspace .rw-upload,.reconciliation-workspace .rw-report{margin:14px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden;min-width:0}
+.reconciliation-workspace summary{cursor:pointer;padding:14px 16px;font-size:.85rem;font-weight:650;color:var(--ink)}
+.reconciliation-workspace details>.i18-card{margin:0;border:0;border-top:1px solid var(--line);border-radius:0}
+.reconciliation-workspace .rw-stages{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 12px;font-size:.77rem;color:var(--ink-2)}
+.reconciliation-workspace .rw-stages>span{padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.reconciliation-workspace .rw-stages .rw-stage-current{color:var(--ink);border-color:var(--navy-2);font-weight:650}
+.reconciliation-workspace .rw-desk{display:grid;grid-template-columns:minmax(250px,.85fr) minmax(0,1.65fr);gap:16px;align-items:start;min-width:0}
+.reconciliation-workspace .rw-panel{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;min-width:0}
+.reconciliation-workspace .rw-panel>header{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.reconciliation-workspace .rw-panel h3{margin:0;font-size:.95rem;color:var(--ink)}
+.reconciliation-workspace .rw-count{font-size:.74rem;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--ink-2)}
+.reconciliation-workspace .rw-movements{max-height:580px;overflow-y:auto;padding:10px;display:grid;gap:9px}
+.reconciliation-workspace .rw-movement{width:100%;display:grid;gap:8px;text-align:left;padding:13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit;font-size:.82rem;cursor:pointer;min-width:0}
+.reconciliation-workspace .rw-movement:hover{background:var(--surface-2)}
+.reconciliation-workspace .rw-movement.is-selected{border-color:var(--navy-2);background:var(--surface-2);box-shadow:inset 3px 0 var(--navy-2)}
+.reconciliation-workspace .rw-movement-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.reconciliation-workspace .rw-movement small,.reconciliation-workspace .rw-reference{font-size:.73rem;color:var(--ink-2);overflow-wrap:anywhere}
+.reconciliation-workspace .rw-panel-body{padding:18px;min-width:0}
+.reconciliation-workspace .rw-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.reconciliation-workspace .rw-data-card{padding:15px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;min-width:0}
+.reconciliation-workspace .rw-data-card h4{margin:0 0 14px;font-size:.86rem}
+.reconciliation-workspace .rw-data-card dl{margin:0;display:grid;gap:5px}
+.reconciliation-workspace .rw-data-card dt{font-size:.7rem;color:var(--ink-2);margin-top:7px}
+.reconciliation-workspace .rw-data-card dd{font-size:.84rem;margin:0;line-height:1.5;overflow-wrap:anywhere}
+.reconciliation-workspace .rw-candidate{min-width:0;display:grid;gap:12px}
+.reconciliation-workspace .rw-candidate label{margin:0}
+.reconciliation-workspace .rw-difference{font-size:.85rem;font-weight:650;line-height:1.6;margin:12px 0;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px}
+.reconciliation-workspace .rw-difference.has-difference{color:var(--warn);border-color:var(--warn)}
+.reconciliation-workspace .rw-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.reconciliation-workspace .rw-secondary-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.reconciliation-workspace .rw-empty{padding:20px;color:var(--ink-2);font-size:.82rem;line-height:1.6;margin:0}
+.reconciliation-workspace .rw-application{margin-top:18px}
+.reconciliation-workspace .rw-application p{font-size:.83rem;line-height:1.6;margin-top:0}
+.reconciliation-workspace .rw-links{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.reconciliation-workspace .rw-claim-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin:16px 0}
+.reconciliation-workspace .rw-claims-mode{font-weight:650;margin:14px 0 8px}
+.reconciliation-workspace .i18-btn{min-height:44px;white-space:normal;line-height:1.4}
+.reconciliation-workspace .rw-register-pane:empty{display:none}
+.reconciliation-workspace .rw-register{margin:18px 0}
+.reconciliation-workspace .rw-register>header{display:flex;justify-content:space-between;gap:10px}
+.reconciliation-workspace .i18-table-wrap{max-width:100%;overflow-x:auto}
+.reconciliation-workspace .i18-table td{overflow-wrap:anywhere}
+.reconciliation-workspace button:focus-visible,.reconciliation-workspace summary:focus-visible{outline:2px solid var(--navy-2);outline-offset:2px}
+@media(max-width:1100px){.reconciliation-workspace .rw-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.reconciliation-workspace .rw-filters>label:first-child{grid-column:1/-1}.reconciliation-workspace .rw-desk{grid-template-columns:minmax(220px,.85fr) minmax(0,1.5fr)}.reconciliation-workspace .rw-comparison{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:700px){.reconciliation-workspace .rw-desk{grid-template-columns:minmax(0,1fr)}.reconciliation-workspace .rw-movements{max-height:340px}.reconciliation-workspace .rw-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.reconciliation-workspace .rw-filters{padding:13px}.reconciliation-workspace .rw-claim-search{grid-template-columns:minmax(0,1fr)}.reconciliation-workspace .rw-panel-body{padding:14px}.reconciliation-workspace .rw-actions,.reconciliation-workspace .rw-secondary-actions,.reconciliation-workspace .rw-links{display:grid;grid-template-columns:minmax(0,1fr)}.reconciliation-workspace .rw-stages{display:grid;grid-template-columns:minmax(0,1fr)}}
+@media(max-width:380px){.reconciliation-workspace .rw-filters{grid-template-columns:minmax(0,1fr)}.reconciliation-workspace .rw-kpi{padding:12px}}
