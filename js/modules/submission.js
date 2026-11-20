@@ -63,11 +63,6 @@ export async function render(main, ctx) {
       sub.submitted_on && can('claims.money', ctx.role) ? read('claimMoney', () => submissionClaimMoney(id), [], Array.isArray) : skip('claimMoney', []),
       read('duplicates', () => claimDuplicateCandidates(null, id), [], Array.isArray)
     ]);
-      ? await Promise.all([listGlosas({ group: 'todas', submissionId: id, size: 50 }).then((r) => r.data).catch(() => []), submissionPayments(id).catch(() => [])])
-      : [[], []];
-    const [fiscal, fcheck, dist, delivery, family, money_, duplicates] = await Promise.all([getFiscal(id).catch(() => null), fiscalCheck(id).catch(() => null),
-      sub.submitted_on && can('claims.money', ctx.role) ? submissionLineAllocations(id).catch(() => []) : Promise.resolve([]), getDelivery(id).catch(() => null),
-      submissionFamily(id).catch(() => null), sub.submitted_on && can('claims.money', ctx.role) ? submissionClaimMoney(id).catch(() => []) : Promise.resolve([]), claimDuplicateCandidates(null, id)]);
     const names = await profileNames([...hist.map((h) => h.changed_by), ...docs.map((d) => d.uploaded_by), fiscal?.fiscal_exception_by].filter(Boolean)).catch(() => ({}));
     return { sub, lines, lineCk, reqs, docs, trans, hist, val, types, org, checks, names, glosas, pays, fiscal, fcheck, dist, delivery, family, money_, duplicates, qualitySources, qualityCheckedAt: new Date().toISOString() };
   }
