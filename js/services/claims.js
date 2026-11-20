@@ -64,7 +64,7 @@ export async function myRecentClaims(limit = 15) {
 }
 
 // ---------------------------------------------------------------- Reclamaciones
-const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, discrepancy_status, paid, glosado, balance, next_step, last_action_at, status_changed_at, dossier_ok, dossier_missing, avance';
+const LIST_COLS = 'id, folio, organization_id, client_name, provider_id, provider_name, ars_id, ars_name, submission_id, submission_folio, service_date, patient_name, member_number, authorization_number, service_name, simon, cups, claimed, tariff_amount, contracted, claim_status, status_name, location_code, location_name, custodian_name, billing_channel, discrepancy_status, paid, glosado, balance, next_step, last_action_at, status_changed_at, dossier_ok, dossier_missing, avance';
 export async function listClaims({ group = 'todas', status = '', location = '', providerId = '', arsId = '', q = '', from = '', to = '', dossier = '', page = 0, size = 25, realOnly = false } = {}) {
   let query = sb().from('v_claims').select(LIST_COLS, { count: 'exact' });
   if (realOnly) query = applyRealScope(query, await realOrgIds());
@@ -285,4 +285,14 @@ export async function requestClaimDuplicateExclusion({ lineA, lineB, keepLine, r
 /** Historial privado del par; la RPC limita las columnas y el acceso por organización/rol. */
 export async function listClaimDuplicateResolutionRequests(lineA, lineB) {
   return must(await sb().rpc('list_claim_duplicate_resolution_requests', { p_line_a: lineA, p_line_b: lineB }));
+}
+
+// ── Billing channel (cobro vía clínica) ──────────────────────────────────────
+/** Marca una línea como cobro vía clínica (la clínica cobra a la ARS por el médico). */
+export async function setBillingChannelViaClinica(lineId) {
+  return must(await sb().rpc('set_billing_channel_via_clinica', { p_line_id: lineId }));
+}
+/** Revierte una línea al flujo normal de cobro directo. */
+export async function revertBillingChannelToDirecto(lineId) {
+  return must(await sb().rpc('revert_billing_channel_to_directo', { p_line_id: lineId }));
 }
