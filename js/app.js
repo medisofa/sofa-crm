@@ -12,6 +12,7 @@ import { readNavFavorites, toggleNavFavorite } from './utils/nav-favorites.js';
 import { recordNavVisit, topNavRoutes } from './utils/nav-frequency.js';
 import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from './utils/permissions.js';
 import { html, render, raw, $, $$, applySidebarBadges } from './utils/dom.js';
+import { icon as routeIcon } from './utils/route-icons.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
 import { initials } from './utils/formatters.js';
 import { supportViewStart, supportViewEnd, supportViewActive } from './services/admin.js';
@@ -340,7 +341,7 @@ function changeNavFavorite(button) {
 }
 function renderFavorites() {
   const items = favoriteItems(); const { route } = parseHash();
-  render($('#navFavorites'), html`<div class="nav-favorites-title">★ Favoritos</div>${items.length ? items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}</a>${favoriteButton(i)}</div>`) : html`<p class="nav-favorites-empty">Marca ☆ junto a un módulo para tenerlo a mano.</p>`}`);
+  render($('#navFavorites'), html`<div class="nav-favorites-title">★ Favoritos</div>${items.length ? items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${raw(routeIcon(i.route))}<span class="nav-ic-lbl">${i.label}</span></a>${favoriteButton(i)}</div>`) : html`<p class="nav-favorites-empty">Marca ☆ junto a un módulo para tenerlo a mano.</p>`}`);
 }
 /** «Frecuentes»: los módulos que este usuario abre más seguido, para tenerlos a mano sin buscarlos.
  *  Deja fuera los que ya están en Favoritos y la ruta activa; solo rutas que el rol puede abrir.
@@ -368,7 +369,7 @@ function renderNav() {
   const { route } = parseHash();
   const q = norm($('#navSearch')?.value).trim();
   const closed = closedGroups();
-  const link = (i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>${favoriteButton(i)}</div>`;
+  const link = (i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${raw(routeIcon(i.route))}<span class="nav-ic-lbl">${i.label}</span>${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>${favoriteButton(i)}</div>`;
   const groups = visibleNav(state.role);
   // 5.11.0 · la pista solo vale la pena cuando hay bastante fuera del menú. Con 2 o 4 módulos
   // (Prospecto, Facturación, Secretaria) sería ruido para quien menos navega el sistema.
@@ -433,7 +434,7 @@ function renderTopNav() {
         <span class="tnav-nm">${uname}</span>
       </button>
     </div>`);
-  render($('#topnavTabs'), html`${activeGroup.items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>${favoriteButton(i)}</div>`)}`);
+  render($('#topnavTabs'), html`${activeGroup.items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${raw(routeIcon(i.route))}<span class="nav-ic-lbl">${i.label}</span>${i.ready ? '' : html`<span class="soon" title="Llega en la Iteración ${i.iteration}">It. ${i.iteration}</span>`}</a>${favoriteButton(i)}</div>`)}`);
   $('#topnavCatalog')?.addEventListener('click', () => { navMapOpen = true; renderNav(); toggleMenu(true); $('#navSearch')?.focus(); });
   $('#topnavUserBtn')?.addEventListener('click', (e) => { e.stopPropagation(); openUserMenu(); });
 }
