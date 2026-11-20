@@ -36,6 +36,7 @@ export async function render(root, ctx = {}) {
   }
   function card(a) {
     const portalHost = (() => { try { return a.portal_url ? new URL(a.portal_url).host : null; } catch (_) { return null; } })();
+    const contactLine = [a.phone && `📞 ${a.phone}`, a.whatsapp && `💬 ${a.whatsapp}`, a.contact_email && `✉️ ${a.contact_email}`].filter(Boolean);
     return h('section', { class: `i18-card ars-card${a.active ? '' : ' ars-off'}` },
       h('header', { class: 'hc-head' }, h('div', {}, h('strong', {}, a.name), h('div', { class: 'i18-sub' }, [a.regime, a.channel].filter(Boolean).join(' · ') || '—')),
         h('div', { class: 'i18-actions', style: 'margin:0' },
@@ -44,6 +45,7 @@ export async function render(root, ctx = {}) {
           a.uses_society_tariff ? h('span', { class: 'ac-pill st-ok', title: a.society_tariff_notes || 'Usa el tarifario de la sociedad médica' }, 'Tarifario sociedad') : '',
           portalHost ? h('span', { class: 'ac-pill st-ok', title: `Portal PSS: ${a.portal_url}` }, `🔗 ${portalHost}`) : '',
           edit ? h('button', { class: 'i18-link', type: 'button', onclick: () => arsForm(a) }, 'Editar') : '')),
+      contactLine.length ? h('p', { class: 'i18-sub' }, contactLine.join(' · ')) : '',
       a.notes ? h('p', { class: 'i18-sub' }, a.notes) : '',
       a.uses_society_tariff && a.society_tariff_notes ? h('p', { class: 'i18-sub' }, 'Tarifario sociedad: ', a.society_tariff_notes) : '',
       h('ul', { class: 'ars-plans' }, a.plans.length ? a.plans.map((p) => h('li', { class: p.active ? '' : 'ars-off' },
@@ -58,6 +60,9 @@ export async function render(root, ctx = {}) {
     const regime = h('select', {}, REGIMES.map((r) => h('option', { value: r, selected: (a?.regime || 'Contributivo') === r }, r)));
     const channel = h('input', { value: a?.channel || '', maxlength: '120', placeholder: 'Ej.: Portal PSS + oficinas' });
     const portalUrl = h('input', { type: 'url', value: a?.portal_url || '', maxlength: '300', placeholder: 'https://portalpss.arsejemplo.com.do/' });
+    const phone = h('input', { type: 'tel', value: a?.phone || '', maxlength: '30', placeholder: '809-000-0000' });
+    const whatsapp = h('input', { type: 'tel', value: a?.whatsapp || '', maxlength: '30', placeholder: '809-000-0000' });
+    const contactEmail = h('input', { type: 'email', value: a?.contact_email || '', maxlength: '200', placeholder: 'contacto@ars.com.do' });
     const notes = h('textarea', { rows: '2', maxlength: '500' }, a?.notes || '');
     const active = h('input', { type: 'checkbox', checked: a ? a.active : true });
     // 5.35.5 · Bandera «usa el tarifario de la sociedad médica».
@@ -72,14 +77,16 @@ export async function render(root, ctx = {}) {
       save.disabled = true;
       try {
         await rpc('ars_save', { p_id: a?.id || null, p_name: name.value, p_code: code.value || null, p_regime: regime.value, p_channel: channel.value, p_notes: notes.value, p_active: active.checked, p_portal_url: portalUrl.value || null,
-          p_uses_society_tariff: usesSociety.checked, p_society_tariff_notes: usesSociety.checked ? societyNotes.value : null });
+          p_uses_society_tariff: usesSociety.checked, p_society_tariff_notes: usesSociety.checked ? societyNotes.value : null,
+          p_phone: phone.value || null, p_whatsapp: whatsapp.value || null, p_contact_email: contactEmail.value || null });
         pane.replaceChildren(note(`ARS «${name.value.trim()}» guardada.`, 'ok')); await load();
       } catch (e) { msg.replaceChildren(note(e.message, 'error')); save.disabled = false; }
     });
     pane.replaceChildren(h('section', { class: 'i18-card hc-form' }, h('header', { class: 'hc-head' }, h('strong', {}, a ? `Editar ${a.name}` : 'Nueva ARS'),
       h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
       h('div', { class: 'hc-grid' }, field('ars-name', 'Nombre', name), field('ars-code', 'Código corto', code), field('ars-regime', 'Régimen principal', regime),
-        field('ars-channel', 'Canal de radicación', channel), field('ars-portal', 'URL del Portal PSS', portalUrl)), field('ars-notes', 'Notas', notes),
+        field('ars-channel', 'Canal de radicación', channel), field('ars-portal', 'URL del Portal PSS', portalUrl),
+        field('ars-phone', 'Teléfono', phone), field('ars-wa', 'WhatsApp', whatsapp), field('ars-email', 'Email de contacto', contactEmail)), field('ars-notes', 'Notas', notes),
       h('label', { class: 'i18-chk' }, usesSociety, ' Esta ARS reconoce el tarifario de la sociedad médica para esta especialidad'),
       societyNotesField,
       h('label', { class: 'i18-chk' }, active, ' Activa (aparece en los formularios)'), h('div', { class: 'i18-actions' }, save), msg));

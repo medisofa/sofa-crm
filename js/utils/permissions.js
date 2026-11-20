@@ -147,7 +147,8 @@ export const NAV = [
     { route: 'guias', label: 'Buenas prácticas', roles: ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'auditor'], ready: true }
   ]},
   { group: 'Catálogos', items: [
-    { route: 'ars', label: 'ARS', roles: ALL, ready: true }
+    { route: 'ars', label: 'ARS', roles: ALL, ready: true },
+    { route: 'directorio-centros', label: 'Directorio de centros', roles: ALL, ready: true }   // 5.40.0 · directorio tipo ficha
   ]},
   { group: 'Gestión', items: [
     { route: 'tareas', label: 'Tareas', roles: [...OPS, 'auditor'], ready: true },
@@ -228,7 +229,8 @@ export const ESENCIALES = {
             'insumos', 'clinica', 'habilitacion', 'mi-habilitacion', 'alta-usuarios',
             'mi-plan', 'mi-suscripcion', 'mis-avisos', 'mi-puesta-en-marcha', 'mis-30-dias',
             'recomendar', 'diagnostico', 'cambio-clave',
-            'estado-cuenta', 'calendario-cobros', 'rentabilidad', 'analitica-glosas', 'reconsideracion']
+            'estado-cuenta', 'calendario-cobros', 'rentabilidad', 'analitica-glosas', 'reconsideracion',
+            'directorio-centros']
   },
 
   // Secretaria · agenda, captura y cobro al paciente privado. Ya estaba bien dimensionado.
@@ -262,6 +264,7 @@ export const ESENCIALES = {
     extra: ['inicio', 'expediente', 'contratos', 'radicaciones', 'preauditoria', 'tareas',
             'mis-horas', 'documentos', 'clientes', 'medicos', 'casos-servicio', 'insumos',
             'dashboard', 'reportes', 'informe-trimestral', 'auditoria-expedientes', 'guias',
+            'ars', 'directorio-centros',
             'mis-avisos', 'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
@@ -275,6 +278,7 @@ export const ESENCIALES = {
     extra: ['inicio', 'mis-horas', 'casos-servicio', 'mi-habilitacion', 'radicaciones',
             'expediente', 'ecf',   // conserva dossier.upload y ecf.steps en la matriz de acciones
             'mi-plan', 'guias', 'reportes', 'dashboard', 'informe-trimestral', 'documentos',
+            'ars', 'directorio-centros',
             'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
   },
 
@@ -288,7 +292,7 @@ export const ESENCIALES = {
             'pagos', 'conciliacion', 'aging', 'cartera', 'calendario-cobros', 'honorarios',
             'estado-cuenta', 'rentabilidad', 'dashboard', 'informe-trimestral', 'guias',
             'documentos', 'clientes', 'medicos', 'casos-servicio', 'radicaciones',
-            'codificacion', 'ars', 'preradicacion', 'ecf', 'retiros', 'vencimientos',
+            'codificacion', 'ars', 'directorio-centros', 'preradicacion', 'ecf', 'retiros', 'vencimientos',
             'brechas-tarifa', 'codigos-ars', 'tarifas-versiones', 'habilitacion',
             'mi-habilitacion', 'insumos', 'mercado', 'oportunidades', 'prospectos',
             'contactos', 'aliados', 'casos-exito', 'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
@@ -307,7 +311,7 @@ export const ESENCIALES = {
     extra: ['centros', 'hospitalizacion', 'inicio', 'captura',   // conserva claims.capture en la matriz de acciones
             'solicitudes',             // 5.15.0: puede abrirla por enlace; no es su trabajo diario
             'medicos', 'casos-servicio', 'contratos', 'vencimientos',
-            'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'tarifas-versiones',
+            'brechas-tarifa', 'codigos-ars', 'codificacion', 'ars', 'directorio-centros', 'tarifas-versiones',
             'causas-glosa', 'analitica-glosas', 'auditoria-expedientes', 'insumos',
             'mi-habilitacion', 'documentos', 'rendimiento', 'informe-trimestral', 'reportes',
             'mis-horas', 'mis-avisos', 'novedades', 'actualidades', 'diagnostico', 'cambio-clave']
@@ -435,7 +439,7 @@ export const FAMILIES = [
   { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'seguimiento-hoy', 'verificacion', 'tareas', 'mis-horas'] },
   { key: 'consultorio', group: 'Pacientes y atención', routes: ['flujo-pacientes', 'pacientes', 'historia-clinica', 'hospitalizacion', 'centros', 'practica', 'documentos-consultorio', 'mensajes', 'indicadores-agenda', 'seguimiento', 'avisos-pacientes', 'mis-secretarias', 'mis-asistentes', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'facturacion', group: 'Facturación y radicación', routes: ['captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente', 'retiros', 'preradicacion', 'requisitos', 'preauditoria', 'ecf', 'auditoria-expedientes', 'insumos', 'calidad-captura', 'radicaciones', 'documentos'] },
-  { key: 'contratos', group: 'ARS y contratos', routes: ['ars', 'codigos-ars', 'contratos', 'vencimientos', 'codificacion', 'brechas-tarifa', 'tarifas-versiones', 'mi-ficha'] },
+  { key: 'contratos', group: 'ARS y contratos', routes: ['ars', 'directorio-centros', 'codigos-ars', 'contratos', 'vencimientos', 'codificacion', 'brechas-tarifa', 'tarifas-versiones', 'mi-ficha'] },
   { key: 'cobros', group: 'Cobros y finanzas', routes: ['pagos', 'glosas', 'senasa-certificados', 'honorarios', 'aging', 'conciliacion', 'causas-glosa', 'cartera', 'aplicar-pago', 'reconsideracion', 'tarifas-privadas', 'pagos-privados', 'saldos-pacientes', 'calendario-cobros', 'mi-dinero', 'mis-glosas'] },
   { key: 'crecimiento', group: 'Desarrollo y crecimiento', routes: ['oportunidades', 'prospectos', 'solicitudes', 'clientes', 'salud-clientes', 'medicos', 'contactos', 'propuestas', 'onboarding-30', 'puesta-en-marcha', 'mi-incorporacion', 'mis-30-dias', 'mi-puesta-en-marcha', 'casos-servicio'] },
   { key: 'marketing', group: 'Marketing y comunicación', routes: ['aliados', 'casos-exito', 'recomendar', 'cola-correos'] },
@@ -619,6 +623,7 @@ const ACTIONS = {
   'arscodes.edit': ['super_admin', 'admin', 'assistant', 'operations', 'billing', 'client'],         // 2.1 · espejo de app.ars_codes_can_edit (114)
   'arscodes.followup': ['super_admin', 'admin', 'assistant', 'operations'],                         // 2.3 · espejo de ars_codes_followup (118)
   'ars.edit': ['super_admin', 'admin'],                                                              // 2.6.1 · espejo de app.ars_admin_require (126)
+  'centros.edit': ['super_admin', 'admin'],                                                           // 5.40.0 · directorio de centros de salud
   'users.approve': ['super_admin'],                                                                  // 2.6.1 · aprobar solicitudes de usuario (128)
   'clinical.import': ['super_admin'],                                                                // 2.6.1 · importar historias (128)
   'bank.reconcile': ['super_admin', 'admin', 'glosas'],                                              // 2.7 · espejo de app.bank_require (130)
