@@ -1,0 +1,73 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SOFA · Arquitectura del menú del Super Admin — diagnóstico y propuesta</title>
+<style>
+:root{--az:#1f6fb2;--ok:#17803d;--warn:#b06f00;--bad:#b42323;--line:#c9d3dc;--ink:#1c2733;--mut:#5b6b7a}
+body{font:16px/1.55 system-ui,-apple-system,sans-serif;max-width:960px;margin:0 auto;padding:1.1rem;color:var(--ink);overflow-wrap:anywhere}
+h1{font-size:1.45rem;margin:.2rem 0}h2{font-size:1.15rem;margin:1.9rem 0 .3rem;border-bottom:2px solid var(--line);padding-bottom:.2rem}
+h3{font-size:1rem;margin:1.1rem 0 .25rem}.sub{color:var(--mut);margin:.1rem 0 1rem}
+.box{background:#f2f7fb;border-left:4px solid var(--az);padding:.7rem 1rem;margin:.9rem 0;border-radius:0 6px 6px 0}
+.box.ok{background:#e9f6ee;border-color:var(--ok)}.box.warn{background:#fff6e5;border-color:var(--warn)}
+code{background:#eef3f8;padding:.1rem .35rem;border-radius:4px;font-size:.88em}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;margin:.5rem 0;font-size:.92rem}
+th,td{border:1px solid var(--line);padding:.4rem .6rem;text-align:left;vertical-align:top}th{background:#f2f7fb}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.bar{display:inline-block;height:9px;border-radius:99px;background:var(--az);vertical-align:middle}
+.sev{display:inline-block;font-weight:700;font-size:.76rem;padding:.06rem .45rem;border-radius:5px}
+.sev.s{background:#fff6e5;color:var(--warn)}.sev.v{background:#ece7fb;color:#3d2a8a}.sev.ok{background:#e9f6ee;color:var(--ok)}
+ul{margin:.3rem 0 .3rem;padding-left:1.1rem}li{margin:.25rem 0}.foot{color:var(--mut);font-size:.84rem;margin-top:2rem;border-top:1px solid var(--line);padding-top:.5rem}
+ol.cycle{counter-reset:c;list-style:none;padding-left:0}ol.cycle li{counter-increment:c;margin:.3rem 0;padding-left:2rem;position:relative}
+ol.cycle li::before{content:counter(c);position:absolute;left:0;top:0;width:1.4rem;height:1.4rem;background:var(--az);color:#fff;border-radius:99px;font-size:.8rem;display:flex;align-items:center;justify-content:center;font-weight:700}
+</style></head><body>
+<h1>Arquitectura del menú del Super Admin</h1>
+<p class="sub">19/11/2026 · Diagnóstico medido sobre el código real (<code>js/utils/permissions.js</code>, <code>js/app.js</code>) y propuesta para que lo de uso recurrente sea fácil de ubicar. Parte de un enjambre de 4 frentes; los otros tres (paleta de comandos, iconos por ruta, «Frecuentes») atacan la búsqueda y el escaneo visual — este frente atiende el <b>agrupamiento</b>.</p>
+
+<h2>1 · Diagnóstico (con números reales)</h2>
+<p>El Super Admin usa las familias compartidas <code>FAMILIES</code> (no tiene familias propias en <code>FAMILIAS_ROL</code>). Su menú, calculado con <code>visibleNav('super_admin')</code>:</p>
+<div class="box"><b>108 ítems</b> repartidos en <b>10 familias</b>. Tras el arreglo de esta entrega ya <b>no hay nada en «Más»</b> (antes caía ahí la ruta huérfana <code>actualidades</code>).</div>
+<div class="tw"><table>
+<tr><th>Familia</th><th>Ítems</th><th>Peso</th></tr>
+<tr><td>Cobros y finanzas</td><td class="n">16</td><td><span class="bar" style="width:160px"></span></td></tr>
+<tr><td>Pacientes y atención</td><td class="n">15</td><td><span class="bar" style="width:150px"></span></td></tr>
+<tr><td>Facturación y radicación</td><td class="n">15</td><td><span class="bar" style="width:150px"></span></td></tr>
+<tr><td>Inteligencia y resultados</td><td class="n">13</td><td><span class="bar" style="width:130px"></span></td></tr>
+<tr><td>Desarrollo y crecimiento</td><td class="n">11</td><td><span class="bar" style="width:110px"></span></td></tr>
+<tr><td>Administración</td><td class="n">11</td><td><span class="bar" style="width:110px"></span></td></tr>
+<tr><td>Mi cuenta</td><td class="n">9</td><td><span class="bar" style="width:90px"></span></td></tr>
+<tr><td>Mi día</td><td class="n">8</td><td><span class="bar" style="width:80px"></span></td></tr>
+<tr><td>ARS y contratos</td><td class="n">7</td><td><span class="bar" style="width:70px"></span></td></tr>
+<tr><td>Marketing y comunicación</td><td class="n">3</td><td><span class="bar" style="width:30px"></span></td></tr>
+</table></div>
+<p>El problema no es «demasiadas familias» (10 es razonable), sino que <b>cinco familias tienen 11–16 ítems</b>: una lista de 16 en un acordeón exige leerla entera para encontrar lo de todos los días. Y conviven dos extremos: Marketing con 3 y Cobros con 16.</p>
+
+<div class="box warn"><b>Corrección de una premisa.</b> Se dijo que había «claves de familia duplicadas (dos <code>consultorio</code>, dos <code>crecimiento</code>)». <b>Dentro de <code>FAMILIES</code> —lo único que ve el Super Admin— no hay claves repetidas.</b> Las repeticiones están <i>entre</i> los mapas por rol de <code>FAMILIAS_ROL</code> (p. ej. <code>client</code> reutiliza la clave <code>consultorio</code> para «Mi consultorio»): es inofensivo, porque <code>navigationFamilies(role)</code> elige <b>un solo mapa por rol</b>. No es un bug ni afecta al Super Admin.</div>
+
+<h2>2 · Lo que YA existe para ubicar lo recurrente</h2>
+<ul>
+<li><b>Favoritos</b> (★): el usuario ancla módulos y aparecen arriba. Infrautilizado si nadie lo siembra.</li>
+<li><b>Buscador del menú</b> (<code>#navSearch</code>): filtra por etiqueta y familia.</li>
+<li><b>Iconos por familia</b> y <b>layout configurable</b> por rol (<code>role_menu_get</code>).</li>
+</ul>
+<p>Los otros tres PRs del enjambre se montan sobre esto: <b>paleta Ctrl/⌘‑K</b> (salto directo), <b>iconos por ruta</b> (escaneo visual) y <b>«Frecuentes»</b> (surface automático). El reagrupamiento de abajo los complementa; no los sustituye.</p>
+
+<h2>3 · Propuesta de agrupamiento (ordenado por el ciclo de ingresos)</h2>
+<p>Hoy el orden de familias no sigue el flujo de trabajo de SOFA. Propuesta: <b>ordenar y consolidar</b> para que el menú se lea como el ciclo de ingresos, de 10 a <b>8 familias</b>, partiendo las dos más grandes con subencabezados.</p>
+<ol class="cycle">
+<li><b>Mi día</b> — sin cambios (operación diaria: bandeja, hoy, agenda).</li>
+<li><b>Pacientes y atención</b> (15) — partir con subencabezados: <i>Atención</i> (flujo, pacientes, historia, hospitalización) · <i>Consultorio</i> (centros, clínica, secretarias, asistentes) · <i>Habilitación</i> (habilitación, mi‑habilitación).</li>
+<li><b>Captura y radicación</b> (hoy «Facturación y radicación», 15) — subencabezados <i>Captura</i> y <i>Radicación</i>.</li>
+<li><b>ARS y contratos</b> (7) — sin cambios.</li>
+<li><b>Cobros, glosas y finanzas</b> (16) — partir: <i>Cobros</i> (pagos, conciliación, aging, cartera) · <i>Glosas</i> (glosas, reconsideración, causas) · <i>Finanzas del médico</i> (mi dinero, honorarios, calendario).</li>
+<li><b>Clientes y crecimiento</b> (11) — sin cambios de alcance.</li>
+<li><b>Inteligencia y resultados</b> (13) + <b>Marketing</b> (3) → fusionar Marketing aquí o en «Crecimiento»: baja de 10 a 8–9 familias y elimina la familia de 3.</li>
+<li><b>Administración</b> (11) y <b>Mi cuenta</b> (9) — al final.</li>
+</ol>
+<div class="box"><b>Sembrar Favoritos por defecto para el Super Admin</b> (una línea de configuración, reversible): <code>hoy</code>, <code>mi-bandeja</code>, <code>reclamaciones</code>, <code>radicaciones</code>, <code>glosas</code>, <code>pagos</code>, <code>direccion</code>. Es el atajo más barato a «lo recurrente» sin tocar la estructura.</div>
+
+<h2>4 · Cambio aplicado en esta entrega (mínimo y reversible)</h2>
+<div class="box ok"><span class="sev ok">APLICADO</span> En <code>FAMILIES</code>, la ruta <code>actualidades</code> («Actualidades médicas») estaba huérfana y caía en «Más». Se agrupó junto a <code>novedades</code> en la familia <b>Mi cuenta</b>. <b>Es solo agrupación: no cambia qué rutas ve ningún rol</b> (<code>visibleNav</code> filtra por <code>roles</code> + <code>enMenu</code>; la familia solo decide en qué bloque se dibuja). Verificado: <code>visibleNav('super_admin')</code> pasa de 11 a 10 familias y «Más» queda vacío; <code>check-imports</code> y <code>node --check</code> en verde. <b>Revertir</b>: quitar el string <code>'actualidades'</code> de esa línea.</div>
+
+<h3>Lo que NO se aplicó (requiere tu aprobación)</h3>
+<p>El reorden/fusión de <code>FAMILIES</code> del punto 3 <b>afecta a todo el personal</b> (las familias compartidas las usan todos los roles de staff), por eso queda como propuesta, no como cambio. Es igual de reversible (<code>git revert</code>) y tampoco cambia permisos, solo agrupación, orden y nombres. Los subencabezados dentro de una familia sí requieren un pequeño cambio en el render de <code>visibleNav</code>/<code>app.js</code> (hoy una familia es una lista plana).</p>
+
+<div class="foot">Fuente: <code>js/utils/permissions.js</code> (FAMILIES, FAMILIAS_ROL, visibleNav, navigationFamilies) y <code>js/app.js</code> (favoritos, buscador, topnav), medido el 19/11/2026 sobre <code>origin/main</code>. Cambios de agrupamiento no alteran RLS ni visibilidad por rol.</div>
+</body></html>

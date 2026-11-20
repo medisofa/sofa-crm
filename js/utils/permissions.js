@@ -441,7 +441,7 @@ export const FAMILIES = [
   { key: 'marketing', group: 'Marketing y comunicación', routes: ['aliados', 'casos-exito', 'recomendar', 'cola-correos'] },
   { key: 'resultados', group: 'Inteligencia y resultados', routes: ['mercado', 'mercadeo', 'guias', 'dashboard', 'direccion', 'reportes', 'mi-productividad', 'reporte-contador', 'estado-cuenta', 'rentabilidad', 'analitica-glosas', 'informe-trimestral', 'fugas'] },
   { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'planes', 'suscripciones', 'rendimiento', 'salud-sistema', 'historial'] },
-  { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-panel', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'novedades', 'perfil', 'seguridad', 'diagnostico', 'cambio-clave'] }
+  { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-panel', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'novedades', 'actualidades', 'perfil', 'seguridad', 'diagnostico', 'cambio-clave'] }   // 19/11/2026 · 'actualidades' estaba huérfana y caía en «Más»; se agrupa junto a 'novedades' (solo agrupación, no cambia permisos)
 ];
 
 /**
