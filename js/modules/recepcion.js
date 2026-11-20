@@ -15,7 +15,11 @@ const mem = { center: '', date: '' };
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
 const toHHMM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const addDays = (iso, n) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const ROW = 76;   // alto de cada franja: cabe nombre, estado y el botón «Llegó» (44 px los cortaba)
+/** Minutos desde ts, o null. Más de 12 h es un dato viejo (p. ej. estado de otro día): se muestra como texto. */
 const minsSince = (ts) => (ts ? Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 60000)) : null);
+
+const waitText = (m) => (m > 720 ? 'más de 12 h' : `${m} min`);
 
 export async function render(main, ctx) {
   const isAdmin = ['super_admin', 'admin'].includes(ctx.role);
@@ -80,11 +84,11 @@ export async function render(main, ctx) {
     paint(body, html`
       <div class="wk-wrap">
         <div class="wk-cal card" role="grid" aria-label="Citas del día por médico"
-             style="grid-template-columns: 64px repeat(${provs.length}, minmax(160px, 1fr)); grid-template-rows: 52px repeat(${rows}, 44px)">
+             style="grid-template-columns: 64px repeat(${provs.length}, minmax(160px, 1fr)); grid-template-rows: 52px repeat(${rows}, ${ROW}px)">
           <div class="wk-hd"></div>
           ${provs.map((p, i) => html`<div class="wk-hd" style="grid-column:${i + 2};grid-row:1">${p.full_name}<small>${p.specialty || ''}${p.specialty ? ' · ' : ''}${p.appointments.filter((a) => a.status !== 'cancelada').length} citas</small></div>`)}
           ${Array.from({ length: rows }, (_, r) => html`<div class="wk-hr" style="grid-column:1;grid-row:${r + 2}">${(r * slot) % 60 === 0 ? toHHMM(startMin + r * slot) : ''}</div>`)}
-          <div class="wk-lines" style="grid-column:2 / ${provs.length + 2};grid-row:2 / ${rows + 2};background-size:100% 44px"></div>
+          <div class="wk-lines" style="grid-column:2 / ${provs.length + 2};grid-row:2 / ${rows + 2};background-size:100% ${ROW}px"></div>
           ${provs.map((p, i) => html`
             ${p.busy.map((b) => html`<div class="wk-blk" style="grid-column:${i + 2};grid-row:${Math.max(2, rowOf(b.start))} / span ${spanOf(toMin(b.end) - Math.max(toMin(b.start), startMin))}">${b.kind === 'bloqueo' ? 'Bloqueado' : 'No disponible'}<br><small>${b.start}–${b.end}</small></div>`)}
             ${p.appointments.filter((a) => a.time).map((a) => {
@@ -92,7 +96,7 @@ export async function render(main, ctx) {
               const wait = a.status === 'en_espera' ? minsSince(a.status_changed_at) : null;
               return html`<div class="wk-ap ${STATUS_CLS[a.status] || 'p'}" style="grid-column:${i + 2};grid-row:${rowOf(a.time)} / span ${spanOf(a.duration_min)}">
                 <b>${a.patient_name}</b><span>${a.time} · ${a.payer_type === 'ars' ? (a.ars_name || 'ARS') : 'Privado'}</span>
-                <span class="pill ${a.status === 'confirmada' ? 'ok' : a.status === 'en_espera' ? 'warn' : ''}">${label}${wait != null ? ` · ${wait} min` : ''}</span>
+                <span class="pill ${a.status === 'confirmada' ? 'ok' : a.status === 'en_espera' ? 'warn' : ''}">${label}${wait != null ? ` · ${waitText(wait)}` : ''}</span>
                 ${['programada', 'confirmada'].includes(a.status) ? html`<button class="btn sm" type="button" data-st="en_espera" data-id="${a.id}">Llegó</button>` : ''}
               </div>`;
             })}`)}
@@ -102,7 +106,7 @@ export async function render(main, ctx) {
           <p class="muted">Pacientes que ya llegaron, por orden de llegada.</p>
           ${waiting.length ? waiting.map((a) => html`
             <div class="wk-row"><div class="who"><b>${a.patient_name}</b><small>${a.provider} · cita ${a.time || '—'}</small></div>
-              <span class="pill ${minsSince(a.status_changed_at) >= 15 ? 'warn' : ''}">${minsSince(a.status_changed_at) ?? 0} min</span>
+              <span class="pill ${minsSince(a.status_changed_at) >= 15 ? 'warn' : ''}">${waitText(minsSince(a.status_changed_at) ?? 0)}</span>
               <button class="btn sm" type="button" data-st="en_consulta" data-id="${a.id}">Pasar</button></div>`) : html`<p class="muted">Nadie esperando.</p>`}
           <h3>Pendientes del día</h3>
           <div class="wk-row"><span class="who">Elegibilidad por verificar</span><b>${noElig}</b></div>
