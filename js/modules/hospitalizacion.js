@@ -298,30 +298,430 @@ function disabledNewReportForm(centros, arsCatalog) {
       field('Alta', discharge), field('Observaciones', notes), save));
 }
 
-/** Supervisión operativa: reportes enviados, lectura autorizada en el servidor. */
+/** 5.38.0 · Normaliza fechas provenientes de Excel: Date JS, ISO string, DD/MM/YYYY, serial Excel. */
+function normalizeDate(raw) {
+  if (!raw) return null;
+  if (raw instanceof Date) { const d = raw; return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10); }
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+  const num = Number(s);
+  if (num > 25000 && num < 60000) { const d = new Date((num - 25569) * 86400000); return d.toISOString().slice(0, 10); }
+  return null;
+}
+
+/** 5.38.0 · Carga de hospitalización por personal SoFa (manual + Excel + borradores).
+ *  billing ve solo la pestaña Recibidos (lectura). super_admin/admin/operations ven las 4 pestañas. */
 async function renderStaff(root, context) {
-  const wrap = h('div', { class: 'i18-wrap hosp-wrap hosp-staff' }); root.replaceChildren(wrap);
-  wrap.append(h('header', { class: 'hosp-header' }, h('div', {}, h('h2', {}, 'Hospitalización'), h('p', { class: 'i18-sub' }, 'Reportes enviados por los médicos para revisión del equipo de SoFa.')),
+  const canLoad = ['super_admin', 'admin', 'operations'].includes(context.role);
+  const wrap = h('div', { class: 'i18-wrap hosp-wrap hosp-staff' });
+  root.replaceChildren(wrap);
+  wrap.append(h('header', { class: 'hosp-header' },
+    h('div', {},
+      h('h2', {}, 'Hospitalización'),
+      h('p', { class: 'i18-sub' }, canLoad
+        ? 'Carga y seguimiento de reportes de hospitalización.'
+        : 'Reportes enviados por los médicos para revisión del equipo de SoFa.')),
     canSee('centros', context.role) ? h('a', { class: 'i18-btn i18-sec', href: '#/centros' }, 'Gestionar centros') : null));
-  const output = h('div', { 'aria-live': 'polite' }); wrap.append(output);
-  const data = await guarded(output, () => rpc('hospital_staff_context', { p_report: context.arg || null }));
-  if (!data || !wrap.isConnected) return;
-  const detail = h('div', { 'aria-live': 'polite' });
-  const rows = data.reportes || [];
-  let sequence = 0;
-  const list = h('section', {}, h('h3', {}, 'Reportes recibidos'), h('p', { class: 'i18-sub' }, `Mostrando ${rows.length} de ${data.report_count ?? rows.length} reporte(s) dentro de tu acceso.`),
-    rows.length ? h('div', { class: 'hosp-list' }, ...rows.map((r) => h('button', { type: 'button', class: 'hosp-row', onclick: () => open(r.id) },
-      h('span', {}, `${r.patient_name} · ${r.centro}`), h('span', { class: 'hosp-mut' }, `${r.medico} · ${r.status} · ${money(r.total)}`)))) : note('No hay reportes enviados visibles en tu ámbito.', 'info'));
-  output.replaceChildren(note('Supervisión de solo lectura. La creación y edición corresponden al médico.', 'info'), h('div', { class: 'hosp-overviewgrid' }, list, detail));
-  if (data.report) detail.append(readOnlyReport(data.report));
-  async function open(id) {
-    const my = ++sequence; detail.replaceChildren(note('Consultando reporte…', 'info'));
+
+  const output = h('div', { 'aria-live': 'polite' });
+  wrap.append(output);
+
+  /* ── billing: solo lectura, sin tabs ── */
+  if (!canLoad) {
+    const data = await guarded(output, () => rpc('hospital_staff_context', { p_report: context.arg || null }));
+    if (!data || !wrap.isConnected) return;
+    const detail = h('div', { 'aria-live': 'polite' });
+    const rows = data.reportes || [];
+    let seq = 0;
+    output.replaceChildren(
+      note('Supervisión de solo lectura. La creación y edición corresponden al médico.', 'info'),
+      h('div', { class: 'hosp-overviewgrid' },
+        h('section', {},
+          h('h3', {}, 'Reportes recibidos'),
+          h('p', { class: 'i18-sub' }, `Mostrando ${rows.length} de ${data.report_count ?? rows.length} reporte(s) dentro de tu acceso.`),
+          rows.length
+            ? h('div', { class: 'hosp-list' }, ...rows.map((r) =>
+                h('button', { type: 'button', class: 'hosp-row', onclick: () => openRec(r.id) },
+                  h('span', {}, `${r.patient_name} · ${r.centro}`),
+                  h('span', { class: 'hosp-mut' }, `${r.medico} · ${r.status} · ${money(r.total)}`))))
+            : note('No hay reportes enviados visibles en tu ámbito.', 'info')),
+        detail));
+    if (data.report) detail.append(readOnlyReport(data.report));
+    async function openRec(id) {
+      const my = ++seq; detail.replaceChildren(note('Consultando reporte…', 'info'));
+      try {
+        const result = await rpc('hospital_staff_context', { p_report: id });
+        if (my !== seq || !wrap.isConnected) return;
+        if (!result.report || result.report.id !== id) throw new Error('Reporte no disponible.');
+        detail.replaceChildren(readOnlyReport(result.report));
+      } catch (e) { if (my === seq && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
+    }
+    return;
+  }
+
+  /* ── super_admin / admin / operations: carga paralela de datos iniciales ── */
+  let targets, arsCatalog, staffCtx;
+  try {
+    [targets, arsCatalog, staffCtx] = await Promise.all([
+      rpc('hospital_staff_targets'),
+      rpc('ars_catalog', { p_include_inactive: false }).catch(() => []),
+      rpc('hospital_staff_context', { p_report: context.arg || null }),
+    ]);
+  } catch (e) { output.replaceChildren(note(e.message, 'error')); return; }
+  if (!wrap.isConnected) return;
+
+  if (!targets || !targets.length) {
+    output.replaceChildren(note('No hay médicos asignados para carga. Verifica que los médicos tengan centros activos en sus fichas.', 'warn'));
+    return;
+  }
+
+  /* ── Sistema de tabs ── */
+  const TABS = [
+    { id: 'nuevo', label: 'Nuevo reporte' },
+    { id: 'excel', label: 'Importar Excel' },
+    { id: 'borradores', label: 'Borradores' },
+    { id: 'recibidos', label: 'Recibidos' },
+  ];
+  let activeTab = context.arg ? 'recibidos' : 'nuevo';
+  const tabBar = h('nav', { class: 'hosp-tabs', 'aria-label': 'Pestañas de hospitalización' });
+  const tabContent = h('div', { 'aria-live': 'polite' });
+
+  function drawTabs() {
+    tabBar.replaceChildren(...TABS.map((t) => {
+      const btn = h('button', { type: 'button', class: 'hosp-tab' + (t.id === activeTab ? ' hosp-tab-on' : '') }, t.label);
+      btn.addEventListener('click', () => { if (t.id === activeTab) return; activeTab = t.id; drawTabs(); showTab(); });
+      return btn;
+    }));
+  }
+  function showTab() {
+    tabContent.replaceChildren(); // limpia antes de dibujar
+    if (activeTab === 'nuevo') tabNuevo();
+    else if (activeTab === 'excel') tabExcel();
+    else if (activeTab === 'borradores') tabBorradores();
+    else tabRecibidos();
+  }
+
+  output.replaceChildren(tabBar, tabContent);
+  drawTabs();
+  showTab();
+
+  /* ── Helpers compartidos ── */
+  function providerOpts() {
+    return [h('option', { value: '' }, 'Selecciona un médico…'),
+      ...targets.map((t) => h('option', { value: t.provider_id },
+        t.full_name + (t.org_name ? ` · ${t.org_name}` : '')))];
+  }
+  function centerOptsFor(providerId) {
+    const t = targets.find((x) => x.provider_id === providerId);
+    const c = t?.centros || [];
+    return c.length
+      ? c.map((x) => h('option', { value: x.center_id }, x.nombre + (x.principal ? ' (ppal.)' : '')))
+      : [h('option', { value: '' }, 'Sin centros')];
+  }
+  function arsOpts(selectedId) {
+    const sel = h('select', { 'aria-label': 'ARS' },
+      h('option', { value: '' }, 'Privado / sin ARS'),
+      ...(arsCatalog || []).map((a) => h('option', { value: a.id }, a.name)));
+    if (selectedId) sel.value = selectedId;
+    return sel;
+  }
+  const field = (label, el) => h('label', {}, label, el);
+
+  /* ── Vista de detalle de borrador (compartida entre Nuevo y Borradores) ── */
+  function drawDraft(r, container) {
+    const out = h('div', { 'aria-live': 'polite' });
+    const table = reportLinesTable(r.lineas, {
+      empty: 'Sin servicios todavía. Agrega uno abajo.',
+      rowAction: r.puede_editar ? (l) => {
+        const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar');
+        b.addEventListener('click', async () => {
+          try { const rr = await rpc('hospital_staff_line_remove', { p_line: l.id }); drawDraft(rr, container); }
+          catch (e) { out.replaceChildren(note(e.message, 'error')); }
+        });
+        return b;
+      } : null,
+    });
+    const foot = reportFoot(r, { strong: true, extra: `  ${r.medico} · ${r.centro} · ${r.status}` });
+
+    /* Formulario para agregar línea */
+    let addLineBox = null;
+    if (r.puede_editar) {
+      addLineBox = h('details', { class: 'hosp-addline', open: true });
+      const servSel = h('select', { 'aria-label': 'Servicio' }, h('option', { value: '' }, 'Cargando tarifario…'));
+      const fecha = h('input', { type: 'date', 'aria-label': 'Fecha del servicio', value: r.admission_date || '' });
+      const cant = h('input', { type: 'number', min: '0.01', step: '1', value: '1', 'aria-label': 'Cantidad' });
+      const precio = h('input', { type: 'number', min: '0', step: '0.01', placeholder: 'Precio (auto)', 'aria-label': 'Precio' });
+      const addBtn = h('button', { class: 'i18-btn', type: 'button' }, 'Agregar servicio');
+      const addOut = h('div', { 'aria-live': 'polite' });
+
+      let tarSeq = 0;
+      async function loadTariff() {
+        const my = ++tarSeq; servSel.disabled = true;
+        try {
+          const tar = await rpc('hospital_staff_tariff', { p_provider: r.provider_id, p_date: fecha.value || null });
+          if (my !== tarSeq || !container.isConnected) return;
+          servSel.replaceChildren(h('option', { value: '' }, 'Elige un servicio…'),
+            ...(tar || []).map((t) => h('option', { value: t.procedure_id, 'data-amount': t.amount },
+              `${t.codigo} · ${t.servicio} · ${money(t.amount)}`)));
+        } catch (e) { if (my === tarSeq) addOut.replaceChildren(note(e.message, 'error')); }
+        finally { if (my === tarSeq) servSel.disabled = false; }
+      }
+      fecha.addEventListener('change', loadTariff);
+      queueMicrotask(loadTariff);
+      servSel.addEventListener('change', () => {
+        const o = servSel.selectedOptions[0];
+        if (o && o.dataset.amount) precio.value = o.dataset.amount;
+      });
+      addBtn.addEventListener('click', async () => {
+        if (!servSel.value) { addOut.replaceChildren(note('Elige un servicio.', 'warn')); return; }
+        if (!fecha.value) { addOut.replaceChildren(note('Indica la fecha del servicio.', 'warn')); return; }
+        addBtn.disabled = true;
+        try {
+          const rr = await rpc('hospital_staff_line_add', {
+            p_report: r.id, p_procedure: servSel.value, p_service_date: fecha.value,
+            p_quantity: Number(cant.value || 1), p_unit_amount: precio.value ? Number(precio.value) : null });
+          drawDraft(rr, container);
+        } catch (e) { addOut.replaceChildren(note(e.message, 'error')); }
+        finally { addBtn.disabled = false; }
+      });
+      addLineBox.append(
+        h('summary', {}, 'Agregar un servicio'),
+        h('div', { class: 'hosp-form' }, servSel, fecha, cant, precio, addBtn, addOut));
+    }
+
+    /* Botón enviar */
+    let submitBtn = null;
+    if (r.puede_editar) {
+      submitBtn = h('button', { class: 'i18-btn', type: 'button' }, 'Enviar y cerrar reporte');
+      submitBtn.addEventListener('click', async () => {
+        if (!await confirmDialog('Enviar reporte', '¿Enviar? Después no se edita.', 'Enviar', true)) return;
+        submitBtn.disabled = true;
+        try { const rr = await rpc('hospital_staff_report_submit', { p_report: r.id }); drawDraft(rr, container); }
+        catch (e) { out.replaceChildren(note(e.message, 'error')); }
+        finally { submitBtn.disabled = false; }
+      });
+    }
+
+    container.replaceChildren(h('div', { class: 'hosp-detail' },
+      h('h3', {}, `Reporte · ${r.patient_name}`),
+      h('p', { class: 'i18-sub' }, [r.medico, r.centro, `Ingreso ${fmtDate(r.admission_date)}`,
+        `Alta ${fmtDate(r.discharge_date)}`, r.ars || 'Privado / sin ARS',
+        r.patient_phone ? `Tel. ${r.patient_phone}` : null].filter(Boolean).join(' · ')),
+      h('div', { class: 'i18-table-wrap' }, table), foot,
+      addLineBox, submitBtn,
+      !r.puede_editar ? note('Reporte enviado: ya no se edita.', 'info') : null,
+      out, bitacoraBlock(r.id)));
+  }
+
+  /* ── Tab: Nuevo reporte (manual) ── */
+  function tabNuevo() {
+    let selectedProvider = '';
+    const provSel = h('select', { 'aria-label': 'Médico' }, ...providerOpts());
+    const centerBox = h('span');
+    const pac = h('input', { type: 'text', placeholder: 'Nombre del paciente', maxlength: '160', required: true, 'aria-label': 'Paciente' });
+    const doc = h('input', { type: 'text', placeholder: 'Cédula (opcional)', maxlength: '40', 'aria-label': 'Cédula' });
+    const phone = h('input', { type: 'tel', placeholder: 'Teléfono (opcional)', maxlength: '20', 'aria-label': 'Teléfono' });
+    const ars = arsOpts();
+    const adm = h('input', { type: 'date', 'aria-label': 'Ingreso' });
+    const dis = h('input', { type: 'date', 'aria-label': 'Alta' });
+    const out = h('div', { 'aria-live': 'polite' });
+    const saveBtn = h('button', { class: 'i18-btn', type: 'button' }, 'Crear reporte');
+    const detailBox = h('div', { 'aria-live': 'polite' });
+
+    provSel.addEventListener('change', () => {
+      selectedProvider = provSel.value;
+      centerBox.replaceChildren(h('select', { 'aria-label': 'Centro' }, ...centerOptsFor(selectedProvider)));
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (!selectedProvider) { out.replaceChildren(note('Selecciona un médico.', 'warn')); return; }
+      const cSel = centerBox.querySelector('select');
+      if (!cSel?.value) { out.replaceChildren(note('Selecciona un centro.', 'warn')); return; }
+      if (!pac.value.trim()) { out.replaceChildren(note('Escribe el nombre del paciente.', 'warn')); return; }
+      if (adm.value && dis.value && dis.value < adm.value) { out.replaceChildren(note('El alta no puede ser anterior al ingreso.', 'warn')); return; }
+      saveBtn.disabled = true;
+      try {
+        const report = await rpc('hospital_staff_report_save', {
+          p_provider: selectedProvider, p_center: cSel.value,
+          p_patient_name: pac.value.trim(), p_patient_doc: doc.value.trim() || null,
+          p_phone: phone.value.trim() || null, p_ars: ars.value || null,
+          p_admission: adm.value || null, p_discharge: dis.value || null });
+        out.replaceChildren();
+        drawDraft(report, detailBox);
+      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      finally { saveBtn.disabled = false; }
+    });
+
+    tabContent.replaceChildren(
+      h('div', { class: 'hosp-case-form' },
+        field('Médico', provSel), field('Centro', centerBox),
+        field('Paciente', pac), field('Cédula (opcional)', doc),
+        field('Teléfono (opcional)', phone), field('ARS', ars),
+        field('Ingreso', adm), field('Alta', dis),
+        saveBtn, out),
+      detailBox);
+  }
+
+  /* ── Tab: Importar Excel ── */
+  function tabExcel() {
+    let selectedProvider = '';
+    const provSel = h('select', { 'aria-label': 'Médico' }, ...providerOpts());
+    const centerBox = h('span');
+    const pac = h('input', { type: 'text', placeholder: 'Nombre del paciente', maxlength: '160', 'aria-label': 'Paciente' });
+    const doc = h('input', { type: 'text', placeholder: 'Cédula (opcional)', maxlength: '40', 'aria-label': 'Cédula' });
+    const phone = h('input', { type: 'tel', placeholder: 'Teléfono (opcional)', maxlength: '20', 'aria-label': 'Teléfono' });
+    const ars = arsOpts();
+    const adm = h('input', { type: 'date', 'aria-label': 'Ingreso' });
+    const dis = h('input', { type: 'date', 'aria-label': 'Alta' });
+    const fileInput = h('input', { type: 'file', accept: '.xlsx,.xls,.csv', 'aria-label': 'Archivo Excel' });
+    const out = h('div', { 'aria-live': 'polite' });
+    const preview = h('div', { 'aria-live': 'polite' });
+    const importBtn = h('button', { class: 'i18-btn', type: 'button' }, 'Importar y crear reporte');
+
+    provSel.addEventListener('change', () => {
+      selectedProvider = provSel.value;
+      centerBox.replaceChildren(h('select', { 'aria-label': 'Centro' }, ...centerOptsFor(selectedProvider)));
+    });
+
+    let parsedLines = [];
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) { preview.replaceChildren(); parsedLines = []; return; }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          if (typeof window === 'undefined' || typeof window.XLSX === 'undefined')
+            throw new Error('La librería de Excel no está disponible. Recarga la página e intenta de nuevo.');
+          const wb = window.XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = window.XLSX.utils.sheet_to_json(ws, { defval: '' });
+          if (!rows.length) throw new Error('El archivo está vacío.');
+          parsedLines = rows.map((row, i) => {
+            const codigo = String(row.codigo || row.Codigo || row.CODIGO || row.code || row.Code || '').trim();
+            const dateRaw = row.service_date || row.fecha_servicio || row.fecha || row.Fecha || row.FECHA || row.date || '';
+            const qty = Number(row.quantity || row.cantidad || row.Cantidad || row.CANTIDAD || row.qty || 1) || 1;
+            const amt = row.unit_amount || row.precio_unitario || row.precio || row.Precio || row.PRECIO || row.price || null;
+            if (!codigo) throw new Error(`Fila ${i + 1}: falta el código del servicio (columna "codigo").`);
+            return { codigo, service_date: normalizeDate(dateRaw), quantity: qty, unit_amount: amt ? Number(amt) : null };
+          });
+          preview.replaceChildren(
+            h('p', { class: 'hosp-preview-count' }, `${parsedLines.length} línea(s) detectada(s). Revisa y confirma abajo.`),
+            h('div', { class: 'i18-table-wrap' },
+              h('table', { class: 'hosp-tbl' },
+                h('thead', {}, h('tr', {},
+                  h('th', {}, '#'), h('th', {}, 'Código'), h('th', {}, 'Fecha'),
+                  h('th', { class: 'num' }, 'Cant.'), h('th', { class: 'num' }, 'Precio'))),
+                h('tbody', {}, ...parsedLines.map((l, i) => h('tr', {},
+                  h('td', {}, String(i + 1)), h('td', {}, l.codigo), h('td', {}, l.service_date || '—'),
+                  h('td', { class: 'num' }, String(l.quantity)),
+                  h('td', { class: 'num' }, l.unit_amount != null ? money(l.unit_amount) : 'Tarifario')))))),
+            importBtn);
+        } catch (e) { preview.replaceChildren(note(e.message, 'error')); parsedLines = []; }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    importBtn.addEventListener('click', async () => {
+      if (!selectedProvider) { out.replaceChildren(note('Selecciona un médico.', 'warn')); return; }
+      const cSel = centerBox.querySelector('select');
+      if (!cSel?.value) { out.replaceChildren(note('Selecciona un centro.', 'warn')); return; }
+      if (!pac.value.trim()) { out.replaceChildren(note('Escribe el nombre del paciente.', 'warn')); return; }
+      if (!parsedLines.length) { out.replaceChildren(note('Carga un archivo Excel primero.', 'warn')); return; }
+      if (adm.value && dis.value && dis.value < adm.value) { out.replaceChildren(note('El alta no puede ser anterior al ingreso.', 'warn')); return; }
+      importBtn.disabled = true;
+      try {
+        const report = await rpc('hospital_staff_import', {
+          p_provider: selectedProvider, p_center: cSel.value,
+          p_patient_name: pac.value.trim(), p_patient_doc: doc.value.trim() || null,
+          p_phone: phone.value.trim() || null, p_ars: ars.value || null,
+          p_admission: adm.value || null, p_discharge: dis.value || null,
+          p_lines: parsedLines });
+        out.replaceChildren(note(`Reporte creado con ${(report.lineas || []).length} servicio(s). Revisa y envía abajo.`, 'ok'));
+        preview.replaceChildren(); fileInput.value = ''; parsedLines = [];
+        const detailBox = h('div', { 'aria-live': 'polite' });
+        tabContent.append(detailBox);
+        drawDraft(report, detailBox);
+      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      finally { importBtn.disabled = false; }
+    });
+
+    tabContent.replaceChildren(
+      h('div', { class: 'hosp-case-form' },
+        field('Médico', provSel), field('Centro', centerBox),
+        field('Paciente', pac), field('Cédula (opcional)', doc),
+        field('Teléfono (opcional)', phone), field('ARS', ars),
+        field('Ingreso', adm), field('Alta', dis),
+        field('Archivo Excel (.xlsx)', fileInput),
+        h('p', { class: 'hosp-excel-hint' },
+          'Columnas esperadas: codigo, fecha_servicio (o fecha), cantidad (o quantity), precio_unitario (o unit_amount). El precio es opcional (se usa el tarifario).'),
+        out),
+      preview);
+  }
+
+  /* ── Tab: Borradores ── */
+  async function tabBorradores() {
+    tabContent.replaceChildren(note('Cargando borradores…', 'info'));
     try {
-      const result = await rpc('hospital_staff_context', { p_report: id });
-      if (my !== sequence || !wrap.isConnected) return;
-      if (!result.report || result.report.id !== id) throw new Error('Reporte no disponible.');
-      detail.replaceChildren(readOnlyReport(result.report));
-    } catch(e) { if (my === sequence && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
+      const drafts = await rpc('hospital_staff_drafts');
+      if (!wrap.isConnected) return;
+      if (!drafts.length) { tabContent.replaceChildren(note('No hay borradores pendientes.', 'info')); return; }
+      const detailBox = h('div', { 'aria-live': 'polite' });
+      tabContent.replaceChildren(
+        h('div', { class: 'hosp-list' }, ...drafts.map((d) => {
+          const btn = h('button', { type: 'button', class: 'hosp-row' },
+            h('span', {}, `${d.patient_name} · ${d.centro}`),
+            h('span', { class: 'hosp-mut' }, `${d.medico} · ${money(d.total)}`));
+          btn.addEventListener('click', () => openDraft(d.id));
+          return btn;
+        })),
+        detailBox);
+
+      async function openDraft(id) {
+        detailBox.replaceChildren(note('Cargando reporte…', 'info'));
+        try {
+          const r = await rpc('hospital_staff_payload', { p_report: id });
+          if (!wrap.isConnected) return;
+          drawDraft(r, detailBox);
+        } catch (e) { detailBox.replaceChildren(note(e.message, 'error')); }
+      }
+    } catch (e) { tabContent.replaceChildren(note(e.message, 'error')); }
+  }
+
+  /* ── Tab: Recibidos (solo lectura, equivale al renderStaff original) ── */
+  function tabRecibidos() {
+    const data = staffCtx;
+    const rows = data?.reportes || [];
+    const detail = h('div', { 'aria-live': 'polite' });
+    let seq = 0;
+    tabContent.replaceChildren(
+      h('p', { class: 'i18-sub' }, `Mostrando ${rows.length} de ${data?.report_count ?? rows.length} reporte(s) dentro de tu acceso.`),
+      rows.length
+        ? h('div', { class: 'hosp-overviewgrid' },
+            h('section', {},
+              h('div', { class: 'hosp-list' }, ...rows.map((r) => {
+                const btn = h('button', { type: 'button', class: 'hosp-row' },
+                  h('span', {}, `${r.patient_name} · ${r.centro}`),
+                  h('span', { class: 'hosp-mut' }, `${r.medico} · ${r.status} · ${money(r.total)}`));
+                btn.addEventListener('click', () => openRec(r.id));
+                return btn;
+              }))),
+            detail)
+        : note('No hay reportes enviados visibles en tu ámbito.', 'info'));
+
+    if (data?.report) detail.replaceChildren(readOnlyReport(data.report));
+
+    async function openRec(id) {
+      const my = ++seq; detail.replaceChildren(note('Consultando reporte…', 'info'));
+      try {
+        const result = await rpc('hospital_staff_context', { p_report: id });
+        if (my !== seq || !wrap.isConnected) return;
+        if (!result.report) throw new Error('Reporte no disponible.');
+        detail.replaceChildren(readOnlyReport(result.report));
+      } catch (e) { if (my === seq && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
+    }
   }
 }
 
