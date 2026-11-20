@@ -1570,3 +1570,12 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .duplicate-resolution .field select,.duplicate-resolution .field textarea{width:100%;min-width:0}
 .duplicate-resolution [hidden]{display:none!important}
 @media(max-width:600px){.duplicate-resolution .dr-links{display:grid;grid-template-columns:minmax(0,1fr)}.duplicate-resolution .dup-comparison{grid-template-columns:minmax(0,1fr)}.dup-actions>.btn{width:100%;white-space:normal}}
+
+/* 5.42 · Mi habilitación — buscador de documentos y avance por área */
+.mh-tools{margin:10px 0 2px}
+.mh-search{width:100%;max-width:440px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--surface);color:inherit}
+.mh-sum{display:inline-flex;align-items:center;gap:10px;width:calc(100% - 20px);vertical-align:middle}
+.mh-sum-t{flex:1 1 auto;min-width:0}
+.mh-sum-bar{flex:0 0 84px;height:8px;border-radius:999px;background:var(--border);overflow:hidden}
+.mh-sum-bar i{display:block;height:100%;background:var(--ok)}
+.mh-sum-n{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:13px}
