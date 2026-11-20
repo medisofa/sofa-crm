@@ -352,13 +352,13 @@ export async function render(main, ctx) {
       try {
         const ok = await formDialog({ title: 'Factura electrónica (e-CF) del lote', submitLabel: 'Guardar e-CF',
           body: html`<p class="small">Datos del e-CF que el sistema de facturación del médico emitió para la ARS (factura de crédito fiscal electrónica).</p>
-            <div class="form-grid"><div class="field"><label for="ec_n">e-NCF *</label><input id="ec_n" name="ncf" maxlength="13" placeholder="E310000000001" value="${/^E/.test(proposedNcf || '') ? proposedNcf : ''}"><span class="hint">E31 + 10 dígitos</span></div>
+            <div class="form-grid"><div class="field"><label for="ec_n">e-NCF *</label><input id="ec_n" name="ncf" maxlength="13" placeholder="E310000000001" value="${/^E/.test(proposedNcf || '') ? proposedNcf : ''}"><span class="hint">E + 12 dígitos (ej. E31, E45)</span></div>
             <div class="field"><label for="ec_c">Código de seguridad *</label><input id="ec_c" name="code" maxlength="6" value="${cur.ecf_security_code || ''}"><span class="hint">6 caracteres impresos con el QR</span></div>
             <div class="field"><label for="ec_f">Fecha de firma *</label><input id="ec_f" name="signed" type="date" max="${todayISO()}" value="${cur.ecf_signed_on || ''}"></div>
             <div class="field"><label for="ec_s">Estado en la DGII *</label><select id="ec_s" name="status">${Object.entries(ECF_DGII).map(([k, [l]]) => o2(k, l, cur.ecf_dgii_status || 'en_proceso'))}</select><span class="hint">Según la consulta en el portal de su proveedor o de la DGII</span></div></div>`,
           onSubmit: async (d, form) => {
             const n = (d.ncf || '').trim().toUpperCase();
-            if (!/^E31\d{10}$/.test(n)) { fieldError(form.elements.ncf, 'E31 + 10 dígitos'); return false; }
+            if (!/^E\d{12}$/.test(n)) { fieldError(form.elements.ncf, 'E + 12 dígitos (ej. E31, E45)'); return false; }
             if (!/^[A-Za-z0-9]{6}$/.test((d.code || '').trim())) { fieldError(form.elements.code, '6 letras o números'); return false; }
             if (!d.signed) { fieldError(form.elements.signed, 'Indique la fecha'); return false; }
             return setSubmissionEcf(id, { ncf: n, code: d.code.trim(), signed: d.signed, status: d.status });
@@ -503,9 +503,9 @@ function fiscalCard(sub, f, fc, names, role, docs, unchecked = false) {
   const state = unchecked ? ['No comprobada', 'warn'] : !fc || !fc.registered ? ['Sin factura fiscal', 'warn'] : fc.matches ? ['Cuadra con las reclamaciones', 'ok'] : excepted ? ['Diferencia autorizada', 'warn'] : fc.mode === 'advertir' ? ['Diferencia (modo advertir)', 'warn'] : ['Diferencia: radicación bloqueada', 'bad'];
   // 1.7 · B4: e-CF del lote (obligatorio desde la fecha del cliente; la base no radica sin E31 aceptado por la DGII)
   const org = f.organizations || {}; const reqFrom = org.ecf_required_from; const required = reqFrom && reqFrom <= (f.invoice_date || todayISO());
-  const ecfOk = /^E31\d{10}$/.test(f.ncf || '') && f.ecf_security_code && ['aceptado', 'aceptado_condicional'].includes(f.ecf_dgii_status);
+  const ecfOk = /^E\d{12}$/.test(f.ncf || '') && f.ecf_security_code && ['aceptado', 'aceptado_condicional'].includes(f.ecf_dgii_status);
   const ecfBox = html`<div class="note ${required ? (ecfOk ? 'ok' : 'bad') : 'info'}" style="margin-top:10px"><b>Factura electrónica (e-CF):</b>
-    ${required ? (ecfOk ? ' lista para radicar.' : ' obligatoria para este cliente; no se puede radicar sin e-NCF E31 aceptado por la DGII.') : html` el cliente debe emitir e-CF desde el ${date(reqFrom)}${org.ecf_status ? ` (preparación: ${(ECF_CLIENT[org.ecf_status] || [org.ecf_status])[0].toLowerCase()})` : ''}.`}
+    ${required ? (ecfOk ? ' lista para radicar.' : ' obligatoria para este cliente; no se puede radicar sin e-NCF aceptado por la DGII.') : html` el cliente debe emitir e-CF desde el ${date(reqFrom)}${org.ecf_status ? ` (preparación: ${(ECF_CLIENT[org.ecf_status] || [org.ecf_status])[0].toLowerCase()})` : ''}.`}
     ${f.ecf_security_code ? html`<div class="small">e-NCF <span class="mono">${f.ncf}</span> · código de seguridad <span class="mono">${f.ecf_security_code}</span> · firmado el ${date(f.ecf_signed_on)} · <span class="pill ${(ECF_DGII[f.ecf_dgii_status] || ['', ''])[1]}">${(ECF_DGII[f.ecf_dgii_status] || [f.ecf_dgii_status])[0]}</span> (verificado el ${date(f.ecf_checked_on)})</div>` : ''}
     ${!locked && can('fiscal.edit', role) && ['admin', 'super_admin'].includes(role) ? html`<div><button class="btn sm" id="ecfBtn" type="button">${f.ecf_security_code ? 'Actualizar e-CF' : 'Registrar e-CF'}</button></div>` : ''}</div>`;
   return html`<div class="card" id="fisc" style="margin-top:14px"><h2>Factura fiscal del contador · <span class="pill ${state[1]}">${state[0]}</span></h2>
