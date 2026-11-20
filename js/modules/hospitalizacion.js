@@ -10,7 +10,7 @@ import { canSee } from '../utils/permissions.js';
  *  (médico/soporte/staff). Cuando `rowAction` está presente se agrega una columna extra
  *  de acciones; si no, la tabla usa solo los 5 encabezados declarados. */
 function reportLinesTable(lineas, {
-  headers = ['Fecha', 'Servicio', 'Cant.', 'Precio', 'Monto'],
+  headers = ['Fecha', 'Servicio', 'Cant.', 'Precio', 'Monto', '%', 'Proy.'],
   empty = 'Sin servicios registrados.',
   rowAction = null,
 } = {}) {
@@ -18,12 +18,15 @@ function reportLinesTable(lineas, {
   const ths = headers.map((t) => h('th', {}, t));
   if (hasAction) ths.push(h('th', {}, ''));
   const rows = (lineas || []).map((l) => {
+    const pctClass = l.projected_pct === 50 ? 'num hosp-pct50' : 'num';
     const cells = [
       h('td', {}, fmtDate(l.service_date)),
       h('td', {}, l.servicio || l.codigo),
       h('td', { class: 'num' }, String(l.quantity)),
       h('td', { class: 'num' }, money(l.unit_amount)),
       h('td', { class: 'num' }, money(l.amount)),
+      h('td', { class: pctClass }, l.projected_pct != null ? `${l.projected_pct}%` : ''),
+      h('td', { class: pctClass }, l.projected_amount != null ? money(l.projected_amount) : ''),
     ];
     if (hasAction) cells.push(h('td', {}, rowAction(l) || ''));
     return h('tr', {}, ...cells);
@@ -40,6 +43,10 @@ function reportLinesTable(lineas, {
 function reportFoot(r, { strong = false, extra = null } = {}) {
   const totalEl = strong ? h('strong', {}, `Total: ${money(r.total)}`) : h('b', {}, `Total: ${money(r.total)}`);
   const children = [totalEl];
+  if (r.projected_total != null && r.projected_total !== r.total) {
+    const projEl = h('span', { class: 'hosp-proj-total' }, `Proyectado ARS: ${money(r.projected_total)}`);
+    children.push(projEl);
+  }
   if (extra) children.push(h('span', { class: 'hosp-mut' }, extra));
   return h('div', { class: 'hosp-foot' }, ...children);
 }
@@ -139,12 +146,16 @@ export async function render(root, context = {}) {
         const w = openPrint();
         if (!w) return;
         const fecha = new Date().toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' });
-        fillPrint(w, `Reporte de hospitalización · ${rep.patient_name}`, `${rep.centro} · Generado el ${fecha}`, [
-          { table: { head: ['Fecha', 'Servicio', 'Cant.', 'Precio unit.', 'Monto'],
-              rows: (rep.lineas || []).map((l) => [fmtDate(l.service_date), l.servicio || l.codigo, String(l.quantity), money(l.unit_amount), money(l.amount)]),
-              right: [2, 3, 4] } },
+        const printSections = [
+          { table: { head: ['Fecha', 'Servicio', 'Cant.', 'Precio', 'Monto', '%', 'Proy.'],
+              rows: (rep.lineas || []).map((l) => [fmtDate(l.service_date), l.servicio || l.codigo, String(l.quantity), money(l.unit_amount), money(l.amount), l.projected_pct != null ? `${l.projected_pct}%` : '', l.projected_amount != null ? money(l.projected_amount) : '']),
+              right: [2, 3, 4, 5, 6] } },
           { big: `Total: ${money(rep.total)}` },
-        ]);
+        ];
+        if (rep.projected_total != null && rep.projected_total !== rep.total) {
+          printSections.push({ big: `Proyectado ARS: ${money(rep.projected_total)}` });
+        }
+        fillPrint(w, `Reporte de hospitalización · ${rep.patient_name}`, `${rep.centro} · Generado el ${fecha}`, printSections);
       });
       return b;
     }
@@ -330,7 +341,7 @@ function readOnlyReport(r) {
     h('h3', {}, `Reporte · ${r.patient_name}`),
     h('p', { class: 'i18-sub' }, `${r.medico || ''} · ${r.centro} · ${r.status}`),
     h('p', {}, `Ingreso ${fmtDate(r.admission_date)} · Alta ${fmtDate(r.discharge_date)} · ${r.ars || 'Privado / sin ARS'}${r.patient_phone ? ' · Tel. ' + r.patient_phone : ''}`),
-    h('div', { class: 'i18-table-wrap' }, reportLinesTable(r.lineas, { headers: ['Fecha', 'Servicio', 'Cantidad', 'Unitario', 'Monto'] })),
+    h('div', { class: 'i18-table-wrap' }, reportLinesTable(r.lineas, { headers: ['Fecha', 'Servicio', 'Cantidad', 'Unitario', 'Monto', '%', 'Proy.'] })),
     reportFoot(r, { strong: true }),
     note('Solo lectura para el equipo de seguimiento.', 'info'),
     bitacoraBlock(r.id));
