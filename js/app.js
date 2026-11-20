@@ -18,6 +18,7 @@ import { initials } from './utils/formatters.js';
 import { supportViewStart, supportViewEnd, supportViewActive } from './services/admin.js';
 import { viewAsState } from './utils/view-as-state.js';
 import { setDiagContext, setDiagRoute, logDiag } from './utils/diag-log.js';
+import { initCommandPalette } from './modules/command-palette.js';
 
 const app = document.getElementById('app');
 
@@ -282,6 +283,7 @@ function layout() {
     </div>
   </div>`);
   renderNav(); bindNav(); renderActivityFeed();
+  cmdPalette = cmdPalette || initCommandPalette({ items: paletteItems, scopeKey: navScopeKey, currentRoute: () => parseHash().route });
   $('#navFavorites')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#navFrequent')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
   $('#topnavTabs')?.addEventListener('click', (e) => changeNavFavorite(e.target.closest('[data-nav-favorite]')));
@@ -363,6 +365,15 @@ let navContext = '';
 const navScope = () => ({ userId: state.session?.user?.id, organizationId: state.membership?.organization_id, role: state.role });
 const navScopeKey = (key) => `${key}.${[state.session?.user?.id || '', state.membership?.organization_id || '', state.role || '', state.viewAs ? 'support' : 'normal'].map(encodeURIComponent).join('.')}`;
 const allowedNavItems = () => [...visibleNav(state.role).flatMap((g) => g.items), ...extraNav(state.role)];
+/** 5.42 · Paleta de comandos: rutas que el rol puede abrir, con su familia, para el salto rápido (Ctrl/⌘+K). */
+let cmdPalette = null;
+const paletteItems = () => {
+  const groups = visibleNav(state.role);
+  const inGroups = groups.flatMap((g) => g.items.map((i) => ({ route: i.route, label: i.label, group: g.group })));
+  const seen = new Set(inGroups.map((i) => i.route));
+  const extra = extraNav(state.role).filter((i) => !seen.has(i.route)).map((i) => ({ route: i.route, label: i.label, group: 'Otros módulos' }));
+  return [...inGroups, ...extra];
+};
 function favoriteItems() {
   const allowed = allowedNavItems();
   const saved = readNavFavorites(navScope(), allowed.map((i) => i.route));
@@ -398,7 +409,7 @@ function renderFrequent() {
   const items = top.map((r) => allowed.find((i) => i.route === r)).filter(Boolean);
   if (!items.length) { host.hidden = true; render(host, html``); return; }
   host.hidden = false;
-  render(host, html`<div class="nav-favorites-title">🕑 Frecuentes</div>${items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${i.label}</a>${favoriteButton(i)}</div>`)}`);
+  render(host, html`<div class="nav-favorites-title">🕑 Frecuentes</div>${items.map((i) => html`<div class="nav-link-row"><a href="#/${i.route}" ${i.route === route ? raw('aria-current="page"') : ''}>${raw(routeIcon(i.route))}<span class="nav-ic-lbl">${i.label}</span></a>${favoriteButton(i)}</div>`)}`);
 }
 function navigationGroupsWithFavorites() {
   const items = favoriteItems();
@@ -588,6 +599,7 @@ async function route() {
     lastFrequentRoute = r.def.route;
     try { if (recordNavVisit(navScope(), r.def.route)) renderFrequent(); } catch (_) { /* navegador sin almacenamiento */ }
   }
+  cmdPalette?.recordVisit(r.def.route);
   render(main, html`<div class="loading-skeleton" aria-busy="true" aria-label="Cargando…">
     <div class="sk-bar sk-title"></div>
     <div class="sk-row"><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div></div>
