@@ -1,58 +1,64 @@
 /** SOFA · Reportes con filtros, totales, exportación a CSV e impresión */
 import { html, render as paint, $ } from '../utils/dom.js';
 import { loadingView, errorView, emptyView, opt } from '../utils/ui.js';
-import { financialEvents, collectionDays, serviceMix, submissionsInRange, openBalances, glosaPareto, feeSummaryAll, monthsBetween, monthKey } from '../services/bi.js';
+import { eventsByMonthKind, eventsByArsKind, collectionDaysByArs, openBalanceByArs, openBalanceByClient,
+  serviceMixAgg, glosaPareto, submissionsInRange, feeSummaryAll, monthsBetween } from '../services/bi.js';
 import { filterBar, downloadCsv } from '../utils/filters.js';
 import { money, num, period, date } from '../utils/formatters.js';
 import { subStatus } from '../utils/constants.js';
 import { can, isStaff } from '../utils/permissions.js';
 
 const pct = (a, b) => (Number(b) > 0 ? Math.round((1000 * Number(a)) / Number(b)) / 10 : null);
-const sumBy = (rows, key, val = 'amount') => rows.reduce((m, r) => { const k = key(r); m[k] = (m[k] || 0) + Number(r[val] || 0); return m; }, {});
 
 /** Cada reporte: { title, about, roles?, build(f) → { cols:[{label, key, type}], rows, totals? } } */
 const REPORTS = {
   mensual: { title: 'Radicado, cobrado y glosado por mes', about: 'Montos por la fecha real de cada evento.',
     async build(f) {
-      const ev = await financialEvents(f); const months = monthsBetween(f.from, f.to);
-      const g = (kind, m) => ev.filter((e) => e.kind === kind && monthKey(e.event_date) === m).reduce((t, e) => t + Number(e.amount), 0);
+      const ev = await eventsByMonthKind(f); const months = monthsBetween(f.from, f.to);
+      const g = (kind, m) => { const r = ev.find((x) => x.kind === kind && x.month === m); return r ? Number(r.total) : 0; };
       const rows = months.map((m) => { const r = { mes: period(`${m}-01`), radicado: g('radicado', m), cobrado: g('cobrado', m), glosado: g('glosado', m), recuperado: g('recuperado', m) }; r.tasa = pct(r.glosado, r.radicado); return r; });
       return { cols: [{ label: 'Mes', key: 'mes' }, { label: 'Radicado', key: 'radicado', type: 'money' }, { label: 'Cobrado', key: 'cobrado', type: 'money' }, { label: 'Glosado', key: 'glosado', type: 'money' }, { label: '% glosa', key: 'tasa', type: 'pct' }, { label: 'Recuperado', key: 'recuperado', type: 'money' }], rows, totals: true };
     } },
   ars: { title: 'Desempeño por ARS', about: 'Radicado, cobrado y glosas del período, y días promedio de cobro por ARS.',
     async build(f) {
-      const [ev, cd, open] = await Promise.all([financialEvents(f), collectionDays(f), openBalances(f)]);
-      const names = {}; open.forEach((r) => { names[r.ars_id] = r.ars_name; });
-      const { listArs } = await import('../services/catalog.js'); (await listArs()).forEach((a) => { names[a.id] = a.name; });
-      const ids = [...new Set([...ev.map((e) => e.ars_id), ...open.map((r) => r.ars_id)])];
+      const [evArs, cdArs, balArs] = await Promise.all([eventsByArsKind(f), collectionDaysByArs(f), openBalanceByArs(f)]);
+      const { listArs } = await import('../services/catalog.js'); const allArs = await listArs();
+      const names = {}; allArs.forEach((a) => { names[a.id] = a.name; }); balArs.forEach((r) => { names[r.ars_id] = r.ars_name; });
+      const ids = [...new Set([...evArs.map((e) => e.ars_id), ...balArs.map((r) => r.ars_id)])];
       const rows = ids.map((id) => {
-        const e = ev.filter((x) => x.ars_id === id); const s = (k) => e.filter((x) => x.kind === k).reduce((t, x) => t + Number(x.amount), 0);
-        const d = cd.filter((x) => x.ars_id === id);
+        const s = (k) => { const r = evArs.find((x) => x.ars_id === id && x.kind === k); return r ? Number(r.total) : 0; };
+        const d = cdArs.find((x) => x.ars_id === id);
+        const b = balArs.find((x) => x.ars_id === id);
         return { ars: names[id] || id, radicado: s('radicado'), cobrado: s('cobrado'), glosado: s('glosado'), tasa: pct(s('glosado'), s('radicado')),
-          dias: d.length ? Math.round(d.reduce((t, x) => t + Number(x.days), 0) / d.length) : null, saldo: open.filter((r) => r.ars_id === id).reduce((t, r) => t + Number(r.balance), 0) };
+          dias: d ? Math.round(Number(d.sum_days) / Number(d.cnt)) : null, saldo: b ? Number(b.total_balance) : 0 };
       }).sort((a, b) => b.radicado - a.radicado);
       return { cols: [{ label: 'ARS', key: 'ars' }, { label: 'Radicado', key: 'radicado', type: 'money' }, { label: 'Cobrado', key: 'cobrado', type: 'money' }, { label: 'Glosado', key: 'glosado', type: 'money' }, { label: '% glosa', key: 'tasa', type: 'pct' }, { label: 'Días de cobro', key: 'dias', type: 'num' }, { label: 'Saldo hoy', key: 'saldo', type: 'money' }], rows, totals: true };
     } },
   cartera: { title: 'Cartera por cliente', about: 'Saldo pendiente hoy por cliente, con lo vencido a más de 90 días.', staff: true,
     async build(f) {
-      const open = await openBalances(f); const by = {};
-      open.forEach((r) => { const k = r.client_name; by[k] = by[k] || { cliente: k, radicaciones: 0, radicado: 0, pagado: 0, disputa: 0, saldo: 0, vencido: 0 };
-        const x = by[k]; x.radicaciones += 1; x.radicado += Number(r.claimed); x.pagado += Number(r.paid); x.disputa += Number(r.glosa_in_dispute); x.saldo += Number(r.balance); if (r.age_days > 90) x.vencido += Number(r.balance); });
-      return { cols: [{ label: 'Cliente', key: 'cliente' }, { label: 'Radicaciones', key: 'radicaciones', type: 'num' }, { label: 'Radicado', key: 'radicado', type: 'money' }, { label: 'Pagado', key: 'pagado', type: 'money' }, { label: 'Glosa en disputa', key: 'disputa', type: 'money' }, { label: 'Saldo', key: 'saldo', type: 'money' }, { label: 'Vencido > 90 días', key: 'vencido', type: 'money' }], rows: Object.values(by).sort((a, b) => b.saldo - a.saldo), totals: true };
+      const rows = (await openBalanceByClient(f)).map((r) => ({
+        cliente: r.cliente, radicaciones: Number(r.radicaciones), radicado: Number(r.radicado), pagado: Number(r.pagado),
+        disputa: Number(r.disputa), saldo: Number(r.saldo), vencido: Number(r.vencido),
+      }));
+      return { cols: [{ label: 'Cliente', key: 'cliente' }, { label: 'Radicaciones', key: 'radicaciones', type: 'num' }, { label: 'Radicado', key: 'radicado', type: 'money' }, { label: 'Pagado', key: 'pagado', type: 'money' }, { label: 'Glosa en disputa', key: 'disputa', type: 'money' }, { label: 'Saldo', key: 'saldo', type: 'money' }, { label: 'Vencido > 90 días', key: 'vencido', type: 'money' }], rows, totals: true };
     } },
   glosas: { title: 'Glosas por motivo', about: 'Pareto de motivos: glosado, aceptado y recuperado (todas las fechas).',
     async build(f) {
-      const p = await glosaPareto(f); const by = {};
-      p.forEach((r) => { const k = r.reason_name; by[k] = by[k] || { motivo: k, categoria: r.category, servicios: 0, glosado: 0, aceptado: 0, recuperado: 0 }; const x = by[k]; x.servicios += Number(r.items); x.glosado += Number(r.amount); x.aceptado += Number(r.accepted); x.recuperado += Number(r.recovered); });
-      const rows = Object.values(by).sort((a, b) => b.glosado - a.glosado); const tot = rows.reduce((t, r) => t + r.glosado, 0); let acc = 0;
+      const rows = (await glosaPareto(f)).map((r) => ({
+        motivo: r.reason_name, categoria: r.category, servicios: Number(r.servicios),
+        glosado: Number(r.glosado), aceptado: Number(r.aceptado), recuperado: Number(r.recuperado),
+      }));
+      const tot = rows.reduce((t, r) => t + r.glosado, 0); let acc = 0;
       rows.forEach((r) => { acc += r.glosado; r.acumulado = pct(acc, tot); });
       return { cols: [{ label: 'Motivo', key: 'motivo' }, { label: 'Categoría', key: 'categoria' }, { label: 'Servicios', key: 'servicios', type: 'num' }, { label: 'Glosado', key: 'glosado', type: 'money' }, { label: 'Aceptado', key: 'aceptado', type: 'money' }, { label: 'Recuperado', key: 'recuperado', type: 'money' }, { label: '% acumulado', key: 'acumulado', type: 'pct' }], rows, totals: true };
     } },
   servicios: { title: 'Servicios por concepto', about: 'Servicios de los períodos seleccionados (mes de la radicación).',
     async build(f) {
-      const mix = await serviceMix(f); const by = {};
-      mix.forEach((r) => { const k = r.internal_code; by[k] = by[k] || { codigo: k, concepto: r.description, servicios: 0, cantidad: 0, monto: 0 }; by[k].servicios += Number(r.lines); by[k].cantidad += Number(r.quantity); by[k].monto += Number(r.amount); });
-      return { cols: [{ label: 'Código', key: 'codigo' }, { label: 'Concepto', key: 'concepto' }, { label: 'Servicios', key: 'servicios', type: 'num' }, { label: 'Cantidad', key: 'cantidad', type: 'num' }, { label: 'Monto', key: 'monto', type: 'money' }], rows: Object.values(by).sort((a, b) => b.monto - a.monto), totals: true };
+      const rows = (await serviceMixAgg(f)).map((r) => ({
+        codigo: r.internal_code, concepto: r.description, servicios: Number(r.total_lines),
+        cantidad: Number(r.total_quantity), monto: Number(r.total_amount),
+      }));
+      return { cols: [{ label: 'Código', key: 'codigo' }, { label: 'Concepto', key: 'concepto' }, { label: 'Servicios', key: 'servicios', type: 'num' }, { label: 'Cantidad', key: 'cantidad', type: 'num' }, { label: 'Monto', key: 'monto', type: 'money' }], rows, totals: true };
     } },
   radicaciones: { title: 'Detalle de radicaciones', about: 'Todas las radicaciones de los períodos seleccionados con su estado y saldo.',
     async build(f) {

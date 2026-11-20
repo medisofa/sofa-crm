@@ -16,6 +16,47 @@ export function defaultRange(months = 6) {
   const to = todayISO().slice(0, 7);
   return { from: addMonths(to, -(months - 1)), to };
 }
+
+/* ── RPC helpers ───────────────────────────────────────────────────── */
+const rpcParams = (f = {}) => ({
+  p_org_id: f.orgId || null, p_ars_id: f.arsId || null, p_real_only: !!f.realOnly,
+});
+const rpcRange = (f) => ({ p_from: first(f.from), p_to: last(f.to), ...rpcParams(f) });
+const rpcRangeFirstDay = (f) => ({ p_from: first(f.from), p_to: first(f.to), ...rpcParams(f) });
+
+/* ── Aggregated RPCs (reports + dashboard) ───────────────────── */
+
+/** Events grouped by month + kind → {month, kind, total, cnt}[] */
+export async function eventsByMonthKind(f) {
+  return must(await sb().rpc('bi_events_by_month_kind', rpcRange(f)));
+}
+/** Events grouped by ARS + kind → {ars_id, kind, total}[] */
+export async function eventsByArsKind(f) {
+  return must(await sb().rpc('bi_events_by_ars_kind', rpcRange(f)));
+}
+/** Collection days by ARS → {ars_id, sum_days, cnt}[] */
+export async function collectionDaysByArs(f) {
+  return must(await sb().rpc('bi_collection_days_by_ars', rpcRange(f)));
+}
+/** Open balance by ARS → {ars_id, ars_name, total_balance}[] */
+export async function openBalanceByArs(f = {}) {
+  return must(await sb().rpc('bi_open_balance_by_ars', rpcParams(f)));
+}
+/** Open balance by client (cartera) → {cliente, radicaciones, radicado, pagado, disputa, saldo, vencido}[] */
+export async function openBalanceByClient(f = {}) {
+  return must(await sb().rpc('bi_open_balance_by_client', rpcParams(f)));
+}
+/** Service mix aggregated → {internal_code, description, total_lines, total_quantity, total_amount}[] */
+export async function serviceMixAgg(f) {
+  return must(await sb().rpc('bi_service_mix_agg', rpcRangeFirstDay(f)));
+}
+/** Glosa pareto aggregated → {reason_name, category, servicios, glosado, aceptado, recuperado}[] */
+export async function glosaPareto(f = {}) {
+  return must(await sb().rpc('bi_glosa_pareto_agg', rpcParams(f)));
+}
+
+/* ── Row-level queries (detail listings, dashboard top-N) ──── */
+
 let realIdsCache = null;
 async function realClientIds() {
   if (realIdsCache) return realIdsCache;
@@ -30,26 +71,19 @@ function applyScoped(q, f = {}, ids = []) {
 }
 async function scopeIds(f = {}) { return f.realOnly ? realClientIds() : []; }
 
-export async function financialEvents(f) {
-  const q = applyScoped(sb().from('v_financial_events').select('organization_id, ars_id, provider_id, submission_id, event_date, kind, amount'), f, await scopeIds(f));
-  return must(await q.gte('event_date', first(f.from)).lte('event_date', last(f.to)).limit(20000));
-}
-export async function collectionDays(f) {
-  const q = applyScoped(sb().from('v_collection_days').select('submission_id, ars_id, organization_id, days, fully_paid, last_paid_on'), f, await scopeIds(f));
-  return must(await q.eq('fully_paid', true).gte('last_paid_on', first(f.from)).lte('last_paid_on', last(f.to)).limit(20000));
-}
-export async function serviceMix(f) {
-  const q = applyScoped(sb().from('v_service_mix').select('internal_code, description, lines, quantity, amount'), f, await scopeIds(f));
-  return must(await q.gte('period', first(f.from)).lte('period', first(f.to)).limit(20000));
-}
+const OPEN_BALANCE_COLS = 'id, folio, organization_id, client_name, provider_name, ars_id, ars_name, period, submitted_on, claimed, paid, glosa_accepted, glosa_in_dispute, balance, payment_deadline, age_days, aging_bucket';
+
+/** Individual open-balance rows (dashboard detail list, aging chart) */
 export async function openBalances(f = {}) {
-  const q = applyScoped(sb().from('v_submissions').select('id, folio, organization_id, client_name, provider_name, ars_id, ars_name, period, submitted_on, claimed, paid, glosa_accepted, glosa_in_dispute, balance, payment_deadline, age_days, aging_bucket'), f, await scopeIds(f));
+  const q = applyScoped(sb().from('v_submissions').select(OPEN_BALANCE_COLS), f, await scopeIds(f));
   return must(await q.not('submitted_on', 'is', null).gt('balance', 0).not('status', 'in', '(cerrada,rechazada)').order('age_days', { ascending: false }).limit(20000));
 }
+/** Detail listing of submissions in a date range (radicaciones report) */
 export async function submissionsInRange(f) {
   const q = applyScoped(sb().from('v_submissions').select('id, folio, organization_id, client_name, provider_name, ars_name, period, status, display_status, lines, claimed, paid, glosado, glosa_accepted, balance, submitted_on, docs_pct'), f, await scopeIds(f));
   return must(await q.gte('period', first(f.from)).lte('period', first(f.to)).order('period', { ascending: false }).limit(5000));
 }
+/** SOFA fees in date range (dashboard fee chart) */
 export async function feesInRange(f) {
   let q = sb().from('sofa_fees').select('organization_id, period, amount, source_type');
   q = applyScoped(q, { ...f, arsId: '' }, await scopeIds({ ...f, arsId: '' }));
@@ -62,10 +96,9 @@ export async function workQueue({ realOnly = false } = {}) {
   const ids = new Set(await realClientIds());
   return rows.filter((r) => !r.organization_id || ids.has(r.organization_id));
 }
+export async function feeSummaryAll({ realOnly = false } = {}) { let q = sb().from('v_fee_summary').select('client_name, rules, accrued, uninvoiced, invoiced, collected, organization_id'); if (realOnly) { const ids = await realClientIds(); q = ids.length ? q.in('organization_id', ids) : q.eq('organization_id', '00000000-0000-0000-0000-000000000000'); } return must(await q.order('client_name')); }
 export async function growthMonthly({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_growth_monthly_real' : 'v_growth_monthly').select('month, fees_fixed, fees_variable, new_leads, diagnostics, new_clients').order('month')); }
 export async function mrr({ realOnly = false } = {}) { return must(await sb().from(realOnly ? 'v_mrr_real' : 'v_mrr').select('*').limit(1).maybeSingle()); }
 export async function pipelineTotals() { return must(await sb().from('v_pipeline_real').select('stage, opportunities, monthly_value, weighted_value')); }
 export async function growthTargets() { return must(await sb().from('growth_targets').select('metric, ends_on, name').order('ends_on')); }
-export async function settings() { const { getSettings } = await import('./admin.js'); return getSettings(); }   // 4.7.0 (SEG-29): por app_settings_staff()
-export async function glosaPareto(f = {}) { const q = applyScoped(sb().from('v_glosa_pareto').select('reason_name, category, items, amount, accepted, recovered'), f, await scopeIds(f)); return must(await q.limit(5000)); }
-export async function feeSummaryAll({ realOnly = false } = {}) { let q = sb().from('v_fee_summary').select('client_name, rules, accrued, uninvoiced, invoiced, collected, organization_id'); if (realOnly) { const ids = await realClientIds(); q = ids.length ? q.in('organization_id', ids) : q.eq('organization_id', '00000000-0000-0000-0000-000000000000'); } return must(await q.order('client_name')); }
+export async function settings() { const { getSettings } = await import('./admin.js'); return getSettings(); }

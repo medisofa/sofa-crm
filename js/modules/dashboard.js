@@ -1,7 +1,7 @@
 /** SOFA · Dashboard: operación y cobro (todos) · crecimiento de SOFA (roles con honorarios) */
 import { html, render as paint, $, updateSidebarBadges } from '../utils/dom.js';
 import { loadingView, errorView, emptyView } from '../utils/ui.js';
-import { financialEvents, collectionDays, serviceMix, openBalances, feesInRange, monthsBetween, monthKey, BUCKETS,
+import { eventsByMonthKind, collectionDaysByArs, serviceMixAgg, openBalances, feesInRange, monthsBetween, BUCKETS,
   growthMonthly, mrr, pipelineTotals, growthTargets, settings } from '../services/bi.js';
 import { filterBar } from '../utils/filters.js';
 import { barChart, hBars, progress } from '../utils/charts.js';
@@ -39,23 +39,32 @@ export async function render(main, ctx) {
   }
 
   async function drawOps() {
-    const [ev, cd, mix, open, fees] = await Promise.all([financialEvents(f), collectionDays(f), serviceMix(f), openBalances(f),
+    const [evByMonth, cdByArs, mixAgg, open, fees] = await Promise.all([
+      eventsByMonthKind(f), collectionDaysByArs(f), serviceMixAgg(f), openBalances(f),
       can('fees.view', ctx.role) ? feesInRange(f).catch(() => []) : Promise.resolve([])]);
-    const k = (kind) => ev.filter((e) => e.kind === kind);
-    const rad = sum(k('radicado')), cob = sum(k('cobrado')), glo = sum(k('glosado')), rec = sum(k('recuperado')), acc = sum(k('glosa_aceptada'));
-    const dso = cd.length ? Math.round(cd.reduce((t, r) => t + Number(r.days), 0) / cd.length) : null;
+
+    // KPIs from pre-aggregated events (few rows instead of 20K)
+    const sumKind = (kind) => evByMonth.filter((r) => r.kind === kind).reduce((t, r) => t + Number(r.total), 0);
+    const rad = sumKind('radicado'), cob = sumKind('cobrado'), glo = sumKind('glosado'), rec = sumKind('recuperado'), acc = sumKind('glosa_aceptada');
+    // DSO from pre-aggregated collection days
+    const totalDays = cdByArs.reduce((t, r) => t + Number(r.sum_days), 0);
+    const totalCd = cdByArs.reduce((t, r) => t + Number(r.cnt), 0);
+    const dso = totalCd > 0 ? Math.round(totalDays / totalCd) : null;
+    // Open balances (still individual rows for detail list + aging)
     const saldo = sum(open, 'balance'), vencido = sum(open.filter((r) => r.age_days > 90), 'balance');
     const feeTot = sum(fees);
     const months = monthsBetween(f.from, f.to);
-    const byMonth = (kind) => months.map((m) => sum(k(kind).filter((e) => monthKey(e.event_date) === m)));
+    // Month chart from pre-aggregated data
+    const byMonth = (kind) => months.map((m) => { const r = evByMonth.find((x) => x.month === m && x.kind === kind); return r ? Number(r.total) : 0; });
     const byBucket = BUCKETS.map((b) => ({ label: `${b} días`, value: sum(open.filter((r) => r.aging_bucket === b), 'balance'), color: b === '120+' || b === '91-120' ? 'var(--red)' : 'var(--navy-2)' }));
     const arsSaldo = {}; open.forEach((r) => { arsSaldo[r.ars_name] = (arsSaldo[r.ars_name] || 0) + Number(r.balance); });
-    const mixBy = {}; mix.forEach((r) => { mixBy[r.description] = (mixBy[r.description] || 0) + Number(r.amount); });
-    const arsRad = {}; k('radicado').forEach((e) => { arsRad[e.ars_id] = (arsRad[e.ars_id] || 0) + Number(e.amount); });
+    // Service mix from pre-aggregated data (few rows instead of 20K)
+    const mixBy = {}; mixAgg.forEach((r) => { mixBy[r.description] = (mixBy[r.description] || 0) + Number(r.total_amount); });
 
-    const glosasAbiertas = k('glosado').length, vencidas = open.filter((r) => r.age_days > 90).length;
+    const glosasAbiertas = evByMonth.filter((r) => r.kind === 'glosado').reduce((t, r) => t + Number(r.cnt), 0);
+    const vencidas = open.filter((r) => r.age_days > 90).length;
     updateSidebarBadges({ glosas: glosasAbiertas, aging: vencidas });
-    if (!rad && !cob && !saldo && !mix.length) { paint(body, emptyView('Sin movimientos en este período', 'Cambia el rango de meses o los filtros. Las cifras aparecen cuando hay radicaciones enviadas, pagos o glosas.')); return; }
+    if (!rad && !cob && !saldo && !mixAgg.length) { paint(body, emptyView('Sin movimientos en este período', 'Cambia el rango de meses o los filtros. Las cifras aparecen cuando hay radicaciones enviadas, pagos o glosas.')); return; }
     const kLink = (href, content) => canOpen(href, ctx.role) ? html`<a href="${href}" class="kpi" style="text-decoration:none;color:inherit">${content}</a>` : html`<div class="kpi">${content}</div>`;
     paint(body, html`
       <div class="grid kpis">
@@ -63,7 +72,7 @@ export async function render(main, ctx) {
         ${kLink('#/pagos', html`<div class="l">Cobrado</div><div class="v" style="color:var(--ok)">${money(cob)}</div><div class="h">${pctTxt(pct(cob, rad))} de lo radicado</div>`)}
         ${kLink('#/glosas', html`<div class="l">Glosa sobre lo radicado</div><div class="v" style="${pct(glo, rad) > 5 ? 'color:var(--bad)' : ''}">${pctTxt(pct(glo, rad))}</div><div class="h">${money(glo)} glosado · meta &lt; 5%</div>`)}
         ${kLink('#/glosas', html`<div class="l">Recuperación de glosas</div><div class="v">${pctTxt(pct(rec, rec + acc))}</div><div class="h">${money(rec)} recuperado · meta &gt; 75%</div>`)}
-        ${kLink('#/pagos', html`<div class="l">Días promedio de cobro</div><div class="v" style="${dso > 60 ? 'color:var(--warn)' : ''}">${dso == null ? '—' : num(dso)}</div><div class="h">${num(cd.length)} radicaciones pagadas · meta &lt; 60</div>`)}
+        ${kLink('#/pagos', html`<div class="l">Días promedio de cobro</div><div class="v" style="${dso > 60 ? 'color:var(--warn)' : ''}">${dso == null ? '—' : num(dso)}</div><div class="h">${num(totalCd)} radicaciones pagadas · meta &lt; 60</div>`)}
         ${kLink('#/aging', html`<div class="l">Saldo por cobrar hoy</div><div class="v">${money(saldo)}</div><div class="h" style="${vencido ? 'color:var(--bad);font-weight:600' : ''}">${money(vencido)} con más de 90 días</div>`)}
         ${can('fees.view', ctx.role) ? kLink('#/pagos', html`<div class="l">Honorarios SOFA del período</div><div class="v">${money(feeTot)}</div><div class="h">${feeTot > 0 ? `RD$${(cob / feeTot).toFixed(1)} cobrados por cada RD$1 de honorario` : 'Sin honorarios en el período'}</div>`) : ''}
       </div>
