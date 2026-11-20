@@ -1,0 +1,226 @@
+/**
+ * SOFA · 244 · Agenda de la semana por médico y centro (opción B).
+ * La secretaria ve la semana del médico en SU centro: huecos libres según el horario, sus citas, y como
+ * «No disponible» las horas en que el médico está en otro centro (sin paciente ni nombre del centro: lo
+ * garantiza agenda_week en la base de datos, no esta pantalla).
+ * A la derecha: las citas del día siguiente por confirmar, con WhatsApp gratuito (wa.me) y «Confirmó».
+ */
+import { html, render as paint, $ } from '../utils/dom.js';
+import { toast, friendlyError, opt, formDialog, fieldError, loadingView, emptyView } from '../utils/ui.js';
+import { todayISO } from '../utils/formatters.js';
+import { captureProviders, activeArs } from '../services/claims.js';
+import { agendaWeek, myAgendaScopes, saveAppointment, setAppointmentStatus, setProviderSchedule } from '../services/consultorio.js';
+import { APPT_STATUS } from './agenda.js';
+
+const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const DIAS_LARGOS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const STATUS_CLS = { programada: 'p', confirmada: 'c', en_espera: 'e', en_consulta: 'e', atendida: 'd', no_asistio: 'd', cancelada: 'd' };
+const mem = { provider: '', center: '', from: '' };
+
+const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
+const toHHMM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const addDays = (iso, n) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const isoDow = (iso) => { const d = new Date(`${iso}T12:00:00`).getDay(); return d === 0 ? 7 : d; };
+const mondayOf = (iso) => addDays(iso, 1 - isoDow(iso));
+const dayLabel = (iso) => `${DIAS[isoDow(iso) - 1]} ${Number(iso.slice(8, 10))}`;
+
+/** Igual que agenda.js: RD local de 10 dígitos → +1. */
+function waNumber(raw) {
+  const d = String(raw || '').replace(/\D+/g, '');
+  if (d.length === 10 && /^(809|829|849)/.test(d)) return `1${d}`;
+  return d;
+}
+
+export async function render(main, ctx) {
+  paint(main, html`<div class="page-head"><div class="t"><h2>Agenda de la semana</h2><p>Huecos libres, citas y confirmaciones del médico en su centro.</p></div>
+    <div class="actions"><a class="btn" href="#/agenda">Ver el día</a></div></div><div id="wk"></div>`);
+  const box = $('#wk', main);
+  paint(box, loadingView(4));
+  let providers = []; let scopes = { centers_by_provider: {}, reception: [] }; let ars = [];
+  try { [providers, scopes, ars] = await Promise.all([captureProviders(), myAgendaScopes(), activeArs()]); }
+  catch (err) { paint(box, html`<div class="note bad">${friendlyError(err)}</div>`); return; }
+  if (!document.body.contains(box)) return;
+  providers = providers.filter((p) => (scopes.centers_by_provider || {})[p.id]?.length);
+  if (!providers.length) {
+    paint(box, emptyView('Sin médicos con centro', 'Para usar la semana, el médico necesita al menos un centro en «Centros», y usted acceso a su agenda en ese centro.'));
+    return;
+  }
+  if (!providers.some((p) => p.id === mem.provider)) mem.provider = providers[0].id;
+  if (!mem.from) mem.from = mondayOf(todayISO());
+  let lastData = { appointments: [] };
+  const canEditSchedule = ['super_admin', 'admin', 'client', 'assistant'].includes(ctx.role);
+
+  async function load() {
+    const centers = scopes.centers_by_provider[mem.provider] || [];
+    if (!centers.some((c) => c.id === mem.center)) mem.center = centers[0]?.id || '';
+    paint(box, html`
+      <div class="wk-bar card">
+        <div class="field"><label for="wk_p">Médico</label><select id="wk_p">${providers.map((p) => opt(p.id, p.full_name, mem.provider))}</select></div>
+        <div class="field"><label for="wk_c">Centro</label><select id="wk_c" ${centers.length < 2 ? 'disabled' : ''}>${centers.map((c) => opt(c.id, c.name, mem.center))}</select></div>
+        <div class="wk-nav">
+          <button class="btn" type="button" data-nav="-7">‹ Semana anterior</button>
+          <button class="btn" type="button" data-nav="0">Esta semana</button>
+          <button class="btn" type="button" data-nav="7">Semana siguiente ›</button>
+          ${canEditSchedule ? html`<button class="btn" type="button" data-schedule>Horario</button>` : ''}
+        </div>
+      </div>
+      <div id="wk_body">${loadingView(4)}</div>`);
+    const body = $('#wk_body', box);
+    let data;
+    try { data = await agendaWeek(mem.provider, mem.center, mem.from, 7); }
+    catch (err) { paint(body, html`<div class="note bad">${friendlyError(err)}</div>`); return; }
+    if (!document.body.contains(body)) return;
+    paintWeek(body, data, centers);
+  }
+
+  function paintWeek(body, data, centers) {
+    lastData = data;
+    const days = Array.from({ length: 7 }, (_, i) => addDays(mem.from, i));
+    const sched = data.schedule || [];
+    const slot = Math.min(...sched.map((s) => s.slot_min), 30) || 30;
+    const startMin = Math.min(8 * 60, ...sched.map((s) => toMin(s.start)), ...data.appointments.filter((a) => a.time).map((a) => toMin(a.time)));
+    const endMin = Math.max(12 * 60, ...sched.map((s) => toMin(s.end)), ...data.appointments.filter((a) => a.time).map((a) => toMin(a.time) + a.duration_min));
+    const rows = Math.ceil((endMin - startMin) / slot);
+    const rowOf = (t) => Math.floor((toMin(t) - startMin) / slot) + 2;
+    const spanOf = (mins) => Math.max(1, Math.ceil(mins / slot));
+    const showDays = days.filter((d, i) => i < 5 || sched.some((s) => s.weekday === isoDow(d)) || data.appointments.some((a) => a.date === d));
+
+    // Ocupación por día y fila (para no ofrecer como libre lo que ya está ocupado o no disponible)
+    const taken = new Set();
+    const mark = (d, t, mins) => { for (let m = toMin(t); m < toMin(t) + mins; m += slot) taken.add(`${d}|${Math.floor((m - startMin) / slot)}`); };
+    data.appointments.filter((a) => a.time && !['cancelada', 'no_asistio'].includes(a.status)).forEach((a) => mark(a.date, a.time, a.duration_min));
+    (data.busy || []).forEach((b) => mark(b.date, b.start, Math.max(slot, toMin(b.end) - toMin(b.start))));
+    const free = [];
+    showDays.forEach((d) => sched.filter((s) => s.weekday === isoDow(d)).forEach((s) => {
+      for (let m = toMin(s.start); m + s.slot_min <= toMin(s.end); m += slot) {
+        const r = Math.floor((m - startMin) / slot);
+        if (!taken.has(`${d}|${r}`)) free.push({ date: d, time: toHHMM(m) });
+      }
+    }));
+
+    const tomorrow = addDays(todayISO(), 1);
+    const toConfirm = data.appointments.filter((a) => a.date === tomorrow && a.status === 'programada');
+    const tomorrowAll = data.appointments.filter((a) => a.date === tomorrow && !['cancelada'].includes(a.status));
+    const centerName = (centers.find((c) => c.id === mem.center) || {}).name || '';
+
+    paint(body, html`
+      <div class="wk-wrap">
+        <div class="wk-cal card" role="grid" aria-label="Semana de citas en ${centerName}"
+             style="grid-template-columns: 64px repeat(${showDays.length}, minmax(0, 1fr)); grid-template-rows: 40px repeat(${rows}, 44px)">
+          <div class="wk-hd"></div>
+          ${showDays.map((d, i) => html`<div class="wk-hd ${d === todayISO() ? 'today' : ''}" style="grid-column:${i + 2};grid-row:1">${dayLabel(d)}</div>`)}
+          ${Array.from({ length: rows }, (_, r) => html`<div class="wk-hr" style="grid-column:1;grid-row:${r + 2}">${(r * slot) % 60 === 0 || slot >= 60 ? toHHMM(startMin + r * slot) : ''}</div>`)}
+          <div class="wk-lines" style="grid-column:2 / ${showDays.length + 2};grid-row:2 / ${rows + 2};background-size:100% 44px"></div>
+          ${(data.busy || []).filter((b) => showDays.includes(b.date)).map((b) => html`
+            <div class="wk-blk" style="grid-column:${showDays.indexOf(b.date) + 2};grid-row:${Math.max(2, rowOf(b.start))} / span ${spanOf(toMin(b.end) - Math.max(toMin(b.start), startMin))}">
+              ${b.kind === 'bloqueo' ? `Bloqueado${b.reason ? ` · ${b.reason}` : ''}` : 'No disponible'}<br><small>${b.start}–${b.end}</small></div>`)}
+          ${free.filter((f) => showDays.includes(f.date)).map((f) => html`
+            <button class="wk-free" type="button" data-free="${f.date}|${f.time}" style="grid-column:${showDays.indexOf(f.date) + 2};grid-row:${rowOf(f.time)}"
+              aria-label="Agendar el ${dayLabel(f.date)} a las ${f.time}">+ ${f.time}</button>`)}
+          ${data.appointments.filter((a) => a.time && showDays.includes(a.date)).map((a) => {
+            const [label] = APPT_STATUS[a.status] || [a.status];
+            return html`<div class="wk-ap ${STATUS_CLS[a.status] || 'p'}" style="grid-column:${showDays.indexOf(a.date) + 2};grid-row:${rowOf(a.time)} / span ${spanOf(a.duration_min)}"
+                title="${a.time} · ${a.patient_name} · ${label}">
+              <b>${a.patient_name}</b><span>${a.time} · ${a.payer_type === 'ars' ? (a.ars_name || 'ARS') : 'Privado'}</span>
+              <span class="pill ${a.status === 'confirmada' ? 'ok' : a.status === 'programada' ? 'info' : ''}">${label}</span>
+              ${a.payer_type === 'ars' && a.eligibility_status !== 'verificada' ? html`<span class="pill warn">Elegibilidad sin verificar</span>` : ''}
+            </div>`;
+          })}
+        </div>
+        <aside class="wk-side card" aria-label="Confirmaciones de mañana">
+          <h3>${DIAS_LARGOS[isoDow(tomorrow) - 1]} · por confirmar</h3>
+          <p class="muted">${tomorrowAll.length ? `${toConfirm.length} de ${tomorrowAll.length} sin confirmar.` : 'No hay citas mañana en esta semana.'}
+            Envíe el recordatorio y marque cuando el paciente responda.</p>
+          ${tomorrowAll.map((a) => html`
+            <div class="wk-row">
+              <div class="who"><b>${a.patient_name}</b><small>${a.time || 'Sin hora'}${a.phone ? ` · ${a.phone}` : ''}</small></div>
+              ${a.status === 'programada'
+                ? html`${a.phone ? html`<button class="btn sm" type="button" data-wa="${a.id}">WhatsApp</button>` : html`<span class="pill">Sin teléfono</span>`}
+                       <button class="btn sm" type="button" data-ok="${a.id}">Confirmó</button>`
+                : html`<span class="pill ${a.status === 'confirmada' ? 'ok' : ''}">${(APPT_STATUS[a.status] || [a.status])[0]}</span>`}
+            </div>`)}
+          <div class="wk-kpi">
+            <div><b>${data.appointments.filter((a) => !['cancelada', 'no_asistio'].includes(a.status)).length}</b><small>citas</small></div>
+            <div><b>${free.length}</b><small>huecos libres</small></div>
+            <div><b>${data.appointments.filter((a) => a.payer_type === 'ars' && a.eligibility_status !== 'verificada' && !['cancelada', 'no_asistio', 'atendida'].includes(a.status)).length}</b><small>sin elegibilidad</small></div>
+          </div>
+          ${!sched.length ? html`<div class="note warn">Este médico no tiene horario en este centro, por eso no se ven huecos libres. ${canEditSchedule ? 'Defínalo con el botón «Horario».' : 'Pida al médico que lo defina.'}</div>` : ''}
+        </aside>
+      </div>`);
+  }
+
+  async function newAppointment(date, time) {
+    const saved = await formDialog({
+      title: `Nueva cita · ${dayLabel(date)} a las ${time}`,
+      body: html`<div class="form-grid">
+        <div class="field"><label for="na_n">Paciente *</label><input id="na_n" name="patient" required minlength="3" autocomplete="off"></div>
+        <div class="field"><label for="na_t">Teléfono (WhatsApp)</label><input id="na_t" name="phone" inputmode="tel" placeholder="809-555-0000"></div>
+        <div class="field"><label for="na_doc">Cédula</label><input id="na_doc" name="doc" inputmode="numeric"></div>
+        <div class="field"><label for="na_p">Paga</label><select id="na_p" name="payer">${opt('privado', 'Privado')}${opt('ars', 'ARS')}</select></div>
+        <div class="field"><label for="na_a">ARS</label><select id="na_a" name="ars"><option value="">—</option>${ars.map((a) => opt(a.id, a.name))}</select></div>
+        <div class="field"><label for="na_m">Número de afiliado</label><input id="na_m" name="member"></div>
+        <div class="field"><label for="na_r">Motivo</label><input id="na_r" name="reason" placeholder="Consulta, control, procedimiento…"></div>
+        <div class="field"><label for="na_d">Duración (minutos)</label><input id="na_d" name="duration" type="number" min="5" max="480" step="5" value="30"></div>
+      </div>`,
+      submitLabel: 'Agendar',
+      onSubmit: async (d, f) => {
+        if ((d.patient || '').trim().length < 3) { fieldError(f.elements.patient, 'Escriba el nombre del paciente'); return false; }
+        if (d.payer === 'ars' && !d.ars) { fieldError(f.elements.ars, 'Elija la ARS, o marque el paciente como privado'); return false; }
+        return saveAppointment({ provider: mem.provider, center: mem.center, date, time, patient: d.patient.trim(), phone: d.phone, doc: d.doc,
+          payer: d.payer, ars: d.ars, member: d.member, reason: d.reason, duration: d.duration });
+      }
+    });
+    if (saved) { toast('Cita agendada.', 'ok'); load(); }
+  }
+
+  async function editSchedule() {
+    const data = await agendaWeek(mem.provider, mem.center, mem.from, 1).catch(() => ({ schedule: [] }));
+    const byDay = Object.fromEntries((data.schedule || []).map((s) => [s.weekday, s]));
+    const saved = await formDialog({
+      title: 'Horario del médico en este centro', wide: true,
+      body: html`<p class="muted">Marque los días que atiende aquí. Un mismo día no puede chocar con su horario en otro centro.</p>
+        <div class="wk-sched">${DIAS_LARGOS.map((n, i) => {
+          const s = byDay[i + 1];
+          return html`<div class="wk-sched-row">
+            <label class="chk"><input type="checkbox" name="on${i + 1}" ${s ? 'checked' : ''}> ${n}</label>
+            <label>Desde <input type="time" name="s${i + 1}" value="${s?.start || '08:00'}"></label>
+            <label>Hasta <input type="time" name="e${i + 1}" value="${s?.end || '12:00'}"></label>
+            <label>Cita de <input type="number" name="m${i + 1}" min="5" max="240" step="5" value="${s?.slot_min || 30}"> min</label>
+          </div>`;
+        })}</div>`,
+      submitLabel: 'Guardar horario',
+      onSubmit: async (d) => {
+        const rows = [1, 2, 3, 4, 5, 6, 7].filter((w) => d[`on${w}`]).map((w) => ({ weekday: w, start: d[`s${w}`], end: d[`e${w}`], slot_min: Number(d[`m${w}`]) || 30 }));
+        return setProviderSchedule(mem.provider, mem.center, rows);
+      }
+    });
+    if (saved) { toast('Horario guardado.', 'ok'); load(); }
+  }
+
+  box.addEventListener('change', (e) => {
+    if (e.target.id === 'wk_p') { mem.provider = e.target.value; mem.center = ''; load(); }
+    if (e.target.id === 'wk_c') { mem.center = e.target.value; load(); }
+  });
+  box.addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.nav) { mem.from = b.dataset.nav === '0' ? mondayOf(todayISO()) : addDays(mem.from, Number(b.dataset.nav)); load(); return; }
+    if (b.hasAttribute('data-schedule')) { editSchedule(); return; }
+    if (b.dataset.free) { const [d, t] = b.dataset.free.split('|'); newAppointment(d, t); return; }
+    if (b.dataset.wa) {
+      const a = lastData.appointments.find((x) => x.id === b.dataset.wa);
+      const num = waNumber(a?.phone);
+      if (!num) { toast('El paciente no tiene teléfono registrado. Agréguelo en la cita.', 'bad'); return; }
+      const prov = providers.find((p) => p.id === mem.provider);
+      const nombre = (a.patient_name || '').split(/\s+/).slice(0, 2).join(' ');
+      const texto = `Hola ${nombre}, le recordamos su cita con ${prov?.full_name || 'su médico'} mañana a las ${a.time || ''}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.`;
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+      return;
+    }
+    if (b.dataset.ok) {
+      try { await setAppointmentStatus(b.dataset.ok, 'confirmada'); toast('Cita confirmada.', 'ok'); load(); }
+      catch (err) { toast(friendlyError(err), 'bad'); }
+    }
+  });
+  load();
+}

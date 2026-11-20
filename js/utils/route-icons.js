@@ -21,6 +21,8 @@ export const ROUTE_ICON = {
   centros: '<rect x="4" y="7" width="16" height="13" rx="1.5"/><path d="M9 20v-4h6v4M12 4v3M10.5 5.5h3"/>',
   practica: '<path d="M6 3v6a4 4 0 008 0V3M10 3v1.5M6 3v1.5"/><path d="M10 13v2.5a4.5 4.5 0 009 0V15"/><circle cx="19" cy="13" r="1.8"/>',
   mensajes: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/>',
+  'agenda-semana': '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 9v11M15 9v11"/>',
+  recepcion: '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 20c0-3 2.5-5 5-5s5 2 5 5M11 20c0-3 2.5-5 5-5s5 2 5 5"/>',
   'indicadores-agenda': '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/><path d="M8 16l2.5-3 2 2 3-4"/>',
   seguimiento: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/><path d="M9.5 14.5l2 2 4-4"/>',
   'avisos-pacientes': '<path d="M6 10a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 004 0"/>',
