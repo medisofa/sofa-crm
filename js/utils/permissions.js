@@ -45,6 +45,8 @@ export const NAV = [
     { route: 'mi-bandeja', label: 'Mi bandeja', roles: ['super_admin', 'admin', 'operations', 'billing'], ready: true },   // 4.9 · I59
     { route: 'seguimiento-hoy', label: 'Seguimiento de hoy', roles: ['client'], ready: true },
     { route: 'agenda', label: 'Agenda del consultorio', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 1.6
+    { route: 'agenda-semana', label: 'Agenda de la semana', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 244
+    { route: 'recepcion', label: 'Recepción del centro', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 244 · el acceso real lo decide reception_day
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
     { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations', 'billing'], ready: true },   // 5.7 · I68a
     { route: 'tarifas-privadas', label: 'Tarifas privadas', roles: ['super_admin', 'admin', 'assistant', 'client'], ready: true },
@@ -215,7 +217,7 @@ export const ESENCIALES = {
   // 16/10/2026: ningún médico usaba las pantallas del equipo de facturación. Las sustituyen
   // Mi dinero, Mis glosas y Mi productividad, que dicen lo mismo en su idioma.
   client: {
-    menu: ['mi-dashboard', 'agenda', 'seguimiento-hoy', 'flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes',
+    menu: ['mi-dashboard', 'agenda', 'agenda-semana', 'seguimiento-hoy', 'flujo-pacientes', 'pacientes', 'historia-clinica', 'saldos-pacientes',
            'captura', 'hospitalizacion',
            'mi-dinero', 'mis-glosas', 'mi-productividad', 'reporte-contador', 'pagos-privados',
            'mi-ficha', 'tarifas-privadas', 'mis-secretarias', 'mis-asistentes', 'centros',
@@ -235,7 +237,7 @@ export const ESENCIALES = {
 
   // Secretaria · agenda, captura y cobro al paciente privado. Ya estaba bien dimensionado.
   capturer: {
-    menu: ['mi-dashboard', 'agenda', 'flujo-pacientes', 'verificacion', 'pacientes', 'captura', 'reclamaciones',
+    menu: ['mi-dashboard', 'agenda', 'agenda-semana', 'recepcion', 'flujo-pacientes', 'verificacion', 'pacientes', 'captura', 'reclamaciones',
            'expediente', 'saldos-pacientes', 'mensajes', 'documentos-consultorio', 'perfil', 'seguridad'],
     extra: ['hoy', 'calidad-captura', 'insumos', 'pagos-privados', 'actualidades', 'diagnostico', 'cambio-clave']
   },
@@ -436,7 +438,7 @@ function familiaDe(route, role) {
  * en una familia aparece al final en «Más», para que nada se pierda.
  */
 export const FAMILIES = [
-  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'seguimiento-hoy', 'verificacion', 'tareas', 'mis-horas'] },
+  { key: 'dia', group: 'Mi día', routes: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'agenda', 'agenda-semana', 'recepcion', 'seguimiento-hoy', 'verificacion', 'tareas', 'mis-horas'] },
   { key: 'consultorio', group: 'Pacientes y atención', routes: ['flujo-pacientes', 'pacientes', 'historia-clinica', 'hospitalizacion', 'centros', 'practica', 'documentos-consultorio', 'mensajes', 'indicadores-agenda', 'seguimiento', 'avisos-pacientes', 'mis-secretarias', 'mis-asistentes', 'clinica', 'habilitacion', 'mi-habilitacion'] },
   { key: 'facturacion', group: 'Facturación y radicación', routes: ['captura', 'carga-google', 'puesta-al-dia', 'reclamaciones', 'expediente', 'retiros', 'preradicacion', 'requisitos', 'preauditoria', 'ecf', 'auditoria-expedientes', 'insumos', 'calidad-captura', 'radicaciones', 'documentos'] },
   { key: 'contratos', group: 'ARS y contratos', routes: ['ars', 'directorio-centros', 'codigos-ars', 'contratos', 'vencimientos', 'codificacion', 'brechas-tarifa', 'tarifas-versiones', 'mi-ficha'] },
@@ -454,7 +456,7 @@ export const FAMILIES = [
  */
 export const FAMILIAS_ROL = {
   client: [
-    { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda', 'seguimiento-hoy'] },
+    { key: 'dia',         group: 'Mi día',        routes: ['mi-dashboard', 'agenda', 'agenda-semana', 'seguimiento-hoy'] },
     { key: 'pacientes',   group: 'Mis pacientes', routes: ['pacientes', 'flujo-pacientes', 'saldos-pacientes'] },
     { key: 'consulta',    group: 'Historia clínica', routes: ['historia-clinica'] },
     { key: 'trabajo',     group: 'Mi trabajo',    routes: ['captura', 'hospitalizacion'] },
@@ -468,7 +470,7 @@ export const FAMILIAS_ROL = {
   // repartidas en familias del equipo interno), pero con esas etiquetas de SOFA ("Facturación
   // y Radicación") en vez de las suyas. Mismo criterio que ya tiene Médico.
   capturer: [
-    { key: 'dia',       group: 'Mi día',        routes: ['mi-dashboard', 'agenda', 'flujo-pacientes', 'verificacion'] },
+    { key: 'dia',       group: 'Mi día',        routes: ['mi-dashboard', 'agenda', 'agenda-semana', 'recepcion', 'flujo-pacientes', 'verificacion'] },
     { key: 'pacientes', group: 'Mis pacientes', routes: ['pacientes', 'saldos-pacientes', 'mensajes', 'documentos-consultorio'] },
     { key: 'trabajo',   group: 'Mi trabajo',    routes: ['captura', 'reclamaciones', 'expediente'] },
     { key: 'cuenta',    group: 'Mi cuenta',     routes: ['autoentrenamiento', 'perfil', 'seguridad'] }

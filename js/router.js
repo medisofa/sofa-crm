@@ -24,6 +24,7 @@ export const MODULES = {
   'seguimiento-hoy': 'seguimiento-hoy.js',
   'estado-cuenta': 'statement.js', 'calendario-cobros': 'collections-calendar.js', mensajes: 'weekly.js', rentabilidad: 'profitability.js',
   pacientes: 'pacientes.js', 'saldos-pacientes': 'saldos-pacientes.js', 'indicadores-agenda': 'indicadores-agenda.js',
+  'agenda-semana': 'agenda-semana.js', recepcion: 'recepcion.js',   // 244 · agenda por médico y centro
   seguimiento: 'seguimiento.js', 'avisos-pacientes': 'avisos-pacientes.js', 'mis-secretarias': 'mis-secretarias.js', 'mis-asistentes': 'mis-asistentes.js',
   centros: 'centros.js', 'alta-usuarios': 'usuarios.js', 'cambio-clave': 'cambio-clave.js',
   'analitica-glosas': 'analitica-glosas.js', 'salud-clientes': 'salud-clientes.js',

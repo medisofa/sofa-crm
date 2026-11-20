@@ -13,8 +13,23 @@ export async function getAppointment(id) { return must(await sb().from('appointm
 export async function saveAppointment(v) {
   return rpc('save_appointment', { p_id: v.id || null, p_provider: v.provider, p_date: v.date, p_time: v.time || null, p_patient: v.patient, p_doc: v.doc || null,
     p_member: v.member || null, p_phone: v.phone || null, p_payer: v.payer, p_ars: v.payer === 'ars' ? v.ars : null, p_authorization: v.authorization || null,
-    p_reason: v.reason || null, p_notes: v.notes || null });
+    p_reason: v.reason || null, p_notes: v.notes || null, p_center: v.center || null, p_duration: v.duration ? Number(v.duration) : null });
 }
+
+/* 244 · Agenda por médico y centro (opciones B + C).
+ * agenda_week   → { from, to, schedule[], appointments[], busy[] }: busy trae solo horas (sin paciente ni centro) de lo que quien mira no puede ver.
+ * reception_day → { center, date, providers[{ id, full_name, specialty, schedule[], appointments[], busy[] }] }: solo médicos de la organización del centro.
+ * my_agenda_scopes → { centers_by_provider: { [providerId]: [{ id, name, is_primary }] }, reception: [{ id, name }] } */
+/** @param {string} providerId @param {string|null} centerId null = todos los centros @param {string} fromIso @param {number} [days] */
+export async function agendaWeek(providerId, centerId, fromIso, days = 7) { return rpc('agenda_week', { p_provider: providerId, p_center: centerId || null, p_from: fromIso, p_days: days }); }
+/** @param {string} centerId @param {string} dateIso */
+export async function receptionDay(centerId, dateIso) { return rpc('reception_day', { p_center: centerId, p_date: dateIso }); }
+export async function myAgendaScopes() { return rpc('my_agenda_scopes', {}); }
+/** @param {string} providerId @param {string} centerId @param {{weekday:number,start:string,end:string,slot_min:number}[]} rows */
+export async function setProviderSchedule(providerId, centerId, rows) { await rpc('provider_schedule_set', { p_provider: providerId, p_center: centerId, p_rows: rows }); return true; }
+export async function setAssistantCenter(userId, providerId, centerId) { await rpc('set_assistant_center', { p_user: userId, p_provider: providerId, p_center: centerId || null }); return true; }
+export async function setReceptionScope(userId, centerId, active, canBook = true) { await rpc('reception_scope_set', { p_user: userId, p_center: centerId, p_active: active, p_can_book: canBook }); return true; }
+export async function receptionStaff(centerId) { return rpc('reception_staff', { p_center: centerId }); }
 export async function setAppointmentStatus(id, status, note = null) { await rpc('set_appointment_status', { p_id: id, p_status: status, p_note: note }); return true; }
 export async function callAppointmentIn(id, room) { await rpc('call_appointment_in', { p_id: id, p_room: room }); return true; }
 export async function flowBoard(orgId, dateIso) { return rpc('flow_board', { p_org: orgId, p_date: dateIso }); }

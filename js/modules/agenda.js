@@ -45,7 +45,7 @@ function openWhatsApp(a, provider) {
 }
 
 export async function render(main, ctx) {
-  paint(main, html`<div class="page-head"><div class="t"><h2>Agenda del consultorio</h2><p>Citas del día, cobros a pacientes privados y cuadre de caja.</p></div></div><div id="ag"></div>`);
+  paint(main, html`<div class="page-head"><div class="t"><h2>Agenda del consultorio</h2><p>Citas del día, cobros a pacientes privados y cuadre de caja.</p></div><div class="actions"><a class="btn" href="#/agenda-semana">Ver la semana</a></div></div><div id="ag"></div>`);
   return renderAgenda($('#ag', main), ctx);
 }
 
