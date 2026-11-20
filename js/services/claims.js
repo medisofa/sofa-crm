@@ -286,3 +286,11 @@ export async function requestClaimDuplicateExclusion({ lineA, lineB, keepLine, r
 export async function listClaimDuplicateResolutionRequests(lineA, lineB) {
   return must(await sb().rpc('list_claim_duplicate_resolution_requests', { p_line_a: lineA, p_line_b: lineB }));
 }
+/** Cambia el canal de cobro de una línea a "vía clínica" */
+export async function setBillingChannelViaClinica(lineId) {
+  return must(await sb().rpc('set_billing_channel_via_clinica', { p_line_id: lineId }));
+}
+/** Revierte el canal de cobro de una línea a "directo" */
+export async function revertBillingChannelToDirecto(lineId) {
+  return must(await sb().rpc('revert_billing_channel_to_directo', { p_line_id: lineId }));
+}
