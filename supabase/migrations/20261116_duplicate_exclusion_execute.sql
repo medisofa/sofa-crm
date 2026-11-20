@@ -1,9 +1,8 @@
 -- SOFA · 5.41.0 · Duplicados: Administración ejecuta la exclusión solicitada quitando la reclamación del lote.
 -- Ya aplicado en producción con mcp__Supabase__apply_migration (2026-11-16), en dos partes:
---   1) duplicate_exclusion_remove_from_lot: la función y la suite (aplicada; 14 pruebas de comportamiento en verde).
---   2) duplicate_exclusion_retire_cancel_design: el bloque «Retiro del diseño anterior» de este archivo.
---      PENDIENTE al momento de este commit: Supabase pide una confirmación que no se respondió. Hasta
---      entonces ED-02 falla; cancel_duplicate_line sigue existiendo pero sin EXECUTE para authenticated.
+--   1) duplicate_exclusion_remove_from_lot: la función y la suite.
+--   2) retire_cancel_design_and_hospital_notes: el bloque «Retiro del diseño anterior» de este archivo
+--      (ver 20261116_retire_cancel_design_and_hospital_notes.sql). Suite en producción: 15 de 15.
 --
 -- Estado neto. Entre el 13 y el 16/11/2026 se aplicaron pasos intermedios que este archivo reemplaza:
 --   · SQL directo, registrado solo en app.schema_migrations como 230–233: cancel_duplicate_line,
