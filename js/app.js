@@ -593,9 +593,20 @@ async function route() {
     <div class="sk-row"><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div><div class="sk-bar sk-kpi"></div></div>
     <div class="sk-bar sk-table"></div>
   </div>`);
-  const ctx = { ...state, def: r.def, arg: r.arg, setTitle, sb: sb() };
-  try { await r.mod.render(main, ctx); }
-  catch (e) { console.error(e); render(main, errorView(e)); }
+  const ctx = { ...state, def: r.def, arg: r.arg, tab: r.tab || null, setTitle, sb: sb() };
+  // 5.31.0 · Si el módulo declara tabs, pintar la barra de navegación interna antes del contenido.
+  if (r.tabs && r.tabs.length && !r.arg) {
+    const tabBar = html`<nav class="module-tabs" role="tablist" aria-label="Vistas de ${r.def.label}">
+      ${r.tabs.map((t) => html`<a href="#/${r.def.route}/${t.key}" role="tab" aria-selected="${String(t.key === r.tab)}" class="${t.key === r.tab ? 'active' : ''}">${t.label}${t.badge ? html`<span class="mtab-badge">${t.badge}</span>` : ''}</a>`)}
+    </nav>`;
+    render(main, html`${tabBar}<div id="tabContent"></div>`);
+    const tabContent = $('#tabContent', main);
+    try { await r.mod.render(tabContent, ctx); }
+    catch (e) { console.error(e); render(tabContent, errorView(e)); }
+  } else {
+    try { await r.mod.render(main, ctx); }
+    catch (e) { console.error(e); render(main, errorView(e)); }
+  }
   if (my === routeSeq) {
     renderedHash=targetHash; main.focus({ preventScroll: true });
     pushRecentRoute(r.def.route, r.def.label); renderActivityFeed();

@@ -3,7 +3,19 @@ import { mountOpeningHistoryPicker, OPENING_ROLES } from './opening-history.js';
  * SOFA · Reclamaciones individuales (Iteración 12, §12–§14 y §17).
  * Listado con filtros por estado, ubicación, médico, ARS y fechas; acciones masivas
  * (mover de estado con ubicación y responsable, auditar) y exportación CSV.
+ *
+ * 5.31.0 · TABS: subrutas del router. #/reclamaciones/captura pre-selecciona el grupo.
  */
+
+/** Tabs internos navegables por URL — el router los detecta y pinta la barra. */
+export const TABS = [
+  { key: 'todas',    label: 'Todas',                default: true },
+  { key: 'captura',  label: 'En captura' },
+  { key: 'custodia', label: 'En SOFA' },
+  { key: 'ars',      label: 'En la ARS' },
+  { key: 'cobro',    label: 'Pagadas / glosadas' },
+  { key: 'atencion', label: 'Atención' }
+];
 import { html, render as paint, $, $$, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, busy, formDialog, fieldError } from '../utils/ui.js';
 import { money, num, date, dateTime, todayISO } from '../utils/formatters.js';
@@ -19,7 +31,9 @@ export async function render(main, ctx) {
   const role = ctx.role;
   const staff = isStaff(role);
   const money_ = can('claims.money', role);
-  const st = { dossier: '', group: role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas', status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
+  // 5.31.0 · Si el router envía ctx.tab (subruta), usarlo como grupo inicial.
+  const defaultGroup = ctx.tab || (role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas');
+  const st = { dossier: '', group: defaultGroup, status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
   const sel = new Set();
   let rows = []; let transitions = []; let locations = []; let dupMap = new Map(); let coreDupPairs = []; let cachedCounts = [];
   const pendingResolutionPairs = new Set();

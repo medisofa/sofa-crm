@@ -102,7 +102,18 @@ export async function resolve(role) {
   // parecía un problema de red cuando en realidad faltaba actualizar este archivo.
   if (!MODULES[route]) return { kind: 'sinmodulo', def };
   const mod = await import(`./modules/${MODULES[route]}?v=${encodeURIComponent(APP_VERSION)}`);
-  return { kind: 'module', def, mod: conMedicion(route, mod), arg };
+  // 5.31.0 · Tabs internos: si el módulo exporta TABS, distinguir tab de ID de entidad.
+  const wrapped = conMedicion(route, mod);
+  const tabs = Array.isArray(mod.TABS) ? mod.TABS : null;
+  let tab = null;
+  let resolvedArg = arg;
+  if (tabs && arg && tabs.some((t) => t.key === arg)) {
+    tab = arg;
+    resolvedArg = null;   // no es un ID de entidad
+  } else if (tabs && !arg) {
+    tab = (tabs.find((t) => t.default) || tabs[0]).key;
+  }
+  return { kind: 'module', def, mod: wrapped, arg: resolvedArg, tab, tabs };
 }
 
 /** 5.0.0 · I64: envuelve render() para medir cuánto tarda en pintarse la pantalla (solo la clave de la ruta, nunca parámetros).

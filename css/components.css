@@ -242,3 +242,12 @@ dialog.dlg .form-body textarea { min-height: 80px; resize: vertical; }
   .ars-report footer { font-size: 8pt; margin-top: 3mm; padding-top: 2mm; }
   .ars-report-layout aside { display: none !important; }
 }
+
+/* 5.31.0 · Barra de tabs internos por módulo (router subroutes) */
+.module-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--line); margin: -4px 0 16px; overflow-x: auto; scrollbar-width: none; }
+.module-tabs::-webkit-scrollbar { display: none; }
+.module-tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 14px; font-weight: 500; color: var(--ink-2); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+.module-tabs a:hover { color: var(--ink); }
+.module-tabs a.active, .module-tabs a[aria-selected="true"] { color: var(--navy); border-bottom-color: var(--navy); font-weight: 600; }
+.mtab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--navy); color: var(--on-navy); font-size: 11px; font-weight: 700; line-height: 1; }
+@media (max-width: 600px) { .module-tabs a { padding: 8px 12px; font-size: 13px; } }
