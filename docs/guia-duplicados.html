@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="es-DO"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SOFA &middot; Gestión de Duplicados — Flujo Frontend</title>
+<style>:root{--t:#14181d;--s:#5b6773;--l:#e2e6ea;--p:#f6f8fa;--v:#0f7b52;--vf:#e6f4ee;--r:#a3281e;--rf:#fcecea;--a:#1b4f8a;--af:#e9f1fa;--m:#8a5a00;--mf:#fdf3e0}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--t);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.h{max-width:1000px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:-.015em}
+.sub{color:var(--s);margin:0 0 28px;font-size:15px}
+h2{font-size:20px;margin:46px 0 14px;padding-bottom:9px;border-bottom:2px solid var(--t)}
+h3{font-size:16px;margin:28px 0 8px}
+h4{font-size:14.5px;margin:20px 0 6px;color:var(--s);text-transform:uppercase;letter-spacing:.04em}
+p{margin:0 0 14px}
+.al{border-left:4px solid var(--r);background:var(--rf);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+.ok{border-left:4px solid var(--v);background:var(--vf);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+.no{border-left:4px solid var(--a);background:var(--af);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+.am{border-left:4px solid var(--m);background:var(--mf);padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:18px;font-size:15px}
+code{background:var(--p);padding:1px 5px;border-radius:4px;font-size:13.5px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#141a21;color:#e8edf2;padding:16px;border-radius:9px;font:13.5px/1.55 ui-monospace,Menlo,monospace;overflow-x:auto;margin:0 0 18px;position:relative}
+pre .cp{position:absolute;top:8px;right:8px;background:#2b6cb0;color:#fff;border:0;border-radius:5px;padding:4px 10px;font:600 11.5px system-ui;cursor:pointer}
+pre .cp:hover{background:#3b7dd0}
+table{border-collapse:collapse;width:100%;font-size:14.5px;margin-bottom:14px}
+th,td{border-bottom:1px solid var(--l);padding:9px 10px;text-align:left;vertical-align:top}
+th{background:var(--p);font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--s)}
+.si{color:var(--v);font-weight:700}.pend{color:var(--m);font-weight:700}.mal{color:var(--r);font-weight:700}.no_{color:var(--s)}
+ol,ul{padding-left:22px}li{margin-bottom:9px}
+footer{margin-top:46px;padding-top:18px;border-top:1px solid var(--l);color:var(--s);font-size:13.5px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0 24px}
+.pane{border:1px solid var(--l);border-radius:12px;overflow:hidden;background:#fff}
+.pane>header{background:var(--p);padding:8px 13px;font:600 12.5px system-ui;text-transform:uppercase;letter-spacing:.04em;color:var(--s);border-bottom:1px solid var(--l)}
+.pane>div{padding:14px}
+.flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 20px}
+.flow .st{background:var(--af);border:1px solid var(--a);border-radius:8px;padding:6px 12px;font:600 13px system-ui;color:var(--a)}
+.flow .ar{color:var(--s);font-size:18px}
+.flow .st.act{background:var(--vf);border-color:var(--v);color:var(--v)}
+.flow .st.dn{background:var(--rf);border-color:var(--r);color:var(--r)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font:600 12px system-ui;margin:0 2px}
+.tag.def{background:#2b1a30;color:#d4a6e8}.tag.inv{background:#1a2e30;color:#8ed4c6}
+@media (max-width:720px){.cmp{grid-template-columns:1fr}.h{padding:26px 14px 60px}}</style>
+<script>function cp(b){const pre=b.parentElement;const code=pre.querySelector('code')||pre;const t=code.textContent;navigator.clipboard.writeText(t).then(()=>{b.textContent='✓ Copiado';setTimeout(()=>b.textContent='Copiar',1500)})}</script>
+</head><body><div class="h">
+
+<h1>Gestión de Duplicados</h1>
+<p class="sub">Flujo frontend de resolución &middot; v5.39.0 (solicitar) + v5.41.0 (ejecutar) &middot; noviembre 2026</p>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>1 · Flujo general</h2>
+
+<p>Cuando el sistema detecta que dos reclamaciones del mismo paciente, mismo procedimiento y misma fecha fueron enviadas a la misma ARS, las marca como <b>duplicado confirmado</b>. A partir de ahí, el equipo puede resolver el duplicado desde el diálogo de resolución.</p>
+
+<div class="flow">
+  <span class="st">Duplicado detectado</span>
+  <span class="ar">→</span>
+  <span class="st">Revisión (confirmar/descartar)</span>
+  <span class="ar">→</span>
+  <span class="st act">Solicitar exclusión</span>
+  <span class="ar">→</span>
+  <span class="st act">Ejecutar exclusión</span>
+  <span class="ar">→</span>
+  <span class="st dn">Reclamación eliminada</span>
+</div>
+
+<div class="al"><b>Acción irreversible.</b> Una vez ejecutada la exclusión, la reclamación se elimina del lote. No se puede recuperar desde la interfaz. Los archivos del Storage asociados a la reclamación eliminada <b>no se borran</b> automáticamente (pendiente conocido).</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>2 · Matriz de roles</h2>
+
+<table>
+<thead><tr><th>Acción</th><th>Roles permitidos</th><th>Constante en el código</th></tr></thead>
+<tbody>
+<tr><td><b>Corregir</b> — abrir reclamación para edición</td><td class="si">super_admin, admin, billing, operations</td><td><code>REQUEST_ROLES</code></td></tr>
+<tr><td><b>Solicitar exclusión</b></td><td class="si">super_admin, admin, billing, operations</td><td><code>REQUEST_ROLES</code></td></tr>
+<tr><td><b>Ejecutar exclusión</b></td><td class="pend">super_admin, admin</td><td><code>EXECUTE_ROLES</code></td></tr>
+</tbody>
+</table>
+
+<div class="am"><b>Modo soporte.</b> Cuando <code>viewAs</code> está activo (un admin está viendo como otro rol), las acciones de solicitar y ejecutar exclusión <b>se deshabilitan</b>. Solo se permite «Corregir».</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>3 · Las tres acciones del diálogo</h2>
+
+<h3>3.1 · Corregir</h3>
+<p>Navega al editor de la reclamación (<code>#/reclamaciones/{id}</code>) para que el usuario corrija los datos que causaron el duplicado. Disponible para <code>REQUEST_ROLES</code>.</p>
+
+<h3>3.2 · Solicitar exclusión</h3>
+<p>Crea una solicitud de exclusión para que un administrador la revise y ejecute.</p>
+
+<h4>Validaciones previas (frontend)</h4>
+<ul>
+<li>El par de reclamaciones debe tener un <b>bloqueo confirmado</b> activo (campo <code>confirmed_block</code>).</li>
+<li>No debe existir ya una solicitud pendiente para ese par.</li>
+<li>El motivo debe tener al menos <b>10 caracteres</b>.</li>
+<li>El usuario debe seleccionar cuál reclamación <b>conservar</b> (<code>keepLine</code>).</li>
+</ul>
+
+<h3>3.3 · Ejecutar exclusión</h3>
+<p>Solo disponible cuando existe una solicitud <span class="pend">pendiente</span>. El administrador confirma y la reclamación descartada se elimina del lote.</p>
+
+<h4>Validaciones previas (frontend + backend)</h4>
+<ul>
+<li>Debe existir una solicitud de exclusión en estado <code>pendiente</code>.</li>
+<li>Solo roles <code>EXECUTE_ROLES</code> (admin, super_admin).</li>
+<li>El modo soporte (<code>viewAs</code>) <b>bloquea</b> esta acción.</li>
+<li>El backend verifica internamente: lote editable, sin pagos, sin glosas, sin reenvíos.</li>
+<li>Solo reclamaciones en estados de captura: <code>pendiente_configuracion</code>, <code>capturada</code>, <code>pendiente_retiro</code>.</li>
+</ul>
+
+<div class="no"><b>Diálogo de confirmación destructiva.</b> Antes de ejecutar, el sistema muestra un <code>confirmDialog</code> con el texto: <i>«Esta acción eliminará la reclamación del lote y no se puede deshacer.»</i></div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>4 · Funciones RPC del backend</h2>
+
+<p>Siete funciones respaldan el flujo. Las marcadas <span class="tag def">DEFINER</span> se ejecutan con permisos del propietario de la función; las marcadas <span class="tag inv">INVOKER</span> respetan la RLS del usuario que llama.</p>
+
+<table>
+<thead><tr><th>Función</th><th>Firma</th><th>Seguridad</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>claim_duplicate_candidates</code></td>
+  <td><code>(p_ids uuid[], p_submission uuid)</code></td>
+  <td><span class="tag def">DEFINER</span></td>
+</tr>
+<tr>
+  <td><code>review_claim_duplicate</code></td>
+  <td><code>(p_line_a uuid, p_line_b uuid, p_decision text, p_reason text)</code></td>
+  <td><span class="tag def">DEFINER</span></td>
+</tr>
+<tr>
+  <td><code>request_claim_duplicate_exclusion</code></td>
+  <td><code>(p_line_a uuid, p_line_b uuid, p_keep_line uuid, p_reason text)</code></td>
+  <td><span class="tag inv">INVOKER</span></td>
+</tr>
+<tr>
+  <td><code>list_claim_duplicate_resolution_requests</code></td>
+  <td><code>(p_line_a uuid, p_line_b uuid)</code></td>
+  <td><span class="tag inv">INVOKER</span></td>
+</tr>
+<tr>
+  <td><code>claim_duplicate_resolution_request_statuses</code></td>
+  <td><code>(p_ids uuid[])</code></td>
+  <td><span class="tag inv">INVOKER</span></td>
+</tr>
+<tr>
+  <td><code>execute_claim_duplicate_exclusion</code></td>
+  <td><code>(p_request uuid)</code></td>
+  <td><span class="tag def">DEFINER</span></td>
+</tr>
+<tr>
+  <td><code>remove_service_line</code></td>
+  <td><code>(p_line uuid, p_reason text)</code></td>
+  <td><span class="tag def">DEFINER</span></td>
+</tr>
+</tbody>
+</table>
+
+<div class="am"><b>Cadena de ejecución.</b> <code>execute_claim_duplicate_exclusion</code> llama internamente a <code>remove_service_line</code>, que a su vez verifica que el lote sea editable y que no existan pagos, glosas ni reenvíos asociados a la reclamación a eliminar.</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>5 · Mapeo frontend → servicio → RPC</h2>
+
+<div class="cmp">
+<div class="pane">
+  <header>Frontend (duplicate-resolution.js)</header>
+  <div>
+    <p style="margin:0"><code>import { ... } from '../services/claims.js'</code></p>
+    <ul style="margin:8px 0 0;font-size:14px">
+      <li><code>requestClaimDuplicateExclusion()</code></li>
+      <li><code>listClaimDuplicateResolutionRequests()</code></li>
+      <li><code>executeClaimDuplicateExclusion()</code></li>
+    </ul>
+  </div>
+</div>
+<div class="pane">
+  <header>Servicio (claims.js)</header>
+  <div>
+    <p style="margin:0">Cada función llama a <code>sb().rpc()</code>:</p>
+    <ul style="margin:8px 0 0;font-size:14px">
+      <li><code>rpc('request_claim_duplicate_exclusion', {p_line_a, p_line_b, p_keep_line, p_reason})</code></li>
+      <li><code>rpc('list_claim_duplicate_resolution_requests', {p_line_a, p_line_b})</code></li>
+      <li><code>rpc('execute_claim_duplicate_exclusion', {p_request})</code></li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>6 · SQL — Consultas de verificación</h2>
+
+<h3>6.1 · Ver solicitudes de exclusión pendientes</h3>
+<pre><button class="cp" onclick="cp(this)">Copiar</button><code>SELECT r.id, r.created_at, r.reason, r.status,
+       la.folio AS folio_a, lb.folio AS folio_b,
+       lk.folio AS folio_conservada
+FROM   claim_duplicate_resolution_requests r
+JOIN   claim_service_lines la ON la.id = r.line_a
+JOIN   claim_service_lines lb ON lb.id = r.line_b
+JOIN   claim_service_lines lk ON lk.id = r.keep_line
+WHERE  r.status = 'pendiente'
+ORDER BY r.created_at DESC
+LIMIT 20;</code></pre>
+
+<h3>6.2 · Ver bloqueos de duplicados confirmados</h3>
+<pre><button class="cp" onclick="cp(this)">Copiar</button><code>SELECT d.id, d.line_a, d.line_b, d.decision,
+       d.confirmed_block, d.created_at
+FROM   claim_duplicates d
+WHERE  d.confirmed_block = true
+  AND  d.decision = 'confirmed'
+ORDER BY d.created_at DESC
+LIMIT 20;</code></pre>
+
+<h3>6.3 · Verificar que una reclamación fue eliminada</h3>
+<pre><button class="cp" onclick="cp(this)">Copiar</button><code>-- Buscar en el log de auditoría
+SELECT al.created_at, al.action, al.details,
+       al.performed_by
+FROM   audit_log al
+WHERE  al.action LIKE '%remove_service_line%'
+ORDER BY al.created_at DESC
+LIMIT 10;</code></pre>
+
+<h3>6.4 · Ejecutar las pruebas automatizadas</h3>
+<pre><button class="cp" onclick="cp(this)">Copiar</button><code>-- Suite de pruebas backend (15 tests)
+SELECT * FROM app.qa_run_tests_exclusion_duplicados();</code></pre>
+
+<div class="ok"><b>Prueba de navegador.</b> Además de la suite SQL, existe <code>tests/browser/duplicate-resolution.mjs</code> que cubre el flujo completo desde la interfaz.</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>7 · Archivos involucrados</h2>
+
+<table>
+<thead><tr><th>Archivo</th><th>Responsabilidad</th></tr></thead>
+<tbody>
+<tr><td><code>js/modules/duplicate-resolution.js</code></td><td>Diálogo de resolución de duplicados (UI + eventos)</td></tr>
+<tr><td><code>js/services/claims.js</code></td><td>Funciones de servicio: 5 RPCs de duplicados (líneas 255-288)</td></tr>
+<tr><td><code>js/utils/ui.js</code></td><td><code>formDialog</code>, <code>confirmDialog</code>, <code>toast</code>, <code>busy</code>, <code>friendlyError</code></td></tr>
+<tr><td><code>js/utils/dom.js</code></td><td><code>html</code>, <code>render</code> (tagged template, nunca <code>.map()</code> crudo)</td></tr>
+<tr><td><code>js/utils/formatters.js</code></td><td><code>dateTime()</code> para formatear fechas en el historial</td></tr>
+<tr><td><code>js/utils/view-as-state.js</code></td><td><code>viewAsState()</code> para detectar modo soporte</td></tr>
+<tr><td><code>docs/gestion-duplicados.md</code></td><td>Documentación del flujo completo en markdown</td></tr>
+<tr><td><code>tests/browser/duplicate-resolution.mjs</code></td><td>Pruebas de navegador del flujo de resolución</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2>8 · Pendientes conocidos</h2>
+
+<table>
+<thead><tr><th>Pendiente</th><th>Impacto</th><th>Prioridad</th></tr></thead>
+<tbody>
+<tr><td>Los archivos del Storage de la reclamación eliminada no se borran</td><td class="pend">Archivos huérfanos en el bucket</td><td class="pend">Media</td></tr>
+<tr><td>Bloque 2 de la iteración actual: mostrar datos del duplicado y edición inline</td><td class="no_">Mejora de UX pendiente</td><td class="no_">En la cola (Task #22)</td></tr>
+</tbody>
+</table>
+
+<footer>
+Generado el 19 de noviembre de 2026 &middot; Referencia: <code>docs/gestion-duplicados.md</code>,
+<code>js/modules/duplicate-resolution.js</code>, <code>js/services/claims.js</code>
+</footer>
+
+</div></body></html>
