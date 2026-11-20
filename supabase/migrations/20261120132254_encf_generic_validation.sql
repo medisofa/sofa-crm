@@ -6,6 +6,7 @@
 --   1. set_submission_ecf  — regex '^E31\d{10}$' → '^E\d{12}$', mensaje actualizado
 --   2. work_queue           — misma corrección en el bloque B4 (lotes frenados por e-CF)
 --   3. ecf_client_step_set  — hint text "fecha del primer E31" → "fecha del primer e-NCF"
+--   4. set_sofa_invoice_ncf — regex E3[1-4] → E\d{12}, mensaje actualizado
 --
 -- Archivos frontend corregidos en el mismo commit:
 --   - js/modules/submission.js  (regex de validación + mensajes)
@@ -66,7 +67,28 @@ begin
 end
 $function$;
 
--- 3. work_queue — la función completa con las dos correcciones en el bloque B4 final.
+-- 4. set_sofa_invoice_ncf — acepta cualquier e-NCF, no solo E31–E34
+CREATE OR REPLACE FUNCTION public.set_sofa_invoice_ncf(p_invoice uuid, p_ncf text, p_valid_until date DEFAULT NULL::date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare i public.sofa_invoices; v text := upper(regexp_replace(coalesce(p_ncf, ''), '\s', '', 'g'));
+begin
+  select * into i from public.sofa_invoices where id = p_invoice for update;
+  if not found then raise exception 'Factura no encontrada' using errcode = 'P0002'; end if;
+  if not app.can(i.organization_id, array['super_admin','admin']) then raise exception 'Solo Admin o Super Admin registran el NCF' using errcode = '42501'; end if;
+  if i.status = 'anulada' then raise exception 'La factura está anulada' using errcode = '23514'; end if;
+  if v !~ '^(B(01|02|14|15)\d{8}|E\d{12})$' then
+    raise exception 'NCF inválido: B01/B02/B14/B15 + 8 dígitos, o e-NCF (E + 12 dígitos)' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.sofa_invoices x where x.ncf = v and x.id <> i.id) then raise exception 'Ese NCF ya está usado en otra factura' using errcode = '23505'; end if;
+  if p_valid_until is not null and p_valid_until < i.issued_on then raise exception 'El NCF estaba vencido en la fecha de emisión' using errcode = '22023'; end if;
+  update public.sofa_invoices set ncf = v, ncf_valid_until = p_valid_until where id = i.id;
+end $function$;
+
+-- 5. work_queue — la función completa con las dos correcciones en el bloque B4 final.
 --    (No se incluye aquí por extensión; la corrección está en las dos últimas líneas del
 --    último UNION ALL: regex '^E31\d{10}$' → '^E\d{12}$' y mensaje
 --    'sin e-CF E31 aceptado por la DGII' → 'sin e-NCF aceptado por la DGII'.)
