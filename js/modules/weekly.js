@@ -4,7 +4,7 @@
  *  en el momento de enviar (nunca se guarda en el mensaje) y la pantalla muestra los pedidos que llegan desde el portal. */
 import { rpc, realPendingMessages, realRecentSummaries, h, num, fmtDate, note, guarded } from '../services/iter18.js';
 
-const KIND = { recordatorio_cita: 'Recordatorio de cita', seguimiento_cita: 'Seguimiento después de la cita', control_pendiente: 'Consulta de control', reprogramar_cita: 'Reprogramar cita (no asistió)', cobro_pendiente: 'Recordatorio de pago', resumen_semanal: 'Resumen semanal' };
+const KIND = { recordatorio_cita: 'Recordatorio de cita', seguimiento_cita: 'Seguimiento después de la cita', control_pendiente: 'Consulta de control', reprogramar_cita: 'Reprogramar cita (no asistió)', cobro_pendiente: 'Recordatorio de pago', resumen_semanal: 'Resumen semanal', agenda_medico: 'Agenda de mañana (para el médico)' };
 // RD: números locales de 10 dígitos (809/829/849) -> prefijo 1. Si ya trae código de país, se respeta.
 const waLink = (phone, body) => {
   let d = String(phone || '').replace(/\D/g, '');
@@ -112,7 +112,7 @@ export async function render(root) {
       () => rpc('mark_message', { p_id: m.id, p_status: 'omitido' }),
       () => link ? 'Mensaje omitido.' : 'Mensaje descartado. Corrija el teléfono y use «Generar recordatorios» para crear uno nuevo.'));
     // Guía numerada de pasos con deep links cuando no hay teléfono válido ────
-    const noPhonePasos = !link ? (m.kind === 'resumen_semanal'
+    const noPhonePasos = !link ? (['resumen_semanal', 'agenda_medico'].includes(m.kind)
       ? [[h('a', { href: '#/mi-ficha' }, 'Ir a Mi ficha'), ' y corrija el campo «Teléfono» del médico.'],
          ['Pulse «Descartar» (botón de abajo) para retirar este mensaje.'],
          ['Pulse «Generar resúmenes de esta semana» para crear uno nuevo con el teléfono correcto.']]

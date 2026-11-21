@@ -6,10 +6,12 @@
  * A la derecha: las citas del día siguiente por confirmar, con WhatsApp gratuito (wa.me) y «Confirmó».
  */
 import { html, render as paint, $ } from '../utils/dom.js';
-import { toast, friendlyError, opt, formDialog, fieldError, loadingView, emptyView } from '../utils/ui.js';
+import { toast, friendlyError, opt, formDialog, fieldError, loadingView, emptyView, confirmDialog } from '../utils/ui.js';
 import { todayISO } from '../utils/formatters.js';
 import { captureProviders, activeArs } from '../services/claims.js';
-import { agendaWeek, myAgendaScopes, saveAppointment, setAppointmentStatus, setProviderSchedule } from '../services/consultorio.js';
+import { agendaWeek, myAgendaScopes, saveAppointment, setAppointmentStatus, setProviderSchedule,
+  calendarFeedStatus, calendarFeedCreate, calendarFeedRevoke, CALENDAR_FEED_URL } from '../services/consultorio.js';
+import { dateTime } from '../utils/formatters.js';
 import { APPT_STATUS } from './agenda.js';
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -49,6 +51,7 @@ export async function render(main, ctx) {
   if (!mem.from) mem.from = mondayOf(todayISO());
   let lastData = { appointments: [] };
   const canEditSchedule = ['super_admin', 'admin', 'client', 'assistant'].includes(ctx.role);
+  const canCalendar = ['super_admin', 'admin', 'client'].includes(ctx.role);   // la base valida además que sea su médico (calendar_feed_can)
 
   async function load() {
     const centers = scopes.centers_by_provider[mem.provider] || [];
@@ -62,6 +65,7 @@ export async function render(main, ctx) {
           <button class="btn" type="button" data-nav="0">Esta semana</button>
           <button class="btn" type="button" data-nav="7">Semana siguiente ›</button>
           ${canEditSchedule ? html`<button class="btn" type="button" data-schedule>Horario</button>` : ''}
+          ${canCalendar ? html`<button class="btn" type="button" data-calendar>Calendario en mi teléfono</button>` : ''}
         </div>
       </div>
       <div id="wk_body">${loadingView(4)}</div>`);
@@ -197,6 +201,64 @@ export async function render(main, ctx) {
     if (saved) { toast('Horario guardado.', 'ok'); load(); }
   }
 
+  /** 260 · Calendario del médico: el enlace privado se muestra UNA vez, al crearlo. */
+  async function calendarDialog() {
+    const prov = providers.find((p) => p.id === mem.provider);
+    let st;
+    try { st = await calendarFeedStatus(mem.provider); } catch (err) { toast(friendlyError(err), 'bad'); return; }
+    const d = document.createElement('dialog');
+    d.className = 'dlg'; d.style.width = 'min(640px, 96vw)'; d.setAttribute('aria-labelledby', 'cal-t');
+    const paintCal = (token) => {
+      const https = token ? `${CALENDAR_FEED_URL}?t=${token}` : '';
+      const webcal = https.replace(/^https:/, 'webcal:');
+      paint(d, html`<div class="dh" id="cal-t">Calendario en mi teléfono · ${prov?.full_name || ''}</div>
+        <div class="db">
+          <p>Sus citas aparecen en el calendario de su teléfono (iPhone, Google Calendar u Outlook), con un aviso 30 minutos antes.
+             Se actualizan solas cuando la secretaria agenda, mueve o cancela.</p>
+          <div class="note info">Por privacidad, el calendario muestra solo las <b>iniciales</b> del paciente, el motivo y el centro. Nunca el nombre completo, la cédula ni el teléfono.</div>
+          ${token ? html`
+            <div class="note warn" role="alert"><b>Copie el enlace ahora:</b> por seguridad no se puede volver a mostrar. Si lo pierde, cree uno nuevo.</div>
+            <div class="field"><label for="cal_w">iPhone u Outlook (toque para suscribirse)</label>
+              <div class="wk-nav"><input id="cal_w" readonly value="${webcal}" style="flex:1;min-width:0"><a class="btn" href="${webcal}">Abrir</a><button class="btn" type="button" data-copy="cal_w">Copiar</button></div></div>
+            <div class="field"><label for="cal_h">Google Calendar (Otros calendarios › Desde URL)</label>
+              <div class="wk-nav"><input id="cal_h" readonly value="${https}" style="flex:1;min-width:0"><button class="btn" type="button" data-copy="cal_h">Copiar</button></div></div>
+            <p class="muted">Google Calendar puede tardar varias horas en mostrar cambios; el iPhone se actualiza cada hora.</p>`
+          : html`<p><b>Estado:</b> ${st.active ? `Activo desde ${dateTime(st.created_at)}${st.last_access_at ? ` · último uso ${dateTime(st.last_access_at)}` : ' · todavía no se ha usado'}` : 'Sin enlace activo.'}</p>
+                 ${st.active ? html`<p class="muted">Si cambió de teléfono o cree que alguien más tiene el enlace, revóquelo o cree uno nuevo (el anterior deja de funcionar).</p>` : ''}`}
+        </div>
+        <div class="df">
+          ${st.active && !token ? html`<button class="btn" type="button" data-revoke>Revocar enlace</button>` : ''}
+          ${!token ? html`<button class="btn primary" type="button" data-create>${st.active ? 'Crear enlace nuevo' : 'Crear enlace'}</button>` : ''}
+          <button class="btn" type="button" data-close>Cerrar</button>
+        </div>`);
+    };
+    paintCal(null);
+    d.addEventListener('click', async (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.hasAttribute('data-close')) { d.close(); return; }
+      if (b.dataset.copy) {
+        const inp = d.querySelector(`#${b.dataset.copy}`);
+        try { await navigator.clipboard.writeText(inp.value); toast('Enlace copiado.', 'ok'); } catch { inp.select(); toast('Seleccione el enlace y cópielo.', ''); }
+        return;
+      }
+      if (b.hasAttribute('data-create')) {
+        if (st.active && !(await confirmDialog('Crear enlace nuevo', 'El enlace anterior dejará de funcionar y tendrá que suscribirse de nuevo. ¿Continuar?', 'Crear enlace nuevo'))) return;
+        try { const token = await calendarFeedCreate(mem.provider); st = { active: true }; paintCal(token); }
+        catch (err) { toast(friendlyError(err), 'bad'); }
+        return;
+      }
+      if (b.hasAttribute('data-revoke')) {
+        if (!(await confirmDialog('Revocar enlace', 'El calendario dejará de actualizarse en todos los teléfonos donde esté suscrito. ¿Continuar?', 'Revocar', true))) return;
+        try { await calendarFeedRevoke(mem.provider); st = await calendarFeedStatus(mem.provider); paintCal(null); toast('Enlace revocado.', 'ok'); }
+        catch (err) { toast(friendlyError(err), 'bad'); }
+      }
+    });
+    d.addEventListener('close', () => d.remove());
+    document.body.appendChild(d);
+    d.showModal();
+  }
+
   box.addEventListener('change', (e) => {
     if (e.target.id === 'wk_p') { mem.provider = e.target.value; mem.center = ''; load(); }
     if (e.target.id === 'wk_c') { mem.center = e.target.value; load(); }
@@ -206,6 +268,7 @@ export async function render(main, ctx) {
     if (!b) return;
     if (b.dataset.nav) { mem.from = b.dataset.nav === '0' ? mondayOf(todayISO()) : addDays(mem.from, Number(b.dataset.nav)); load(); return; }
     if (b.hasAttribute('data-schedule')) { editSchedule(); return; }
+    if (b.hasAttribute('data-calendar')) { calendarDialog(); return; }
     if (b.dataset.free) { const [d, t] = b.dataset.free.split('|'); newAppointment(d, t); return; }
     if (b.dataset.wa) {
       const a = lastData.appointments.find((x) => x.id === b.dataset.wa);
