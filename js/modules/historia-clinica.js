@@ -8,6 +8,7 @@ import { confirmDialog } from '../utils/ui.js';
 import { mfaState, verifyStep } from './seguridad.js';
 import { orderForm, ordersList, printOrder } from './hc-ordenes.js';
 import { pii } from '../utils/view-as-state.js';   // 5.34.0 · difumina PII del paciente en modo soporte
+import { computeAll, needsWho, loadWho } from '../utils/antropometria.js';   // HC nutrición · IMC, ICT, bioimpedancia, puntaje Z
 
 const LOCK_MS = 5 * 60 * 1000;
 const KIND = { historia_externa: 'Historia de otro sistema', resultado: 'Resultado', imagen: 'Imagen', otro: 'Otro' };
@@ -191,6 +192,7 @@ export async function render(root, ctx = {}) {
     if (!rec) return;
     const w = st.can_write;
     const p = rec.patient;
+    st.patient = p;   // edad y sexo para los cálculos de la nota (no sale del navegador)
     const age = p.birth_date ? Math.floor((Date.now() - new Date(p.birth_date)) / 31557600000) : null;
     const pane = h('div', { 'aria-live': 'polite' });
     const actions = h('div', { class: 'i18-actions hc-actions' },
@@ -303,6 +305,13 @@ export async function render(root, ctx = {}) {
           const id = `hc-f-${f.key}`;
           const val = prev[f.key] ?? existing?.content?.[f.key] ?? '';
           let el;
+          if (f.type === 'heading') return h('h5', { class: 'hc-sec hc-wide hc-subhead' }, f.label);
+          if (f.type === 'calc') {
+            el = h('output', { id, class: 'hc-calc', 'aria-live': 'polite' }, '');
+            el.value = '';
+            inputs[f.key] = el;
+            return h('label', { for: id, class: 'hc-calc-lbl' }, h('span', {}, f.label, h('small', { class: 'i18-sub' }, ' · automático')), el);
+          }
           if (f.type === 'textarea') el = h('textarea', { id, rows: '3', maxlength: '8000' }, val);
           else if (f.type === 'select') el = h('select', { id }, h('option', { value: '' }, '—'), (f.options || []).map((o) => h('option', { value: o, selected: val === o }, o)));
           else el = h('input', { id, type: f.type === 'date' ? 'date' : 'text', inputmode: f.type === 'number' ? 'decimal' : null, value: val, placeholder: f.type === 'cie10' ? 'Ej.: I10, E11.9' : null });
@@ -310,10 +319,44 @@ export async function render(root, ctx = {}) {
           return h('label', { for: id, class: f.type === 'textarea' ? 'hc-wide' : '' }, h('span', { class: f.required ? 'hc-req' : '' }, f.label), el);
         })));
       }));
+      recalc();
     }
+    // Cálculos automáticos: se rehacen con cada tecla. Las tablas de la OMS (≈ 480 KB) solo se descargan
+    // si la plantilla tiene puntaje Z; mientras llegan, los Z muestran «Cargando tablas de la OMS…».
+    let who = null; let whoLoading = false;
+    function recalc() {
+      const t = tplByCode[tpl.value];
+      if (!t.fields.some((f) => f.type === 'calc')) return;
+      if (needsWho(t.fields) && !who && !whoLoading) {
+        whoLoading = true;
+        loadWho().then((w) => { who = w; recalc(); })
+          .catch(() => msg.replaceChildren(note('No se pudieron cargar las tablas de la OMS para el puntaje Z. Revise la conexión y vuelva a abrir la nota; el resto se calcula igual.', 'error')));
+      }
+      const vals = Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value]));
+      const out = computeAll(t.fields, vals, st.patient, date.value || null, who);
+      for (const f of t.fields) {
+        if (f.type !== 'calc' || !inputs[f.key]) continue;
+        const v = out[f.key] ?? '';
+        inputs[f.key].value = v || (who || !String(f.formula).startsWith('z_') ? v : (vals.peso || vals.talla ? 'Cargando tablas de la OMS…' : ''));
+        inputs[f.key].textContent = inputs[f.key].value;
+      }
+    }
+    fieldsBox.addEventListener('input', recalc);
+    fieldsBox.addEventListener('change', recalc);
+    date.addEventListener('change', recalc);
     tpl.addEventListener('change', drawFields);
     drawFields();
-    const content = () => Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value.trim()]).filter(([, v]) => v !== ''));
+    // Plantilla sugerida según la especialidad del médico (solo en notas nuevas y si nadie la cambió).
+    if (!existing) {
+      let touched = false;
+      tpl.addEventListener('change', () => { touched = true; }, { once: true });
+      rpc('clinical_default_template', { p_patient: patientId }).then((code) => {
+        if (touched || !tplByCode[code] || code === tpl.value) return;
+        tpl.value = code; drawFields();
+      }).catch(() => {});
+    }
+    const content = () => Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, String(el.value ?? '').trim()])
+      .filter(([k, v]) => v !== '' && v !== 'Cargando tablas de la OMS…'));
     async function save() {
       return rpc('save_clinical_note', { p_id: existing?.id || null, p_patient: patientId, p_template: tpl.value, p_content: content(), p_encounter: date.value || null, p_appointment: apt.value || null });
     }
