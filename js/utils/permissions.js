@@ -48,7 +48,7 @@ export const NAV = [
     { route: 'agenda-semana', label: 'Agenda de la semana', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 244
     { route: 'recepcion', label: 'Recepción del centro', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client', 'capturer'], ready: true },   // 244 · el acceso real lo decide reception_day
     { route: 'practica', label: 'Mi práctica', roles: ['super_admin', 'admin', 'assistant', 'operations', 'client'], ready: true },
-    { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations', 'billing'], ready: true },   // 5.7 · I68a
+    { route: 'hospitalizacion', label: 'Hospitalización', roles: ['client', 'super_admin', 'admin', 'operations', 'billing', 'capturer'], ready: true },   // 264: + secretaria (traslados y egresos de sus médicos)   // 5.7 · I68a
     { route: 'tarifas-privadas', label: 'Tarifas privadas', roles: ['super_admin', 'admin', 'assistant', 'client'], ready: true },
     { route: 'pagos-privados', label: 'Pagos de pacientes', roles: ['super_admin', 'admin', 'operations', 'billing', 'auditor', 'client', 'capturer'], ready: true },   // 30/10/2026 · pagos directos del paciente (no ARS), autorizado por médico
     { route: 'dashboard', label: 'Dashboard BI', roles: [...NO_OPS(STAFF), 'client'], ready: true }
@@ -237,7 +237,7 @@ export const ESENCIALES = {
 
   // Secretaria · agenda, captura y cobro al paciente privado. Ya estaba bien dimensionado.
   capturer: {
-    menu: ['mi-dashboard', 'agenda', 'agenda-semana', 'recepcion', 'flujo-pacientes', 'verificacion', 'pacientes', 'captura', 'reclamaciones',
+    menu: ['mi-dashboard', 'agenda', 'agenda-semana', 'recepcion', 'flujo-pacientes', 'verificacion', 'pacientes', 'hospitalizacion', 'captura', 'reclamaciones',
            'expediente', 'saldos-pacientes', 'mensajes', 'documentos-consultorio', 'perfil', 'seguridad'],
     extra: ['hoy', 'calidad-captura', 'insumos', 'pagos-privados', 'actualidades', 'diagnostico', 'cambio-clave']
   },
@@ -471,7 +471,7 @@ export const FAMILIAS_ROL = {
   // y Radicación") en vez de las suyas. Mismo criterio que ya tiene Médico.
   capturer: [
     { key: 'dia',       group: 'Mi día',        routes: ['mi-dashboard', 'agenda', 'agenda-semana', 'recepcion', 'flujo-pacientes', 'verificacion'] },
-    { key: 'pacientes', group: 'Mis pacientes', routes: ['pacientes', 'saldos-pacientes', 'mensajes', 'documentos-consultorio'] },
+    { key: 'pacientes', group: 'Mis pacientes', routes: ['pacientes', 'hospitalizacion', 'saldos-pacientes', 'mensajes', 'documentos-consultorio'] },
     { key: 'trabajo',   group: 'Mi trabajo',    routes: ['captura', 'reclamaciones', 'expediente'] },
     { key: 'cuenta',    group: 'Mi cuenta',     routes: ['autoentrenamiento', 'perfil', 'seguridad'] }
   ],
