@@ -30,6 +30,14 @@ export async function setProviderSchedule(providerId, centerId, rows) { await rp
 export async function setAssistantCenter(userId, providerId, centerId) { await rpc('set_assistant_center', { p_user: userId, p_provider: providerId, p_center: centerId || null }); return true; }
 export async function setReceptionScope(userId, centerId, active, canBook = true) { await rpc('reception_scope_set', { p_user: userId, p_center: centerId, p_active: active, p_can_book: canBook }); return true; }
 export async function receptionStaff(centerId) { return rpc('reception_staff', { p_center: centerId }); }
+
+/* 260 · Calendario del médico (iCal). El token se devuelve UNA sola vez al crearlo; la base solo guarda su hash. */
+export const CALENDAR_FEED_URL = 'https://bpwjhgpzhzhiocoxrvzq.supabase.co/functions/v1/calendario-medico';
+/** @returns {Promise<{active:boolean, created_at:string|null, last_access_at:string|null, access_count:number}>} */
+export async function calendarFeedStatus(providerId) { return rpc('calendar_feed_status', { p_provider: providerId }); }
+/** Crea un enlace nuevo (el anterior deja de funcionar). @returns {Promise<string>} token de 64 caracteres */
+export async function calendarFeedCreate(providerId) { return rpc('calendar_feed_create', { p_provider: providerId }); }
+export async function calendarFeedRevoke(providerId) { await rpc('calendar_feed_revoke', { p_provider: providerId }); return true; }
 export async function setAppointmentStatus(id, status, note = null) { await rpc('set_appointment_status', { p_id: id, p_status: status, p_note: note }); return true; }
 export async function callAppointmentIn(id, room) { await rpc('call_appointment_in', { p_id: id, p_room: room }); return true; }
 export async function flowBoard(orgId, dateIso) { return rpc('flow_board', { p_org: orgId, p_date: dateIso }); }
