@@ -1630,3 +1630,7 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .clinical-state-help{padding:0 16px;color:var(--muted)}
 .clinical-secretary-start :is(a,button,summary):focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 @media(max-width:640px){.clinical-primary-actions{grid-template-columns:1fr;gap:10px}.clinical-primary-actions .btn{min-height:48px}}
+/* HC nutrición · Cálculos automáticos de la historia clínica (IMC, ICT, bioimpedancia, puntaje Z) */
+.hc-subhead{margin:6px 0 0;padding-top:6px;border-top:1px solid var(--line,#e5e7eb)}
+.hc-calc{display:block;min-height:2.2em;padding:6px 8px;border-radius:6px;background:var(--bg-soft,#f4f6f8);font-weight:600;white-space:normal;word-break:break-word}
+.hc-calc:empty::before{content:"—";color:var(--muted,#888);font-weight:400}
