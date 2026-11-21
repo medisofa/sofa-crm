@@ -50,11 +50,11 @@ export async function updateClient(id, v) {
   if (error) throw error;
 }
 export async function listProviders(orgId) {
-  return must(await sb().from('providers').select('id, full_name, provider_type, tax_id, exequatur, specialty, is_active').eq('organization_id', orgId).order('full_name'));
+  return must(await sb().from('providers').select('id, full_name, provider_type, tax_id, exequatur, specialty, specialty_code, is_active').eq('organization_id', orgId).order('full_name'));
 }
 export async function saveProvider(orgId, v, id = null) {
   const row = { full_name: v.full_name.trim(), provider_type: v.provider_type, tax_id: v.tax_id ? v.tax_id.replace(/\D/g, '') : null,
-    exequatur: v.exequatur || null, specialty: v.specialty || null, is_active: v.is_active !== false };
+    exequatur: v.exequatur || null, specialty: v.specialty || null, specialty_code: v.specialty_code || null, is_active: v.is_active !== false };
   if (id) return must(await sb().from('providers').update(row).eq('id', id).select('id').single());
   return must(await sb().from('providers').insert({ ...row, organization_id: orgId }).select('id').single());
 }

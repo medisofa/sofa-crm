@@ -47,7 +47,13 @@ export async function render(root, ctx = {}) {
 
   const orgSel = h('select', { id: 'hc-org' }, orgs.map(([id, name]) => h('option', { value: id }, name)));
   orgSel.addEventListener('change', () => openOrg());
-  top.replaceChildren(orgs.length > 1 ? h('div', { class: 'i18-bar' }, h('label', { for: 'hc-org' }, 'Consultorio', orgSel)) : '');
+  // Super Admin: vista previa de las plantillas con un paciente de ejemplo (no lee historias reales).
+  const previewBtn = isSA ? h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: async () => {
+    const { templatePreview } = await import('./hc-vista-previa.js');
+    body.replaceChildren(h('div', { class: 'i18-actions' }, h('button', { class: 'i18-link', type: 'button', onclick: () => openOrg() }, '← Volver al consultorio')));
+    const box = h('div'); body.append(box); templatePreview(box, templates);
+  } }, 'Vista previa de plantillas') : '';
+  top.replaceChildren(h('div', { class: 'i18-bar' }, orgs.length > 1 ? h('label', { for: 'hc-org' }, 'Consultorio', orgSel) : '', previewBtn));
   await openOrg();
 
   async function openOrg() {

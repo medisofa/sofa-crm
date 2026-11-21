@@ -3,6 +3,7 @@ import { html, render as paint, raw, $ } from '../utils/dom.js';
 import { loadInto, emptyView, toast, friendlyError, opt, formDialog, requireFields, fieldError } from '../utils/ui.js';
 import { getClient, updateClient, listProviders, saveProvider, listCodes, saveCode } from '../services/clients.js';
 import { listArs } from '../services/catalog.js';
+import { listSpecialties } from '../services/especialidades.js';
 import { listContacts, listActivities, addActivity, listOpportunities, createOpportunityForClient } from '../services/crm.js';
 import { listTasks } from '../services/tasks.js';
 import { listSubmissions } from '../services/submissions.js';
@@ -108,10 +109,13 @@ export async function render(main, ctx) {
   { empty: () => emptyView('Sin prestadores', editOrg ? 'Agrega al menos uno: las radicaciones se hacen a nombre de un prestador.' : '') });
   const provDialog = async (p = null) => {
     const x = p || { provider_type: org.org_type === 'Laboratorio' ? 'laboratorio' : 'medico', is_active: true };
+    let specialties = [];
+    try { specialties = await listSpecialties(); } catch (err) { toast(`No se cargó la lista de especialidades (${friendlyError(err)}). Puede guardar igual y asignarla después.`, 'bad'); }
     return formDialog({ title: p ? 'Editar prestador' : 'Nuevo prestador', body: html`<div class="form-grid">
       <div class="field"><label for="p_full_name">Nombre *</label><input id="p_full_name" name="full_name" value="${x.full_name || ''}" required></div>
       <div class="field"><label for="p_type">Tipo</label><select id="p_type" name="provider_type">${Object.entries(PROVIDER_TYPES).map(([k, l]) => opt(k, l, x.provider_type))}</select></div>
-      <div class="field"><label for="p_specialty">Especialidad</label><input id="p_specialty" name="specialty" value="${x.specialty || ''}"></div>
+      <div class="field"><label for="p_specialty">Especialidad (como se imprime)</label><input id="p_specialty" name="specialty" value="${x.specialty || ''}"></div>
+      <div class="field"><label for="p_spec_code">Plantilla de historia clínica</label><select id="p_spec_code" name="specialty_code">${opt('', 'Sin asignar (consulta general)', x.specialty_code || '')}${specialties.map((s) => opt(s.code, s.name, x.specialty_code || ''))}</select></div>
       <div class="field"><label for="p_exequatur">Exequátur</label><input id="p_exequatur" name="exequatur" value="${x.exequatur || ''}"></div>
       <div class="field"><label for="p_tax">Cédula o RNC</label><input id="p_tax" name="tax_id" value="${x.tax_id || ''}" inputmode="numeric"></div></div>
       <label class="check small"><input type="checkbox" name="is_active" ${x.is_active ? raw('checked') : ''}> Activo</label>`,
