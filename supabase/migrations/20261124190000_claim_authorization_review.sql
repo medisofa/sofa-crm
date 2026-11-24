@@ -1,3 +1,4 @@
+-- Ya aplicado en producción y verificado el 2026-11-24.
 create function public.claim_authorization_review()
 returns table (
   line_id uuid, other_line_id uuid, folio text, other_folio text,
