@@ -14,7 +14,7 @@ import { renderDossier } from './dossier-card.js';
 import { runClaimPreaudit } from '../services/claim-agent-runner.js';
 import { viewAsState } from '../utils/view-as-state.js';
 import {
-  getClaim, claimHistory, claimAudits, claimDiscrepancies, claimChecks, claimLocations, claimTransitions,
+  archiveDuplicateClaim, getClaim, claimHistory, claimAudits, claimDiscrepancies, claimChecks, claimLocations, claimTransitions,
   claimPaymentLines, claimGlosaItems, recheckContract, claimTimeline, claimResubmissions, resubmitClaims,
   setBillingChannelViaClinica, revertBillingChannelToDirecto
 } from '../services/claims.js';
@@ -245,9 +245,31 @@ export async function render(main, ctx) {
       const { CLAIM_STATUS } = await import('../utils/constants.js');
       const to = await formDialog({ title: 'Cambio excepcional de estado', submitLabel: 'Continuar',
         body: html`<p class="small">Solo para corregir errores del proceso. Radicada y los estados financieros no se asignan manualmente; Validada se registra con “Auditar expediente”.</p>
-          <div class="field"><label for="fx">Nuevo estado</label><select id="fx" name="to">${Object.entries(CLAIM_STATUS).filter(([k]) => !['radicada', 'pagada', 'pago_parcial', 'glosada', 'validada', 'con_inconsistencia', c.claim_status].includes(k)).map(([k, [l]]) => opt(k, l))}</select></div>`,
+          <div class="field"><label for="fx">Nuevo estado</label><select id="fx" name="to">${Object.entries(CLAIM_STATUS).filter(([k]) => !['radicada', 'pagada', 'pago_parcial', 'glosada', 'validada', 'con_inconsistencia', c.claim_status].includes(k)).map(([k, [l]]) => opt(k, l))}${opt('archive_duplicate', 'Duplicado')}</select></div>`,
         onSubmit: async (d) => d.to });
       if (!to) return;
+      if (to === 'archive_duplicate') {
+        const { fieldError } = await import('../utils/ui.js');
+        const archived = await formDialog({
+          title: 'Archivar reclamación como duplicado', submitLabel: 'Archivar duplicado',
+          body: html`<p>El folio ${c.folio} saldrá del registro del médico y de la radicación. Se conserva una copia en el archivo interno.</p>
+            <div class="field"><label for="duplicate-reason">Motivo *</label>
+              <textarea id="duplicate-reason" name="reason" maxlength="500" rows="3" placeholder="Indica el folio que se conserva y la evidencia de la duplicidad."></textarea></div>`,
+          onSubmit: async (data, form) => {
+            const reason = data.reason.trim();
+            if (reason.length < 10) {
+              fieldError(form.elements.reason, 'Escribe un motivo de al menos 10 caracteres.');
+              return false;
+            }
+            return archiveDuplicateClaim(id, reason);
+          }
+        });
+        if (archived) {
+          toast('Reclamación archivada como duplicado', 'ok');
+          location.hash = '#/reclamaciones';
+        }
+        return;
+      }
       const { moveDialog } = await import('./claim-dialogs.js');
       try { const n = await moveDialog([id], to, { role: '__override__', transitions: trans, locations: locs, from: c.claim_status }); if (n != null) { toast('Cambio registrado como excepción', 'ok'); refresh(); } }
       catch (err) { toast(friendlyError(err), 'bad'); }

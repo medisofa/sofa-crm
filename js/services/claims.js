@@ -263,6 +263,10 @@ export async function executeClaimDuplicateExclusion(requestId) {
   return must(await sb().rpc('execute_claim_duplicate_exclusion', { p_request: requestId }));
 }
 
+export async function archiveDuplicateClaim(lineId, reason) {
+  return must(await sb().rpc('archive_duplicate_claim', { p_line: lineId, p_reason: reason }));
+}
+
 export async function claimAuthorizationReview() {
   return must(await sb().rpc('claim_authorization_review'));
 }
