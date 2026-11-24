@@ -16,6 +16,15 @@ try {
    '/js/supabase.js': 'export const sb=()=>({});',
    '/js/services/claims.js': `
     export async function listClaims(args) { window.calls.push({...args}); return {data:args.size===1000?[{id:'a'}]:[],count:0}; }
+    export async function getClaim(id) {
+      return {id,folio:id==='a'?'REC-A':'REC-B',patient_name:'Paciente ficticio',client_name:'Cliente ficticio',
+        ars_name:'ARS ficticia',member_number:null,authorization_number:id==='a'?'AUT-A':'AUT-B',
+        service_date:'2026-09-28',authorization_date:'2026-09-28',claim_status:'en_validacion',
+        claimed:2500,paid:id==='a'?2500:0};
+    }
+    export async function claimAuthorizationReview() {
+      return [{line_id:'a',other_line_id:'b',folio:'REC-A',other_folio:'REC-B',different_patient:true}];
+    }
     export async function claimCounts() { return [{claim_status:'en_captura'},{claim_status:'en_validacion'}]; }
     export async function claimLocations() {return [];}
     export async function claimTransitions() {return [];}
@@ -59,7 +68,13 @@ try {
  assert.equal(await page.locator('#tabs [data-g="ars"]').getAttribute('aria-pressed'),'true');
  await page.locator('#coreDup [data-core-review]').click();
  await page.getByRole('dialog').waitFor();
- assert.equal(await page.locator('dialog .dup-claim').count(),2);
+ assert.equal(await page.locator('dialog thead a').count(),2);
+ await page.locator('dialog [data-compare-filter]').check();
+ assert.equal(await page.locator('dialog [data-compare-state="Coincide"]:visible').count(),0);
+ assert.ok(await page.locator('dialog [data-compare-state="Diferencia"]:visible').count()>0);
+ assert.ok(await page.locator('dialog [data-compare-state="Por verificar"]:visible').count()>0);
+ await page.locator('dialog [data-compare-filter]').uncheck();
+ assert.ok(await page.locator('dialog [data-compare-state="Coincide"]:visible').count()>0);
  await page.getByRole('button',{name:'Guardar decisión',exact:true}).click();
  assert.equal(await page.locator('#dup_dec').getAttribute('aria-invalid'),'true');
  await page.locator('#dup_dec').selectOption('ambas_validas');
@@ -76,6 +91,12 @@ try {
  assert.equal(await page.locator('#dup_dec').inputValue(),'ambas_validas');
  await page.getByRole('button',{name:'Cancelar',exact:true}).click();
  await page.setViewportSize({width:375,height:812});
+ await page.locator('#manage-duplicates').click();
+ await page.getByRole('button',{name:'Comparar folios',exact:true}).click();
+ await page.getByRole('dialog').waitFor();
+ assert.equal(await page.locator('dialog thead a').count(),2);
+ await page.getByRole('button',{name:'Cerrar',exact:true}).click();
+ await page.getByRole('dialog').waitFor({state:'detached'});
  await page.addStyleTag({content:await readFile(new URL('css/iter18.css',root),'utf8')});
  assert.equal(await page.locator('#coreDup .dup-comparison').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),1);
  await page.evaluate(async()=>{window.duplicateFailure=true; const {render}=await import('/js/modules/claims.js');await render(document.querySelector('main'),{role:'admin'});});
