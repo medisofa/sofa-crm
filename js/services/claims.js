@@ -263,6 +263,10 @@ export async function executeClaimDuplicateExclusion(requestId) {
   return must(await sb().rpc('execute_claim_duplicate_exclusion', { p_request: requestId }));
 }
 
+export async function claimAuthorizationReview() {
+  return must(await sb().rpc('claim_authorization_review'));
+}
+
 export async function claimDuplicateCandidates(ids = null, submissionId = null) {
   if (ids !== null && !Array.isArray(ids)) throw new Error('La consulta de coincidencias requiere una lista de reclamaciones y el identificador del lote.');
   const candidates = must(await sb().rpc('claim_duplicate_candidates', { p_ids: ids?.length ? ids : null, p_submission: submissionId || null }));

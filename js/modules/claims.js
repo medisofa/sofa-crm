@@ -24,7 +24,7 @@ import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
-import { listClaims, claimCounts, claimLocations, claimTransitions, captureProviders, activeArs, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
+import { listClaims, getClaim, claimCounts, claimLocations, claimTransitions, captureProviders, activeArs, claimAuthorizationReview, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 
 export async function render(main, ctx) {
   if (ctx.arg) { const m = await import('./claim.js'); return m.render(main, ctx); }
@@ -44,6 +44,7 @@ export async function render(main, ctx) {
       <p>Cada servicio es una reclamación con folio, estado, ubicación física y responsable propios.</p></div>
       <div class="toolbar" style="margin:0">
         ${can('claims.capture', role) ? html`<a class="btn primary" href="#/captura">+ Captura rápida</a>` : ''}
+        <button type="button" class="btn" id="manage-duplicates" aria-controls="coreDup authorizationReview">Gestionar duplicados</button>
         <button class="btn" id="csv">Exportar CSV</button></div></div>
     <div class="grid kpis" id="k"></div>
     <div id="funnel"></div>
@@ -59,7 +60,8 @@ export async function render(main, ctx) {
       <label class="sr-only" for="ft">Hasta</label><input class="input" id="ft" type="date" style="width:auto" max="${todayISO()}" title="Servicio hasta">
     </div>
     <div id="bulk" class="no-print"></div>
-    <div id="coreDup"></div>
+    <div id="coreDup" role="region" aria-label="Gestión de reclamaciones duplicadas" tabindex="-1"></div>
+    <div id="authorizationReview"></div>
     <div id="l"></div><div id="opening-history-claims"></div>`);
   if (OPENING_ROLES.includes(role)) {
     const slot = $('#opening-history-claims', main); const prior = document.createElement('details'); prior.className = 'card';
@@ -183,6 +185,44 @@ export async function render(main, ctx) {
     </div>`;
   }
 
+  async function comparisonDetail(lineA, lineB) {
+    const [a, b] = await Promise.all([getClaim(lineA), getClaim(lineB)]);
+    if (!a || !b) throw new Error('Una de las reclamaciones ya no está disponible para comparar.');
+    const fields = [
+      ['Cliente', 'client_name'], ['ARS', 'ars_name'], ['Paciente', 'patient_name'],
+      ['NSS / afiliado', 'member_number'], ['Autorización', 'authorization_number'],
+      ['Fecha de servicio', 'service_date', date], ['Fecha de autorización', 'authorization_date', date],
+      ['Procedimiento', 'service_name'], ['Estado', 'claim_status', (value) => claimStatus(value)[0]],
+      ['Radicación', 'submission_folio']
+    ];
+    if (money_) fields.push(['Monto reclamado', 'claimed', money], ['Pago registrado', 'paid', money]);
+    const missing = (value) => value == null || String(value).trim() === '';
+    const comparison = fields.map(([label, key, format = (value) => value]) => {
+      const left = a[key], right = b[key];
+      const state = missing(left) || missing(right) ? 'Por verificar'
+        : String(left).trim() === String(right).trim() ? 'Coincide' : 'Diferencia';
+      return { label, state, left: missing(left) ? '—' : format(left), right: missing(right) ? '—' : format(right) };
+    });
+    const folio = (c) => html`<a href="#/reclamaciones/${c.id}">${c.folio || c.id}</a>`;
+    return html`
+      <label><input type="checkbox" data-compare-filter> Solo diferencias y datos por verificar</label>
+      <div class="table-wrap"><table class="t" aria-label="Comparación de reclamaciones">
+        <thead><tr><th scope="col">Campo</th><th scope="col">${folio(a)}</th><th scope="col">${folio(b)}</th></tr></thead>
+        <tbody>${comparison.map(({ label, state, left, right }) => html`
+          <tr data-compare-state="${state}">
+            <th scope="row">${label}<br><span class="pill ${state === 'Coincide' ? 'ok' : state === 'Diferencia' ? 'warn' : 'info'}">${state}</span></th>
+            <td>${left}</td><td>${right}</td>
+          </tr>`)}</tbody>
+      </table></div>`;
+  }
+
+  function bindComparisonFilter(form) {
+    const filter = $('[data-compare-filter]', form);
+    filter.addEventListener('change', () => {
+      $$('[data-compare-state="Coincide"]', form).forEach((row) => { row.hidden = filter.checked; });
+    });
+  }
+
   function drawCoreDuplicates() {
     const box = $('#coreDup', main); if (!box) return;
     const pairs = uniquePairs(coreDupPairs.filter(coreMatch));
@@ -238,7 +278,46 @@ export async function render(main, ctx) {
     }
   }
 
+  const authorizationReview = $('#authorizationReview', main);
+  async function loadAuthorizationReview() {
+    paint(authorizationReview, html`<p role="status">Comprobando números de autorización…</p>`);
+    try {
+      const pairs = await claimAuthorizationReview();
+      paint(authorizationReview, html`<section class="dup-card">
+        <h2>Coincidencias por número de autorización</h2>
+        ${pairs.length ? html`<ul>${pairs.map((pair) => html`<li>
+          <b>${pair.different_patient ? 'Autorización en fichas de pacientes distintas' : 'Posible duplicado · mismo paciente y fecha de servicio'}</b>
+          <a href="#/reclamaciones/${pair.line_id}">${pair.folio || pair.line_id}</a> (${date(pair.service_date)})
+          · <a href="#/reclamaciones/${pair.other_line_id}">${pair.other_folio || pair.other_line_id}</a> (${date(pair.other_service_date)})
+          <button type="button" class="btn" data-compare-line="${pair.line_id}" data-compare-other="${pair.other_line_id}">Comparar folios</button>
+        </li>`)}</ul>` : html`<p>Sin coincidencias por número de autorización para las reclamaciones visibles.</p>`}
+      </section>`);
+    } catch (error) {
+      paint(authorizationReview, html`<p role="alert">No se pudo comprobar el número de autorización. ${friendlyError(error)}</p>`);
+    }
+  }
+
+  authorizationReview.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-compare-line]');
+    if (!button) return;
+    busy(button, async () => {
+      const comparison = await comparisonDetail(button.dataset.compareLine, button.dataset.compareOther);
+      await formDialog({
+        title: 'Comparar folios', submitLabel: 'Cerrar', wide: true,
+        body: html`<p>Coteja el titular y el número de autorización con el expediente original.</p>${comparison}`,
+        onOpen: bindComparisonFilter,
+        onSubmit: () => true
+      });
+    }).catch((error) => toast(friendlyError(error), 'bad'));
+  });
+
   const list = $('#l', main);
+  $('#manage-duplicates', main).addEventListener('click', () => {
+    const panel = $('#coreDup', main);
+    panel.scrollIntoView({ block: 'start' });
+    panel.focus({ preventScroll: true });
+    loadAuthorizationReview();
+  });
   loadCoreDuplicates();
   const load = () => loadInto(list, async () => {
     const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff });
@@ -280,6 +359,7 @@ export async function render(main, ctx) {
     const d = [...dupMap.values()].flat().find((x) => x.line_id === lineA && x.other_line_id === lineB)
       || coreDupPairs.find((x) => x.line_id === lineA && x.other_line_id === lineB);
     if (!d) { toast('La coincidencia ya no está disponible. Vuelva a comprobarla.', 'warn'); return; }
+    const comparison = await comparisonDetail(lineA, lineB);
     const r = await formDialog({
       title: 'Comparar y revisar coincidencia', submitLabel: 'Guardar decisión', wide: true,
       body: html`<div class="note ${d.blocks_radicacion ? 'bad' : 'warn'}">
@@ -288,7 +368,7 @@ export async function render(main, ctx) {
         <b>Paciente:</b> ${d.patient_name} · NSS ${d.member_number}<br>
         <b>Próximo paso:</b> ${d.review_decision === 'duplicado_confirmado' ? 'Gestiona la reclamación correspondiente. Guardar la revisión no excluye ni corrige ninguna reclamación.' : 'Compara ambas fichas y verifica los datos antes de registrar una decisión. La exclusión requiere una gestión separada.'}
       </div>
-      ${duplicateComparison(d)}
+      ${comparison}
       <p class="small muted">Guardar registra la decisión. No elimina, anula ni corrige automáticamente ninguna reclamación.</p>
       <div class="form-grid">
         <div class="field"><label for="dup_dec">Decisión *</label><select id="dup_dec" name="decision">
@@ -301,6 +381,7 @@ export async function render(main, ctx) {
         <div class="field" style="grid-column:1/-1"><label for="dup_reason">Justificación *</label><textarea id="dup_reason" name="reason" rows="3" maxlength="500" placeholder="Explique por qué se conserva, corrige o descarta la coincidencia."></textarea></div>
       </div>`,
       onOpen: (form, dialog) => {
+        bindComparisonFilter(form);
         form.elements.decision.value = d.review_decision || '';
         form.addEventListener('click', (e) => { if (e.target.closest('a[href]')) dialog.close(); });
       },
