@@ -1634,3 +1634,8 @@ input[data-dq="advierte"]{border-color:var(--warn)}
 .hc-subhead{margin:6px 0 0;padding-top:6px;border-top:1px solid var(--line,#e5e7eb)}
 .hc-calc{display:block;min-height:2.2em;padding:6px 8px;border-radius:6px;background:var(--bg-soft,#f4f6f8);font-weight:600;white-space:normal;word-break:break-word}
 .hc-calc:empty::before{content:"—";color:var(--muted,#888);font-weight:400}
+
+/* 5.43.1 · Búsqueda que no oculta: coincidencias de primeras y resaltadas */
+tr.search-hit>td{background:var(--ok-bg)}
+tr.search-hit>td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+.search-hit-note{margin-bottom:10px}

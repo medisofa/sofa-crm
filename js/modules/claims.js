@@ -35,6 +35,7 @@ export async function render(main, ctx) {
   const defaultGroup = ctx.tab || (role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas');
   const st = { dossier: '', group: defaultGroup, status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
   const sel = new Set();
+  let hitIds = new Set(); let hitTotal = 0;
   let rows = []; let transitions = []; let locations = []; let dupMap = new Map(); let coreDupPairs = []; let cachedCounts = [];
   const pendingResolutionPairs = new Set();
   const resolutionKey = (a, b) => [a, b].sort().join(':');
@@ -320,18 +321,31 @@ export async function render(main, ctx) {
   });
   loadCoreDuplicates();
   const load = () => loadInto(list, async () => {
-    const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff });
+    // 5.43.1 · La búsqueda no oculta nada: la lista base se carga sin filtrar por texto y las
+    // coincidencias se colocan de primeras (página 1) con la marca «Coincide».
+    const term = (st.q || '').trim();
+    const res = await listClaims({ ...st, q: '', size: CONFIG.PAGE_SIZE, realOnly: staff });
+    let found = new Set(); let total = 0;
+    if (term) {
+      const hits = await listClaims({ ...st, q: term, page: 0, size: 50, realOnly: staff });
+      total = hits.count; found = new Set(hits.data.map((x) => x.id));
+      if (st.page === 0) res.data = [...hits.data, ...res.data.filter((x) => !found.has(x.id))];
+    }
     const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null) : [];
-    return { ...res, dups };
+    return { ...res, dups, term, found, total };
   }, (res) => {
     rows = res.data; dupMap = new Map();
     (res.dups || []).forEach((d) => { const a = dupMap.get(d.line_id) || []; a.push(d); dupMap.set(d.line_id, a); }); [...sel].forEach((id) => { if (!rows.some((r) => r.id === id)) sel.delete(id); }); drawBulk();
-    return html`<div class="table-wrap"><table class="t cards"><thead><tr>
+    hitIds = res.found; hitTotal = res.total;
+    const pinned = st.page === 0 && hitTotal > 0;
+    return html`${res.term ? (hitTotal
+      ? html`<div class="note info search-hit-note" role="status"><b>${num(hitTotal)} coincidencia${hitTotal > 1 ? 's' : ''}</b> con «${res.term}»${pinned ? ' arriba, resaltada' + (hitTotal > 1 ? 's' : '') : ' (están en la primera página)'}. Las demás reclamaciones siguen disponibles para seleccionar.${hitTotal > 50 ? ' Se muestran las primeras 50.' : ''}</div>`
+      : html`<div class="note warn search-hit-note" role="status"><b>Sin coincidencias</b> con «${res.term}» en este filtro. Se muestran todas las reclamaciones.</div>`) : ''}<div class="table-wrap"><table class="t cards"><thead><tr>
       <th><label class="sr-only" for="all">Seleccionar todas</label><input type="checkbox" id="all"></th>
       <th>Folio</th><th>Servicio</th><th>Paciente</th><th>Duplicado</th>${staff || rows.some((r) => r.provider_name) ? html`<th>Médico · ARS</th>` : ''}<th class="n">Reclamado</th><th>Estado</th><th class="n">Avance</th><th>Expediente</th><th>Dónde está · responsable</th>${money_ ? html`<th class="n">Saldo</th>` : ''}</tr></thead>
-    <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer">
+    <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer" class="${hitIds.has(c.id) ? 'search-hit' : ''}">
       <td data-l="Seleccionar"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Seleccionar ${c.folio}"></td>
-      <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
+      <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a>${hitIds.has(c.id) ? html` <span class="pill info">Coincide</span>` : ''}<div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
       <td data-l="Servicio" title="${c.service_name}">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
       <td data-l="Paciente" title="${c.patient_name}">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
       <td data-l="Duplicado"><div class="dup-cell">${(() => {
