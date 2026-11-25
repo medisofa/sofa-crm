@@ -12,6 +12,15 @@ export const GROUPS = {
 };
 
 const SUB_LIST_COLS = 'id, folio, sequence, status, display_status, provider_name, client_name, period, claimed, balance, payment_deadline, submitted_on, is_demo, organization_id, ars_id';
+/** Lotes que todavía no se han radicado, para el selector «Lote» de Reclamaciones. */
+export async function listPendingLots({ realOnly = false } = {}) {
+  let query = sb().from('v_submissions').select(SUB_LIST_COLS)
+    .in('status', [...GROUPS.preparacion.statuses, ...GROUPS.listas.statuses]);
+  if (realOnly) query = query.eq('is_demo', false);
+  const { data, error } = await query.order('folio', { ascending: false }).limit(300);
+  if (error) throw error;
+  return data;
+}
 export async function listSubmissions({ group = 'todas', orgId = '', arsId = '', period = '', q = '', page = 0, size = 25, realOnly = false } = {}) {
   let query = sb().from('v_submissions').select(SUB_LIST_COLS, { count: 'exact' });
   if (realOnly) query = query.eq('is_demo', false);

@@ -71,6 +71,7 @@ export async function render(main, ctx) {
     const lastAudit = audits[0];
     const radicada = ['radicada', 'en_proceso_ars', 'devuelta', 'pago_parcial', 'glosada', 'pagada', 'cerrada'].includes(c.claim_status);
     const authorizationEditable = ['super_admin', 'admin'].includes(role) && !ctx.viewAs && !viewAsState.active;
+    const canCorrectTariff = can('tariffs.correct', role) && c.contracted && !ctx.viewAs && !viewAsState.active;
     const contentEditable = can('subs.edit', role) && S.sub
       && ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'].includes(S.sub.status)
       && (role !== 'client' || S.sub.status === 'borrador')
@@ -95,7 +96,8 @@ export async function render(main, ctx) {
     <div id="preaudit-agent-result" aria-live="polite"></div>
     ${c.claim_status === 'pendiente_configuracion' ? html`<div class="note bad">Este servicio no está contratado para ${c.provider_name} con ${c.ars_name} en la fecha del servicio. Configure la tarifa en ${lnk('#/contratos', role, 'Tarifario contractual')} y pulse “Volver a buscar contrato”, o autorice la excepción.</div>` : ''}
     ${pendingDisc ? html`<div class="note warn">Diferencia tarifaria pendiente de autorizar: registrado ${money(pendingDisc.registered_amount)} vs. contrato ${money(pendingDisc.tariff_amount)} (${money(pendingDisc.diff_amount)}).
-      ${can('claims.discrepancy', role) ? html` <button class="btn" data-decide="${pendingDisc.id}">Decidir</button>` : ''}</div>` : ''}
+      ${can('claims.discrepancy', role) ? html` <button class="btn" data-decide="${pendingDisc.id}">Decidir</button>` : ''}
+      ${canCorrectTariff ? html` <button type="button" class="btn" data-correct-tariff title="Si el error está en la tarifa del contrato y no en el monto registrado">Corregir tarifa</button>` : ''}</div>` : ''}
 
     <div class="grid two">
       <div class="card"><h2>¿Dónde está y quién la tiene?</h2>
@@ -108,12 +110,13 @@ export async function render(main, ctx) {
       </div>
       <div class="card"><h2>Servicio, códigos y contrato aplicado</h2>
         ${contentEditable ? html`<p class="no-print"><button type="button" class="btn primary" data-edit-claim>Editar servicio, cantidad y monto</button></p>` : html`<p class="small muted">Edición no disponible para el estado actual o los permisos de tu perfil.</p>`}
+        ${canCorrectTariff ? html`<p class="no-print"><button type="button" class="btn" data-correct-tariff>Corregir tarifa del contrato</button> <span class="small muted">Solo Super Admin y Administrador. Recalcula las reclamaciones no radicadas.</span></p>` : ''}
         ${kv([['Servicio', c.service_name], ['Código SIMON', c.simon ? html`<span class="mono">${c.simon}</span>` : ''], ['Código CUPS', c.cups ? html`<span class="mono">${c.cups}</span>` : ''],
           ['Código interno', c.internal_code ? html`<span class="mono">${c.internal_code}</span>` : ''],
           ['Tarifa contratada en la fecha', c.contracted ? html`<b>${money(c.tariff_amount)}</b>` : html`<span class="pill bad">No contratado</span>${c.contract_override_reason ? html`<div class="small">Excepción: ${c.contract_override_reason}</div>` : ''}`],
           ['Vigencia aplicada', c.tariff_valid_from ? `${date(c.tariff_valid_from)} – ${c.tariff_valid_to ? date(c.tariff_valid_to) : 'abierta'}` : ''], ['Contrato', c.contract_ref],
           ['Cantidad × unitario', `${c.quantity} × ${money(c.unit_amount)}`], ['Monto reclamado', html`<b>${money(c.claimed)}</b>`]])}
-        <p class="small muted">SIMON, CUPS y contrato se obtienen del servicio seleccionado. La tarifa aplicada no se modifica manualmente; un cambio posterior del catálogo no altera esta fotografía.</p>
+        <p class="small muted">SIMON, CUPS y contrato se obtienen del servicio seleccionado. La tarifa aplicada no se modifica manualmente; un cambio posterior del catálogo no altera esta fotografía; solo una corrección autorizada de la tarifa (Super Admin o Administrador) recalcula las reclamaciones no radicadas.</p>
       </div>
     </div>
 
@@ -235,6 +238,15 @@ export async function render(main, ctx) {
       const { decideDialog } = await import('./claim-dialogs.js');
       const d = S.discs.find((x) => x.id === b.dataset.decide);
       try { if (await decideDialog(d)) { toast('Decisión registrada', 'ok'); refresh(); } } catch (err) { toast(friendlyError(err), 'bad'); }
+    }));
+    box.querySelectorAll('[data-correct-tariff]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        const line = await getLine(id);
+        if (!line?.tariff_id) { toast('Esta reclamación no tiene una tarifa asociada que corregir.', 'bad'); return; }
+        const { correctTariffDialog } = await import('./tariff-correction.js');
+        const r = await correctTariffDialog(line.tariff_id);
+        if (r) { toast(r.omitidas ? `Tarifa corregida. ${r.omitidas} reclamación(es) no se pudieron recalcular: revíselas.` : 'Tarifa corregida y reclamaciones recalculadas', r.omitidas ? 'bad' : 'ok'); refresh(); }
+      } catch (err) { toast(friendlyError(err), 'bad'); }
     }));
     $('#recheck', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
       try { const r = await recheckContract(id); toast(r.contracted ? `Contrato encontrado: tarifa ${money(r.tariff_amount)}` : 'Sigue sin contrato vigente para esa fecha', r.contracted ? 'ok' : 'bad'); refresh(); }

@@ -1,3 +1,4 @@
+-- Ya aplicado en producción: cuerpo de la función sincronizado con producción el 25/11/2026 (aquí se conservan los comentarios).
 -- 071 · Suite de la 070 (rentabilidad y reporte para el contador). Se deshace sola.
 -- Ejecutar desde el SQL Editor:  select * from app.qa_run_tests_rentabilidad();
 create or replace function app.qa_run_tests_rentabilidad()
@@ -33,7 +34,7 @@ begin
       (v_op, v_admin::uuid, 'admin'), (v_op, v_fact::uuid, 'billing'), (v_orgA, v_cliA::uuid, 'client'), (v_orgB, v_cliB::uuid, 'client');
     select id into v_proc2 from public.procedures where internal_code <> 'SOFA-P07' and is_active order by internal_code limit 1;
 
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     perform public.create_contract_tariff(v_pA, (select id from public.ars where code='humano'), (select id from public.procedures where internal_code='SOFA-P07'), 1200, v_from - 100, null, 'CT-RT');
     perform public.create_contract_tariff(v_pA, (select id from public.ars where code='humano'), v_proc2, 800, v_from - 100, null, 'CT-RT2');
@@ -52,7 +53,7 @@ begin
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
 
     -- CT-01 · Por ARS: una fila con lo reclamado, lo cobrado y los días de cobro
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     v_x := public.profitability(v_orgA, v_from, current_date, 'ars');
     v_ok := jsonb_array_length(v_x->'rows') = 1 and v_x->'rows'->0->>'ars' = 'ARS Humano' and (v_x->'rows'->0->>'lines')::int = 3
@@ -96,21 +97,21 @@ begin
     end;
 
     -- CT-06 · Permisos de la rentabilidad: el médico la ve; otro cliente y Facturación no
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated','aal','aal2')::text, true);
     begin
       v_x := public.profitability(v_orgA, v_from, current_date, 'ars');
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06a · El médico ve su rentabilidad','ok',(v_x->'totals'->>'claimed')::numeric = 3200,'d',null));
     exception when others then
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06a · El médico ve su rentabilidad','ok',false,'d',left(sqlerrm, 150)));
     end;
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.profitability(v_orgA, v_from, current_date, 'ars');
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06b · Otro cliente no ve la rentabilidad ajena','ok',false,'d','Se permitió y debía bloquearse'));
     exception when others then
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06b · Otro cliente no ve la rentabilidad ajena','ok',sqlerrm like 'Sin acceso a la rentabilidad%','d','Bloqueado: ' || left(sqlerrm, 100)));
     end;
-    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.profitability(v_orgA, v_from, current_date, 'ars');
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06c · Facturación no ve la rentabilidad (trae cobros)','ok',false,'d','Se permitió y debía bloquearse'));
@@ -119,7 +120,7 @@ begin
     end;
 
     -- CT-07 · Reporte del contador del mes del pago
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     v_x := public.accountant_report(v_orgA, date_trunc('month', v_pay_date)::date);
     v_ok := jsonb_array_length(v_x->'ars_payments') = 1 and (v_x->>'ars_total')::numeric = 2000 and v_x->'ars_payments'->0->>'reference' = 'TRF-RT-1'
             and (v_x->'ars_payments'->0->>'paid_on')::date = v_pay_date and (v_x->'summary'->>'income_total')::numeric = 2000 and (v_x->>'glosas_accepted_total')::numeric = 0;
@@ -130,21 +131,21 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-08 · El reporte del contador no incluye nombres de pacientes','ok',v_msg not like '%Paciente RT%' and v_msg not like '%NSS-RT%','d',null));
 
     -- CT-09 · Permisos del reporte: el médico lo ve; otro cliente y Facturación no
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated','aal','aal2')::text, true);
     begin
       v_x := public.accountant_report(v_orgA, v_pay_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09a · El médico ve su reporte del contador','ok',(v_x->>'ars_total')::numeric = 2000,'d',null));
     exception when others then
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09a · El médico ve su reporte del contador','ok',false,'d',left(sqlerrm, 150)));
     end;
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.accountant_report(v_orgA, v_pay_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09b · Otro cliente no ve el reporte ajeno','ok',false,'d','Se permitió y debía bloquearse'));
     exception when others then
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09b · Otro cliente no ve el reporte ajeno','ok',sqlerrm like 'Sin acceso al reporte del contador%','d','Bloqueado: ' || left(sqlerrm, 100)));
     end;
-    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.accountant_report(v_orgA, v_pay_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09c · Facturación no ve el reporte del contador','ok',false,'d','Se permitió y debía bloquearse'));
@@ -170,7 +171,7 @@ begin
   perform set_config('role', 'none', true);
   perform set_config('request.jwt.claims', '', true);
   return query
-    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,   -- 5.10.0: una prueba sin resultado (NULL) cuenta como fallo; antes bool_and la ignoraba
+    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,
            format('%s de %s pruebas aprobadas', count(*) filter (where coalesce((e->>'ok')::boolean, false)), count(*)), null::text
       from jsonb_array_elements(v_res) e
     union all

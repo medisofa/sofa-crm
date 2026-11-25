@@ -24,6 +24,7 @@ import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
+import { listPendingLots } from '../services/submissions.js';
 import { listClaims, getClaim, claimCounts, claimLocations, claimTransitions, captureProviders, activeArs, claimAuthorizationReview, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 
 export async function render(main, ctx) {
@@ -33,8 +34,10 @@ export async function render(main, ctx) {
   const money_ = can('claims.money', role);
   // 5.31.0 · Si el router envía ctx.tab (subruta), usarlo como grupo inicial.
   const defaultGroup = ctx.tab || (role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas');
-  const st = { dossier: '', group: defaultGroup, status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
+  const st = { dossier: '', group: defaultGroup, status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', submissionId: '', page: 0 };
   const sel = new Set();
+  let lots = [];
+  let hitIds = new Set(); let hitTotal = 0;
   let rows = []; let transitions = []; let locations = []; let dupMap = new Map(); let coreDupPairs = []; let cachedCounts = [];
   const pendingResolutionPairs = new Set();
   const resolutionKey = (a, b) => [a, b].sort().join(':');
@@ -55,10 +58,12 @@ export async function render(main, ctx) {
       <label class="sr-only" for="fl">Ubicación</label><select class="input" id="fl" style="width:auto"><option value="">Todas las ubicaciones</option></select>
       <label class="sr-only" for="fp">Médico</label><select class="input" id="fp" style="width:auto"><option value="">Todos los médicos</option></select>
       <label class="sr-only" for="fa">ARS</label><select class="input" id="fa" style="width:auto"><option value="">Todas las ARS</option></select>
+      ${staff ? html`<label class="sr-only" for="fr">Lote</label><select class="input" id="fr" style="width:auto;max-width:100%"><option value="">Lote: todos</option></select>` : ''}
       <label class="sr-only" for="fx">Expediente</label><select class="input" id="fx" style="width:auto;max-width:100%"><option value="">Expediente: todos</option><option value="incompleto">Expediente incompleto</option><option value="completo">Expediente completo o con excepción</option></select>
       <label class="sr-only" for="ff">Desde</label><input class="input" id="ff" type="date" style="width:auto" max="${todayISO()}" title="Servicio desde">
       <label class="sr-only" for="ft">Hasta</label><input class="input" id="ft" type="date" style="width:auto" max="${todayISO()}" title="Servicio hasta">
     </div>
+    <div id="lote" class="no-print" role="status"></div>
     <div id="bulk" class="no-print"></div>
     <div id="coreDup" role="region" aria-label="Gestión de reclamaciones duplicadas" tabindex="-1"></div>
     <div id="authorizationReview"></div>
@@ -81,6 +86,22 @@ export async function render(main, ctx) {
     paint($('#fl', main), html`<option value="">Todas las ubicaciones</option>${locs.map((l) => opt(l.code, l.name))}`);
     paint($('#fp', main), html`<option value="">Todos los médicos</option>${provs.map((p) => opt(p.id, p.full_name))}`);
     paint($('#fa', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`);
+    drawBulk();
+  }).catch((e) => toast(friendlyError(e), 'bad'));
+
+  /** Resumen del lote elegido y paso a su radicación, donde se valida y se radica. */
+  function drawLot() {
+    const box = $('#lote', main); if (!box) return;
+    const lot = lots.find((l) => l.id === st.submissionId);
+    paint(box, lot ? html`<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div style="flex:1 1 260px"><b class="mono">${lot.folio}</b> · ${lot.provider_name || lot.client_name || ''} · ${lot.period || ''}
+        <div class="small muted">Reclamado ${money(lot.claimed)}. Revisa las reclamaciones de abajo y continúa en la radicación para validarla y radicarla.</div></div>
+      <a class="btn primary" href="#/radicaciones/${lot.id}">Pasar a radicación</a></div>` : html``);
+  }
+  if (staff) listPendingLots({ realOnly: true }).then((list_) => {
+    lots = list_;
+    if (!$('#fr', main)) return;
+    paint($('#fr', main), html`<option value="">${lots.length ? 'Lote: todos' : 'No hay lotes por radicar'}</option>${lots.map((l) => opt(l.id, `${l.folio} · ${l.provider_name || l.client_name || ''} · ${l.period || ''}`))}`);
     drawBulk();
   }).catch((e) => toast(friendlyError(e), 'bad'));
 
@@ -150,6 +171,7 @@ export async function render(main, ctx) {
       ${targets.map((to) => html`<button class="btn" data-bulk="${to}">${CLAIM_MOVE_LABELS[to] || claimStatus(to)[0]}</button>`)}
       ${auditable ? html`<button class="btn primary" data-audit>Auditar selección</button>` : ''}
       ${can('claims.resubmit', role) && chosen.every((r) => r.claim_status === 'devuelta') && new Set(chosen.map((r) => r.submission_id)).size === 1 ? html`<button class="btn primary" data-rs>Reenviar en radicación complementaria</button>` : ''}
+      ${staff && new Set(chosen.map((r) => r.submission_id)).size === 1 && lots.some((l) => l.id === chosen[0].submission_id) ? html`<a class="btn primary" href="#/radicaciones/${chosen[0].submission_id}">Pasar lote a radicación</a>` : ''}
       ${can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok) ? html`<button class="btn" data-dx>Excepción de expediente</button>` : ''}
       ${!targets.length && !auditable && !(can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok)) ? html`<span class="small muted">No hay una acción común para los estados seleccionados.</span>` : ''}
       <button class="btn" data-clear>Quitar selección</button></div>`);
@@ -320,18 +342,31 @@ export async function render(main, ctx) {
   });
   loadCoreDuplicates();
   const load = () => loadInto(list, async () => {
-    const res = await listClaims({ ...st, size: CONFIG.PAGE_SIZE, realOnly: staff });
+    // 5.43.1 · La búsqueda no oculta nada: la lista base se carga sin filtrar por texto y las
+    // coincidencias se colocan de primeras (página 1) con la marca «Coincide».
+    const term = (st.q || '').trim();
+    const res = await listClaims({ ...st, q: '', size: CONFIG.PAGE_SIZE, realOnly: staff });
+    let found = new Set(); let total = 0;
+    if (term) {
+      const hits = await listClaims({ ...st, q: term, page: 0, size: 50, realOnly: staff });
+      total = hits.count; found = new Set(hits.data.map((x) => x.id));
+      if (st.page === 0) res.data = [...hits.data, ...res.data.filter((x) => !found.has(x.id))];
+    }
     const dups = res.data.length ? await claimDuplicateCandidates(res.data.map((x) => x.id), null) : [];
-    return { ...res, dups };
+    return { ...res, dups, term, found, total };
   }, (res) => {
     rows = res.data; dupMap = new Map();
     (res.dups || []).forEach((d) => { const a = dupMap.get(d.line_id) || []; a.push(d); dupMap.set(d.line_id, a); }); [...sel].forEach((id) => { if (!rows.some((r) => r.id === id)) sel.delete(id); }); drawBulk();
-    return html`<div class="table-wrap"><table class="t cards"><thead><tr>
+    hitIds = res.found; hitTotal = res.total;
+    const pinned = st.page === 0 && hitTotal > 0;
+    return html`${res.term ? (hitTotal
+      ? html`<div class="note info search-hit-note" role="status"><b>${num(hitTotal)} coincidencia${hitTotal > 1 ? 's' : ''}</b> con «${res.term}»${pinned ? ' arriba, resaltada' + (hitTotal > 1 ? 's' : '') : ' (están en la primera página)'}. Las demás reclamaciones siguen disponibles para seleccionar.${hitTotal > 50 ? ' Se muestran las primeras 50.' : ''}</div>`
+      : html`<div class="note warn search-hit-note" role="status"><b>Sin coincidencias</b> con «${res.term}» en este filtro. Se muestran todas las reclamaciones.</div>`) : ''}<div class="table-wrap"><table class="t cards"><thead><tr>
       <th><label class="sr-only" for="all">Seleccionar todas</label><input type="checkbox" id="all"></th>
       <th>Folio</th><th>Servicio</th><th>Paciente</th><th>Duplicado</th>${staff || rows.some((r) => r.provider_name) ? html`<th>Médico · ARS</th>` : ''}<th class="n">Reclamado</th><th>Estado</th><th class="n">Avance</th><th>Expediente</th><th>Dónde está · responsable</th>${money_ ? html`<th class="n">Saldo</th>` : ''}</tr></thead>
-    <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer">
+    <tbody>${rows.map((c) => { const [l, cl] = claimStatus(c.claim_status); return html`<tr data-id="${c.id}" style="cursor:pointer" class="${hitIds.has(c.id) ? 'search-hit' : ''}">
       <td data-l="Seleccionar"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Seleccionar ${c.folio}"></td>
-      <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a><div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
+      <td data-l="Folio"><a href="#/reclamaciones/${c.id}"><b class="mono">${c.folio}</b></a>${hitIds.has(c.id) ? html` <span class="pill info">Coincide</span>` : ''}<div class="small muted">${date(c.service_date)}</div>${c.submission_folio ? html`<div class="small muted mono">${c.submission_folio}</div>` : ''}</td>
       <td data-l="Servicio" title="${c.service_name}">${c.service_name}<div class="small muted">${[c.simon && `SIMON ${c.simon}`, c.cups && `CUPS ${c.cups}`].filter(Boolean).join(' · ') || 'Sin códigos'}</div></td>
       <td data-l="Paciente" title="${c.patient_name}">${c.patient_name}<div class="small muted">NSS ${c.member_number || '—'}${c.authorization_number ? ` · Aut. ${c.authorization_number}` : ''}</div></td>
       <td data-l="Duplicado"><div class="dup-cell">${(() => {
@@ -427,6 +462,11 @@ export async function render(main, ctx) {
   };
   ['#tabs', '#k', '#funnel'].forEach((selector) => $(selector, main).addEventListener('click', selectGroup));
   debounceSearch($('#q', main), st, load);
+  $('#fr', main)?.addEventListener('change', (e) => {
+    st.submissionId = e.target.value; st.page = 0; sel.clear();
+    if (st.submissionId) { st.group = 'todas'; st.status = ''; $('#fs', main).value = ''; }
+    drawLot(); drawBulk(); drawTabs(); drawFunnel(); load();
+  });
   [['#fx', 'dossier'], ['#fs', 'status'], ['#fl', 'location'], ['#fp', 'providerId'], ['#fa', 'arsId'], ['#ff', 'from'], ['#ft', 'to']].forEach(([s, k]) =>
     $(s, main).addEventListener('change', (e) => { st[k] = e.target.value; st.page = 0; if (k === 'status') drawTabs(); load(); }));
   list.addEventListener('change', (e) => {
