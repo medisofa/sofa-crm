@@ -1,3 +1,4 @@
+-- Ya aplicado en producción: cuerpo de la función sincronizado con producción el 25/11/2026 (aquí se conservan los comentarios).
 -- 069 · Suite de la 068 (resumen semanal y recordatorios). Se deshace sola.
 -- Ejecutar desde el SQL Editor:  select * from app.qa_run_tests_resumen_semanal();
 create or replace function app.qa_run_tests_resumen_semanal()
@@ -6,7 +7,7 @@ language plpgsql
 set search_path = ''
 as $function$
 declare
-  v_res jsonb := '[]'::jsonb; v_a jsonb; v_x jsonb; v_ok boolean; v_n int; v_n2 int; v_id uuid; v_ap1 uuid; v_ap2 uuid; v_ap3 uuid; v_ap4 uuid; v_msg text; v_k int;
+  v_res jsonb := '[]'::jsonb; v_a jsonb; v_x jsonb; v_ok boolean; v_n int; v_n2 int; v_id uuid; v_ap1 uuid; v_ap2 uuid; v_ap3 uuid; v_ap4 uuid; v_msg text; v_k int; v_k0 int;
   v_week date := date_trunc('week', current_date)::date;
   v_orgA constant uuid := 'b8000000-0000-4000-8000-0000000000c1';
   v_orgB constant uuid := 'b8000000-0000-4000-8000-0000000000c2';
@@ -31,7 +32,7 @@ begin
     insert into public.organization_users (organization_id, user_id, role_code) values
       (v_op, v_admin::uuid, 'admin'), (v_op, v_fact::uuid, 'billing'), (v_orgA, v_cliA::uuid, 'client'), (v_orgB, v_cliB::uuid, 'client'), (v_orgA, v_cap::uuid, 'capturer');
 
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     perform public.set_capturer_scope(v_cap::uuid, array[v_pA]::uuid[]);
     perform public.create_contract_tariff(v_pA, (select id from public.ars where code='humano'), (select id from public.procedures where internal_code='SOFA-P07'), 1200, v_week - 100, null, 'CT-RS');
@@ -46,7 +47,7 @@ begin
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
 
     -- CT-01 · Recordatorios de mañana: solo la cita con teléfono y no cancelada
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     v_n := public.generate_appointment_reminders(1);
     select count(*) into v_n2 from public.message_queue where kind = 'recordatorio_cita' and provider_id = v_pA;
@@ -69,7 +70,7 @@ begin
 
     -- CT-04 · Resumen del médico A: la reclamación de la semana pasada cuenta y las citas de la próxima semana coinciden con la tabla
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     v_x := public.weekly_summary(v_pA, v_week);
     select count(*) into v_n from public.appointments where provider_id = v_pA and status <> 'cancelada' and appointment_date >= v_week and appointment_date < v_week + 7;
@@ -78,21 +79,21 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-04 · El médico ve su resumen: 1 reclamación por RD$ 1,200 y las citas de la próxima semana','ok',v_ok,'d',v_x->>'text'));
 
     -- CT-05 · Otro médico no ve el resumen ajeno; Facturación y la secretaria tampoco
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.weekly_summary(v_pA, v_week);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-05a · Otro cliente no ve el resumen ajeno','ok',false,'d','Se permitió y debía bloquearse'));
     exception when others then
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-05a · Otro cliente no ve el resumen ajeno','ok',sqlerrm like 'Sin acceso al resumen semanal%','d','Bloqueado: ' || left(sqlerrm, 110)));
     end;
-    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.weekly_summary(v_pA, v_week);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-05b · Facturación no ve el resumen (trae cobros)','ok',false,'d','Se permitió y debía bloquearse'));
     exception when others then
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-05b · Facturación no ve el resumen (trae cobros)','ok',sqlerrm like 'Sin acceso al resumen semanal%','d','Bloqueado: ' || left(sqlerrm, 110)));
     end;
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cap,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cap,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.weekly_summary(v_pA, v_week);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-05c · La secretaria no ve el resumen (trae cobros)','ok',false,'d','Se permitió y debía bloquearse'));
@@ -101,13 +102,13 @@ begin
     end;
 
     -- CT-06 · Generar los resúmenes: cola + notificación al usuario médico, sin duplicar
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     v_n := public.generate_weekly_summaries(v_week);
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
     select count(*) into v_n2 from public.notifications where user_id = v_cliA::uuid and title like 'Resumen semanal%';
     v_ok := v_n >= 2 and v_n2 = 1 and exists (select 1 from public.message_queue where kind = 'resumen_semanal' and provider_id = v_pA and scheduled_for = v_week and to_phone = '8095550001');
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06 · Resúmenes: mensaje en cola con el WhatsApp del cliente y 1 notificación al médico','ok',v_ok,'d',v_n || ' resúmenes, ' || v_n2 || ' notificación(es)'));
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     v_n := public.generate_weekly_summaries(v_week);
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
@@ -115,16 +116,20 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-07 · Segunda corrida de resúmenes no duplica nada','ok',v_n = 0 and v_n2 = 1,'d',v_n || ' nuevos, ' || v_n2 || ' notificación(es)'));
 
     -- CT-08 · Lectura de la cola según rol (RLS): el médico ve su resumen; el otro médico no ve los de A; la secretaria ve recordatorios pero no resúmenes
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     select count(*) into v_n from public.message_queue where provider_id = v_pA;
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cap,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cap,'role','authenticated','aal','aal2')::text, true);
+    select count(*) into v_k0 from public.message_queue where provider_id = v_pA;
+    perform set_config('role', 'none', true);
+    update public.capturer_scopes set can_whatsapp = true where user_id = v_cap::uuid and provider_id = v_pA;
+    perform set_config('role', 'authenticated', true);
     select count(*) filter (where kind = 'recordatorio_cita'), count(*) filter (where kind = 'resumen_semanal') into v_n2, v_k from public.message_queue where provider_id = v_pA;
-    v_ok := v_n = 0 and v_n2 = 1 and v_k = 0;
-    v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-08 · RLS: otro cliente ve 0 de A; la secretaria ve 1 recordatorio y 0 resúmenes','ok',v_ok,'d','otro cliente: ' || v_n || ', secretaria: ' || v_n2 || ' recordatorio(s) y ' || v_k || ' resumen(es)'));
+    v_ok := v_n = 0 and v_k0 = 0 and v_n2 = 1 and v_k = 0;
+    v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-08 · RLS: otro cliente ve 0 de A; la secretaria ve 0 sin el permiso de WhatsApp y, con él, 1 recordatorio y 0 resúmenes','ok',v_ok,'d','otro cliente: ' || v_n || ', secretaria sin permiso: ' || v_k0 || ', con permiso: ' || v_n2 || ' recordatorio(s) y ' || v_k || ' resumen(es)'));
 
     -- CT-09 · La interfaz no escribe directo en la cola
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated','aal','aal2')::text, true);
     begin
       update public.message_queue set status = 'enviado' where provider_id = v_pA;
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09 · Un usuario no actualiza la cola directo','ok',false,'d','Se permitió y debía bloquearse'));
@@ -133,7 +138,7 @@ begin
     end;
 
     -- CT-10 · La secretaria marca el recordatorio como enviado y queda quién y cuándo
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cap,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cap,'role','authenticated','aal','aal2')::text, true);
     select id into v_id from public.message_queue where kind = 'recordatorio_cita' and provider_id = v_pA limit 1;
     perform public.mark_message(v_id, 'enviado');
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
@@ -141,7 +146,7 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-10 · La secretaria marca enviado; queda quién y cuándo','ok',v_ok,'d',null));
 
     -- CT-11 · Otro cliente no marca mensajes ajenos; el estado inválido se rechaza
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     begin
       perform public.mark_message(v_id, 'omitido');
@@ -187,7 +192,7 @@ begin
   perform set_config('role', 'none', true);
   perform set_config('request.jwt.claims', '', true);
   return query
-    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,   -- 5.10.0: una prueba sin resultado (NULL) cuenta como fallo; antes bool_and la ignoraba
+    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,
            format('%s de %s pruebas aprobadas', count(*) filter (where coalesce((e->>'ok')::boolean, false)), count(*)), null::text
       from jsonb_array_elements(v_res) e
     union all

@@ -24,6 +24,7 @@ import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
+import { listPendingLots } from '../services/submissions.js';
 import { listClaims, getClaim, claimCounts, claimLocations, claimTransitions, captureProviders, activeArs, claimAuthorizationReview, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 
 export async function render(main, ctx) {
@@ -33,8 +34,9 @@ export async function render(main, ctx) {
   const money_ = can('claims.money', role);
   // 5.31.0 · Si el router envía ctx.tab (subruta), usarlo como grupo inicial.
   const defaultGroup = ctx.tab || (role === 'auditor' ? 'custodia' : role === 'capturer' || role === 'client' ? 'captura' : 'todas');
-  const st = { dossier: '', group: defaultGroup, status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', page: 0 };
+  const st = { dossier: '', group: defaultGroup, status: '', location: '', providerId: '', arsId: '', q: '', from: '', to: '', submissionId: '', page: 0 };
   const sel = new Set();
+  let lots = [];
   let hitIds = new Set(); let hitTotal = 0;
   let rows = []; let transitions = []; let locations = []; let dupMap = new Map(); let coreDupPairs = []; let cachedCounts = [];
   const pendingResolutionPairs = new Set();
@@ -56,10 +58,12 @@ export async function render(main, ctx) {
       <label class="sr-only" for="fl">Ubicación</label><select class="input" id="fl" style="width:auto"><option value="">Todas las ubicaciones</option></select>
       <label class="sr-only" for="fp">Médico</label><select class="input" id="fp" style="width:auto"><option value="">Todos los médicos</option></select>
       <label class="sr-only" for="fa">ARS</label><select class="input" id="fa" style="width:auto"><option value="">Todas las ARS</option></select>
+      ${staff ? html`<label class="sr-only" for="fr">Lote</label><select class="input" id="fr" style="width:auto;max-width:100%"><option value="">Lote: todos</option></select>` : ''}
       <label class="sr-only" for="fx">Expediente</label><select class="input" id="fx" style="width:auto;max-width:100%"><option value="">Expediente: todos</option><option value="incompleto">Expediente incompleto</option><option value="completo">Expediente completo o con excepción</option></select>
       <label class="sr-only" for="ff">Desde</label><input class="input" id="ff" type="date" style="width:auto" max="${todayISO()}" title="Servicio desde">
       <label class="sr-only" for="ft">Hasta</label><input class="input" id="ft" type="date" style="width:auto" max="${todayISO()}" title="Servicio hasta">
     </div>
+    <div id="lote" class="no-print" role="status"></div>
     <div id="bulk" class="no-print"></div>
     <div id="coreDup" role="region" aria-label="Gestión de reclamaciones duplicadas" tabindex="-1"></div>
     <div id="authorizationReview"></div>
@@ -82,6 +86,22 @@ export async function render(main, ctx) {
     paint($('#fl', main), html`<option value="">Todas las ubicaciones</option>${locs.map((l) => opt(l.code, l.name))}`);
     paint($('#fp', main), html`<option value="">Todos los médicos</option>${provs.map((p) => opt(p.id, p.full_name))}`);
     paint($('#fa', main), html`<option value="">Todas las ARS</option>${ars.map((a) => opt(a.id, a.name))}`);
+    drawBulk();
+  }).catch((e) => toast(friendlyError(e), 'bad'));
+
+  /** Resumen del lote elegido y paso a su radicación, donde se valida y se radica. */
+  function drawLot() {
+    const box = $('#lote', main); if (!box) return;
+    const lot = lots.find((l) => l.id === st.submissionId);
+    paint(box, lot ? html`<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div style="flex:1 1 260px"><b class="mono">${lot.folio}</b> · ${lot.provider_name || lot.client_name || ''} · ${lot.period || ''}
+        <div class="small muted">Reclamado ${money(lot.claimed)}. Revisa las reclamaciones de abajo y continúa en la radicación para validarla y radicarla.</div></div>
+      <a class="btn primary" href="#/radicaciones/${lot.id}">Pasar a radicación</a></div>` : html``);
+  }
+  if (staff) listPendingLots({ realOnly: true }).then((list_) => {
+    lots = list_;
+    if (!$('#fr', main)) return;
+    paint($('#fr', main), html`<option value="">${lots.length ? 'Lote: todos' : 'No hay lotes por radicar'}</option>${lots.map((l) => opt(l.id, `${l.folio} · ${l.provider_name || l.client_name || ''} · ${l.period || ''}`))}`);
     drawBulk();
   }).catch((e) => toast(friendlyError(e), 'bad'));
 
@@ -151,6 +171,7 @@ export async function render(main, ctx) {
       ${targets.map((to) => html`<button class="btn" data-bulk="${to}">${CLAIM_MOVE_LABELS[to] || claimStatus(to)[0]}</button>`)}
       ${auditable ? html`<button class="btn primary" data-audit>Auditar selección</button>` : ''}
       ${can('claims.resubmit', role) && chosen.every((r) => r.claim_status === 'devuelta') && new Set(chosen.map((r) => r.submission_id)).size === 1 ? html`<button class="btn primary" data-rs>Reenviar en radicación complementaria</button>` : ''}
+      ${staff && new Set(chosen.map((r) => r.submission_id)).size === 1 && lots.some((l) => l.id === chosen[0].submission_id) ? html`<a class="btn primary" href="#/radicaciones/${chosen[0].submission_id}">Pasar lote a radicación</a>` : ''}
       ${can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok) ? html`<button class="btn" data-dx>Excepción de expediente</button>` : ''}
       ${!targets.length && !auditable && !(can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok)) ? html`<span class="small muted">No hay una acción común para los estados seleccionados.</span>` : ''}
       <button class="btn" data-clear>Quitar selección</button></div>`);
@@ -441,6 +462,11 @@ export async function render(main, ctx) {
   };
   ['#tabs', '#k', '#funnel'].forEach((selector) => $(selector, main).addEventListener('click', selectGroup));
   debounceSearch($('#q', main), st, load);
+  $('#fr', main)?.addEventListener('change', (e) => {
+    st.submissionId = e.target.value; st.page = 0; sel.clear();
+    if (st.submissionId) { st.group = 'todas'; st.status = ''; $('#fs', main).value = ''; }
+    drawLot(); drawBulk(); drawTabs(); drawFunnel(); load();
+  });
   [['#fx', 'dossier'], ['#fs', 'status'], ['#fl', 'location'], ['#fp', 'providerId'], ['#fa', 'arsId'], ['#ff', 'from'], ['#ft', 'to']].forEach(([s, k]) =>
     $(s, main).addEventListener('change', (e) => { st[k] = e.target.value; st.page = 0; if (k === 'status') drawTabs(); load(); }));
   list.addEventListener('change', (e) => {

@@ -1,3 +1,4 @@
+-- Ya aplicado en producción: cuerpo de la función sincronizado con producción el 25/11/2026 (aquí se conservan los comentarios).
 -- 065 · Suite de la 064 (estado de cuenta con ROI). Se deshace sola: no deja datos.
 -- Ejecutar desde el SQL Editor:  select * from app.qa_run_tests_estado_cuenta();
 create or replace function app.qa_run_tests_estado_cuenta()
@@ -32,7 +33,7 @@ begin
       (v_org, 'a8000000-0000-4000-8000-0000000000a5', 'capturer');
 
     -- Datos: dos reclamaciones del mes, lote radicado, un pago de una de ellas y esquema de honorarios 10 %
-    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a1','role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a1','role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     perform public.create_contract_tariff(v_prov, (select id from public.ars where code='humano'), (select id from public.procedures where internal_code='SOFA-P07'), 1200, date_trunc('month', current_date)::date - 100, null, 'CT-EC');
     v_a := public.capture_claim(v_prov, (select id from public.ars where code='humano'), (select id from public.procedures where internal_code='SOFA-P07'), date_trunc('month', current_date)::date, 'Paciente EC A', 'NSS-EC-1', 'AUT-EC-1', null, null, 1, 'ambulatorio');
@@ -50,7 +51,7 @@ begin
     select coalesce(sum(amount), 0) into v_fee from public.sofa_fees where organization_id = v_org;
 
     -- CT-01 · El Admin ve la producción del mes
-    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a1','role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a1','role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     v_x := public.account_statement(v_org, current_date);
     v_ok := (v_x->'production'->>'lines')::int = 2 and (v_x->'production'->>'claimed')::numeric = 2400 and (v_x->>'period')::date = date_trunc('month', current_date)::date;
@@ -79,7 +80,7 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-05 · Tendencia: el mes anterior trae reclamado 2,400 y cobrado 1,200','ok',v_ok,'d',(v_x->'previous')::text));
 
     -- CT-06 · El médico ve su propio estado
-    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a3','role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a3','role','authenticated','aal','aal2')::text, true);
     begin
       v_x := public.account_statement(v_org, current_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06 · El médico (cliente) ve su propio estado de cuenta','ok',(v_x->'cash'->>'collected')::numeric = 1200,'d',null));
@@ -88,7 +89,7 @@ begin
     end;
 
     -- CT-07 · Otro cliente no ve el estado ajeno
-    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a4','role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a4','role','authenticated','aal','aal2')::text, true);
     begin
       perform public.account_statement(v_org, current_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-07 · Otro cliente no ve el estado de cuenta ajeno','ok',false,'d','Se permitió y debía bloquearse'));
@@ -97,7 +98,7 @@ begin
     end;
 
     -- CT-08 · Facturación no ve cobros (decisión 01/10/2026)
-    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a2','role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a2','role','authenticated','aal','aal2')::text, true);
     begin
       perform public.account_statement(v_org, current_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-08 · Facturación no accede al estado de cuenta','ok',false,'d','Se permitió y debía bloquearse'));
@@ -106,7 +107,7 @@ begin
     end;
 
     -- CT-09 · La secretaria tampoco
-    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a5','role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a5','role','authenticated','aal','aal2')::text, true);
     begin
       perform public.account_statement(v_org, current_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09 · La secretaria no accede al estado de cuenta','ok',false,'d','Se permitió y debía bloquearse'));
@@ -115,7 +116,7 @@ begin
     end;
 
     -- CT-10 · El Admin pide el estado de una organización que no es cliente
-    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a1','role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub','a8000000-0000-4000-8000-0000000000a1','role','authenticated','aal','aal2')::text, true);
     begin
       perform public.account_statement(v_op, current_date);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-10 · La organización operadora no es un cliente','ok',false,'d','Se permitió y debía bloquearse'));
@@ -142,7 +143,7 @@ begin
   perform set_config('role', 'none', true);
   perform set_config('request.jwt.claims', '', true);
   return query
-    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,   -- 5.10.0: una prueba sin resultado (NULL) cuenta como fallo; antes bool_and la ignoraba
+    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,
            format('%s de %s pruebas aprobadas', count(*) filter (where coalesce((e->>'ok')::boolean, false)), count(*)), null::text
       from jsonb_array_elements(v_res) e
     union all

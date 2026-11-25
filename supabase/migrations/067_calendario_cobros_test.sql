@@ -1,3 +1,4 @@
+-- Ya aplicado en producción: cuerpo de la función sincronizado con producción el 25/11/2026 (aquí se conservan los comentarios).
 -- 067 · Suite de la 066 (calendario de cobros y alerta de atraso). Se deshace sola.
 -- Ejecutar desde el SQL Editor:  select * from app.qa_run_tests_calendario_cobros();
 create or replace function app.qa_run_tests_calendario_cobros()
@@ -32,7 +33,7 @@ begin
     insert into public.organization_users (organization_id, user_id, role_code) values
       (v_op, v_admin::uuid, 'admin'), (v_op, v_fact::uuid, 'billing'), (v_orgA, v_cliA::uuid, 'client'), (v_orgB, v_cliB::uuid, 'client');
 
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     for r in select * from (values ('A', 'humano'), ('B', 'humano'), ('B', 'universal')) t(org, ars) loop
       perform public.create_contract_tariff(case r.org when 'A' then v_pA else v_pB end, (select id from public.ars where code = r.ars),
@@ -82,7 +83,7 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-03 · refresh_alerts crea la alerta de atraso según historial','ok',v_ok,'d',(select title from public.alerts where rule_code = 'cobro_atrasado_historial' and entity_id = (v_lots->>'ACT')::uuid limit 1)));
 
     -- CT-04 · Otro cliente con la misma ARS sin historial propio usa el historial de la ARS; otra ARS sin historial usa el plazo contractual
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated','aal','aal2')::text, true);
     v_x := public.collection_calendar(null);
     select coalesce(payment_term_days, 90) into v_term from public.app_settings where operator_id = v_op;
     v_term := coalesce(v_term, 90);
@@ -93,7 +94,7 @@ begin
 
     -- CT-05 · Las alertas de B: solo la de historial (la de plazo contractual aún no aplica a los 45 días)
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
-    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_admin,'role','authenticated','aal','aal2')::text, true);
     perform set_config('role', 'authenticated', true);
     perform public.refresh_alerts();
     select count(*) into v_late from public.alerts where rule_code = 'cobro_atrasado_historial' and organization_id = v_orgB and status <> 'completada';
@@ -110,7 +111,7 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-06 · Cobrado el lote: sale del calendario y la alerta se cierra','ok',v_ok,'d',null));
 
     -- CT-07 · Otro cliente no ve el calendario ajeno
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliB,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.collection_calendar(v_orgA);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-07 · Otro cliente no ve el calendario ajeno','ok',false,'d','Se permitió y debía bloquearse'));
@@ -119,7 +120,7 @@ begin
     end;
 
     -- CT-08 · Facturación no ve cobros proyectados (ni con p_org nulo)
-    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_fact,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.collection_calendar(null);
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-08 · Facturación no ve el calendario de cobros','ok',false,'d','Se permitió y debía bloquearse'));
@@ -128,7 +129,7 @@ begin
     end;
 
     -- CT-09 · Un cliente no puede refrescar alertas (regla ya existente que no debe romperse)
-    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub',v_cliA,'role','authenticated','aal','aal2')::text, true);
     begin
       perform public.refresh_alerts();
       v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-09 · Un cliente no refresca las alertas','ok',false,'d','Se permitió y debía bloquearse'));
@@ -158,7 +159,7 @@ begin
   perform set_config('role', 'none', true);
   perform set_config('request.jwt.claims', '', true);
   return query
-    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,   -- 5.10.0: una prueba sin resultado (NULL) cuenta como fallo; antes bool_and la ignoraba
+    select 0, case when bool_and(coalesce((e->>'ok')::boolean, false)) then 'TODO OK' else 'REVISAR' end,
            format('%s de %s pruebas aprobadas', count(*) filter (where coalesce((e->>'ok')::boolean, false)), count(*)), null::text
       from jsonb_array_elements(v_res) e
     union all
