@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción. No fusionar así.
+-- Ya aplicado en producción (26/11/2026). Se guarda aquí como documentación.
 -- 273 · Suite de la 272 (plazos de radicaciones unidas). Se deshace sola.
 -- Ejecutar desde el SQL Editor:  select * from app.qa_run_tests_plazos_unidas();
 create or replace function app.qa_run_tests_plazos_unidas()
@@ -35,12 +35,12 @@ begin
     insert into public.service_lines (submission_id, organization_id, service_date, patient_name, member_number, procedure_id, quantity, unit_amount)
     values (v_old, v_org, v_m0 + 5, 'Paciente PU Uno', '100272001', v_p, 1, 750), (v_new, v_org, v_m1 + 5, 'Paciente PU Dos', '100272002', v_p, 1, 750);
 
-    v_before := app.preaudit_lot(v_new)::text like '%window%';
+    v_before := app.preaudit_lot(v_new)::text like '%"window"%';
     perform set_config('role', 'authenticated', true);
     perform set_config('request.jwt.claims', json_build_object('sub', v_ad, 'role', 'authenticated', 'aal', 'aal2')::text, true);
     perform public.merge_submissions(v_new, array[v_old], 'motivo de prueba QA');
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
-    v_after := app.preaudit_lot(v_new)::text like '%window%';
+    v_after := app.preaudit_lot(v_new)::text like '%"window"%';
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-01 · La preauditoría marca el plazo vencido solo después de unir','ok',coalesce(not v_before and v_after, false),'d',format('%s %s', v_before, v_after)));
 
     perform public.refresh_alerts();
@@ -50,7 +50,7 @@ begin
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-03 · El lote vaciado no genera alertas','ok',v_n = 0,'d',v_n::text));
 
     select t.due_on into v_d from app.inbox_tasks(current_date) t where t.entity_id = v_new and t.task_type = 'captura_incompleta';
-    v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-04 · La bandeja fecha las capturas incompletas desde el mes más antiguo','ok',coalesce(v_d = (v_m0 + interval '1 month')::date - 1, false),'d',v_d::text));
+    v_res := v_res || jsonb_build_array(jsonb_build_object('p','CT-04 · La bandeja fecha las capturas incompletas desde el mes más antiguo','ok',coalesce(v_d = v_exp, false),'d',v_d::text));
 
     perform set_config('role', 'authenticated', true);
     perform set_config('request.jwt.claims', json_build_object('sub', v_ad, 'role', 'authenticated', 'aal', 'aal2')::text, true);
