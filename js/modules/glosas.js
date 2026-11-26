@@ -1,7 +1,7 @@
 /** SOFA · Glosas: bandeja con plazos, Pareto de motivos, tasa por ARS y ficha de cada glosa */
 import { html, render as paint, $, debounceSearch } from '../utils/dom.js';
 import { loadInto, emptyView, errorView, loadingView, toast, friendlyError, opt, busy } from '../utils/ui.js';
-import { listGlosas, glosaSummary, glosaByReason, glosaByArs, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs, glosaAiAnalyze, glosaCauseCatalog, saveGlosaCause } from '../services/finance.js';
+import { listGlosas, glosaSummary, glosaPareto, arsReconciliation, getGlosa, glosaItems, glosaAppeals, glosaHistory, changeGlosaStatus, GLOSA_OPEN, conciliationActs, glosaAiAnalyze, glosaCauseCatalog, saveGlosaCause } from '../services/finance.js';
 import { profileNames } from '../services/submissions.js';
 import { listArs } from '../services/catalog.js';
 import { money, num, date, dateTime, period, todayISO } from '../utils/formatters.js';

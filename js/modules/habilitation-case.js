@@ -111,7 +111,7 @@ export async function render(main, ctx) {
                 ${['amarillo', 'rojo'].includes(i.status) ? html`<label class="sr-only" for="due-${i.id}">Corregir antes de</label><input id="due-${i.id}" class="input" type="date" data-due="${i.id}" value="${i.due_on || ''}" title="Corregir antes de">` : ''}
                 <label class="btn sm" style="cursor:pointer">Evidencia<input type="file" data-up="${i.id}" accept="application/pdf,image/jpeg,image/png,image/webp" hidden></label>`
               : html`<span class="pill ${ITEM_STATUS[i.status][1]}">${ITEM_STATUS[i.status][0]}</span>${i.due_on ? html`<span class="small muted">antes del ${date(i.due_on)}</span>` : ''}`}
-            </div></div>`)}`)}
+            </div></div>`)}`)
           : html`<p class="small muted">Ningún requisito con este filtro.</p>`}
       </div>
 
