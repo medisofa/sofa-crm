@@ -21,7 +21,7 @@ try {
     export async function reviewClaimDuplicate() {}
     export async function requestClaimDuplicateExclusion() {}
     export async function listClaimDuplicateResolutionRequests() { return []; }`;
-  const subs = `export async function listPendingLots() { return [{ id: 's1', folio: 'RAD-2026-0012', provider_name: 'Dra. Prueba', period: '2026-11', claimed: 1500 }]; }`;
+  const subs = `export async function listPendingLots() { return [{ id: 's1', folio: 'RAD-2026-0012', provider_name: 'Dra. Prueba', period: '2026-11', claimed: 1500 }, { id: 's2', folio: 'RAD-2026-0013', provider_name: 'Dra. Prueba', period: '2026-11', claimed: 750 }]; }`;
   const mocks = { '/js/services/submissions.js': subs, '/': '<main></main>', '/js/modules/opening-history.js': 'export const OPENING_ROLES=[]; export function mountOpeningHistoryPicker() {}',
     '/js/modules/clients.js': 'export const pager=()=>"";', '/js/utils/diag-log.js': 'export function logDiag() {}', '/js/supabase.js': 'export const sb=()=>({});', '/js/services/claims.js': services };
   await page.route('**/*', async (route) => {
@@ -40,10 +40,12 @@ try {
   assert.match(await page.locator('#lote').textContent(), /RAD-2026-0012.*Dra\. Prueba/s);
   assert.equal(await page.locator('#lote a').getAttribute('href'), '#/radicaciones/s1');
   await page.locator('[data-sel]').first().check();
-  assert.equal(await page.locator('#bulk a', { hasText: 'Pasar lote a radicación' }).getAttribute('href'), '#/radicaciones/s1');
+  assert.equal(await page.locator('#bulk a', { hasText: 'Pasar RAD-2026-0012 a radicación (1)' }).getAttribute('href'), '#/radicaciones/s1');
   await page.locator('#fr').selectOption('');
   await page.waitForFunction(() => document.querySelectorAll('#l tbody tr').length === 3);
   assert.equal(await page.locator('#lote a').count(), 0);
+  await page.locator('#all').check();
+  assert.deepEqual(await page.locator('#bulk a').allTextContents(), ['Pasar RAD-2026-0012 a radicación (2)', 'Pasar RAD-2026-0013 a radicación (1)']);
   await page.screenshot({ path: '/tmp/lote.png' });
   await page.locator('#fr').selectOption('s1');
   await page.waitForFunction(() => document.querySelectorAll('#l tbody tr').length === 2);
