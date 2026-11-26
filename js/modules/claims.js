@@ -140,7 +140,7 @@ export async function render(main, ctx) {
         })}
       </ul>
       ${listaPR && can('submissions.send', role) ? html`<div class="note ok" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <div style="flex:1"><b>${num(listaPR)} lista${listaPR > 1 ? 's' : ''} para radicar</b> — agruparlas en una radicación y enviarlas a la ARS.</div>
+        <div style="flex:1"><b>${num(listaPR)} lista${listaPR > 1 ? 's' : ''} para radicar</b> — cada una ya está en un lote: selecciónalas para abrirlo, registrar la factura fiscal y radicar.</div>
         <a class="btn" href="#/radicaciones">Ir a radicaciones →</a>
       </div>` : false}
       ${inconsist ? html`<div class="note warn" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
@@ -171,7 +171,8 @@ export async function render(main, ctx) {
       ${targets.map((to) => html`<button class="btn" data-bulk="${to}">${CLAIM_MOVE_LABELS[to] || claimStatus(to)[0]}</button>`)}
       ${auditable ? html`<button class="btn primary" data-audit>Auditar selección</button>` : ''}
       ${can('claims.resubmit', role) && chosen.every((r) => r.claim_status === 'devuelta') && new Set(chosen.map((r) => r.submission_id)).size === 1 ? html`<button class="btn primary" data-rs>Reenviar en radicación complementaria</button>` : ''}
-      ${staff && new Set(chosen.map((r) => r.submission_id)).size === 1 && lots.some((l) => l.id === chosen[0].submission_id) ? html`<a class="btn primary" href="#/radicaciones/${chosen[0].submission_id}">Pasar lote a radicación</a>` : ''}
+      ${staff ? lots.filter((l) => chosen.some((r) => r.submission_id === l.id)).map((l) => html`<a class="btn primary" href="#/radicaciones/${l.id}">Pasar ${l.folio} a radicación (${num(chosen.filter((r) => r.submission_id === l.id).length)})</a>`) : ''}
+      ${staff && chosen.some((r) => lots.some((l) => l.id === r.submission_id)) ? html`<span class="small muted">Estas reclamaciones ya tienen lote; cada lote se radica completo.</span>` : ''}
       ${can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok) ? html`<button class="btn" data-dx>Excepción de expediente</button>` : ''}
       ${!targets.length && !auditable && !(can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok)) ? html`<span class="small muted">No hay una acción común para los estados seleccionados.</span>` : ''}
       <button class="btn" data-clear>Quitar selección</button></div>`);
