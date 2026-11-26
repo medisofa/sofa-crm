@@ -22,6 +22,12 @@ try{
     export const lookupTariff=async()=>({amount:850,scope:'contractual'}),checkDuplicate=async()=>[];
     export async function updateLine(id,v){window.editCalls.push({id,...v});if(window.failSave)throw new Error('No se pudo guardar');Object.assign(window.line,v,{unit_amount:Number(v.unit_amount),quantity:Number(v.quantity)});return {id};}`
   };
+  // Los servicios simulados completan, como funciones vacías, lo que el servicio real exporta y la prueba no usa.
+  for(const m of ['/js/services/claims.js','/js/services/submissions.js'])if(p===m){
+   const reales=[...(await readFile(new URL(m.slice(1),root),'utf8')).matchAll(/^export (?:async )?(?:function|const) (\w+)/gm)].map(x=>x[1]);
+   const faltan=reales.filter(n=>!new RegExp(`\\b(function|const) ${n}\\b|[,;] ?${n}=`).test(mocks[m]));
+   return route.fulfill({contentType:'text/javascript',body:mocks[m]+'\n'+faltan.map(n=>`export const ${n}=async()=>[];`).join('\n')});
+  }
   if(p in mocks)return route.fulfill({contentType:p==='/'?'text/html':'text/javascript',body:mocks[p]});
   try{return route.fulfill({contentType:'text/javascript',body:await readFile(new URL(p.slice(1),root))});}catch{return route.fulfill({status:404,body:'missing'});}
  });
@@ -43,5 +49,13 @@ try{
  await page.evaluate(async()=>{line.claim_status='capturada';sub.status='radicada';await show();});assert.equal(await page.locator('[data-edit-claim]').count(),0);
  await page.evaluate(async()=>{sub.status='borrador';await show('auditor');});assert.equal(await page.locator('[data-edit-claim]').count(),0);
  await page.evaluate(()=>show('client'));assert.equal(await page.locator('[data-edit-claim]').count(),2);
- assert.deepEqual(errors,[]);console.log('PASS: edición desde ficha con formulario existente, cancelación, validación, error sin pérdida, actualización y bloqueo por estado/rol');
+ // 26/11: la secretaria corrige solo en estados de captura y no tiene cómo borrar.
+ await page.evaluate(async()=>{line.claim_status='capturada';await show('capturer');});assert.equal(await page.locator('[data-edit-claim]').count(),2);
+ assert.equal(await page.getByRole('button',{name:/Eliminar|Borrar|Quitar/}).count(),0);
+ const antes=await page.evaluate(()=>editCalls.length);
+ await page.getByRole('button',{name:'Editar servicio, cantidad y monto',exact:true}).click();
+ await page.locator('[name=quantity]').fill('3');await page.getByRole('button',{name:'Guardar cambios',exact:true}).click();
+ await page.locator('dialog').waitFor({state:'detached'});assert.equal(await page.evaluate(()=>editCalls.length),antes+1);
+ for(const estado of ['retirada','validada','radicada']){await page.evaluate(async estado=>{line.claim_status=estado;await show('capturer');},estado);assert.equal(await page.locator('[data-edit-claim]').count(),0,estado);}
+ assert.deepEqual(errors,[]);console.log('PASS: edición desde ficha con formulario existente, cancelación, validación, error sin pérdida, actualización, bloqueo por estado/rol y secretaria que edita sin borrar');
 }finally{await browser.close();}
