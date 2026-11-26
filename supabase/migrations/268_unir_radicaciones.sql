@@ -1,4 +1,4 @@
--- aplicada-primero: no aplica, pendiente de autorización de Gustavo (cambiar esta nota al aplicarla).
+-- Ya aplicado en producción (25/11/2026). Se guarda aquí como documentación.
 -- 268 · Unir radicaciones de varios meses (rezagadas) en la del mes más reciente.
 -- Mismo médico, ARS y plan; solo lotes sin radicar y sin factura; solo Admin / Super Admin, con motivo.
 -- Las dos funciones existentes se parchan sobre su definición vigente (si un ancla no aparece, aborta).
