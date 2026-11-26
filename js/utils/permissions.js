@@ -573,6 +573,7 @@ const ACTIONS = {
   'partners.edit': ['super_admin', 'admin'],
   'subs.create': ['super_admin', 'admin', 'billing', 'assistant', 'client'],
   'subs.edit': ['super_admin', 'admin', 'billing', 'assistant', 'client'],
+  'claims.edit': ['super_admin', 'admin', 'billing', 'assistant', 'client', 'capturer'],           // 26/11: la secretaria corrige (nunca borra)
   'subs.delete': ['super_admin', 'admin'],
   'docs.upload': ['super_admin', 'admin', 'billing', 'glosas', 'assistant', 'client'],
   'clientdocs.upload': ['client', 'capturer'],

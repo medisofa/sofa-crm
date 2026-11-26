@@ -72,10 +72,10 @@ export async function render(main, ctx) {
     const radicada = ['radicada', 'en_proceso_ars', 'devuelta', 'pago_parcial', 'glosada', 'pagada', 'cerrada'].includes(c.claim_status);
     const authorizationEditable = ['super_admin', 'admin'].includes(role) && !ctx.viewAs && !viewAsState.active;
     const canCorrectTariff = can('tariffs.correct', role) && c.contracted && !ctx.viewAs && !viewAsState.active;
-    const contentEditable = can('subs.edit', role) && S.sub
+    const contentEditable = can('claims.edit', role) && S.sub
       && ['borrador', 'recibida', 'pendiente_documentos', 'en_depuracion'].includes(S.sub.status)
       && (role !== 'client' || S.sub.status === 'borrador')
-      && (role === 'client' ? ['pendiente_configuracion', 'capturada', 'pendiente_retiro']
+      && (['client', 'capturer'].includes(role) ? ['pendiente_configuracion', 'capturada', 'pendiente_retiro']
         : ['pendiente_configuracion', 'capturada', 'pendiente_retiro', 'retirada', 'en_validacion', 'con_inconsistencia', 'devuelta']).includes(c.claim_status);
 
     paint(box, html`
