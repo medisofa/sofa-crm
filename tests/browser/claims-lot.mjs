@@ -21,7 +21,7 @@ try {
     export async function reviewClaimDuplicate() {}
     export async function requestClaimDuplicateExclusion() {}
     export async function listClaimDuplicateResolutionRequests() { return []; }`;
-  const subs = `export async function listPendingLots() { return [{ id: 's1', folio: 'RAD-2026-0012', provider_name: 'Dra. Prueba', period: '2026-11', claimed: 1500 }, { id: 's2', folio: 'RAD-2026-0013', provider_name: 'Dra. Prueba', period: '2026-11', claimed: 750 }]; }`;
+  const subs = `export async function mergeSubmissions(...a) { window.merged = a; return { folio: 'RAD-2026-0013', lines: 3 }; } export async function listPendingLots() { return [{ id: 's1', folio: 'RAD-2026-0012', lines: 2, organization_id: 'o', provider_id: 'p', ars_id: 'a', provider_name: 'Dra. Prueba', period: '2026-11', claimed: 1500 }, { id: 's2', folio: 'RAD-2026-0013', lines: 1, organization_id: 'o', provider_id: 'p', ars_id: 'a', provider_name: 'Dra. Prueba', period: '2026-12', claimed: 750 }]; }`;
   const mocks = { '/js/services/submissions.js': subs, '/': '<main></main>', '/js/modules/opening-history.js': 'export const OPENING_ROLES=[]; export function mountOpeningHistoryPicker() {}',
     '/js/modules/clients.js': 'export const pager=()=>"";', '/js/utils/diag-log.js': 'export function logDiag() {}', '/js/supabase.js': 'export const sb=()=>({});', '/js/services/claims.js': services };
   await page.route('**/*', async (route) => {
@@ -46,7 +46,12 @@ try {
   assert.equal(await page.locator('#lote a').count(), 0);
   await page.locator('#all').check();
   assert.deepEqual(await page.locator('#bulk a').allTextContents(), ['Pasar RAD-2026-0012 a radicación (2)', 'Pasar RAD-2026-0013 a radicación (1)']);
-  await page.screenshot({ path: '/tmp/lote.png' });
+  await page.locator('#bulk [data-merge]').click();
+  await page.locator('#merge-reason').fill('La ARS acepta una sola factura');
+  await page.screenshot({ path: '/tmp/unir.png' });
+  await page.locator('dialog button[type=submit]').click();
+  await page.waitForFunction(() => window.merged);
+  assert.deepEqual(await page.evaluate(() => window.merged), ['s2', ['s1'], 'La ARS acepta una sola factura']);
   await page.locator('#fr').selectOption('s1');
   await page.waitForFunction(() => document.querySelectorAll('#l tbody tr').length === 2);
   await page.screenshot({ path: '/tmp/lote.png' });

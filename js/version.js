@@ -1,2 +1,2 @@
 /** SOFA · versión que se muestra al pie del menú. Súbala en cada entrega del frontend. */
-export const APP_VERSION = '5.43.3';
+export const APP_VERSION = '5.44.0';

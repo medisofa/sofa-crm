@@ -24,7 +24,7 @@ import { can, isStaff } from '../utils/permissions.js';
 import { downloadCsv } from '../utils/filters.js';
 import { CONFIG } from '../config.js';
 import { pager } from './clients.js';
-import { listPendingLots } from '../services/submissions.js';
+import { listPendingLots, mergeSubmissions } from '../services/submissions.js';
 import { listClaims, getClaim, claimCounts, claimLocations, claimTransitions, captureProviders, activeArs, claimAuthorizationReview, claimDuplicateCandidates, reviewClaimDuplicate } from '../services/claims.js';
 
 export async function render(main, ctx) {
@@ -157,6 +157,13 @@ export async function render(main, ctx) {
   }
 
   /** Acciones masivas: solo las transiciones que el rol puede hacer desde TODOS los estados seleccionados */
+  /** Lotes pendientes de la selección que pueden unirse (mismo cliente, médico, ARS y plan); el más reciente primero. */
+  function mergeable(chosen) {
+    const picked = lots.filter((l) => chosen.some((r) => r.submission_id === l.id)).sort((a, b) => b.period.localeCompare(a.period));
+    const key = (l) => [l.organization_id, l.provider_id, l.ars_id, l.plan_id].join('|');
+    return can('submissions.merge', role) && picked.length > 1 && new Set(picked.map(key)).size === 1 ? picked : null;
+  }
+
   function drawBulk() {
     const box = $('#bulk', main);
     if (!box) return;   // el usuario ya salió de la pantalla (la recarga terminó después)
@@ -172,6 +179,7 @@ export async function render(main, ctx) {
       ${auditable ? html`<button class="btn primary" data-audit>Auditar selección</button>` : ''}
       ${can('claims.resubmit', role) && chosen.every((r) => r.claim_status === 'devuelta') && new Set(chosen.map((r) => r.submission_id)).size === 1 ? html`<button class="btn primary" data-rs>Reenviar en radicación complementaria</button>` : ''}
       ${staff ? lots.filter((l) => chosen.some((r) => r.submission_id === l.id)).map((l) => html`<a class="btn primary" href="#/radicaciones/${l.id}">Pasar ${l.folio} a radicación (${num(chosen.filter((r) => r.submission_id === l.id).length)})</a>`) : ''}
+      ${mergeable(chosen) ? html`<button class="btn" data-merge>Unir en una radicación</button>` : ''}
       ${staff && chosen.some((r) => lots.some((l) => l.id === r.submission_id)) ? html`<span class="small muted">Estas reclamaciones ya tienen lote; cada lote se radica completo.</span>` : ''}
       ${can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok) ? html`<button class="btn" data-dx>Excepción de expediente</button>` : ''}
       ${!targets.length && !auditable && !(can('dossier.exception', role) && chosen.some((r) => !r.dossier_ok)) ? html`<span class="small muted">No hay una acción común para los estados seleccionados.</span>` : ''}
@@ -484,6 +492,23 @@ export async function render(main, ctx) {
   $('#bulk', main).addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.clear != null) { sel.clear(); $$('[data-sel]', list).forEach((c) => { c.checked = false; }); drawBulk(); return; }
+    if (b.dataset.merge != null) {
+      try {
+        const picked = mergeable(rows.filter((r) => sel.has(r.id)));
+        if (!picked) return;
+        const [target, ...others] = picked;
+        const res = await formDialog({
+          title: 'Unir en una radicación', submitLabel: `Unir en ${target.folio}`,
+          body: html`<div class="note warn">Se mueven <b>todas</b> las reclamaciones de ${others.map((l) => `${l.folio} (${l.lines})`).join(', ')} a <b>${target.folio}</b> (${target.lines}).
+            Quedará una sola radicación de ${num(picked.reduce((n, l) => n + Number(l.lines), 0))} reclamaciones por ${money(picked.reduce((n, l) => n + Number(l.claimed), 0))}. Esto no se deshace desde la pantalla.</div>
+            <p>Confirma antes que la ARS acepta varios meses en una sola factura.</p>
+            <div class="field"><label for="merge-reason">Motivo (mínimo 10 caracteres)</label><textarea id="merge-reason" name="reason" rows="3" maxlength="300" required></textarea></div>`,
+          onSubmit: (d) => mergeSubmissions(target.id, others.map((l) => l.id), d.reason)
+        });
+        if (res) { toast(`${res.folio}: ${num(res.lines)} reclamaciones en una sola radicación`, 'ok'); location.hash = `#/radicaciones/${target.id}`; }
+      } catch (err) { toast(friendlyError(err), 'bad'); }
+      return;
+    }
     const { moveDialog, auditDialog } = await import('./claim-dialogs.js');
     try {
       if (b.dataset.bulk) {
