@@ -2,7 +2,8 @@
 import { html, render as paint, $ } from '../utils/dom.js';
 import { loadingView, errorView, emptyView, opt, toast } from '../utils/ui.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
-import { financialEvents, collectionDays, serviceMix, submissionsInRange, openBalances, glosaPareto, feeSummaryAll, monthsBetween, monthKey } from '../services/bi.js';
+import { eventsByMonthKind, eventsByArsKind, collectionDaysByArs, openBalanceByArs, openBalanceByClient,
+  serviceMixAgg, glosaPareto, submissionsInRange, feeSummaryAll, monthsBetween } from '../services/bi.js';
 import { filterBar, downloadCsv } from '../utils/filters.js';
 import { money, num, period, date } from '../utils/formatters.js';
 import { subStatus } from '../utils/constants.js';
