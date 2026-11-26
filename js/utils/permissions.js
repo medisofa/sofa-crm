@@ -582,7 +582,8 @@ const ACTIONS = {
   'payments.void': ['super_admin'],
   'fees.manage': ['super_admin', 'admin'],
   'tariffs.edit': ['super_admin', 'admin', 'billing'],
-  'tariffs.correct': ['super_admin', 'admin'],                                                    // 5.43.0 · espejo de 266: corregir el monto de una tarifa y recalcular no radicadas
+  'tariffs.correct': ['super_admin', 'admin'],
+  'submissions.merge': ['super_admin', 'admin'],                                                    // 5.43.0 · espejo de 266: corregir el monto de una tarifa y recalcular no radicadas
   'hab.edit': ['super_admin', 'admin', 'assistant'],
   'hab.catalog': ['super_admin', 'admin'],
   'intel.view': ['super_admin', 'admin', 'auditor', 'assistant'],

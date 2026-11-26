@@ -11,10 +11,11 @@ export const GROUPS = {
   cerradas: { label: 'Cerradas y rechazadas', statuses: ['cerrada', 'rechazada'] }
 };
 
+const LOT_COLS = 'id, folio, period, provider_id, ars_id, plan_id, organization_id, provider_name, client_name, claimed, lines';
 const SUB_LIST_COLS = 'id, folio, sequence, status, display_status, provider_name, client_name, period, claimed, balance, payment_deadline, submitted_on, is_demo, organization_id, ars_id';
 /** Lotes que todavía no se han radicado, para el selector «Lote» de Reclamaciones. */
 export async function listPendingLots({ realOnly = false } = {}) {
-  let query = sb().from('v_submissions').select(SUB_LIST_COLS)
+  let query = sb().from('v_submissions').select(LOT_COLS).gt('lines', 0)
     .in('status', [...GROUPS.preparacion.statuses, ...GROUPS.listas.statuses]);
   if (realOnly) query = query.eq('is_demo', false);
   const { data, error } = await query.order('folio', { ascending: false }).limit(300);
@@ -42,6 +43,10 @@ export async function submissionSummary({ realOnly = false } = {}) {
   return rows[0] || { prep_count: 0, prep_claimed: 0, ready_count: 0, ready_claimed: 0, open_count: 0, open_balance: 0, late_count: 0, soon_count: 0 };
 }
 export async function getSubmission(id) { return must(await sb().from('v_submissions').select('*').eq('id', id).maybeSingle()); }
+/** Mueve las reclamaciones de `sources` al lote `target` (RPC merge_submissions). */
+export async function mergeSubmissions(target, sources, reason) {
+  return must(await sb().rpc('merge_submissions', { p_target: target, p_sources: sources, p_reason: reason }));
+}
 export async function newSubmission({ provider, ars, period, plan = null, notes = null }) {
   return must(await sb().rpc('new_submission', { p_provider: provider, p_ars: ars, p_period: period, p_plan: plan, p_notes: notes }));
 }
