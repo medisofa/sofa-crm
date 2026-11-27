@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción. No fusionar así.
+-- Ya aplicado en producción (27/11/2026). Se guarda aquí como documentación.
 -- 276 · Horas por usuario (27/11/2026): tiempo de conexión medido por la app, visible solo para
 -- Super Admin y Administrador SOFA. Una fila por usuario y día (hora de Santo Domingo). Cada minuto
 -- cuenta una sola vez aunque haya varias pestañas o equipos abiertos.
