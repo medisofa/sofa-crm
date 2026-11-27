@@ -24,7 +24,7 @@
  * AL PUBLICAR UNA VERSIÓN NUEVA: cambia VERSION abajo para que se renueve la caché.
  * Mantenlo igual al APP_VERSION de js/version.js.
  */
-const VERSION = 'sofa-shell-5.44.4';
+const VERSION = 'sofa-shell-5.45.0';
 const ASSET_VERSION = VERSION.replace('sofa-shell-', '');
 
 /** Lo mínimo para que la aplicación arranque y pinte algo sin conexión. */
@@ -35,7 +35,7 @@ const SHELL = [
   './js/boot-guard.js', './js/anti-marcos.js', './js/version.js',
   './js/supabase.js', './js/auth.js', './js/router.js', './js/app.js', './js/login.js', './js/portal.js',
   './js/utils/progress-guard.js', './js/utils/intake-autosave.js', './js/utils/intake-draft.js',
-  './js/utils/dom.js', './js/utils/ui.js', './js/utils/formatters.js',
+  './js/utils/dom.js', './js/utils/usage-heartbeat.js', './js/services/usage.js', './js/services/iter18.js', './js/utils/ui.js', './js/utils/formatters.js',
   './js/utils/validation.js', './js/utils/permissions.js', './js/utils/constants.js',
   './js/modules/home.js', './js/modules/placeholder.js', './js/modules/profile.js', './js/modules/diagnostics.js',
   './assets/brand/sofa-logo.png', './assets/brand/sofa-logo-white.png', './assets/brand/sofa-symbol.png',
