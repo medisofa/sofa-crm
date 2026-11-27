@@ -12,6 +12,7 @@ import {
   listAppointments, saveAppointment, setAppointmentStatus, listPrivateCharges, registerPrivateCharge, collectPrivateCharge,
   voidPrivateCharge, daySummary, closeDay, reopenDay, privateServices, registerCopay, receiptDocument, setEligibility
 } from '../services/consultorio.js';
+import { visitFields, bindVisitFields, validVisitLink, isVirtual, visitReminder } from '../utils/virtual-visit.js';
 
 export const APPT_STATUS = { programada: ['Programada', ''], confirmada: ['Confirmada', 'info'], en_espera: ['En espera', 'warn'], atendida: ['Atendida', 'ok'], no_asistio: ['No asistió', 'bad'], cancelada: ['Cancelada', ''] };
 const METHODS = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia', cheque: 'Cheque', pendiente: 'Pendiente (paga después)' };
@@ -39,7 +40,7 @@ function openWhatsApp(a, provider) {
   const medico = provider?.full_name ? `con ${provider.full_name}` : 'con su médico';
   const hora = a.appointment_time ? String(a.appointment_time).slice(0, 5) : '';
   // El motivo puede revelar un dato de salud: no viaja en el mensaje.
-  const texto = `Hola ${nombre}, le recordamos su cita ${medico} el ${dateStr} a las ${hora}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.`;
+  const texto = `Hola ${nombre}, le recordamos su cita ${medico} el ${dateStr} a las ${hora}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.${visitReminder(a)}`;
   const url = `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
   window.open(url, '_blank', 'noopener');
 }
@@ -91,8 +92,10 @@ export async function renderAgenda(box, ctx) {
       <div class="li" style="align-items:flex-start">
         <b class="mono" style="width:46px">${hhmm(a.appointment_time)}</b>
         <div class="b"><div class="t1">${a.patient_name} <span class="pill ${a.payer_type === 'privado' ? 'info' : ''}">${a.payer_type === 'privado' ? 'Privado' : a.ars?.name || 'ARS'}</span>
+          ${isVirtual(a) ? html`<span class="pill info">Virtual</span>` : ''}
           ${a.payer_type === 'ars' ? html`<span class="pill ${(ELIG[a.eligibility_status] || ELIG.no_verificada)[1]}" title="${a.eligibility_reference ? `${ELIG_SRC[a.eligibility_source] || ''} · ${a.eligibility_reference}` : ''}">${(ELIG[a.eligibility_status] || ELIG.no_verificada)[0]}</span>` : ''}</div>
           <div class="t2">${[a.reason, a.member_number && `NSS ${a.member_number}`, a.phone].filter(Boolean).join(' · ')}</div>
+          ${isVirtual(a) && validVisitLink(a.virtual_link) && !['cancelada', 'no_asistio'].includes(a.status) ? html`<div class="t2"><a href="${a.virtual_link}" target="_blank" rel="noopener noreferrer">Entrar a la consulta virtual</a></div>` : ''}
           ${a.service_line_id ? html`<div class="t2"><a href="#/reclamaciones/${a.service_line_id}">Ver reclamación</a></div>` : ''}</div>
         <span class="pill ${c}">${l}</span>
         ${a.payer_type === 'ars' && !closed && !['cancelada', 'no_asistio'].includes(a.status) ? html`<button class="btn sm" data-copay="${a.id}" title="Copago o diferencia cobrada al afiliado">Copago</button>` : ''}
@@ -151,10 +154,11 @@ export async function renderAgenda(box, ctx) {
       <div class="field"><label for="ap_aut">Autorización</label><input id="ap_aut" name="authorization" maxlength="60" value="${a.authorization_number || ''}"></div>
       <div class="field"><label for="ap_doc">Cédula</label><input id="ap_doc" name="doc" maxlength="20" inputmode="numeric" value="${a.patient_doc || ''}"></div>
       <div class="field"><label for="ap_ph">Teléfono</label><input id="ap_ph" name="phone" maxlength="20" inputmode="tel" value="${a.phone || ''}"></div><div id="ap_global" style="grid-column:1/-1"></div>
-      <div class="field"><label for="ap_r">Motivo</label><input id="ap_r" name="reason" maxlength="200" value="${a.reason || ''}"></div></div>`,
+      <div class="field"><label for="ap_r">Motivo</label><input id="ap_r" name="reason" maxlength="200" value="${a.reason || ''}"></div>${visitFields(a)}</div>`,
     onOpen: (f) => {
       const sync = () => { const ars_ = f.elements.payer.value === 'ars'; ['ars', 'member', 'authorization'].forEach((k) => { f.elements[k].disabled = !ars_; }); };
       f.elements.payer.addEventListener('change', sync); sync();
+      bindVisitFields(f);
       const matchBox = f.querySelector('#ap_global');
       let seq = 0;
       const checkUniversal = async () => {
@@ -173,7 +177,7 @@ export async function renderAgenda(box, ctx) {
               f.elements.doc.value=r.patient.cedula||f.elements.doc.value;
               f.elements.member.value=r.patient.nss||r.patient.member_number||f.elements.member.value;
               f.elements.phone.value=r.patient.phone||f.elements.phone.value;
-              if(r.patient.ars_id&&ars.some((x)=>x.id===r.patient.ars_id)){f.elements.payer.value='ars';f.elements.ars.value=r.patient.ars_id;sync();}
+              if(f.elements.modality.value!=='virtual'&&r.patient.ars_id&&ars.some((x)=>x.id===r.patient.ars_id)){f.elements.payer.value='ars';f.elements.ars.value=r.patient.ars_id;sync();}
               const orgId=providers.find((p)=>p.id===mem.provider)?.organization_id;
               if(orgId) await rpc('attach_global_patient',{p_global:r.patient.id,p_org:orgId});
               paint(matchBox,html`<div class="note ok">Datos administrativos cargados. La cita sigue siendo nueva e independiente.</div>`);
@@ -188,7 +192,8 @@ export async function renderAgenda(box, ctx) {
     onSubmit: async (d, f) => {
       if ((d.patient || '').trim().length < 3) { fieldError(f.elements.patient, 'Mínimo 3 caracteres'); return false; }
       if (d.payer === 'ars' && !d.ars) { fieldError(f.elements.ars, 'Seleccione la ARS o marque Privado'); return false; }
-      const id = await saveAppointment({ id: a.id, provider: mem.provider, date: mem.date, time: d.time, patient: d.patient.trim(), doc: d.doc, member: d.member, phone: d.phone, payer: d.payer, ars: d.ars, authorization: d.authorization, reason: d.reason });
+      if (d.modality === 'virtual' && (d.link || '').trim() && !validVisitLink(d.link.trim())) { fieldError(f.elements.link, 'Pegue el enlace completo, empezando por https://'); return false; }
+      const id = await saveAppointment({ modality: d.modality, link: d.link, id: a.id, provider: mem.provider, date: mem.date, time: d.time, patient: d.patient.trim(), doc: d.doc, member: d.member, phone: d.phone, payer: d.payer, ars: d.ars, authorization: d.authorization, reason: d.reason });
       if (walkIn) await setAppointmentStatus(id, 'en_espera');
       return true;
     }
