@@ -4,16 +4,18 @@ import { sb } from '../supabase.js';
 const must = ({ data, error }) => { if (error) throw error; return data; };
 const rpc = async (fn, args) => must(await sb().rpc(fn, args));
 
-const APPT_LIST_COLS = 'id, appointment_time, patient_name, patient_doc, member_number, phone, payer_type, ars_id, authorization_number, authorization_date, reason, status, service_line_id, eligibility_status, eligibility_source, eligibility_reference, ars(name)';
+const APPT_LIST_COLS = 'id, appointment_time, patient_name, patient_doc, member_number, phone, payer_type, ars_id, authorization_number, authorization_date, reason, status, service_line_id, eligibility_status, eligibility_source, eligibility_reference, modality, virtual_link, ars(name)';
 export async function listAppointments(providerId, date) {
   return must(await sb().from('appointments').select(APPT_LIST_COLS).eq('provider_id', providerId).eq('appointment_date', date)
     .order('appointment_time', { ascending: true, nullsFirst: false }).order('created_at'));
 }
 export async function getAppointment(id) { return must(await sb().from('appointments').select('*, ars(name)').eq('id', id).maybeSingle()); }
 export async function saveAppointment(v) {
-  return rpc('save_appointment', { p_id: v.id || null, p_provider: v.provider, p_date: v.date, p_time: v.time || null, p_patient: v.patient, p_doc: v.doc || null,
+  // 278 · save_appointment_modality = save_appointment + modalidad y enlace, en una sola operación
+  return rpc('save_appointment_modality', { p_id: v.id || null, p_provider: v.provider, p_date: v.date, p_time: v.time || null, p_patient: v.patient, p_doc: v.doc || null,
     p_member: v.member || null, p_phone: v.phone || null, p_payer: v.payer, p_ars: v.payer === 'ars' ? v.ars : null, p_authorization: v.authorization || null,
-    p_reason: v.reason || null, p_notes: v.notes || null, p_center: v.center || null, p_duration: v.duration ? Number(v.duration) : null });
+    p_reason: v.reason || null, p_notes: v.notes || null, p_center: v.center || null, p_duration: v.duration ? Number(v.duration) : null,
+    p_modality: v.modality || 'presencial', p_link: v.modality === 'virtual' ? (v.link || '').trim() || null : null });
 }
 
 /* 244 · Agenda por médico y centro (opciones B + C).

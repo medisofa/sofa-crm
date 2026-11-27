@@ -13,6 +13,7 @@ import { agendaWeek, myAgendaScopes, saveAppointment, setAppointmentStatus, setP
   calendarFeedStatus, calendarFeedCreate, calendarFeedRevoke, CALENDAR_FEED_URL } from '../services/consultorio.js';
 import { dateTime } from '../utils/formatters.js';
 import { APPT_STATUS } from './agenda.js';
+import { visitFields, bindVisitFields, validVisitLink, isVirtual, visitReminder } from '../utils/virtual-visit.js';
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const DIAS_LARGOS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -125,7 +126,8 @@ export async function render(main, ctx) {
             const [label] = APPT_STATUS[a.status] || [a.status];
             return html`<div class="wk-ap ${STATUS_CLS[a.status] || 'p'}" style="grid-column:${showDays.indexOf(a.date) + 2};grid-row:${rowOf(a.time)} / span ${spanOf(a.duration_min)}"
                 title="${a.time} · ${a.patient_name} · ${label}">
-              <b>${a.patient_name}</b><span>${a.time} · ${a.payer_type === 'ars' ? (a.ars_name || 'ARS') : 'Privado'}</span>
+              <b>${a.patient_name}</b><span>${a.time}${isVirtual(a) ? (validVisitLink(a.virtual_link) && !['cancelada', 'no_asistio'].includes(a.status)
+                ? html` · <a href="${a.virtual_link}" target="_blank" rel="noopener noreferrer" title="Entrar a la consulta virtual">Virtual ↗</a>` : ' · Virtual') : ''} · ${a.payer_type === 'ars' ? (a.ars_name || 'ARS') : 'Privado'}</span>
               <span class="pill ${a.status === 'confirmada' ? 'ok' : a.status === 'programada' ? 'info' : ''}">${label}</span>
               ${a.payer_type === 'ars' && a.eligibility_status !== 'verificada' ? html`<span class="pill warn">Elegibilidad sin verificar</span>` : ''}
             </div>`;
@@ -165,12 +167,15 @@ export async function render(main, ctx) {
         <div class="field"><label for="na_m">Número de afiliado</label><input id="na_m" name="member"></div>
         <div class="field"><label for="na_r">Motivo</label><input id="na_r" name="reason" placeholder="Consulta, control, procedimiento…"></div>
         <div class="field"><label for="na_d">Duración (minutos)</label><input id="na_d" name="duration" type="number" min="5" max="480" step="5" value="30"></div>
+        ${visitFields()}
       </div>`,
       submitLabel: 'Agendar',
+      onOpen: bindVisitFields,
       onSubmit: async (d, f) => {
         if ((d.patient || '').trim().length < 3) { fieldError(f.elements.patient, 'Escriba el nombre del paciente'); return false; }
         if (d.payer === 'ars' && !d.ars) { fieldError(f.elements.ars, 'Elija la ARS, o marque el paciente como privado'); return false; }
-        return saveAppointment({ provider: mem.provider, center: mem.center, date, time, patient: d.patient.trim(), phone: d.phone, doc: d.doc,
+        if (d.modality === 'virtual' && (d.link || '').trim() && !validVisitLink(d.link.trim())) { fieldError(f.elements.link, 'Pegue el enlace completo, empezando por https://'); return false; }
+        return saveAppointment({ modality: d.modality, link: d.link, provider: mem.provider, center: mem.center, date, time, patient: d.patient.trim(), phone: d.phone, doc: d.doc,
           payer: d.payer, ars: d.ars, member: d.member, reason: d.reason, duration: d.duration });
       }
     });
@@ -276,7 +281,7 @@ export async function render(main, ctx) {
       if (!num) { toast('El paciente no tiene teléfono registrado. Agréguelo en la cita.', 'bad'); return; }
       const prov = providers.find((p) => p.id === mem.provider);
       const nombre = (a.patient_name || '').split(/\s+/).slice(0, 2).join(' ');
-      const texto = `Hola ${nombre}, le recordamos su cita con ${prov?.full_name || 'su médico'} mañana a las ${a.time || ''}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.`;
+      const texto = `Hola ${nombre}, le recordamos su cita con ${prov?.full_name || 'su médico'} mañana a las ${a.time || ''}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.${visitReminder(a)}`;
       window.open(`https://wa.me/${num}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
       return;
     }
