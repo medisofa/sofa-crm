@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción. No fusionar así.
+-- Ya aplicado en producción (27/11/2026). Se guarda aquí como documentación.
 -- 278 · Consulta virtual en el calendario (27/11/2026). Cada cita es presencial o virtual; la virtual
 -- puede llevar el enlace de la videollamada (solo https). No cambia tarifas, reclamaciones ni cobros.
 begin;
