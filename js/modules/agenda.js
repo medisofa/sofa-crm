@@ -39,8 +39,8 @@ function openWhatsApp(a, provider) {
   const nombre = (a.patient_name || '').split(/\s+/).slice(0, 2).join(' ');   // solo nombre y 1er apellido
   const medico = provider?.full_name ? `con ${provider.full_name}` : 'con su médico';
   const hora = a.appointment_time ? String(a.appointment_time).slice(0, 5) : '';
-  const motivo = a.reason ? ` (${a.reason})` : '';
-  const texto = `Hola ${nombre}, le recordamos su cita ${medico}${motivo} el ${dateStr} a las ${hora}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.${visitReminder(a)}`;
+  // El motivo puede revelar un dato de salud: no viaja en el mensaje.
+  const texto = `Hola ${nombre}, le recordamos su cita ${medico} el ${dateStr} a las ${hora}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.${visitReminder(a)}`;
   const url = `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
   window.open(url, '_blank', 'noopener');
 }
