@@ -10,16 +10,20 @@ import { can } from '../utils/permissions.js';
 import { captureProviders, activeArs } from '../services/claims.js';
 import {
   listAppointments, saveAppointment, setAppointmentStatus, listPrivateCharges, registerPrivateCharge, collectPrivateCharge,
-  voidPrivateCharge, daySummary, closeDay, reopenDay, privateServices, registerCopay, receiptDocument, setEligibility
+  voidPrivateCharge, daySummary, closeDay, reopenDay, privateServices, registerCopay, receiptDocument, setEligibility, agendaWeek, myAgendaScopes
 } from '../services/consultorio.js';
 import { visitFields, bindVisitFields, validVisitLink, isVirtual, visitReminder } from '../utils/virtual-visit.js';
+import { APPT_STATUS } from '../utils/appointment-status.js';
+import { freeSlots } from '../utils/agenda-slots.js';
 
-export const APPT_STATUS = { programada: ['Programada', ''], confirmada: ['Confirmada', 'info'], en_espera: ['En espera', 'warn'], atendida: ['Atendida', 'ok'], no_asistio: ['No asistió', 'bad'], cancelada: ['Cancelada', ''] };
 const METHODS = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia', cheque: 'Cheque', pendiente: 'Pendiente (paga después)' };
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '—');
 const ELIG = { verificada: ['Elegible ✓', 'ok'], no_elegible: ['No elegible', 'bad'], no_verificada: ['Elegibilidad sin verificar', 'warn'] };
 const ELIG_SRC = { portal_ars: 'Portal de la ARS', sisalril: 'Consulta de afiliación SISALRIL', senasa: 'Consulta SeNaSa', telefono: 'Llamada a la ARS', otro: 'Otro' };
 const mem = { provider: '', date: '' };   // se conserva durante la sesión
+
+/** La semana en el celular abre aquí el día para actuar sobre sus citas. */
+export function openDay(provider, day) { mem.provider = provider; mem.date = day; location.hash = '#/agenda'; }
 
 /** 5.35.2 · Botón WhatsApp zero-cost en agenda: abre wa.me con el mensaje prellenado.
  *  No envía nada desde SOFA; la persona (asistente/médico) revisa el texto en WhatsApp y envía.
@@ -39,8 +43,7 @@ function openWhatsApp(a, provider) {
   const nombre = (a.patient_name || '').split(/\s+/).slice(0, 2).join(' ');   // solo nombre y 1er apellido
   const medico = provider?.full_name ? `con ${provider.full_name}` : 'con su médico';
   const hora = a.appointment_time ? String(a.appointment_time).slice(0, 5) : '';
-  const motivo = a.reason ? ` (${a.reason})` : '';
-  const texto = `Hola ${nombre}, le recordamos su cita ${medico}${motivo} el ${dateStr} a las ${hora}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.${visitReminder(a)}`;
+  const texto = `Hola ${nombre}, le recordamos su cita ${medico} el ${dateStr} a las ${hora}. Por favor confirme su asistencia respondiendo a este mensaje. Gracias.${visitReminder(a)}`;
   const url = `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
   window.open(url, '_blank', 'noopener');
 }
@@ -86,27 +89,51 @@ export async function renderAgenda(box, ctx) {
     drawList(); drawCharges(); drawSummary();
   }
 
+  /** Un botón principal según el estado; lo demás, en «Más». */
+  function rowActions(a) {
+    const open = !['atendida', 'no_asistio', 'cancelada'].includes(a.status);
+    const ars_ = a.payer_type === 'ars';
+    const copay = ars_ && !['cancelada', 'no_asistio'].includes(a.status) ? html`<button class="btn sm" type="button" data-copay="${a.id}" title="Copago o diferencia cobrada al afiliado">Copago</button>` : '';
+    if (!open) return copay ? html`<div class="ag-act">${copay}</div>` : '';
+    const enter = isVirtual(a) && validVisitLink(a.virtual_link);
+    const main = a.status === 'programada' ? 'confirm' : a.status === 'confirmada' ? 'arrive' : 'attend';
+    const cls = `btn sm ${enter ? '' : 'primary'}`;
+    const confirmBtn = html`<button class="${cls}" type="button" data-st="confirmada" data-id="${a.id}">Confirmó</button>`;
+    const arrive = (c) => html`<button class="${c}" type="button" data-st="en_espera" data-id="${a.id}" title="El paciente llegó">Llegó</button>`;
+    const attend = (c) => html`<button class="${c}" type="button" data-attend="${a.id}">Atendido</button>`;
+    const elig = html`<button class="btn sm" type="button" data-elig="${a.id}">${a.eligibility_status === 'verificada' ? 'Elegibilidad' : 'Verificar elegibilidad'}</button>`;
+    const showArrive = main === 'confirm' && mem.date === todayISO();
+    const arriveInMenu = main === 'confirm' && !showArrive;
+    return html`<div class="ag-act">
+      ${enter ? html`<a class="btn sm primary" href="${a.virtual_link}" target="_blank" rel="noopener noreferrer">Entrar a la consulta virtual</a>` : ''}
+      ${main === 'confirm' ? confirmBtn : main === 'arrive' ? arrive(cls) : attend(cls)}
+      ${showArrive ? arrive('btn sm') : ''}
+      ${a.phone ? html`<button class="btn sm" type="button" data-wa="${a.id}" title="Recordar la cita por WhatsApp (abre WhatsApp con el mensaje listo)">WhatsApp</button>` : ''}
+      ${ars_ && a.eligibility_status !== 'verificada' ? elig : ''}
+      <details class="ag-more"><summary class="btn sm" aria-label="Más acciones de ${a.patient_name}">Más ▾</summary><div class="ag-menu">
+        ${arriveInMenu ? arrive('btn sm') : ''}
+        ${main !== 'attend' ? attend('btn sm') : ''}
+        <button class="btn sm" type="button" data-edit="${a.id}">Editar</button>
+        ${ars_ && a.eligibility_status === 'verificada' ? elig : ''}
+        ${copay}
+        <button class="btn sm" type="button" data-st="no_asistio" data-id="${a.id}">No vino</button>
+        <button class="btn sm danger" type="button" data-st="cancelada" data-id="${a.id}">Cancelar cita</button></div></details>
+    </div>`;
+  }
+
   function drawList() {
     const closed = summary?.closing && !summary.closing.reopened_at;
-    paint(el('ag_list'), appts.length ? html`<div class="list">${appts.map((a) => { const [l, c] = APPT_STATUS[a.status] || [a.status, '']; const open = !['atendida', 'no_asistio', 'cancelada'].includes(a.status); return html`
-      <div class="li" style="align-items:flex-start">
-        <b class="mono" style="width:46px">${hhmm(a.appointment_time)}</b>
-        <div class="b"><div class="t1">${a.patient_name} <span class="pill ${a.payer_type === 'privado' ? 'info' : ''}">${a.payer_type === 'privado' ? 'Privado' : a.ars?.name || 'ARS'}</span>
+    paint(el('ag_list'), appts.length ? html`<div>${appts.map((a) => { const [l, c] = APPT_STATUS[a.status] || [a.status, '']; return html`
+      <div class="ag-row" data-appt="${a.id}">
+        <b class="mono">${hhmm(a.appointment_time)}</b>
+        <div class="ag-info"><div class="t1">${a.patient_name} <span class="pill ${a.payer_type === 'privado' ? 'info' : ''}">${a.payer_type === 'privado' ? 'Privado' : a.ars?.name || 'ARS'}</span>
           ${isVirtual(a) ? html`<span class="pill info">Virtual</span>` : ''}
           ${a.payer_type === 'ars' ? html`<span class="pill ${(ELIG[a.eligibility_status] || ELIG.no_verificada)[1]}" title="${a.eligibility_reference ? `${ELIG_SRC[a.eligibility_source] || ''} · ${a.eligibility_reference}` : ''}">${(ELIG[a.eligibility_status] || ELIG.no_verificada)[0]}</span>` : ''}</div>
-          <div class="t2">${[a.reason, a.member_number && `NSS ${a.member_number}`, a.phone].filter(Boolean).join(' · ')}</div>
-          ${isVirtual(a) && validVisitLink(a.virtual_link) && !['cancelada', 'no_asistio'].includes(a.status) ? html`<div class="t2"><a href="${a.virtual_link}" target="_blank" rel="noopener noreferrer">Entrar a la consulta virtual</a></div>` : ''}
+          <div class="t2">${[a.reason, a.member_number && `NSS ${a.member_number}`].filter(Boolean).join(' · ')}${a.phone ? html`${a.reason || a.member_number ? ' · ' : ''}<a href="tel:${a.phone}">${a.phone}</a>` : ''}</div>
           ${a.service_line_id ? html`<div class="t2"><a href="#/reclamaciones/${a.service_line_id}">Ver reclamación</a></div>` : ''}</div>
-        <span class="pill ${c}">${l}</span>
-        ${a.payer_type === 'ars' && !closed && !['cancelada', 'no_asistio'].includes(a.status) ? html`<button class="btn sm" data-copay="${a.id}" title="Copago o diferencia cobrada al afiliado">Copago</button>` : ''}
-        ${open && !closed ? html`<div class="toolbar" style="margin:0;gap:4px;flex-wrap:wrap;justify-content:flex-end">
-          ${a.phone ? html`<button class="btn sm" data-wa="${a.id}" title="Recordar la cita por WhatsApp (abre WhatsApp con el mensaje listo)">WhatsApp</button>` : ''}
-          ${a.status !== 'en_espera' ? html`<button class="btn sm" data-st="en_espera" data-id="${a.id}" title="El paciente llegó">Llegó</button>` : ''}
-          <button class="btn sm primary" data-attend="${a.id}">Atendido</button>
-          ${a.payer_type === 'ars' ? html`<button class="btn sm" data-elig="${a.id}">Elegibilidad</button>` : ''}
-          <button class="btn sm" data-edit="${a.id}">Editar</button>
-          <button class="btn sm" data-st="no_asistio" data-id="${a.id}">No vino</button>
-          <button class="btn sm" data-st="cancelada" data-id="${a.id}">Cancelar</button></div>` : ''}
+        <span class="pill ag-status ${c}">${l}</span>
+        ${closed ? '' : rowActions(a)}
+        ${closed && isVirtual(a) && validVisitLink(a.virtual_link) && !['cancelada', 'no_asistio'].includes(a.status) ? html`<div class="ag-act"><a class="btn sm" href="${a.virtual_link}" target="_blank" rel="noopener noreferrer">Entrar a la consulta virtual</a></div>` : ''}
       </div>`; })}</div>`
       : html`<p class="small muted">No hay citas para este día. Usa "Nueva cita" o "Paciente sin cita".</p>`);
   }
@@ -143,10 +170,48 @@ export async function renderAgenda(box, ctx) {
   }
 
   // ---------------------------------------------------------------- diálogos
+  const backToScheduled = (a, day, time) => (day !== mem.date && ['confirmada', 'en_espera', 'en_consulta'].includes(a.status))
+    || (time !== (a.appointment_time ? hhmm(a.appointment_time) : '') && a.status === 'confirmada');
+
+  /** Horas libres del día elegido, y aviso cuando una cita existente se mueve. Si no se pueden consultar, la hora se escribe a mano. */
+  function bindSchedule(f, a) {
+    const box_ = f.querySelector('#ap_slots'); const moved = f.querySelector('#ap_moved');
+    let seq = 0; let center = a.center_id;
+    const warn = () => {
+      if (!moved) return;
+      const day = f.elements.date.value;
+      const changed = day !== mem.date || f.elements.time.value !== (a.appointment_time ? hhmm(a.appointment_time) : '');
+      moved.hidden = !changed;
+      moved.textContent = !changed ? '' : `${backToScheduled(a, day, f.elements.time.value) ? 'La cita volverá a «Programada»: confírmela de nuevo con el paciente. ' : ''}${a.payer_type === 'ars' && day !== mem.date ? 'Verifique de nuevo la elegibilidad antes de atenderlo.' : ''}`;
+      if (!moved.textContent) moved.hidden = true;
+    };
+    const load_ = async () => {
+      const day = f.elements.date.value; const my = ++seq;
+      paint(box_, html``);
+      if (!day) return;
+      try {
+        if (!center) center = (await myAgendaScopes()).centers_by_provider?.[mem.provider]?.[0]?.id;
+        if (!center) return;
+        const data = await agendaWeek(mem.provider, center, day, 1);
+        if (my !== seq || !(data.schedule || []).length) return;
+        const free = freeSlots(data, day, a.id);
+        paint(box_, free.length ? html`<span class="small muted">Horas libres:</span> ${free.map((t) => html`<button class="btn sm" type="button" data-slot="${t}">${t}</button>`)}`
+          : html`<span class="small muted">Sin horas libres ese día según el horario. Puede escribir la hora.</span>`);
+      } catch (err) { console.warn(err); }
+    };
+    box_.addEventListener('click', (e) => { const b = e.target.closest('[data-slot]'); if (b) { f.elements.time.value = b.dataset.slot; warn(); } });
+    f.elements.date.addEventListener('change', () => { load_(); warn(); });
+    f.elements.time.addEventListener('change', warn);
+    load_();
+  }
+
   const apptDialog = (a = {}, walkIn = false) => formDialog({
     title: a.id ? 'Editar cita' : walkIn ? 'Paciente sin cita' : 'Nueva cita', submitLabel: 'Guardar', wide: true,
     body: html`<div class="form-grid">
+      ${walkIn ? '' : html`<div class="field"><label for="ap_d">Fecha *</label><input id="ap_d" name="date" type="date" value="${mem.date}"></div>`}
       <div class="field"><label for="ap_t">Hora</label><input id="ap_t" name="time" type="time" value="${a.appointment_time ? hhmm(a.appointment_time) : walkIn ? new Date().toTimeString().slice(0, 5) : ''}"></div>
+      ${walkIn ? '' : html`<div id="ap_slots" class="ag-slots" style="grid-column:1/-1"></div>`}
+      ${a.id ? html`<div id="ap_moved" class="note warn small" style="grid-column:1/-1" role="status" hidden></div>` : ''}
       <div class="field"><label for="ap_pay">Paga con *</label><select id="ap_pay" name="payer">${opt('ars', 'ARS (seguro)', a.payer_type || 'ars')}${opt('privado', 'Privado', a.payer_type)}</select></div>
       <div class="field" style="grid-column:1/-1"><label for="ap_n">Paciente *</label><input id="ap_n" name="patient" maxlength="150" value="${a.patient_name || ''}"></div>
       <div class="field"><label for="ap_ars">ARS</label><select id="ap_ars" name="ars"><option value="">Seleccione…</option>${ars.map((x) => opt(x.id, x.name, a.ars_id))}</select></div>
@@ -159,6 +224,7 @@ export async function renderAgenda(box, ctx) {
       const sync = () => { const ars_ = f.elements.payer.value === 'ars'; ['ars', 'member', 'authorization'].forEach((k) => { f.elements[k].disabled = !ars_; }); };
       f.elements.payer.addEventListener('change', sync); sync();
       bindVisitFields(f);
+      if (!walkIn) bindSchedule(f, a);
       const matchBox = f.querySelector('#ap_global');
       let seq = 0;
       const checkUniversal = async () => {
@@ -193,8 +259,13 @@ export async function renderAgenda(box, ctx) {
       if ((d.patient || '').trim().length < 3) { fieldError(f.elements.patient, 'Mínimo 3 caracteres'); return false; }
       if (d.payer === 'ars' && !d.ars) { fieldError(f.elements.ars, 'Seleccione la ARS o marque Privado'); return false; }
       if (d.modality === 'virtual' && (d.link || '').trim() && !validVisitLink(d.link.trim())) { fieldError(f.elements.link, 'Pegue el enlace completo, empezando por https://'); return false; }
-      const id = await saveAppointment({ modality: d.modality, link: d.link, id: a.id, provider: mem.provider, date: mem.date, time: d.time, patient: d.patient.trim(), doc: d.doc, member: d.member, phone: d.phone, payer: d.payer, ars: d.ars, authorization: d.authorization, reason: d.reason });
+      const day = walkIn ? mem.date : d.date;
+      if (!day) { fieldError(f.elements.date, 'Indique la fecha de la cita'); return false; }
+      const id = await saveAppointment({ modality: d.modality, link: d.link, id: a.id, provider: mem.provider, date: day, time: d.time, patient: d.patient.trim(), doc: d.doc, member: d.member, phone: d.phone, payer: d.payer, ars: d.ars, authorization: d.authorization, reason: d.reason });
       if (walkIn) await setAppointmentStatus(id, 'en_espera');
+      // Una cita movida ya no está confirmada: hay que volver a confirmarla.
+      if (a.id && backToScheduled(a, day, d.time)) await setAppointmentStatus(id, 'programada');
+      if (a.id && day !== mem.date) toast(`Cita movida al ${date(day)}`, 'ok');
       return true;
     }
   });

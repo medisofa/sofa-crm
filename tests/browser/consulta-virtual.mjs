@@ -52,7 +52,7 @@ await page.getByRole('button',{name:'Guardar',exact:true}).click();
 await page.waitForFunction(()=>calls.some(c=>c.name==='save_appointment_modality'));
 let s=(await saves())[0];assert.equal(s.p_modality,'virtual');assert.equal(s.p_link,'https://meet.example.com/nueva');assert.equal(s.p_payer,'privado');assert.equal(s.p_ars,null);
 // Editar conserva la modalidad.
-await page.locator('[data-edit="a1"]').click();
+await page.locator('[data-appt="a1"] summary').click();await page.locator('[data-edit="a1"]').click();
 assert.equal(await page.locator('#vv_m').inputValue(),'virtual');assert.equal(await page.locator('#vv_l').inputValue(),'https://meet.example.com/qa');
 await page.locator('#vv_m').selectOption('presencial');
 await page.locator('dialog #ap_pay').selectOption('privado');

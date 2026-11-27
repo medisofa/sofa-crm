@@ -8,9 +8,8 @@ import { toast, friendlyError, opt, loadingView, emptyView, confirmDialog } from
 import { todayISO } from '../utils/formatters.js';
 import { sb } from '../supabase.js';
 import { receptionDay, myAgendaScopes, setAppointmentStatus, receptionStaff, setReceptionScope } from '../services/consultorio.js';
-import { APPT_STATUS } from './agenda.js';
+import { APPT_STATUS, STATUS_CLS } from '../utils/appointment-status.js';
 
-const STATUS_CLS = { programada: 'p', confirmada: 'c', en_espera: 'e', en_consulta: 'e', atendida: 'd', no_asistio: 'd', cancelada: 'd' };
 const mem = { center: '', date: '' };
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
 const toHHMM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -96,7 +95,7 @@ export async function render(main, ctx) {
               const wait = a.status === 'en_espera' ? minsSince(a.status_changed_at) : null;
               return html`<div class="wk-ap ${STATUS_CLS[a.status] || 'p'}" style="grid-column:${i + 2};grid-row:${rowOf(a.time)} / span ${spanOf(a.duration_min)}">
                 <b>${a.patient_name}</b><span>${a.time} · ${a.payer_type === 'ars' ? (a.ars_name || 'ARS') : 'Privado'}</span>
-                <span class="pill ${a.status === 'confirmada' ? 'ok' : a.status === 'en_espera' ? 'warn' : ''}">${label}${wait != null ? ` · ${waitText(wait)}` : ''}</span>
+                <span class="pill ${(APPT_STATUS[a.status] || [])[1] || ''}">${label}${wait != null ? ` · ${waitText(wait)}` : ''}</span>
                 ${['programada', 'confirmada'].includes(a.status) ? html`<button class="btn sm" type="button" data-st="en_espera" data-id="${a.id}">Llegó</button>` : ''}
               </div>`;
             })}`)}
