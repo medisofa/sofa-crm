@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción. No fusionar así.
+-- Ya aplicado en producción (27/11/2026). Se guarda aquí como documentación.
 -- 274 · Regla de negocio (26/11/2026): el médico solo ve su información. Completa la 252 en lo que faltaba:
 -- tarifas por médico, códigos de prestador, retiros, diferencias de tarifa y los archivos de claim-documents.
 -- Solo restringe a médicos de clínicas (app.i_am_limited_client()); los demás no cambian.

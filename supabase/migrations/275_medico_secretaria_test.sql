@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción. No fusionar así.
+-- Ya aplicado en producción (27/11/2026). Se guarda aquí como documentación.
 -- 275 · Suite: el médico solo ve su información (274) y la secretaria edita pero no borra. Se deshace sola.
 -- Ejecutar desde el SQL Editor:  select * from app.qa_run_tests_medico_secretaria();
 create or replace function app.qa_run_tests_medico_secretaria()
