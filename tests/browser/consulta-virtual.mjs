@@ -60,6 +60,15 @@ await page.getByRole('button',{name:'Guardar',exact:true}).click();
 await page.waitForFunction(()=>calls.filter(c=>c.name==='save_appointment_modality').length===2);
 s=(await saves())[1];assert.equal(s.p_modality,'presencial');assert.equal(s.p_link,null);
 await page.screenshot({path:'/tmp/dia.png'});
+// Volver a presencial devuelve la forma de pago que había, y el aviso explica el cambio.
+await page.locator('#ag_new').click();
+assert.equal(await page.locator('dialog #ap_pay').inputValue(),'ars');assert.equal(await page.locator('#vv_note').isVisible(),false);
+await page.locator('#vv_m').selectOption('virtual');
+assert.equal(await page.locator('dialog #ap_pay').inputValue(),'privado');assert.equal(await page.locator('#vv_note').isVisible(),true);
+await page.locator('#vv_m').selectOption('presencial');
+assert.equal(await page.locator('dialog #ap_pay').inputValue(),'ars');assert.equal(await page.locator('#vv_note').isVisible(),false);
+assert.equal(await page.locator('dialog #ap_ars').isDisabled(),false);
+await page.keyboard.press('Escape');
 // Semana
 await page.evaluate(async()=>{const m=document.createElement('main');m.className='page';document.querySelector('main').replaceWith(m);await week.render(m,{role:'client'});});
 await page.locator('.wk-ap').getByRole('link',{name:'Virtual ↗'}).waitFor();
