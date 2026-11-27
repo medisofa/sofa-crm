@@ -182,7 +182,7 @@ export async function renderAgenda(box, ctx) {
       const day = f.elements.date.value;
       const changed = day !== mem.date || f.elements.time.value !== (a.appointment_time ? hhmm(a.appointment_time) : '');
       moved.hidden = !changed;
-      moved.textContent = !changed ? '' : `${backToScheduled(a, day, f.elements.time.value) ? 'La cita volverá a «Programada»: confírmela de nuevo con el paciente. ' : ''}${a.payer_type === 'ars' && day !== mem.date ? 'Verifique de nuevo la elegibilidad antes de atenderlo.' : ''}`;
+      moved.textContent = !changed ? '' : `${backToScheduled(a, day, f.elements.time.value) ? 'La cita volverá a «Programada»: confírmela de nuevo con el paciente. ' : ''}${a.payer_type === 'ars' && day !== mem.date ? 'La elegibilidad volverá a «sin verificar»: verifíquela de nuevo antes de atenderlo.' : ''}`;
       if (!moved.textContent) moved.hidden = true;
     };
     const load_ = async () => {
