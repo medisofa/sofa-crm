@@ -14,6 +14,7 @@ import { visibleNav, extraNav, ROLES, homeRoute, aplicarMenu, olvidarMenu } from
 import { html, render, raw, $, $$, applySidebarBadges } from './utils/dom.js';
 import { icon as routeIcon } from './utils/route-icons.js';
 import { toast, friendlyError, errorView, emptyView } from './utils/ui.js';
+import { startUsageHeartbeat } from './utils/usage-heartbeat.js';
 import { initials } from './utils/formatters.js';
 import { supportViewStart, supportViewEnd, supportViewActive } from './services/admin.js';
 import { viewAsState } from './utils/view-as-state.js';
@@ -222,6 +223,7 @@ async function boot() {
   layout();
   watchAuth();
   startInactivityTimer();
+  startUsageHeartbeat();
   window.addEventListener('hashchange', route);
   if (!location.hash || (location.hash.replace(/^#\/?/, '') === DEFAULT_ROUTE && homeRoute(state.role) !== DEFAULT_ROUTE)) history.replaceState(null, '', `#/${homeRoute(state.role)}`);
   route();
