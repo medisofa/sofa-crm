@@ -1,7 +1,7 @@
 -- PENDIENTE de aplicar en producción. No fusionar así.
--- 280 · La verificación de elegibilidad vale para la fecha de la cita (27/11/2026). Si la cita se mueve
--- de día, vuelve a «sin verificar». La autorización y su fecha no se tocan. Una cita atendida conserva
--- su registro. El valor anterior queda en la auditoría.
+-- 280 · La verificación de elegibilidad vale para la fecha y la ARS de la cita (27/11/2026). Si la cita se
+-- mueve de día o cambia de ARS, vuelve a «sin verificar». La autorización y su fecha no se tocan. Una cita
+-- atendida conserva su registro. El valor anterior queda en la auditoría.
 begin;
 do $dep$
 begin
@@ -23,10 +23,10 @@ end $$;
 revoke all on function app.appointment_eligibility_reset() from public, anon, authenticated;
 
 drop trigger if exists appointments_eligibility_reset on public.appointments;
-create trigger appointments_eligibility_reset before update of appointment_date on public.appointments
-  for each row when (old.appointment_date is distinct from new.appointment_date and old.status <> 'atendida')
+create trigger appointments_eligibility_reset before update of appointment_date, ars_id on public.appointments
+  for each row when ((old.appointment_date is distinct from new.appointment_date or old.ars_id is distinct from new.ars_id) and old.status <> 'atendida')
   execute function app.appointment_eligibility_reset();
 
 delete from app.schema_migrations where version = '280';
-insert into app.schema_migrations (version, report) values ('280', jsonb_build_object('tema', 'elegibilidad por fecha de la cita'));
+insert into app.schema_migrations (version, report) values ('280', jsonb_build_object('tema', 'elegibilidad por fecha y ARS de la cita'));
 commit;

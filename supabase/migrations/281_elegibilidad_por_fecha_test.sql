@@ -5,7 +5,7 @@ create or replace function app.qa_run_tests_elegibilidad_fecha()
 returns table(n integer, resultado text, prueba text, detalle text)
 language plpgsql set search_path = '' as $function$
 declare
-  v_res jsonb := '[]'::jsonb; v_msg text; v_id uuid; v_ars uuid; v_a public.appointments; v_d date := current_date + 3;
+  v_res jsonb := '[]'::jsonb; v_msg text; v_id uuid; v_ars uuid; v_ars2 uuid; v_a public.appointments; v_d date := current_date + 3;
   v_sofa constant uuid := '00000000-0000-4000-8000-000000000001';
   v_doc constant uuid := '28100000-0000-4000-8000-000000000001';
   v_org constant uuid := '28100000-0000-4000-8000-0000000000a1';
@@ -13,7 +13,8 @@ declare
 begin
   if auth.uid() is not null then raise exception 'Las pruebas solo se ejecutan desde el SQL Editor' using errcode = '42501'; end if;
   begin
-    select id into v_ars from public.ars limit 1;
+    select id into v_ars from public.ars order by id limit 1;
+    select id into v_ars2 from public.ars where id <> v_ars order by id limit 1;
     insert into auth.users (id, email, encrypted_password) values (v_doc,'qa.ef.a@sofa.test','x');
     insert into public.profiles (id, full_name) values (v_doc,'qa.ef.a') on conflict (id) do nothing;
     insert into public.organizations (id, kind, operator_id, legal_name, tax_id, org_type, status, started_on, whatsapp)
@@ -39,9 +40,14 @@ begin
     select * into v_a from public.appointments where id = v_id;
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','EF-04 · Se puede verificar de nuevo','ok',coalesce(v_a.eligibility_status = 'verificada', false),'d',v_a.eligibility_status));
 
+    perform public.save_appointment(v_id, v_p, v_d + 1, '10:00', 'Paciente EF', null, 'NSS1', null, 'ars', v_ars2, 'AUT-1', null);
+    select * into v_a from public.appointments where id = v_id;
+    v_res := v_res || jsonb_build_array(jsonb_build_object('p','EF-06 · Cambiar la ARS la anula','ok',coalesce(v_a.eligibility_status = 'no_verificada' and v_a.eligibility_reference is null, false),'d',v_a.eligibility_status));
+    perform public.set_eligibility(v_id, 'verificada', 'portal_ars', 'REF-789', null);
+
     perform set_config('role', 'none', true); perform set_config('request.jwt.claims', '', true);
     update public.appointments set status = 'atendida' where id = v_id;
-    update public.appointments set appointment_date = v_d + 2 where id = v_id;
+    update public.appointments set appointment_date = v_d + 2, ars_id = v_ars where id = v_id;
     select * into v_a from public.appointments where id = v_id;
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','EF-05 · Una cita atendida conserva su registro','ok',coalesce(v_a.eligibility_status = 'verificada', false),'d',v_a.eligibility_status));
     raise exception 'qa_rollback';
