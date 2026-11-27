@@ -7,6 +7,14 @@ export async function listMemberships() {
     .select('organization_id, user_id, role_code, is_active, created_at, profiles(full_name, phone, is_active), organizations(legal_name, kind), roles(name, sort_order)')
     .order('created_at'));
 }
+/** Médicos marcados como director de clínica (ven a todos los médicos de su centro; migración 248). */
+export async function listClinicDirectors() {
+  return must(await sb().from('organization_users').select('user_id, organization_id').eq('role_code', 'client').eq('sees_all_providers', true));
+}
+/** set_clinic_director(p_org, p_user, p_on): solo Super Admin / Administrador. */
+export async function setClinicDirector(orgId, userId, on) {
+  return must(await sb().rpc('set_clinic_director', { p_org: orgId, p_user: userId, p_on: !!on }));
+}
 export async function setUserActive(userId, active) {
   return must(await sb().rpc('set_user_active', { p_user: userId, p_active: active }));
 }
