@@ -39,6 +39,10 @@ begin
     select * into v_a from public.appointments where id = v_id;
     v_res := v_res || jsonb_build_array(jsonb_build_object('p','CV-05 · La forma anterior de agendar sigue creando presenciales','ok',coalesce(v_a.modality = 'presencial', false),'d',v_a.modality));
 
+    v_t := 'sin error';
+    begin perform public.save_appointment_modality(null, v_p, v_d, '11:30', 'Paciente ARS', null, null, null, 'ars', gen_random_uuid(), null, null, null, null, 30, 'virtual', null); exception when others then v_t := sqlstate; end;
+    v_res := v_res || jsonb_build_array(jsonb_build_object('p','CV-08 · Una consulta virtual no puede ir por ARS','ok',v_t = '22023','d',v_t));
+
     perform set_config('request.jwt.claims', json_build_object('sub', v_otro, 'role', 'authenticated', 'aal', 'aal2')::text, true);
     v_t := 'sin error';
     begin perform public.save_appointment_modality(v_id, v_p, v_d, '10:00', 'Intruso', null, null, null, 'privado', null, null, null, null, null, 30, 'virtual', null); exception when others then v_t := sqlstate; end;

@@ -39,14 +39,18 @@ assert.match(decodeURIComponent(await page.evaluate(()=>opened[0])),/consulta vi
 await page.locator('#ag_new').click();
 assert.equal(await page.locator('#vv_l').isDisabled(),true);
 await page.locator('#ap_n').fill('Paciente Nuevo');await page.locator('#ap_pay').selectOption('privado');
+await page.locator('#ap_pay').selectOption('ars');
 await page.locator('#vv_m').selectOption('virtual');
+assert.equal(await page.locator('#ap_pay').inputValue(),'privado');
+assert.equal(await page.locator('#ap_pay option[value="ars"]').isDisabled(),true);
+assert.equal(await page.locator('#ap_ars').isDisabled(),true);
 await page.locator('#vv_l').fill('http://inseguro.example.com');
 await page.getByRole('button',{name:'Guardar',exact:true}).click();await page.waitForTimeout(200);
 assert.equal((await saves()).length,0);
 await page.locator('#vv_l').fill('https://meet.example.com/nueva');
 await page.getByRole('button',{name:'Guardar',exact:true}).click();
 await page.waitForFunction(()=>calls.some(c=>c.name==='save_appointment_modality'));
-let s=(await saves())[0];assert.equal(s.p_modality,'virtual');assert.equal(s.p_link,'https://meet.example.com/nueva');
+let s=(await saves())[0];assert.equal(s.p_modality,'virtual');assert.equal(s.p_link,'https://meet.example.com/nueva');assert.equal(s.p_payer,'privado');assert.equal(s.p_ars,null);
 // Editar conserva la modalidad.
 await page.locator('[data-edit="a1"]').click();
 assert.equal(await page.locator('#vv_m').inputValue(),'virtual');assert.equal(await page.locator('#vv_l').inputValue(),'https://meet.example.com/qa');

@@ -156,9 +156,9 @@ export async function renderAgenda(box, ctx) {
       <div class="field"><label for="ap_ph">Teléfono</label><input id="ap_ph" name="phone" maxlength="20" inputmode="tel" value="${a.phone || ''}"></div><div id="ap_global" style="grid-column:1/-1"></div>
       <div class="field"><label for="ap_r">Motivo</label><input id="ap_r" name="reason" maxlength="200" value="${a.reason || ''}"></div>${visitFields(a)}</div>`,
     onOpen: (f) => {
-      bindVisitFields(f);
       const sync = () => { const ars_ = f.elements.payer.value === 'ars'; ['ars', 'member', 'authorization'].forEach((k) => { f.elements[k].disabled = !ars_; }); };
       f.elements.payer.addEventListener('change', sync); sync();
+      bindVisitFields(f);
       const matchBox = f.querySelector('#ap_global');
       let seq = 0;
       const checkUniversal = async () => {
@@ -177,7 +177,7 @@ export async function renderAgenda(box, ctx) {
               f.elements.doc.value=r.patient.cedula||f.elements.doc.value;
               f.elements.member.value=r.patient.nss||r.patient.member_number||f.elements.member.value;
               f.elements.phone.value=r.patient.phone||f.elements.phone.value;
-              if(r.patient.ars_id&&ars.some((x)=>x.id===r.patient.ars_id)){f.elements.payer.value='ars';f.elements.ars.value=r.patient.ars_id;sync();}
+              if(f.elements.modality.value!=='virtual'&&r.patient.ars_id&&ars.some((x)=>x.id===r.patient.ars_id)){f.elements.payer.value='ars';f.elements.ars.value=r.patient.ars_id;sync();}
               const orgId=providers.find((p)=>p.id===mem.provider)?.organization_id;
               if(orgId) await rpc('attach_global_patient',{p_global:r.patient.id,p_org:orgId});
               paint(matchBox,html`<div class="note ok">Datos administrativos cargados. La cita sigue siendo nueva e independiente.</div>`);

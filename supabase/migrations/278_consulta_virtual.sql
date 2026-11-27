@@ -14,6 +14,9 @@ alter table public.appointments add column if not exists modality text not null 
 alter table public.appointments add column if not exists virtual_link text;
 alter table public.appointments drop constraint if exists appointments_modality_check;
 alter table public.appointments add constraint appointments_modality_check check (modality in ('presencial', 'virtual'));
+-- Ninguna ARS cubre la consulta virtual (decisión del 27/11/2026): siempre cobro privado, sin reclamación.
+alter table public.appointments drop constraint if exists appointments_virtual_private_check;
+alter table public.appointments add constraint appointments_virtual_private_check check (modality <> 'virtual' or payer_type = 'privado');
 alter table public.appointments drop constraint if exists appointments_virtual_link_check;
 alter table public.appointments add constraint appointments_virtual_link_check
   check (virtual_link is null or (modality = 'virtual' and length(virtual_link) <= 500 and virtual_link ~ '^https://[^[:space:]<>"]+$'));
@@ -30,6 +33,9 @@ begin
     raise exception 'Elija la modalidad: presencial o virtual.' using errcode = '22023';
   end if;
   if p_modality = 'presencial' then v_link := null; end if;
+  if p_modality = 'virtual' and p_payer is distinct from 'privado' then
+    raise exception 'La consulta virtual se cobra como privada: ninguna ARS la cubre. Marque «Privado».' using errcode = '22023';
+  end if;
   if v_link is not null and (length(v_link) > 500 or v_link !~ '^https://[^[:space:]<>"]+$') then
     raise exception 'El enlace de la videollamada debe empezar por https:// y no llevar espacios. Cópielo completo.' using errcode = '22023';
   end if;
