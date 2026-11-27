@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción. No fusionar así.
+-- Ya aplicado en producción (27/11/2026). Se guarda aquí como documentación.
 -- 280 · La verificación de elegibilidad vale para la fecha y la ARS de la cita (27/11/2026). Si la cita se
 -- mueve de día o cambia de ARS, vuelve a «sin verificar». La autorización y su fecha no se tocan. Una cita
 -- atendida conserva su registro. El valor anterior queda en la auditoría.
