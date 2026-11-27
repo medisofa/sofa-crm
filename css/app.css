@@ -313,6 +313,7 @@ main.page:focus { outline: none; }
 .wk-lines{background-image:linear-gradient(var(--line) 1px,transparent 1px);border-left:1px solid var(--line);pointer-events:none}
 .wk-ap{margin:2px 3px;border-radius:6px;padding:4px 8px;font-size:12.5px;line-height:1.3;border:1px solid var(--line);background:var(--surface);overflow:hidden;z-index:1;display:flex;flex-direction:column;gap:2px;align-items:flex-start}
 .wk-ap b{font-size:13px}
+.wk-ap b,.wk-line{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wk-ap.c{background:var(--ok-bg)}.wk-ap.p{background:var(--info-bg)}.wk-ap.e{background:var(--warn-bg)}.wk-ap.d{opacity:.7}
 .wk-blk{margin:2px 3px;border-radius:6px;padding:6px 8px;font-size:12.5px;color:var(--ink-2);background:repeating-linear-gradient(135deg,var(--surface-2) 0 8px,transparent 8px 16px);border:1px dashed var(--line);z-index:1}
 .wk-free{margin:2px 3px;border:1px dashed var(--line);border-radius:6px;background:transparent;color:var(--navy-3,var(--navy));font:600 12.5px/1 inherit;font-family:inherit;cursor:pointer;z-index:1;min-height:36px}
@@ -329,3 +330,30 @@ main.page:focus { outline: none; }
 .wk-sched-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .wk-admin{padding:14px;margin-top:16px}
 @media (max-width:1000px){.wk-wrap{grid-template-columns:1fr}}
+
+/* 5.47.0 · Lista de citas del día y semana en el celular */
+.wk-col{min-width:0}
+.wk-legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.wk-mobile{display:none}
+.wk-days{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;margin-bottom:12px}
+.wk-days .btn{min-height:44px;padding:4px;white-space:normal}
+.ag-row{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:4px 12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.ag-row:first-child{border-top:0}
+.ag-info{min-width:0;overflow-wrap:anywhere}
+.ag-info .t1{font-weight:600;font-size:14.5px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ag-info .t2{font-size:13px;color:var(--ink-2)}
+.ag-act{grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-top:4px}
+.ag-more>summary{list-style:none}
+.ag-more>summary::-webkit-details-marker{display:none}
+.ag-more[open]{flex-basis:100%}
+.ag-menu{display:flex;flex-wrap:wrap;gap:8px;padding-top:8px}
+.ag-slots{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+@media (max-width:700px){
+  .wk-week,.wk-legend{display:none}
+  .wk-mobile{display:block}
+  .ag-row{grid-template-columns:48px minmax(0,1fr)}
+  .ag-status{grid-column:2;justify-self:start}
+  .ag-act .btn{min-height:44px;flex:1 1 auto}
+  .ag-more{flex:0 0 auto}
+  .ag-more[open]{flex:1 0 100%}
+}
