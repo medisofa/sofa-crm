@@ -1,7 +1,7 @@
 /** SOFA · Usuarios y roles: invitaciones, cambio de rol, activación, restablecer contraseña (2.1) y revisión periódica de accesos */
 import { html, render as paint, $ } from '../utils/dom.js';
 import { emptyView, toast, friendlyError, confirmDialog, busy, formDialog, opt, requireFields, fieldError } from '../utils/ui.js';
-import { listMemberships, setUserActive, usersOverview, adminUsers, adminUpdateUserProfile, getProfile } from '../services/admin.js';
+import { listMemberships, setUserActive, usersOverview, adminUsers, adminUpdateUserProfile, getProfile, listClinicDirectors, setClinicDirector } from '../services/admin.js';
 import { clientOptions } from '../services/bi.js';
 import { downloadCsv } from '../utils/filters.js';
 import { can, canSee, ROLES } from '../utils/permissions.js';
@@ -118,6 +118,8 @@ export async function render(main, ctx) {
   }
   const manage = can('users.invite', ctx.role); const canToggle = can('users.toggle', ctx.role);
   let rows = [], accounts = []; let filter = '', search = ''; let repairUnavailable = false;
+  let directors = null;   // null = no se pudo consultar: no se ofrece el botón
+  const canDirector = ['super_admin', 'admin'].includes(ctx.role);
   paint(main, html`
     <div class="page-head users-page-head"><div class="t"><h2>Usuarios y accesos</h2><p>Una fila por cuenta, con sus roles y organizaciones agrupados. Los filtros seleccionan cuentas; se muestran todos sus accesos.</p></div>
       <div class="toolbar" style="margin:0">${manage ? html`<details class="users-add"><summary class="btn primary">+ Agregar usuario</summary><div class="users-add-options"><button class="btn primary" id="invite">+ Invitar usuario</button>${ctx.role === 'super_admin' ? html`<button class="btn" id="createActive">+ Crear usuario activo</button>` : ''}<button class="btn" id="inviteMed">+ Médico</button><button class="btn" id="inviteSec">+ Secretaria</button><button class="btn" id="inviteAsist">+ Asistente de consulta</button></div></details>` : ''}<button class="btn" id="csv">Exportar revisión de accesos</button></div></div>
@@ -150,7 +152,8 @@ export async function render(main, ctx) {
             return html`<section class="user-membership"><b>${m.role_name || ROLES[m.role_code]?.name || m.role_code || 'Sin rol'}</b><div>${m.organization || 'Sin organización'}</div>
               <span class="pill ${sc}">${sl}</span>${rl ? html` <span class="pill ${rc}">${rl}</span>` : ''}<div class="small muted">Invitado ${date(m.invited_at)}</div>
               ${m.conflict ? html`<p class="note bad">Datos contradictorios para este acceso. Revisa la validación antes de modificarlo.</p>` : ''}
-              ${editable && !m.conflict ? html`<div class="user-access-actions">${manage && u.email && !u.sharedEmail ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id || ''}">Cambiar este rol</button>` : ''}
+              ${m.role_code === 'client' && directors?.has(`${u.user_id}:${m.organization_id}`) ? html` <span class="pill info">Director · ve a todos los médicos</span>` : ''}
+              ${editable && !m.conflict ? html`<div class="user-access-actions">${canDirector && directors && m.role_code === 'client' && m.is_active === true ? html`<button class="btn sm" data-act="director" data-user="${u.user_id}" data-role="${m.role_code}" data-org="${m.organization_id}" data-orgname="${m.organization || ''}" data-name="${u.full_name || u.email}" data-on="${directors.has(`${u.user_id}:${m.organization_id}`) ? '0' : '1'}">${directors.has(`${u.user_id}:${m.organization_id}`) ? 'Quitar marca de director' : 'Marcar director de clínica'}</button>` : ''}${manage && u.email && !u.sharedEmail ? html`<button class="btn sm" data-act="grant" data-email="${u.email}" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id || ''}">Cambiar este rol</button>` : ''}
                 ${manage && SCOPED_ROLES.includes(m.role_code) && can('capturers.assign', ctx.role) ? html`<button class="btn sm" data-act="scope" data-role="${m.role_code}" data-user="${u.user_id}" data-org="${m.organization_id}" data-name="${u.full_name || u.email}">Médicos asignados</button>` : ''}
                 ${ctx.role === 'super_admin' && SCOPED_ROLES.includes(m.role_code) && m.is_active === true ? html`<button class="btn sm" data-act="viewas" data-user="${u.user_id}" data-role="${m.role_code}" data-org="${m.organization_id}" data-orgname="${m.organization || ''}" data-name="${u.full_name || u.email}" title="Ver las pantallas de esta cuenta, en modo soporte y solo lectura">Ver como ${m.role_code === 'asistente' ? 'este asistente' : 'esta secretaria'}</button>` : ''}
                 ${manage ? html`<button class="btn sm" data-act="validate" data-user="${u.user_id}" data-role="${m.role_code || ''}" data-org="${m.organization_id || ''}">Validar acceso</button>` : ''}
@@ -192,6 +195,11 @@ export async function render(main, ctx) {
       }
       rows = basic.map((m) => ({ user_id: m.user_id, email: '', full_name: m.profiles?.full_name, role_code: m.role_code, role_name: m.roles?.name, organization_id: m.organization_id, organization: m.organizations?.legal_name, kind: m.organizations?.kind, is_active: m.is_active && m.profiles?.is_active !== false, invited_at: m.created_at, last_sign_in_at: null, status: m.is_active && m.profiles?.is_active !== false ? 'activo' : 'desactivado' }));
       toast(`Revisión de accesos no disponible: ${friendlyError(err)}`);
+    }
+    directors = null;
+    if (canDirector) {
+      try { directors = new Set((await listClinicDirectors()).map((d) => `${d.user_id}:${d.organization_id}`)); }
+      catch (err) { toast(`No se pudo consultar la marca de director: ${friendlyError(err)}`, 'bad'); }
     }
     accounts = groupUserAccounts(rows);
     drawKinds(); drawTabs(); draw();
@@ -255,6 +263,17 @@ export async function render(main, ctx) {
     if (b.dataset.act === 'viewas') {
       const { enterViewAs } = await import('../app.js');
       await enterViewAs({ id: b.dataset.org, legal_name: b.dataset.orgname }, { userId: b.dataset.user, role: b.dataset.role, name: b.dataset.name });
+      return;
+    }
+    if (b.dataset.act === 'director') {
+      const on = b.dataset.on === '1';
+      const ok = await confirmDialog(
+        on ? 'Marcar director de clínica' : 'Quitar marca de director',
+        on ? `${b.dataset.name} verá la información de todos los médicos de ${b.dataset.orgname || 'este centro'}.` : `${b.dataset.name} volverá a ver solo su propia información en ${b.dataset.orgname || 'este centro'}.`,
+        on ? 'Marcar director' : 'Quitar marca');
+      if (!ok) return;
+      try { await setClinicDirector(b.dataset.org, b.dataset.user, on); toast(on ? 'Marcado como director de clínica.' : 'Marca de director retirada.', 'ok'); load(); }
+      catch (err) { toast(friendlyError(err), 'bad'); }
       return;
     }
     if (b.dataset.act === 'editProfile') {
