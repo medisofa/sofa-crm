@@ -182,9 +182,10 @@ export async function renderAgenda(box, ctx) {
       if (!moved) return;
       const day = f.elements.date.value;
       const changed = day !== mem.date || f.elements.time.value !== (a.appointment_time ? hhmm(a.appointment_time) : '');
-      moved.hidden = !changed;
-      moved.textContent = !changed ? '' : `${backToScheduled(a, day, f.elements.time.value) ? 'La cita volverá a «Programada»: confírmela de nuevo con el paciente. ' : ''}${a.payer_type === 'ars' && day !== mem.date ? 'Verifique de nuevo la elegibilidad antes de atenderlo.' : ''}`;
-      if (!moved.textContent) moved.hidden = true;
+      // La elegibilidad vale para una fecha y una ARS (280): cambiar la hora no la anula.
+      const recheck = a.payer_type === 'ars' && f.elements.payer.value === 'ars' && (day !== mem.date || f.elements.ars.value !== (a.ars_id || ''));
+      moved.textContent = `${changed && backToScheduled(a, day, f.elements.time.value) ? 'La cita volverá a «Programada»: confírmela de nuevo con el paciente. ' : ''}${recheck ? 'La elegibilidad volverá a «sin verificar»: verifíquela de nuevo antes de atenderlo.' : ''}`;
+      moved.hidden = !moved.textContent;
     };
     const load_ = async () => {
       const day = f.elements.date.value; const my = ++seq;
@@ -201,8 +202,8 @@ export async function renderAgenda(box, ctx) {
       } catch (err) { console.warn(err); }
     };
     box_.addEventListener('click', (e) => { const b = e.target.closest('[data-slot]'); if (b) { f.elements.time.value = b.dataset.slot; warn(); } });
-    f.elements.date.addEventListener('change', () => { load_(); warn(); });
-    f.elements.time.addEventListener('change', warn);
+    f.elements.date.addEventListener('change', load_);
+    f.addEventListener('change', warn);
     load_();
   }
 

@@ -82,7 +82,15 @@ try {
   // Con ARS, mover de día pide verificar de nuevo la elegibilidad.
   await page.locator('[data-appt="a1"] summary').click();await page.locator('[data-edit="a1"]').click();
   await page.locator('#ap_d').fill(await page.evaluate(()=>later));
-  assert.match(await page.locator('#ap_moved').innerText(),/Verifique de nuevo la elegibilidad/);
+  assert.match(await page.locator('#ap_moved').innerText(),/elegibilidad volverá a «sin verificar»/);
+  const date_=await page.locator('#ap_d').inputValue();
+  await page.locator('#ap_d').fill(await page.evaluate(()=>today));await page.locator('#ap_d').dispatchEvent('change');
+  assert.doesNotMatch(await page.locator('#ap_moved').textContent(),/elegibilidad/,'sin cambio de fecha ni de ARS no avisa');
+  await page.locator('#ap_ars').selectOption('');
+  assert.match(await page.locator('#ap_moved').innerText(),/elegibilidad volverá a «sin verificar»/,'cambiar la ARS avisa');
+  await page.locator('#ap_ars').selectOption('s');
+  assert.doesNotMatch(await page.locator('#ap_moved').textContent(),/elegibilidad/);
+  await page.locator('#ap_d').fill(date_);await page.locator('#ap_d').dispatchEvent('change');
   await page.keyboard.press('Escape');
   // 2 y 5. Semana: en el celular un día a la vez; en la computadora el estado y la elegibilidad se leen.
   await toWeek(page);
