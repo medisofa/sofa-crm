@@ -169,7 +169,8 @@ export const NAV = [
     { route: 'puesta-en-marcha', label: 'Puesta en marcha de clientes', roles: ['super_admin', 'admin', 'operations'], ready: true },   // 4.9 · I56
     { route: 'cola-correos', label: 'Cola de correos', roles: ['super_admin', 'admin'], ready: true },   // 5.0 · I63
     { route: 'rendimiento', label: 'Rendimiento y archivo', roles: ['super_admin', 'admin', 'operations'], ready: true },   // 5.0 · I64 (Operaciones solo consulta)
-    { route: 'historial', label: 'Historial de acciones', roles: ['super_admin', 'admin'], ready: true }   // 5.28.0
+    { route: 'historial', label: 'Historial de acciones', roles: ['super_admin', 'admin'], ready: true },   // 5.28.0
+    { route: 'horas-usuarios', label: 'Horas por usuario', roles: ['super_admin', 'admin'], ready: true }   // 5.45.0
   ]},
   { group: 'Mi cuenta', items: [
     { route: 'mi-panel', label: 'Mi panel', roles: ['client'], ready: true },   // 5.29.0 · panel unificado del cliente
@@ -324,7 +325,7 @@ export const ESENCIALES = {
   admin: {
     menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
            'usuarios', 'permisos', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
-           'cola-correos', 'rendimiento', 'solicitudes', 'perfil', 'seguridad'],
+           'cola-correos', 'rendimiento', 'horas-usuarios', 'solicitudes', 'perfil', 'seguridad'],
     extra: '*'
   },
 
@@ -332,7 +333,7 @@ export const ESENCIALES = {
   super_admin: {
     menu: ['mi-dashboard', 'inicio', 'hoy', 'mi-bandeja', 'clientes', 'salud-clientes', 'direccion',
            'usuarios', 'permisos', 'alta-usuarios', 'parametros', 'planes', 'suscripciones', 'puesta-en-marcha',
-           'cola-correos', 'rendimiento', 'salud-sistema', 'revision', 'hc-control', 'solicitudes', 'perfil', 'seguridad'],
+           'cola-correos', 'rendimiento', 'horas-usuarios', 'salud-sistema', 'revision', 'hc-control', 'solicitudes', 'perfil', 'seguridad'],
     extra: '*'
   },
 
@@ -446,7 +447,7 @@ export const FAMILIES = [
   { key: 'crecimiento', group: 'Desarrollo y crecimiento', routes: ['oportunidades', 'prospectos', 'solicitudes', 'clientes', 'salud-clientes', 'medicos', 'contactos', 'propuestas', 'onboarding-30', 'puesta-en-marcha', 'mi-incorporacion', 'mis-30-dias', 'mi-puesta-en-marcha', 'casos-servicio'] },
   { key: 'marketing', group: 'Marketing y comunicación', routes: ['aliados', 'casos-exito', 'recomendar', 'cola-correos'] },
   { key: 'resultados', group: 'Inteligencia y resultados', routes: ['mercado', 'mercadeo', 'guias', 'dashboard', 'direccion', 'reportes', 'mi-productividad', 'reporte-contador', 'estado-cuenta', 'rentabilidad', 'analitica-glosas', 'informe-trimestral', 'fugas'] },
-  { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'planes', 'suscripciones', 'rendimiento', 'salud-sistema', 'historial'] },
+  { key: 'admin', group: 'Administración', routes: ['usuarios', 'permisos', 'alta-usuarios', 'parametros', 'hc-control', 'revision', 'planes', 'suscripciones', 'rendimiento', 'salud-sistema', 'historial', 'horas-usuarios'] },
   { key: 'cuenta', group: 'Mi cuenta', routes: ['autoentrenamiento', 'mi-panel', 'mi-cuenta-sofa', 'mi-plan', 'mi-suscripcion', 'mis-avisos', 'novedades', 'actualidades', 'perfil', 'seguridad', 'diagnostico', 'cambio-clave'] }   // 19/11/2026 · 'actualidades' estaba huérfana y caía en «Más»; se agrupa junto a 'novedades' (solo agrupación, no cambia permisos)
 ];
 
