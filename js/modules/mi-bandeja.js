@@ -1,5 +1,5 @@
 /** SOFA · 4.9.0 · I59 · «Mi bandeja»: la bandeja única de trabajo del facturador.
-import { friendlyError } from '../utils/ui.js';
+import { friendlyError, confirmDialog } from '../utils/ui.js';
  *  Una sola cola, en orden, con lo que hay que hacer hoy: capturas incompletas, lotes por radicar, glosas por responder y cobros por escalar.
  *  Facturación ve solo lo suyo; Super Admin, Administrador y Operaciones ven todo lo que su acceso permite y administran asignaciones y ausencias.
  *  La cola se calcula en la base de datos desde las tablas existentes (no guarda copias) y el servidor vuelve a verificar el rol en cada función. */
@@ -197,6 +197,7 @@ export async function render(root, ctx = {}) {
       { label: 'Cliente', get: (a) => a.client }, { label: 'Tipo de tarea', get: (a) => a.type_label }, { label: 'Responsable', get: (a) => a.assignee },
       { label: 'Desde', get: (a) => fmtDate(a.since) }, { label: 'Estado', get: (a) => (a.available ? 'Disponible' : h('span', { class: 'mb-over' }, 'No disponible: reasigne')) },
       { label: '', get: (a) => { const b = h('button', { class: 'i18-btn i18-sec', type: 'button', 'aria-label': `Quitar la asignación de ${a.client}` }, 'Quitar'); b.addEventListener('click', async () => {
+        if (!await confirmDialog('Quitar asignación', `¿Quitar a ${a.assignee} como responsable de ${a.client} para «${a.type_label}»?`, 'Quitar', true)) return;
         b.disabled = true; try { await rpc('inbox_assignment_remove', { p_id: a.id }); await show(); } catch (e) { const o = document.getElementById('mb-out'); if (o) o.replaceChildren(note(friendlyError(e), 'error')); b.disabled = false; } }); return b; } }
     ], d.assignments) : note('Todavía no hay clientes asignados.', 'warn');
     const unc = d.uncovered.length ? h('div', { class: 'i18-card' }, h('strong', {}, 'Clientes sin cubrir'), h('p', { class: 'i18-sub' }, 'Sus tareas aparecen «sin responsable» solo para la supervisión.'),

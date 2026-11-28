@@ -4,7 +4,7 @@
  *  Todo pasa por funciones de la base (110_historia_clinica.sql): cifrado, firma con huella, adendas y bitácora.
  *  La pantalla se bloquea sola tras 5 minutos sin uso y no guarda datos clínicos en el navegador. */
 import { rpc, supabase, providerOptions, clientOptions, clientName, h, fmtDate, note, guarded, table } from '../services/iter18.js';
-import { confirmDialog } from '../utils/ui.js';
+import { confirmDialog, friendlyError } from '../utils/ui.js';
 import { mfaState, verifyStep } from './seguridad.js';
 import { orderForm, ordersList, printOrder } from './hc-ordenes.js';
 import { pii } from '../utils/view-as-state.js';   // 5.34.0 · difumina PII del paciente en modo soporte
@@ -101,7 +101,7 @@ export async function render(root, ctx = {}) {
 
   async function mfaGate() {
     let s;
-    try { s = await mfaState(); } catch (e) { body.replaceChildren(note(e.message, 'error')); return; }
+    try { s = await mfaState(); } catch (e) { body.replaceChildren(note(friendlyError(e), 'error')); return; }
     const box = h('div');
     if (!s.factor) {
       body.replaceChildren(note('Este consultorio exige verificación en dos pasos para la historia clínica. Actívela en Mi cuenta › Seguridad y vuelva aquí.', 'error'),
@@ -121,7 +121,7 @@ export async function render(root, ctx = {}) {
     go.addEventListener('click', async () => {
       go.disabled = true;
       try { await rpc('clinical_break_glass', { p_org: org, p_reason: reason.value }); openOrg(); }
-      catch (e) { msg.replaceChildren(note(e.message, 'error')); go.disabled = false; }
+      catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); go.disabled = false; }
     });
 
     const minutes = h('select', { id: 'hc-minutes' }, [5, 15, 30, 60].map((m) => h('option', { value: String(m), ...(m === 15 ? { selected: true } : {}) }, `${m} minutos`)));
@@ -134,7 +134,7 @@ export async function render(root, ctx = {}) {
       try {
         await rpc('clinical_access_request', { p_org: org, p_minutes: Number(minutes.value), p_reason: reason2.value.trim() });
         msg2.replaceChildren(note('Solicitud enviada. El médico la verá al entrar a su Historia clínica y decide si la aprueba. Vuelva a entrar aquí después.', 'ok'));
-      } catch (e) { msg2.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { msg2.replaceChildren(note(friendlyError(e), 'error')); }
       ask.disabled = false;
     });
 
@@ -162,7 +162,7 @@ export async function render(root, ctx = {}) {
       const respond = async (approve) => {
         yes.disabled = true; no.disabled = true;
         try { await rpc('clinical_access_respond', { p_request: r.id, p_approve: approve }); openOrg(); }
-        catch (e) { box.prepend(note(e.message, 'error')); yes.disabled = false; no.disabled = false; }
+        catch (e) { box.prepend(note(friendlyError(e), 'error')); yes.disabled = false; no.disabled = false; }
       };
       yes.addEventListener('click', () => respond(true)); no.addEventListener('click', () => respond(false));
       return line;
@@ -184,7 +184,7 @@ export async function render(root, ctx = {}) {
         if (!await confirmDialog('Cortar acceso', `${r.user} ya no podrá seguir viendo la historia clínica.`, 'Cortar acceso', true)) return;
         cut.disabled = true;
         try { await rpc('clinical_access_revoke', { p_access: r.id }); openOrg(); }
-        catch (e) { box.prepend(note(e.message, 'error')); cut.disabled = false; }
+        catch (e) { box.prepend(note(friendlyError(e), 'error')); cut.disabled = false; }
       });
       return h('div', { style: 'margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap' },
         h('span', {}, `${r.user} tiene acceso de lectura hasta las ${until} · "${r.reason}"`), cut);
@@ -256,7 +256,7 @@ export async function render(root, ctx = {}) {
       btns.append(h('button', { class: 'i18-btn', type: 'button', onclick: () => noteForm(patientId, n, pane, main, st) }, 'Editar borrador'),
         h('button', { class: 'i18-btn i18-sec', type: 'button', onclick: async () => {
           if (!await confirmDialog('Borrar borrador', '¿Borrar este borrador? No se puede deshacer.', 'Borrar', true)) return;
-          try { await rpc('delete_clinical_draft', { p_id: n.id }); openPatient(patientId, main, st); } catch (e) { pane.prepend(note(e.message, 'error')); }
+          try { await rpc('delete_clinical_draft', { p_id: n.id }); openPatient(patientId, main, st); } catch (e) { pane.prepend(note(friendlyError(e), 'error')); }
         } }, 'Borrar borrador'));
     }
     if (st.can_write && n.status === 'firmada') {
@@ -266,7 +266,7 @@ export async function render(root, ctx = {}) {
         dx.addEventListener('click', async () => {
           dx.disabled = true;
           try { const r = await rpc('note_diagnosis_to_claim', { p_note: n.id }); add.prepend(note(`Listo: la reclamación de la cita lleva ${r.codes}.`, 'ok')); }
-          catch (e) { add.prepend(note(e.message, 'error')); } finally { dx.disabled = false; }
+          catch (e) { add.prepend(note(friendlyError(e), 'error')); } finally { dx.disabled = false; }
         });
         btns.append(dx);
       }
@@ -277,7 +277,7 @@ export async function render(root, ctx = {}) {
       go.addEventListener('click', async () => {
         go.disabled = true;
         try { await rpc('add_clinical_addendum', { p_note: n.id, p_text: txt.value }); viewNote(n.id, pane, main, st, patientId); }
-        catch (e) { add.prepend(note(e.message, 'error')); go.disabled = false; }
+        catch (e) { add.prepend(note(friendlyError(e), 'error')); go.disabled = false; }
       });
       add.append(h('div', { class: 'hc-form' }, h('label', { for: 'hc-add' }, 'Agregar adenda (corrección o aclaración; la nota original no cambia)'), txt, h('div', {}, go)));
     }
@@ -371,14 +371,14 @@ export async function render(root, ctx = {}) {
     bSave.addEventListener('click', async () => {
       bSave.disabled = true;
       try { const id = await save(); existing = { ...(existing || {}), id, template: tpl.value, content: content() }; msg.replaceChildren(note('Borrador guardado.', 'ok')); }
-      catch (e) { msg.replaceChildren(note(e.message, 'error')); }
+      catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); }
       finally { bSave.disabled = false; }
     });
     bSign.addEventListener('click', async () => {
       if (!await confirmDialog('Firmar nota', 'Al firmar, la nota queda bloqueada: solo podrá corregirse con adendas.', 'Firmar ahora', true)) return;
       bSign.disabled = true;
       try { const id = await save(); existing = { ...(existing || {}), id }; await rpc('sign_clinical_note', { p_id: id }); await openPatient(patientId, main, st); }
-      catch (e) { msg.replaceChildren(note(e.message, 'error')); bSign.disabled = false; }
+      catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); bSign.disabled = false; }
     });
     pane.replaceChildren(h('section', { class: 'hc-note hc-form' },
       h('header', {}, h('strong', {}, existing ? 'Editar borrador' : 'Nueva nota'), h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
@@ -397,7 +397,7 @@ export async function render(root, ctx = {}) {
     go.addEventListener('click', async () => {
       go.disabled = true;
       try { await rpc('save_clinical_summary', { p_patient: patientId, p_content: { alergias: a.value.trim(), antecedentes: b.value.trim(), medicamentos: c.value.trim() } }); openPatient(patientId, main, st); }
-      catch (e) { msg.replaceChildren(note(e.message, 'error')); go.disabled = false; }
+      catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); go.disabled = false; }
     });
     pane.replaceChildren(h('section', { class: 'hc-note hc-form' }, h('header', {}, h('strong', {}, 'Resumen clínico'), h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
       h('p', { class: 'i18-sub' }, 'Cada cambio guarda una versión nueva; las anteriores se conservan.'), l1, l2, l3, h('div', { class: 'i18-actions' }, go), msg));
@@ -412,7 +412,7 @@ export async function render(root, ctx = {}) {
     go.addEventListener('click', async () => {
       go.disabled = true;
       try { await rpc('record_clinical_consent', { p_patient: patientId, p_kind: kind.value, p_method: method.value, p_witness: witness.value || null }); openPatient(patientId, main, st); }
-      catch (e) { msg.replaceChildren(note(e.message, 'error')); go.disabled = false; }
+      catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); go.disabled = false; }
     });
     pane.replaceChildren(h('section', { class: 'hc-note hc-form' }, h('header', {}, h('strong', {}, 'Consentimiento del paciente'), h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
       h('p', { class: 'i18-sub' }, 'Registre que el paciente autorizó el uso de sus datos de salud. Guarde el papel firmado en el consultorio o adjúntelo como «Otro».'),
@@ -440,7 +440,7 @@ export async function render(root, ctx = {}) {
         if (error) throw new Error('No se pudo subir el archivo. Revise su conexión e intente de nuevo.');
         await rpc('register_clinical_attachment', { p_patient: patientId, p_path: path, p_file_name: f.name, p_kind: kind.value, p_description: desc.value || null });
         openPatient(patientId, main, st);
-      } catch (e) { msg.replaceChildren(note(e.message, 'error')); go.disabled = false; }
+      } catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); go.disabled = false; }
     });
     pane.replaceChildren(h('section', { class: 'hc-note hc-form' }, h('header', {}, h('strong', {}, 'Adjuntar documento'), h('button', { class: 'i18-link', type: 'button', onclick: () => pane.replaceChildren() }, 'Cancelar')),
       h('p', { class: 'i18-sub' }, 'Para pacientes que traen su historia de otro sistema: súbala en PDF o foto. Los adjuntos no se pueden borrar ni reemplazar.'),
