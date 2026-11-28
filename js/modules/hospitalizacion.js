@@ -2,7 +2,7 @@
  *  cobrados según SU tarifario, en cualquiera de los centros de su ficha. La base valida todo (centro de su ficha,
  *  precio del tarifario, reporte en firme al enviar). Ocultar un botón aquí no es un control. */
 import { rpc, h, note, guarded, money, fmtDate } from '../services/iter18.js';
-import { confirmDialog } from '../utils/ui.js';
+import { confirmDialog, friendlyError } from '../utils/ui.js';
 import { openPrint, fillPrint } from '../utils/print-doc.js';
 import { canSee } from '../utils/permissions.js';
 import { episodeBlock, ingresadosPanel } from './hosp-episodio.js';   // 264 · aviso de ingreso, traslados y egreso
@@ -120,7 +120,7 @@ export async function render(root, context = {}) {
           p_ars: ars.value || null, p_admission: adm.value || null, p_discharge: discharge.value || null, p_notes: notes.value.trim() || null, p_id: r?.id || null });
         out.replaceChildren(); box.open = false; await loadList(); drawReport(report);
         if (!r) { pac.value = ''; doc.value = ''; phone.value = ''; notes.value = ''; adm.value = ''; discharge.value = ''; ars.value = ''; }
-      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
       finally { save.disabled = false; }
     });
     const field = (label, input) => h('label', {}, label, input);
@@ -151,8 +151,16 @@ export async function render(root, context = {}) {
       r.puede_editar ? sendBtn(r) : printBtn(r), out,
       bitacoraBlock(r.id)));
 
-    function delBtn(lineId) { const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar'); b.addEventListener('click', async () => { try { const rr = await rpc('hospital_report_line_remove', { p_line: lineId }); drawReport(rr); await loadList(); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
-    function sendBtn(rep) { const b = h('button', { class: 'i18-btn', type: 'button' }, 'Enviar y avisar a SoFa'); b.addEventListener('click', async () => { if (!rep.admission_date) { out.replaceChildren(note('Indica la fecha de ingreso antes de enviar el reporte.', 'warn')); return; } if (!rep.discharge_date) { out.replaceChildren(note('El paciente sigue ingresado: registra el egreso en «Estancia del paciente» y luego envía el reporte para reclamar.', 'warn')); return; } if (!await confirmDialog('Enviar reporte', '¿Enviar el reporte y avisar al equipo de SoFa? Después no se edita.', 'Enviar', true)) return; try { const rr = await rpc('hospital_report_submit', { p_report: rep.id }); await loadList(); drawReport(rr); } catch (e) { out.replaceChildren(note(e.message, 'error')); } }); return b; }
+    function delBtn(lineId) {
+      const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar');
+      b.addEventListener('click', async () => {
+        if (!await confirmDialog('Quitar servicio', '¿Quitar este servicio del reporte? Puedes volver a agregarlo después.', 'Quitar', true)) return;
+        try { const rr = await rpc('hospital_report_line_remove', { p_line: lineId }); drawReport(rr); await loadList(); }
+        catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
+      });
+      return b;
+    }
+    function sendBtn(rep) { const b = h('button', { class: 'i18-btn', type: 'button' }, 'Enviar y avisar a SoFa'); b.addEventListener('click', async () => { if (!rep.admission_date) { out.replaceChildren(note('Indica la fecha de ingreso antes de enviar el reporte.', 'warn')); return; } if (!rep.discharge_date) { out.replaceChildren(note('El paciente sigue ingresado: registra el egreso en «Estancia del paciente» y luego envía el reporte para reclamar.', 'warn')); return; } if (!await confirmDialog('Enviar reporte', '¿Enviar el reporte y avisar al equipo de SoFa? Después no se edita.', 'Enviar', true)) return; try { const rr = await rpc('hospital_report_submit', { p_report: rep.id }); await loadList(); drawReport(rr); } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); } }); return b; }
     function printBtn(rep) {
       const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Imprimir');
       b.addEventListener('click', () => {
@@ -188,7 +196,7 @@ export async function render(root, context = {}) {
       try { const tar = await rpc('hospital_my_tariff', { p_date: fecha.value || null });
         if (my !== tariffSequence || !box.isConnected) return;
         servSel.replaceChildren(h('option', { value: '' }, 'Elige un servicio de tu tarifario…'), ...(tar || []).map((t) => h('option', { value: t.procedure_id, 'data-amount': t.amount }, `${t.codigo} · ${t.servicio} · ${money(t.amount)}`)));
-      } catch(e) { if (my === tariffSequence) out.replaceChildren(note(e.message, 'error')); }
+      } catch(e) { if (my === tariffSequence) out.replaceChildren(note(friendlyError(e), 'error')); }
       finally { if (my === tariffSequence) servSel.disabled = false; }
     }
     fecha.addEventListener('change', loadTariff);
@@ -200,7 +208,7 @@ export async function render(root, context = {}) {
       try {
         const rr = await rpc('hospital_report_line_add', { p_report: r.id, p_procedure: servSel.value, p_service_date: fecha.value, p_quantity: Number(cant.value || 1), p_unit_amount: precio.value ? Number(precio.value) : null });
         out.replaceChildren(); drawReport(rr); await loadList();
-      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
     });
     box.append(h('summary', {}, 'Agregar un servicio'), h('div', { class: 'hosp-form' }, servSel, fecha, cant, precio, add, out));
     return box;
@@ -259,7 +267,7 @@ async function renderSupport(root, context) {
       const data = await rpc('hospital_support_context', { p_org: organizationId, p_provider: provider });
       if (my !== sequence || !wrap.isConnected) return;
       drawList(data);
-    } catch (e) { if (my === sequence && wrap.isConnected) list.replaceChildren(note(e.message, 'error')); }
+    } catch (e) { if (my === sequence && wrap.isConnected) list.replaceChildren(note(friendlyError(e), 'error')); }
   });
   function drawList(data) {
     const rows = data.reportes || [];
@@ -291,7 +299,7 @@ async function renderSupport(root, context) {
         reportFoot(r),
         note('Solo lectura en modo soporte.', 'info'),
         bitacoraBlock(r.id)));
-    } catch (e) { if (my === sequence && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
+    } catch (e) { if (my === sequence && wrap.isConnected) detail.replaceChildren(note(friendlyError(e), 'error')); }
   }
   drawList(first);
 }
@@ -380,7 +388,7 @@ async function renderStaff(root, context) {
         if (my !== seq || !wrap.isConnected) return;
         if (!result.report || result.report.id !== id) throw new Error('Reporte no disponible.');
         detail.replaceChildren(readOnlyReport(result.report));
-      } catch (e) { if (my === seq && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { if (my === seq && wrap.isConnected) detail.replaceChildren(note(friendlyError(e), 'error')); }
     }
     return;
   }
@@ -393,7 +401,7 @@ async function renderStaff(root, context) {
       rpc('ars_catalog', { p_include_inactive: false }).catch(() => []),
       rpc('hospital_staff_context', { p_report: context.arg || null }),
     ]);
-  } catch (e) { output.replaceChildren(note(e.message, 'error')); return; }
+  } catch (e) { output.replaceChildren(note(friendlyError(e), 'error')); return; }
   if (!wrap.isConnected) return;
 
   if (!targets || !targets.length) {
@@ -462,7 +470,7 @@ async function renderStaff(root, context) {
         const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Quitar');
         b.addEventListener('click', async () => {
           try { const rr = await rpc('hospital_staff_line_remove', { p_line: l.id }); drawDraft(rr, container); }
-          catch (e) { out.replaceChildren(note(e.message, 'error')); }
+          catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
         });
         return b;
       } : null,
@@ -489,7 +497,7 @@ async function renderStaff(root, context) {
           servSel.replaceChildren(h('option', { value: '' }, 'Elige un servicio…'),
             ...(tar || []).map((t) => h('option', { value: t.procedure_id, 'data-amount': t.amount },
               `${t.codigo} · ${t.servicio} · ${money(t.amount)}`)));
-        } catch (e) { if (my === tarSeq) addOut.replaceChildren(note(e.message, 'error')); }
+        } catch (e) { if (my === tarSeq) addOut.replaceChildren(note(friendlyError(e), 'error')); }
         finally { if (my === tarSeq) servSel.disabled = false; }
       }
       fecha.addEventListener('change', loadTariff);
@@ -507,7 +515,7 @@ async function renderStaff(root, context) {
             p_report: r.id, p_procedure: servSel.value, p_service_date: fecha.value,
             p_quantity: Number(cant.value || 1), p_unit_amount: precio.value ? Number(precio.value) : null });
           drawDraft(rr, container);
-        } catch (e) { addOut.replaceChildren(note(e.message, 'error')); }
+        } catch (e) { addOut.replaceChildren(note(friendlyError(e), 'error')); }
         finally { addBtn.disabled = false; }
       });
       addLineBox.append(
@@ -523,7 +531,7 @@ async function renderStaff(root, context) {
         if (!await confirmDialog('Enviar reporte', '¿Enviar? Después no se edita.', 'Enviar', true)) return;
         submitBtn.disabled = true;
         try { const rr = await rpc('hospital_staff_report_submit', { p_report: r.id }); drawDraft(rr, container); }
-        catch (e) { out.replaceChildren(note(e.message, 'error')); }
+        catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
         finally { submitBtn.disabled = false; }
       });
     }
@@ -574,7 +582,7 @@ async function renderStaff(root, context) {
           p_admission: adm.value || null, p_discharge: dis.value || null });
         out.replaceChildren();
         drawDraft(report, detailBox);
-      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
       finally { saveBtn.disabled = false; }
     });
 
@@ -643,7 +651,7 @@ async function renderStaff(root, context) {
                   h('td', { class: 'num' }, String(l.quantity)),
                   h('td', { class: 'num' }, l.unit_amount != null ? money(l.unit_amount) : 'Tarifario')))))),
             importBtn);
-        } catch (e) { preview.replaceChildren(note(e.message, 'error')); parsedLines = []; }
+        } catch (e) { preview.replaceChildren(note(friendlyError(e), 'error')); parsedLines = []; }
       };
       reader.readAsArrayBuffer(file);
     });
@@ -668,7 +676,7 @@ async function renderStaff(root, context) {
         const detailBox = h('div', { 'aria-live': 'polite' });
         tabContent.append(detailBox);
         drawDraft(report, detailBox);
-      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
       finally { importBtn.disabled = false; }
     });
 
@@ -709,9 +717,9 @@ async function renderStaff(root, context) {
           const r = await rpc('hospital_staff_payload', { p_report: id });
           if (!wrap.isConnected) return;
           drawDraft(r, detailBox);
-        } catch (e) { detailBox.replaceChildren(note(e.message, 'error')); }
+        } catch (e) { detailBox.replaceChildren(note(friendlyError(e), 'error')); }
       }
-    } catch (e) { tabContent.replaceChildren(note(e.message, 'error')); }
+    } catch (e) { tabContent.replaceChildren(note(friendlyError(e), 'error')); }
   }
 
   /* ── Tab: Recibidos (solo lectura, equivale al renderStaff original) ── */
@@ -744,7 +752,7 @@ async function renderStaff(root, context) {
         if (my !== seq || !wrap.isConnected) return;
         if (!result.report) throw new Error('Reporte no disponible.');
         detail.replaceChildren(readOnlyReport(result.report));
-      } catch (e) { if (my === seq && wrap.isConnected) detail.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { if (my === seq && wrap.isConnected) detail.replaceChildren(note(friendlyError(e), 'error')); }
     }
   }
 }
@@ -781,7 +789,7 @@ function bitacoraBlock(reportId) {
       if (!entries.length) list.replaceChildren(note('Aún no hay entradas en la bitácora.', 'info'));
       else list.replaceChildren(...entries.map(renderEntry));
       formSlot.replaceChildren(data?.can_write ? renderForm() : document.createDocumentFragment());
-    } catch (e) { list.replaceChildren(note(e.message, 'error')); }
+    } catch (e) { list.replaceChildren(note(friendlyError(e), 'error')); }
   }
 
   function renderEntry(e) {
@@ -813,7 +821,7 @@ function bitacoraBlock(reportId) {
         await rpc('hospital_log_add', { p_report: reportId, p_kind: kindSel.value, p_content: text, p_shared_with_admin: share.checked });
         content.value = ''; share.checked = false; out.replaceChildren();
         await reload();
-      } catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
       finally { btn.disabled = false; }
     });
     return h('div', { class: 'hosp-bita-form' },

@@ -1,4 +1,5 @@
 /** SOFA · 3.9 · Iteración 49 · Tablero de dirección de SOFA (Super Admin y Administrador).
+import { friendlyError } from '../utils/ui.js';
  *  MRR contra la meta, mezcla por servicio, retención, ARPA, horas por cliente y conversión de diagnósticos.
  *  5.35.0 · Sección operativa arriba: alertas semanales, break-even, pipeline, facturación agregada.
  *  Los dos tableros conviven: el operativo responde «qué hago esta semana», el financiero «cómo va el negocio». */
@@ -113,7 +114,7 @@ export async function render(root, ctx = {}) {
     const hc = h('input', { type: 'number', id: 'di-c-h', min: '0', step: '50', value: String(d.hour_cost) });
     const s = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Guardar metas');
     const o = h('div', { 'aria-live': 'polite' });
-    s.addEventListener('click', async () => { try { await rpc('direction_settings_save', { p_target_mrr: Number(t.value), p_mix_pct: Number(mx.value), p_hour_cost: Number(hc.value) }); await load(); } catch (e) { o.replaceChildren(note(e.message, 'error')); } });
+    s.addEventListener('click', async () => { try { await rpc('direction_settings_save', { p_target_mrr: Number(t.value), p_mix_pct: Number(mx.value), p_hour_cost: Number(hc.value) }); await load(); } catch (e) { o.replaceChildren(note(friendlyError(e), 'error')); } });
     cfg.replaceChildren(h('details', { class: 'i18-card' }, h('summary', {}, 'Metas del negocio'),
       h('div', { class: 'i18-bar' }, h('label', { for: 'di-c-t' }, 'Meta mensual (RD$)', t), h('label', { for: 'di-c-m' }, 'Facturación médica (%)', mx), h('label', { for: 'di-c-h' }, 'Costo por hora (RD$)', hc), s), o));
   }
