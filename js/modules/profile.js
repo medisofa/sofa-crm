@@ -1,6 +1,6 @@
 /** SOFA · Mi perfil: datos, contraseña y sesiones */
 import { html, render as paint, $ } from '../utils/dom.js';
-import { toast, friendlyError, busy, fieldError, loadInto } from '../utils/ui.js';
+import { toast, friendlyError, busy, fieldError, loadInto, confirmDialog } from '../utils/ui.js';
 import { getProfile, updateProfile, myRecentProfileChanges, ackProfileChanges } from '../services/admin.js';
 import { passwordProblem, isPhone } from '../utils/validation.js';
 import { signOut } from '../auth.js';
@@ -65,7 +65,10 @@ export async function render(main, ctx) {
       a.value = ''; b.value = ''; toast('Contraseña actualizada', 'ok');
     });
   });
-  $('#outAll', main).addEventListener('click', () => signOut('salida', 'global'));
+  $('#outAll', main).addEventListener('click', async () => {
+    if (!await confirmDialog('Cerrar sesión en todos los dispositivos', 'Esto cerrará tu sesión en todos los navegadores y dispositivos donde la tengas abierta. Tendrás que volver a iniciar sesión. ¿Continuar?', 'Cerrar en todos', true)) return;
+    signOut('salida', 'global');
+  });
 }
 
 /** 5.35.10 / 5.35.11 · Renderiza el aviso de cambios en el perfil + accesos (rol/org)

@@ -4,7 +4,7 @@
  * Los cobros privados son solo control de caja: no generan honorario SOFA.
  */
 import { html, render as paint, $ } from '../utils/dom.js';
-import { toast, friendlyError, opt, formDialog, fieldError, loadingView, emptyView, confirmDialog } from '../utils/ui.js';
+import { toast, friendlyError, opt, formDialog, fieldError, loadingView, emptyView, confirmDialog, busy } from '../utils/ui.js';
 import { money, todayISO, date } from '../utils/formatters.js';
 import { can } from '../utils/permissions.js';
 import { captureProviders, activeArs } from '../services/claims.js';
@@ -304,8 +304,8 @@ export async function renderAgenda(box, ctx) {
   // ---------------------------------------------------------------- eventos
   el('ag_p')?.addEventListener('change', (e) => { mem.provider = e.target.value; load(); });
   el('ag_d').addEventListener('change', (e) => { mem.date = e.target.value || todayISO(); load(); });
-  el('ag_new').addEventListener('click', async () => { try { if (await apptDialog()) { toast('Cita agendada', 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
-  el('ag_walk').addEventListener('click', async () => { try { if (await apptDialog({}, true)) { toast('Paciente en espera', 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } });
+  el('ag_new').addEventListener('click', () => busy(el('ag_new'), async () => { try { if (await apptDialog()) { toast('Cita agendada', 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } }));
+  el('ag_walk').addEventListener('click', () => busy(el('ag_walk'), async () => { try { if (await apptDialog({}, true)) { toast('Paciente en espera', 'ok'); load(); } } catch (err) { toast(friendlyError(err), 'bad'); } }));
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     try {

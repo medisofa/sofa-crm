@@ -1,5 +1,5 @@
 /** SOFA · 3.9 · Registro de horas del equipo SOFA por cliente (opcional). Sirve para medir horas por cliente y margen. */
-import { friendlyError } from '../utils/ui.js';
+import { friendlyError, confirmDialog } from '../utils/ui.js';
 import { rpc, h, fmtDate, note, guarded, clientOptions, clientName, downloadCsv } from '../services/iter18.js';
 
 const ACT = { facturacion: 'Facturación', glosas: 'Glosas', codificacion: 'Codificación', habilitacion: 'Habilitación', renegociacion: 'Renegociación',
@@ -37,7 +37,11 @@ export async function render(root) {
     const total = d.reduce((a, x) => a + Number(x.hours), 0);
     list.replaceChildren(h('h3', {}, `Últimos 14 días: ${total} hora(s)`), d.length ? h('ul', {}, d.map((x) => {
       const del = h('button', { class: 'i18-btn i18-sec', type: 'button', 'aria-label': 'Borrar registro' }, 'Borrar');
-      del.addEventListener('click', async () => { try { await rpc('staff_time_delete', { p_id: x.id }); load(); } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); } });
+      del.addEventListener('click', async () => {
+        if (!await confirmDialog('Borrar registro', `¿Borrar las ${x.hours} hora(s) del ${fmtDate(x.work_date)} en ${x.client}?`, 'Borrar', true)) return;
+        try { await rpc('staff_time_delete', { p_id: x.id }); load(); }
+        catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
+      });
       return h('li', {}, `${fmtDate(x.work_date)} · ${x.client} · ${ACT[x.activity] || x.activity} · ${x.hours} h${x.note ? ` · ${x.note}` : ''} `, del);
     })) : note('Sin registros.'));
   }
