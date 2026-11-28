@@ -1,4 +1,5 @@
 /** SOFA · 4.8.0 · P2 · «Mi suscripción»: el estado de la suscripción del consultorio, sus pre-facturas y la cancelación a fin de mes.
+import { friendlyError } from '../utils/ui.js';
  *  El Médico ve solo lo suyo (el servidor lo verifica en cada función). Las pre-facturas son documentos internos de SOFA, NO fiscales:
  *  el comprobante fiscal se emite fuera de SOFA. Quien paga registra la referencia con SOFA; el cliente no cambia su plan ni su estado. */
 import { rpc, h, money, fmtDate, note, kpi, guarded, table } from '../services/iter18.js';
@@ -93,7 +94,7 @@ export async function render(root, ctx = {}) {
       const undo = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Anular la cancelación');
       undo.addEventListener('click', async () => {
         undo.disabled = true; msg.replaceChildren();
-        try { await rpc('sub_cancel_undo', { p_org: org }); await load(); } catch (e) { msg.replaceChildren(note(e.message, 'error')); undo.disabled = false; }
+        try { await rpc('sub_cancel_undo', { p_org: org }); await load(); } catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); undo.disabled = false; }
       });
       return h('section', { class: 'i18-card' }, h('h3', {}, 'Cancelación pedida'), h('p', {}, `Su suscripción termina el ${fmtDate(s.cancel_effective_on)} y sus datos se conservan hasta el ${fmtDate(s.retention_until)}.`), undo, msg);
     }
@@ -103,7 +104,7 @@ export async function render(root, ctx = {}) {
       if (!window.confirm('La suscripción terminará el último día de este mes. SOFA preparará la exportación completa de sus datos y los conservará 90 días. ¿Desea continuar?')) return;
       go.disabled = true; msg.replaceChildren();
       try { const r = await rpc('sub_cancel_request', { p_org: org, p_note: why.value || null }); await load(); out.replaceChildren(note(r.message, 'ok')); }
-      catch (e) { msg.replaceChildren(note(e.message, 'error')); go.disabled = false; }
+      catch (e) { msg.replaceChildren(note(friendlyError(e), 'error')); go.disabled = false; }
     });
     return h('details', { class: 'i18-card' }, h('summary', {}, 'Cancelar la suscripción'),
       h('p', { class: 'i18-sub' }, 'La cancelación es a fin de mes. Se le prepara la exportación completa de sus datos y se conservan 90 días. Puede anularla antes de esa fecha.'),
@@ -127,7 +128,7 @@ export async function render(root, ctx = {}) {
       const sel = h('select', { id: 'su-org' }, h('option', { value: '' }, 'Elija un cliente…'), cs.map((c) => h('option', { value: c.id }, clientName(c))));
       sel.addEventListener('change', () => { org = sel.value || null; load(); });
       picker.replaceChildren(h('label', { for: 'su-org' }, 'Cliente', sel));
-    } catch (e) { picker.replaceChildren(note(e.message, 'error')); }
+    } catch (e) { picker.replaceChildren(note(friendlyError(e), 'error')); }
   }
   await load();
 }

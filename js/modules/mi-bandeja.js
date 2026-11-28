@@ -1,4 +1,5 @@
 /** SOFA · 4.9.0 · I59 · «Mi bandeja»: la bandeja única de trabajo del facturador.
+import { friendlyError } from '../utils/ui.js';
  *  Una sola cola, en orden, con lo que hay que hacer hoy: capturas incompletas, lotes por radicar, glosas por responder y cobros por escalar.
  *  Facturación ve solo lo suyo; Super Admin, Administrador y Operaciones ven todo lo que su acceso permite y administran asignaciones y ausencias.
  *  La cola se calcula en la base de datos desde las tablas existentes (no guarda copias) y el servidor vuelve a verificar el rol en cada función. */
@@ -175,7 +176,7 @@ export async function render(root, ctx = {}) {
     const d = await guarded(box, () => rpc('inbox_assignments_list'));
     if (!d) return;
     let clients = [];
-    try { clients = await realClientOptions(); } catch (e) { box.append(note(e.message, 'error')); }
+    try { clients = await realClientOptions(); } catch (e) { box.append(note(friendlyError(e), 'error')); }
     const org = h('select', { id: 'mb-as-org' }, h('option', { value: '' }, 'Elija un cliente…'), clients.map((c) => h('option', { value: c.id }, clientName(c))));
     const who = h('select', { id: 'mb-as-who' }, h('option', { value: '' }, 'Elija a la persona…'), d.billers.map((b) => h('option', { value: b.user_id }, b.name)));
     const typ = h('select', { id: 'mb-as-type' }, h('option', { value: '' }, 'Todos los tipos de tarea'), d.types.map((t) => h('option', { value: t.code }, t.label)));
@@ -188,7 +189,7 @@ export async function render(root, ctx = {}) {
         const r = await rpc('inbox_assignment_save', { p_org: org.value || null, p_assignee: who.value || null, p_type: typ.value || null, p_note: why.value });
         await show();
         const o = document.getElementById('mb-out'); if (o) o.replaceChildren(note(r.previous_assignee ? 'Asignación cambiada: la anterior quedó en el historial.' : 'Asignación guardada.', 'ok'));
-      } catch (e) { out.replaceChildren(note(e.message, 'error')); go.disabled = false; }
+      } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); go.disabled = false; }
     });
     const form = h('div', { class: 'i18-card' }, h('p', { class: 'i18-sub' }, 'Cada cliente tiene una persona fija de Facturación. Si elige un tipo de tarea, esa asignación manda sobre la general del cliente (por ejemplo, las glosas de un cliente las lleva otra persona).'),
       h('div', { class: 'i18-bar' }, h('label', { for: 'mb-as-org' }, 'Cliente', org), h('label', { for: 'mb-as-who' }, 'Responsable', who), h('label', { for: 'mb-as-type' }, 'Tipo de tarea', typ), h('label', { for: 'mb-as-note' }, 'Nota', why), go), out);
@@ -196,7 +197,7 @@ export async function render(root, ctx = {}) {
       { label: 'Cliente', get: (a) => a.client }, { label: 'Tipo de tarea', get: (a) => a.type_label }, { label: 'Responsable', get: (a) => a.assignee },
       { label: 'Desde', get: (a) => fmtDate(a.since) }, { label: 'Estado', get: (a) => (a.available ? 'Disponible' : h('span', { class: 'mb-over' }, 'No disponible: reasigne')) },
       { label: '', get: (a) => { const b = h('button', { class: 'i18-btn i18-sec', type: 'button', 'aria-label': `Quitar la asignación de ${a.client}` }, 'Quitar'); b.addEventListener('click', async () => {
-        b.disabled = true; try { await rpc('inbox_assignment_remove', { p_id: a.id }); await show(); } catch (e) { const o = document.getElementById('mb-out'); if (o) o.replaceChildren(note(e.message, 'error')); b.disabled = false; } }); return b; } }
+        b.disabled = true; try { await rpc('inbox_assignment_remove', { p_id: a.id }); await show(); } catch (e) { const o = document.getElementById('mb-out'); if (o) o.replaceChildren(note(friendlyError(e), 'error')); b.disabled = false; } }); return b; } }
     ], d.assignments) : note('Todavía no hay clientes asignados.', 'warn');
     const unc = d.uncovered.length ? h('div', { class: 'i18-card' }, h('strong', {}, 'Clientes sin cubrir'), h('p', { class: 'i18-sub' }, 'Sus tareas aparecen «sin responsable» solo para la supervisión.'),
       h('ul', { class: 'mb-reasons' }, d.uncovered.map((u) => { const b = h('button', { class: 'i18-btn i18-sec', type: 'button' }, 'Asignar');
@@ -224,7 +225,7 @@ export async function render(root, ctx = {}) {
         const r = await rpc('inbox_absence_save', { p_user: who.value || null, p_from: from.value || null, p_to: to.value || null, p_backup: bk.value || null, p_note: why.value });
         await show();
         const o = document.getElementById('mb-out'); if (o) o.replaceChildren(note(`Ausencia registrada. Tareas que hoy pasan al suplente o a la supervisión: ${r.tasks_now}.${r.warnings.length ? ' ' + r.warnings.join(' ') : ''}`, r.warnings.length ? 'warn' : 'ok'));
-      } catch (e) { out.replaceChildren(note(e.message, 'error')); go.disabled = false; }
+      } catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); go.disabled = false; }
     });
     const form = h('div', { class: 'i18-card' }, h('p', { class: 'i18-sub' }, 'Mientras la persona falta, lo suyo pasa solo a su suplente; al terminar las fechas todo vuelve a ella. Sin suplente, las tareas quedan «sin responsable» para la supervisión.'),
       h('div', { class: 'i18-bar' }, h('label', { for: 'mb-ab-who' }, 'Persona que falta', who), h('label', { for: 'mb-ab-from' }, 'Desde', from), h('label', { for: 'mb-ab-to' }, 'Hasta (inclusive)', to),
@@ -233,7 +234,7 @@ export async function render(root, ctx = {}) {
       { label: 'Persona', get: (a) => a.name }, { label: 'Desde', get: (a) => fmtDate(a.starts_on) }, { label: 'Hasta', get: (a) => fmtDate(a.ends_on) },
       { label: 'Suplente', get: (a) => a.backup || h('span', { class: 'mb-none' }, 'Sin suplente') }, { label: 'Estado', get: (a) => ABS[a.status] || a.status }, { label: 'Motivo', get: (a) => a.note || '—' },
       { label: '', get: (a) => { if (a.status === 'terminada') return ''; const b = h('button', { class: 'i18-btn i18-sec', type: 'button', 'aria-label': `Cancelar la ausencia de ${a.name}` }, 'Cancelar');
-        b.addEventListener('click', async () => { b.disabled = true; try { await rpc('inbox_absence_cancel', { p_id: a.id }); await show(); } catch (e) { const o = document.getElementById('mb-out'); if (o) o.replaceChildren(note(e.message, 'error')); b.disabled = false; } }); return b; } }
+        b.addEventListener('click', async () => { b.disabled = true; try { await rpc('inbox_absence_cancel', { p_id: a.id }); await show(); } catch (e) { const o = document.getElementById('mb-out'); if (o) o.replaceChildren(note(friendlyError(e), 'error')); b.disabled = false; } }); return b; } }
     ], list) : note('No hay ausencias registradas.', 'info');
     box.replaceChildren(h('div', { id: 'mb-out', 'aria-live': 'polite' }), form, h('h3', {}, 'Ausencias'), rows);
   }
@@ -264,7 +265,7 @@ export async function render(root, ctx = {}) {
     if (close) close.addEventListener('click', async () => {
       if (!window.confirm('Se guarda la foto de hoy de las tareas vencidas de cada persona. Si ya se había cerrado hoy, se reemplaza. ¿Continuar?')) return;
       close.disabled = true;
-      try { const r = await rpc('inbox_close_day_now'); res.replaceChildren(note(`Día cerrado: ${r.rows} fila(s) guardadas.`, 'ok')); } catch (e) { res.replaceChildren(note(e.message, 'error')); }
+      try { const r = await rpc('inbox_close_day_now'); res.replaceChildren(note(`Día cerrado: ${r.rows} fila(s) guardadas.`, 'ok')); } catch (e) { res.replaceChildren(note(friendlyError(e), 'error')); }
       close.disabled = false;
     });
     await load();
@@ -283,7 +284,7 @@ export async function render(root, ctx = {}) {
     go.addEventListener('click', async () => {
       out.replaceChildren(); go.disabled = true;
       try { await rpc('inbox_params_set', { p_grace: Number(grace.value), p_soon: Number(soon.value), p_high: Number(high.value) }); out.replaceChildren(note('Reglas guardadas.', 'ok')); }
-      catch (e) { out.replaceChildren(note(e.message, 'error')); }
+      catch (e) { out.replaceChildren(note(friendlyError(e), 'error')); }
       go.disabled = false;
     });
     box.replaceChildren(h('div', { class: 'i18-card' },
