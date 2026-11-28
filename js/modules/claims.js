@@ -436,7 +436,16 @@ export async function render(main, ctx) {
         return true;
       }
     });
-    if (r) { await loadCoreDuplicates(); load(); toast('Decisión registrada. Consulta el bloqueo actualizado; la revisión no modifica las reclamaciones.', 'warn'); }
+    // 5.48.1 · El toast confirma antes del reload: el usuario sabe que la decisión quedó
+    // registrada sin esperar a que `loadCoreDuplicates()` termine (puede traer hasta 1000
+    // reclamaciones). El reload pasa a fire-and-forget con `.catch` a toast. Mantiene el
+    // comportamiento del rediseño de #178 pero elimina la latencia visible entre el click
+    // en «Guardar decisión» y el feedback del usuario. Alineado con el fix original de #176.
+    if (r) {
+      toast('Decisión registrada. Consulta el bloqueo actualizado; la revisión no modifica las reclamaciones.', 'warn');
+      loadCoreDuplicates().catch((e) => toast(friendlyError(e), 'warn'));
+      load();
+    }
   }
 
   $('#coreDup', main).addEventListener('click', (e) => {
